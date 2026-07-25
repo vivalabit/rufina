@@ -416,6 +416,89 @@ class ExperienceRewriteRecord(OwnerScoped, Base):
     )
 
 
+class AtsFinalReviewRecord(OwnerScoped, Base):
+    """Immutable ATS review and the sole JSON input for final resume rendering."""
+
+    __tablename__ = "ats_final_reviews"
+    __table_args__ = (
+        CheckConstraint(
+            "input_tokens >= 0 AND output_tokens >= 0 AND total_tokens >= 0",
+            name="ck_ats_final_reviews_tokens_nonnegative",
+        ),
+        CheckConstraint(
+            "latency_ms >= 0",
+            name="ck_ats_final_reviews_latency_nonnegative",
+        ),
+        Index(
+            "ix_ats_final_reviews_input",
+            "owner_id",
+            "experience_rewrite_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    experience_rewrite_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "experience_rewrites.id",
+            ondelete="CASCADE",
+            name="fk_ats_final_reviews_experience_rewrite",
+        ),
+        nullable=False,
+        index=True,
+    )
+    resume_master_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "resume_masters.id",
+            ondelete="CASCADE",
+            name="fk_ats_final_reviews_master",
+        ),
+        nullable=False,
+        index=True,
+    )
+    resume_master_version_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "resume_master_versions.id",
+            ondelete="CASCADE",
+            name="fk_ats_final_reviews_master_version",
+        ),
+        nullable=False,
+        index=True,
+    )
+    target_job_id: Mapped[str] = mapped_column(
+        String(160),
+        nullable=False,
+        index=True,
+    )
+    prompt_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    result: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    render_input: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    model: Mapped[str] = mapped_column(String(160), nullable=False)
+    backend: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider_session_id: Mapped[str] = mapped_column(
+        String(500),
+        nullable=False,
+        default="",
+    )
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    token_count_source: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="unavailable",
+    )
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+
 @event.listens_for(ResumeSourceFileRecord, "before_update")
 def prevent_resume_source_file_mutation(
     _mapper: object,
@@ -492,6 +575,17 @@ def prevent_experience_rewrite_mutation(
     state = inspect(rewrite)
     if any(attribute.history.has_changes() for attribute in state.attrs):
         raise ValueError("Experience rewrites are immutable")
+
+
+@event.listens_for(AtsFinalReviewRecord, "before_update")
+def prevent_ats_final_review_mutation(
+    _mapper: object,
+    _connection: object,
+    review: AtsFinalReviewRecord,
+) -> None:
+    state = inspect(review)
+    if any(attribute.history.has_changes() for attribute in state.attrs):
+        raise ValueError("ATS final reviews are immutable")
 
 
 class StrictResumeModel(BaseModel):
@@ -956,6 +1050,35 @@ class FinalResume(StrictResumeModel):
         return self
 
 
+class AtsSkippedSection(StrictResumeModel):
+    section: ResumeSectionName
+    reason: StrictText = Field(max_length=2_000)
+    action: StrictText = Field(max_length=2_000)
+
+
+class AtsScan(StrictResumeModel):
+    skipped_sections: list[AtsSkippedSection] = Field(
+        default_factory=list,
+        alias="skippedSections",
+        max_length=8,
+    )
+
+    @model_validator(mode="after")
+    def require_unique_sections(self) -> AtsScan:
+        _require_unique(
+            (item.section for item in self.skipped_sections),
+            "ATS skipped sections",
+        )
+        return self
+
+
+class AtsFinalReview(StrictResumeModel):
+    """Strict output of mandatory resume-tailoring request number three."""
+
+    ats_scan: AtsScan = Field(alias="atsScan")
+    final_resume: FinalResume = Field(alias="finalResume")
+
+
 class SeniorRecruiterKeyword(StrictResumeModel):
     keyword: StrictText = Field(max_length=200)
     why_it_matters: StrictText = Field(alias="whyItMatters", max_length=2_000)
@@ -1076,6 +1199,36 @@ class ExperienceRewriteResponse(StrictResumeModel):
     target_job_id: TailoringTargetJobId = Field(alias="targetJobId")
     experience_rewrite: ExperienceRewrite = Field(alias="experienceRewrite")
     metrics: ExperienceRewriteMetrics
+    model: StrictText = Field(max_length=160)
+    backend: Literal["openclaw_codex", "openai_api"]
+    prompt_version: StrictText = Field(alias="promptVersion", max_length=64)
+    created_at: datetime = Field(alias="createdAt")
+
+
+class AtsFinalReviewRequest(StrictResumeModel):
+    experience_rewrite_id: CanonicalId = Field(alias="experienceRewriteId")
+
+
+class AtsFinalReviewMetrics(StrictResumeModel):
+    latency_ms: int = Field(alias="latencyMs", ge=0)
+    input_tokens: int = Field(alias="inputTokens", ge=0)
+    output_tokens: int = Field(alias="outputTokens", ge=0)
+    total_tokens: int = Field(alias="totalTokens", ge=0)
+    token_count_source: StrictText = Field(
+        alias="tokenCountSource",
+        max_length=32,
+    )
+
+
+class AtsFinalReviewResponse(StrictResumeModel):
+    id: CanonicalId
+    experience_rewrite_id: CanonicalId = Field(alias="experienceRewriteId")
+    master_resume_id: ResumeId = Field(alias="masterResumeId")
+    master_resume_version: int = Field(alias="masterResumeVersion", ge=1)
+    target_job_id: TailoringTargetJobId = Field(alias="targetJobId")
+    ats_scan: AtsScan = Field(alias="atsScan")
+    final_resume: FinalResume = Field(alias="finalResume")
+    metrics: AtsFinalReviewMetrics
     model: StrictText = Field(max_length=160)
     backend: Literal["openclaw_codex", "openai_api"]
     prompt_version: StrictText = Field(alias="promptVersion", max_length=64)
@@ -1250,6 +1403,13 @@ Evidence = ResumeEvidence
 
 __all__ = [
     "AdditionalResumeSection",
+    "AtsFinalReview",
+    "AtsFinalReviewMetrics",
+    "AtsFinalReviewRecord",
+    "AtsFinalReviewRequest",
+    "AtsFinalReviewResponse",
+    "AtsScan",
+    "AtsSkippedSection",
     "CanonicalId",
     "CanonicalMasterResume",
     "Evidence",

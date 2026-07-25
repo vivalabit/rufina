@@ -11,6 +11,13 @@ from app.models.job_search import (
     SearchFilters,
 )
 from app.models.resume import (
+    AtsFinalReview,
+    AtsFinalReviewMetrics,
+    AtsFinalReviewRecord,
+    AtsFinalReviewRequest,
+    AtsFinalReviewResponse,
+    AtsScan,
+    AtsSkippedSection,
     ExperienceBulletRewriteLink,
     ExperienceRewrite,
     ExperienceRewriteLink,
@@ -42,6 +49,13 @@ from app.models.resume import (
 )
 
 __all__ = [
+    "AtsFinalReview",
+    "AtsFinalReviewMetrics",
+    "AtsFinalReviewRecord",
+    "AtsFinalReviewRequest",
+    "AtsFinalReviewResponse",
+    "AtsScan",
+    "AtsSkippedSection",
     "ExperienceBulletRewriteLink",
     "ExperienceRewrite",
     "ExperienceRewriteLink",
