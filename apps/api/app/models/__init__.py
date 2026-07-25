@@ -26,6 +26,13 @@ from app.models.resume import (
     ResumeSourceExtraction,
     ResumeSourceFragment,
     ResumeSourceFileRecord,
+    SeniorRecruiterAnalysis,
+    SeniorRecruiterAnalysisMetrics,
+    SeniorRecruiterAnalysisRecord,
+    SeniorRecruiterAnalysisRequest,
+    SeniorRecruiterAnalysisResponse,
+    SeniorRecruiterKeyword,
+    SeniorRecruiterRedFlag,
 )
 
 __all__ = [
@@ -49,6 +56,13 @@ __all__ = [
     "ResumeSourceExtraction",
     "ResumeSourceFragment",
     "ResumeSourceFileRecord",
+    "SeniorRecruiterAnalysis",
+    "SeniorRecruiterAnalysisMetrics",
+    "SeniorRecruiterAnalysisRecord",
+    "SeniorRecruiterAnalysisRequest",
+    "SeniorRecruiterAnalysisResponse",
+    "SeniorRecruiterKeyword",
+    "SeniorRecruiterRedFlag",
     "ScreeningConfig",
     "ScreeningRule",
     "SearchFilters",

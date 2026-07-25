@@ -30,6 +30,14 @@ class Settings(BaseSettings):
     openclaw_agent_id: str = "rufina-assistant"
     openclaw_resume_import_thinking: str = "high"
     openclaw_resume_import_timeout_seconds: int = 120
+    openclaw_resume_tailoring_enabled: bool = True
+    openclaw_resume_tailoring_model: str = "openai/gpt-5.6-terra"
+    openclaw_resume_tailoring_thinking: str = "high"
+    openclaw_resume_tailoring_timeout_seconds: int = Field(
+        default=120,
+        ge=10,
+        le=600,
+    )
     openclaw_ai_match_enabled: bool = True
     openclaw_ai_match_model: str = "openai/gpt-5.6-terra"
     openclaw_ai_match_thinking: str = "low"

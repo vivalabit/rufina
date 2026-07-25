@@ -9,6 +9,7 @@ from sqlalchemy import (
     CheckConstraint,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     LargeBinary,
     String,
@@ -254,6 +255,80 @@ class ResumeMasterVersionRecord(OwnerScoped, Base):
     )
 
 
+class SeniorRecruiterAnalysisRecord(OwnerScoped, Base):
+    """Immutable result of the mandatory first resume-tailoring AI stage."""
+
+    __tablename__ = "senior_recruiter_analyses"
+    __table_args__ = (
+        CheckConstraint(
+            "input_tokens >= 0 AND output_tokens >= 0 AND total_tokens >= 0",
+            name="ck_senior_recruiter_analyses_tokens_nonnegative",
+        ),
+        CheckConstraint(
+            "latency_ms >= 0",
+            name="ck_senior_recruiter_analyses_latency_nonnegative",
+        ),
+        Index(
+            "ix_senior_recruiter_analyses_input",
+            "owner_id",
+            "resume_master_version_id",
+            "target_job_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    resume_master_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "resume_masters.id",
+            ondelete="CASCADE",
+            name="fk_senior_recruiter_analyses_master",
+        ),
+        nullable=False,
+        index=True,
+    )
+    resume_master_version_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "resume_master_versions.id",
+            ondelete="CASCADE",
+            name="fk_senior_recruiter_analyses_master_version",
+        ),
+        nullable=False,
+        index=True,
+    )
+    target_job_id: Mapped[str] = mapped_column(
+        String(160),
+        nullable=False,
+        index=True,
+    )
+    vacancy_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    result: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    model: Mapped[str] = mapped_column(String(160), nullable=False)
+    backend: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider_session_id: Mapped[str] = mapped_column(
+        String(500),
+        nullable=False,
+        default="",
+    )
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    token_count_source: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="unavailable",
+    )
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+
 @event.listens_for(ResumeSourceFileRecord, "before_update")
 def prevent_resume_source_file_mutation(
     _mapper: object,
@@ -305,6 +380,20 @@ def prevent_resume_master_version_mutation(
     )
     if any(state.attrs[field].history.has_changes() for field in immutable_fields):
         raise ValueError("Resume master versions are immutable")
+
+
+@event.listens_for(SeniorRecruiterAnalysisRecord, "before_update")
+def prevent_senior_recruiter_analysis_mutation(
+    _mapper: object,
+    _connection: object,
+    analysis: SeniorRecruiterAnalysisRecord,
+) -> None:
+    state = inspect(analysis)
+    if any(
+        attribute.history.has_changes()
+        for attribute in state.attrs
+    ):
+        raise ValueError("Senior recruiter analyses are immutable")
 
 
 class StrictResumeModel(BaseModel):
@@ -685,6 +774,99 @@ class FinalResume(StrictResumeModel):
         return self
 
 
+class SeniorRecruiterKeyword(StrictResumeModel):
+    keyword: StrictText = Field(max_length=200)
+    why_it_matters: StrictText = Field(alias="whyItMatters", max_length=2_000)
+    evidence_status: Literal["verified", "transferable", "unsupported"] = Field(
+        alias="evidenceStatus",
+    )
+    evidence_ids: list[EvidenceId] = Field(
+        default_factory=list,
+        alias="evidenceIds",
+        max_length=20,
+    )
+
+    @model_validator(mode="after")
+    def validate_evidence_status(self) -> SeniorRecruiterKeyword:
+        _require_unique(self.evidence_ids, "keyword evidenceIds")
+        if self.evidence_status == "unsupported" and self.evidence_ids:
+            raise ValueError("unsupported keywords must not cite resume evidence")
+        if self.evidence_status != "unsupported" and not self.evidence_ids:
+            raise ValueError(
+                "verified and transferable keywords must cite resume evidence"
+            )
+        return self
+
+
+class SeniorRecruiterRedFlag(StrictResumeModel):
+    flag: StrictText = Field(max_length=500)
+    why_it_is_visible: StrictText = Field(
+        alias="whyItIsVisible",
+        max_length=2_000,
+    )
+    fix: StrictText = Field(max_length=2_000)
+
+
+class SeniorRecruiterAnalysis(StrictResumeModel):
+    """Strict output of mandatory resume-tailoring request number one."""
+
+    missing_keywords: list[SeniorRecruiterKeyword] = Field(
+        alias="missingKeywords",
+        min_length=5,
+        max_length=5,
+    )
+    red_flags: list[SeniorRecruiterRedFlag] = Field(
+        alias="redFlags",
+        min_length=3,
+        max_length=3,
+    )
+
+    @model_validator(mode="after")
+    def require_unique_findings(self) -> SeniorRecruiterAnalysis:
+        normalized_keywords = [
+            item.keyword.casefold() for item in self.missing_keywords
+        ]
+        normalized_red_flags = [item.flag.casefold() for item in self.red_flags]
+        _require_unique(normalized_keywords, "missing keywords")
+        _require_unique(normalized_red_flags, "red flags")
+        return self
+
+
+TailoringTargetJobId = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=160),
+]
+
+
+class SeniorRecruiterAnalysisRequest(StrictResumeModel):
+    master_resume_id: ResumeId = Field(alias="masterResumeId")
+    target_job_id: TailoringTargetJobId = Field(alias="targetJobId")
+
+
+class SeniorRecruiterAnalysisMetrics(StrictResumeModel):
+    latency_ms: int = Field(alias="latencyMs", ge=0)
+    input_tokens: int = Field(alias="inputTokens", ge=0)
+    output_tokens: int = Field(alias="outputTokens", ge=0)
+    total_tokens: int = Field(alias="totalTokens", ge=0)
+    token_count_source: StrictText = Field(
+        alias="tokenCountSource",
+        max_length=32,
+    )
+
+
+class SeniorRecruiterAnalysisResponse(StrictResumeModel):
+    id: CanonicalId
+    master_resume_id: ResumeId = Field(alias="masterResumeId")
+    master_resume_version: int = Field(alias="masterResumeVersion", ge=1)
+    target_job_id: TailoringTargetJobId = Field(alias="targetJobId")
+    analysis: SeniorRecruiterAnalysis
+    metrics: SeniorRecruiterAnalysisMetrics
+    model: StrictText = Field(max_length=160)
+    backend: Literal["openclaw_codex", "openai_api"]
+    prompt_version: StrictText = Field(alias="promptVersion", max_length=64)
+    created_at: datetime = Field(alias="createdAt")
+
+
 class MasterResumeReviewSection(StrictResumeModel):
     name: MasterResumeReviewSectionName
     item_count: int = Field(alias="itemCount", ge=0)
@@ -869,8 +1051,11 @@ __all__ = [
     "MasterLanguage",
     "MasterProject",
     "MasterResume",
+    "MasterResumeConfirmationRequest",
+    "MasterResumeConfirmationResponse",
     "MasterResumeImportRequest",
     "MasterResumeImportResponse",
+    "MasterResumeReviewSection",
     "MasterSkill",
     "ResumeBasics",
     "ResumeBullet",
@@ -885,6 +1070,13 @@ __all__ = [
     "ResumeSourceFragment",
     "ResumeSourceFileRecord",
     "RewrittenExperience",
+    "SeniorRecruiterAnalysis",
+    "SeniorRecruiterAnalysisMetrics",
+    "SeniorRecruiterAnalysisRecord",
+    "SeniorRecruiterAnalysisRequest",
+    "SeniorRecruiterAnalysisResponse",
+    "SeniorRecruiterKeyword",
+    "SeniorRecruiterRedFlag",
     "StrictResumeModel",
     "TailoredResume",
 ]
