@@ -107,6 +107,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "resume_master_versions",
             "resume_source_files",
             "senior_recruiter_analyses",
+            "experience_rewrites",
         }
         for table_name in owner_tables:
             owner_column = next(
@@ -124,7 +125,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260725_0022"
+            assert revision == "20260725_0023"
         assert inspect(engine).get_pk_constraint("stored_jobs")["constrained_columns"] == [
             "owner_id",
             "id",
@@ -266,6 +267,50 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
                 "senior_recruiter_analyses"
             )
         } == {
+            (("resume_master_id",), "resume_masters", "CASCADE"),
+            (
+                ("resume_master_version_id",),
+                "resume_master_versions",
+                "CASCADE",
+            ),
+        }
+        experience_rewrite_columns = {
+            column["name"]
+            for column in inspect(engine).get_columns("experience_rewrites")
+        }
+        assert experience_rewrite_columns >= {
+            "senior_recruiter_analysis_id",
+            "resume_master_id",
+            "resume_master_version_id",
+            "target_job_id",
+            "prompt_version",
+            "original_experiences",
+            "result",
+            "links",
+            "model",
+            "backend",
+            "provider_session_id",
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "token_count_source",
+            "latency_ms",
+        }
+        assert {
+            (
+                tuple(foreign_key["constrained_columns"]),
+                foreign_key["referred_table"],
+                foreign_key["options"].get("ondelete"),
+            )
+            for foreign_key in inspect(engine).get_foreign_keys(
+                "experience_rewrites"
+            )
+        } == {
+            (
+                ("senior_recruiter_analysis_id",),
+                "senior_recruiter_analyses",
+                "CASCADE",
+            ),
             (("resume_master_id",), "resume_masters", "CASCADE"),
             (
                 ("resume_master_version_id",),
@@ -610,7 +655,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-        assert revision == "20260725_0022"
+        assert revision == "20260725_0023"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))

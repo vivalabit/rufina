@@ -135,6 +135,18 @@ def test_experience_rewrite_links_each_master_experience_once() -> None:
                     ],
                 }
             ],
+            "links": [
+                {
+                    "originalExperienceId": "experience:acme",
+                    "rewrittenExperienceId": "rewrite:acme",
+                    "bulletLinks": [
+                        {
+                            "originalBulletIds": ["bullet:acme:api"],
+                            "rewrittenBulletId": "tailored-bullet:acme:api",
+                        }
+                    ],
+                }
+            ],
         }
     )
 

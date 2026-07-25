@@ -11,7 +11,13 @@ from app.models.job_search import (
     SearchFilters,
 )
 from app.models.resume import (
+    ExperienceBulletRewriteLink,
     ExperienceRewrite,
+    ExperienceRewriteLink,
+    ExperienceRewriteMetrics,
+    ExperienceRewriteRecord,
+    ExperienceRewriteRequest,
+    ExperienceRewriteResponse,
     FinalResume,
     MasterResume,
     MasterResumeConfirmationRequest,
@@ -36,7 +42,13 @@ from app.models.resume import (
 )
 
 __all__ = [
+    "ExperienceBulletRewriteLink",
     "ExperienceRewrite",
+    "ExperienceRewriteLink",
+    "ExperienceRewriteMetrics",
+    "ExperienceRewriteRecord",
+    "ExperienceRewriteRequest",
+    "ExperienceRewriteResponse",
     "FinalResume",
     "JobScreeningDecisionRecord",
     "JobSearchConfigV2",

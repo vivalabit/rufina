@@ -9,16 +9,21 @@ from app.core.identity import bind_request_identity, get_bound_owner_id
 from app.core.settings import Settings, get_settings
 from app.models.jobs import StoredJobRecord
 from app.models.resume import (
+    ExperienceRewriteRequest,
+    ExperienceRewriteResponse,
     MasterResume,
     ResumeMasterRecord,
     ResumeMasterVersionRecord,
     SeniorRecruiterAnalysisRequest,
+    SeniorRecruiterAnalysis,
+    SeniorRecruiterAnalysisRecord,
     SeniorRecruiterAnalysisResponse,
 )
 from app.services.ai_privacy import require_current_ai_consent
 from app.services.resume_tailoring import (
     ResumeTailoringError,
     create_resume_tailoring_ai_facade,
+    persist_experience_rewrite,
     persist_senior_recruiter_analysis,
 )
 
@@ -107,4 +112,84 @@ def run_senior_recruiter_analysis(
         ) from exc
 
 
-__all__ = ["router", "run_senior_recruiter_analysis"]
+@router.post(
+    "/experience-rewrite",
+    response_model=ExperienceRewriteResponse,
+)
+def run_xyz_experience_rewrite(
+    payload: ExperienceRewriteRequest,
+    _consent=Depends(require_current_ai_consent),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> ExperienceRewriteResponse:
+    if not settings.openclaw_resume_tailoring_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI resume tailoring is disabled.",
+        )
+
+    try:
+        recruiter_analysis = db.get(
+            SeniorRecruiterAnalysisRecord,
+            payload.senior_recruiter_analysis_id,
+        )
+        if recruiter_analysis is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Senior recruiter analysis not found",
+            )
+        master_version = db.get(
+            ResumeMasterVersionRecord,
+            recruiter_analysis.resume_master_version_id,
+        )
+        if master_version is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Analyzed Master Resume version is unavailable",
+            )
+
+        master_resume = MasterResume.model_validate(master_version.data)
+        saved_analysis = SeniorRecruiterAnalysis.model_validate(
+            recruiter_analysis.result
+        )
+        outcome = create_resume_tailoring_ai_facade(
+            settings
+        ).rewrite_experience_with_xyz(
+            master_resume=master_resume,
+            target_job_id=recruiter_analysis.target_job_id,
+            recruiter_analysis=saved_analysis,
+        )
+        return persist_experience_rewrite(
+            db,
+            recruiter_analysis=recruiter_analysis,
+            master_version=master_version,
+            master_resume=master_resume,
+            outcome=outcome,
+        )
+    except HTTPException:
+        db.rollback()
+        raise
+    except ResumeTailoringError as exc:
+        db.rollback()
+        status_code = (
+            status.HTTP_422_UNPROCESSABLE_ENTITY
+            if exc.code in {"invalid_input", "context_too_large"}
+            else status.HTTP_502_BAD_GATEWAY
+        )
+        raise HTTPException(
+            status_code=status_code,
+            detail=str(exc),
+        ) from exc
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Experience rewrite storage is temporarily unavailable",
+        ) from exc
+
+
+__all__ = [
+    "router",
+    "run_senior_recruiter_analysis",
+    "run_xyz_experience_rewrite",
+]

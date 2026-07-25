@@ -329,6 +329,93 @@ class SeniorRecruiterAnalysisRecord(OwnerScoped, Base):
     )
 
 
+class ExperienceRewriteRecord(OwnerScoped, Base):
+    """Immutable output of the mandatory XYZ experience rewrite stage."""
+
+    __tablename__ = "experience_rewrites"
+    __table_args__ = (
+        CheckConstraint(
+            "input_tokens >= 0 AND output_tokens >= 0 AND total_tokens >= 0",
+            name="ck_experience_rewrites_tokens_nonnegative",
+        ),
+        CheckConstraint(
+            "latency_ms >= 0",
+            name="ck_experience_rewrites_latency_nonnegative",
+        ),
+        Index(
+            "ix_experience_rewrites_input",
+            "owner_id",
+            "senior_recruiter_analysis_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    senior_recruiter_analysis_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "senior_recruiter_analyses.id",
+            ondelete="CASCADE",
+            name="fk_experience_rewrites_recruiter_analysis",
+        ),
+        nullable=False,
+        index=True,
+    )
+    resume_master_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "resume_masters.id",
+            ondelete="CASCADE",
+            name="fk_experience_rewrites_master",
+        ),
+        nullable=False,
+        index=True,
+    )
+    resume_master_version_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "resume_master_versions.id",
+            ondelete="CASCADE",
+            name="fk_experience_rewrites_master_version",
+        ),
+        nullable=False,
+        index=True,
+    )
+    target_job_id: Mapped[str] = mapped_column(
+        String(160),
+        nullable=False,
+        index=True,
+    )
+    prompt_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    original_experiences: Mapped[list[dict[str, object]]] = mapped_column(
+        JSON,
+        nullable=False,
+    )
+    result: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    links: Mapped[list[dict[str, object]]] = mapped_column(JSON, nullable=False)
+    model: Mapped[str] = mapped_column(String(160), nullable=False)
+    backend: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider_session_id: Mapped[str] = mapped_column(
+        String(500),
+        nullable=False,
+        default="",
+    )
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    token_count_source: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="unavailable",
+    )
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+
 @event.listens_for(ResumeSourceFileRecord, "before_update")
 def prevent_resume_source_file_mutation(
     _mapper: object,
@@ -394,6 +481,17 @@ def prevent_senior_recruiter_analysis_mutation(
         for attribute in state.attrs
     ):
         raise ValueError("Senior recruiter analyses are immutable")
+
+
+@event.listens_for(ExperienceRewriteRecord, "before_update")
+def prevent_experience_rewrite_mutation(
+    _mapper: object,
+    _connection: object,
+    rewrite: ExperienceRewriteRecord,
+) -> None:
+    state = inspect(rewrite)
+    if any(attribute.history.has_changes() for attribute in state.attrs):
+        raise ValueError("Experience rewrites are immutable")
 
 
 class StrictResumeModel(BaseModel):
@@ -694,12 +792,58 @@ class RewrittenExperience(StrictResumeModel):
         return self
 
 
+class ExperienceBulletRewriteLink(StrictResumeModel):
+    original_bullet_ids: list[ResumeItemId] = Field(
+        alias="originalBulletIds",
+        min_length=1,
+        max_length=MAX_ITEMS_PER_SECTION,
+    )
+    rewritten_bullet_id: ResumeItemId = Field(alias="rewrittenBulletId")
+
+    @model_validator(mode="after")
+    def reject_duplicate_original_bullets(
+        self,
+    ) -> ExperienceBulletRewriteLink:
+        _require_unique(self.original_bullet_ids, "originalBulletIds")
+        return self
+
+
+class ExperienceRewriteLink(StrictResumeModel):
+    original_experience_id: ExperienceId = Field(alias="originalExperienceId")
+    rewritten_experience_id: ResumeItemId = Field(alias="rewrittenExperienceId")
+    bullet_links: list[ExperienceBulletRewriteLink] = Field(
+        alias="bulletLinks",
+        min_length=1,
+        max_length=MAX_ITEMS_PER_SECTION,
+    )
+
+    @model_validator(mode="after")
+    def validate_bullet_links(self) -> ExperienceRewriteLink:
+        _require_unique(
+            (link.rewritten_bullet_id for link in self.bullet_links),
+            "linked rewritten bullet IDs",
+        )
+        _require_unique(
+            (
+                original_id
+                for link in self.bullet_links
+                for original_id in link.original_bullet_ids
+            ),
+            "linked original bullet IDs",
+        )
+        return self
+
+
 class ExperienceRewrite(StrictResumeModel):
     """Complete experience-rewrite result for one target vacancy."""
 
     master_resume_id: ResumeId = Field(alias="masterResumeId")
     target_job_id: JobId = Field(alias="targetJobId")
     experiences: list[RewrittenExperience] = Field(
+        min_length=1,
+        max_length=MAX_ITEMS_PER_SECTION,
+    )
+    links: list[ExperienceRewriteLink] = Field(
         min_length=1,
         max_length=MAX_ITEMS_PER_SECTION,
     )
@@ -715,6 +859,44 @@ class ExperienceRewrite(StrictResumeModel):
             (bullet.id for item in self.experiences for bullet in item.bullets),
             "rewritten bullet IDs",
         )
+        _require_unique(
+            (link.original_experience_id for link in self.links),
+            "linked original experience IDs",
+        )
+        _require_unique(
+            (link.rewritten_experience_id for link in self.links),
+            "linked rewritten experience IDs",
+        )
+        if {
+            link.original_experience_id for link in self.links
+        } != {
+            experience.master_experience_id for experience in self.experiences
+        }:
+            raise ValueError(
+                "links must cover every masterExperienceId exactly once"
+            )
+        if {
+            link.rewritten_experience_id for link in self.links
+        } != {
+            experience.id for experience in self.experiences
+        }:
+            raise ValueError(
+                "links must cover every rewritten experience ID exactly once"
+            )
+        linked_bullet_ids = {
+            bullet_link.rewritten_bullet_id
+            for link in self.links
+            for bullet_link in link.bullet_links
+        }
+        rewritten_bullet_ids = {
+            bullet.id
+            for experience in self.experiences
+            for bullet in experience.bullets
+        }
+        if linked_bullet_ids != rewritten_bullet_ids:
+            raise ValueError(
+                "links must cover every rewritten bullet ID exactly once"
+            )
         return self
 
 
@@ -861,6 +1043,39 @@ class SeniorRecruiterAnalysisResponse(StrictResumeModel):
     target_job_id: TailoringTargetJobId = Field(alias="targetJobId")
     analysis: SeniorRecruiterAnalysis
     metrics: SeniorRecruiterAnalysisMetrics
+    model: StrictText = Field(max_length=160)
+    backend: Literal["openclaw_codex", "openai_api"]
+    prompt_version: StrictText = Field(alias="promptVersion", max_length=64)
+    created_at: datetime = Field(alias="createdAt")
+
+
+class ExperienceRewriteRequest(StrictResumeModel):
+    senior_recruiter_analysis_id: CanonicalId = Field(
+        alias="seniorRecruiterAnalysisId",
+    )
+
+
+class ExperienceRewriteMetrics(StrictResumeModel):
+    latency_ms: int = Field(alias="latencyMs", ge=0)
+    input_tokens: int = Field(alias="inputTokens", ge=0)
+    output_tokens: int = Field(alias="outputTokens", ge=0)
+    total_tokens: int = Field(alias="totalTokens", ge=0)
+    token_count_source: StrictText = Field(
+        alias="tokenCountSource",
+        max_length=32,
+    )
+
+
+class ExperienceRewriteResponse(StrictResumeModel):
+    id: CanonicalId
+    senior_recruiter_analysis_id: CanonicalId = Field(
+        alias="seniorRecruiterAnalysisId",
+    )
+    master_resume_id: ResumeId = Field(alias="masterResumeId")
+    master_resume_version: int = Field(alias="masterResumeVersion", ge=1)
+    target_job_id: TailoringTargetJobId = Field(alias="targetJobId")
+    experience_rewrite: ExperienceRewrite = Field(alias="experienceRewrite")
+    metrics: ExperienceRewriteMetrics
     model: StrictText = Field(max_length=160)
     backend: Literal["openclaw_codex", "openai_api"]
     prompt_version: StrictText = Field(alias="promptVersion", max_length=64)
@@ -1042,7 +1257,13 @@ __all__ = [
     "EvidenceClaimType",
     "EvidenceId",
     "ExperienceId",
+    "ExperienceBulletRewriteLink",
     "ExperienceRewrite",
+    "ExperienceRewriteLink",
+    "ExperienceRewriteMetrics",
+    "ExperienceRewriteRecord",
+    "ExperienceRewriteRequest",
+    "ExperienceRewriteResponse",
     "FinalResume",
     "JobId",
     "MasterCertification",
