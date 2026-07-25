@@ -149,6 +149,10 @@ type AssistantDocumentVersion = {
   version: number;
   content: string;
   createdAt: string;
+  artifact?: {
+    fileName: string;
+    contentType: string;
+  } | null;
 };
 
 type AssistantDocument = {
@@ -460,7 +464,11 @@ function currentDocumentContent(document: AssistantDocument) {
   return document.versions.find((version) => version.version === document.currentVersion)?.content ?? "";
 }
 
-function documentFileName(document: Pick<AssistantDocument, "title" | "currentVersion">) {
+function documentFileName(document: AssistantDocument) {
+  const artifact = document.versions.find(
+    (version) => version.version === document.currentVersion,
+  )?.artifact;
+  if (artifact?.fileName) return artifact.fileName;
   const base = document.title
     .trim()
     .normalize("NFC")

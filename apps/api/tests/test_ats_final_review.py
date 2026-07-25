@@ -2,6 +2,7 @@ from collections.abc import Generator
 from copy import deepcopy
 from inspect import signature
 from io import BytesIO
+import json
 
 from fastapi.testclient import TestClient
 from pypdf import PdfReader, PdfWriter
@@ -14,6 +15,11 @@ from app.api import resume_tailoring as resume_tailoring_api
 from app.core.database import Base, get_db
 from app.core.settings import Settings, get_settings
 from app.main import app
+from app.models.documents import (
+    DocumentFileRecord,
+    DocumentGenerationProvenanceRecord,
+    DocumentRecord,
+)
 from app.models.resume import (
     AtsFinalReview,
     AtsFinalReviewRecord,
@@ -655,7 +661,79 @@ def test_ats_final_review_endpoint_loads_stage_two_and_persists_render_input(
         'attachment; filename="Ada-Lovelace-resume.pdf"'
     )
     assert downloaded.content == b"%PDF-1.7\nserver-rendered"
+    document_id = downloaded.headers["x-rufina-document-id"]
+    assert downloaded.headers["x-rufina-template-id"] == (
+        "modern_two_column"
+    )
+    assert downloaded.headers["x-rufina-template-version"] == "1.0.0"
     assert rendered_templates == ["modern_two_column"]
+    cached_download = client.get(
+        f"/resume-tailoring/ats-final-review/{body['id']}/pdf",
+        params={"templateId": "modern_two_column"},
+    )
+    artifact_download = client.get(
+        f"/documents/{document_id}/download"
+    )
+    listed_documents = client.get(
+        "/documents",
+        params={"jobId": "job-platform"},
+    )
+    document_detail = client.get(f"/documents/{document_id}")
+    assert cached_download.status_code == 200
+    assert cached_download.headers["x-rufina-document-id"] == document_id
+    assert rendered_templates == ["modern_two_column"]
+    assert artifact_download.status_code == 200
+    assert artifact_download.content == downloaded.content
+    assert artifact_download.headers["content-type"] == "application/pdf"
+    assert artifact_download.headers["content-disposition"] == (
+        'attachment; filename="Ada-Lovelace-resume.pdf"; '
+        "filename*=UTF-8''Ada-Lovelace-resume.pdf"
+    )
+    assert listed_documents.status_code == 200
+    assert listed_documents.json()[0]["id"] == document_id
+    assert document_detail.status_code == 200
+    stored_document = document_detail.json()
+    assert stored_document["id"] == document_id
+    assert stored_document["type"] == "tailored_resume"
+    assert stored_document["versions"][0]["hasRenderedDocx"] is False
+    assert stored_document["versions"][0]["hasRenderedArtifact"] is True
+    artifact_payload = stored_document["versions"][0]["artifact"]
+    assert artifact_payload["contentType"] == "application/pdf"
+    assert artifact_payload["fileName"] == "Ada-Lovelace-resume.pdf"
+    assert artifact_payload["templateId"] == "modern_two_column"
+    assert artifact_payload["templateVersion"] == "1.0.0"
+    assert artifact_payload["sourceAtsFinalReviewId"] == body["id"]
+    assert artifact_payload["finalResumeJson"] == body["finalResume"]
+    assert set(artifact_payload["stageResults"]) == {
+        "schemaVersion",
+        "seniorRecruiterAnalysis",
+        "experienceRewrite",
+        "atsFinalReview",
+    }
+    assert artifact_payload["provenance"]["atsFinalReviewId"] == body["id"]
+    assert artifact_payload["provenance"]["templateId"] == (
+        "modern_two_column"
+    )
+    with api_sessions() as db:
+        document = db.get(DocumentRecord, document_id)
+        artifact = db.scalar(
+            select(DocumentFileRecord).where(
+                DocumentFileRecord.document_id == document_id
+            )
+        )
+        provenance = db.get(
+            DocumentGenerationProvenanceRecord,
+            document_id,
+        )
+        assert document is not None
+        assert artifact is not None
+        assert provenance is not None
+        assert json.loads(document.versions[0].content) == body["finalResume"]
+        assert artifact.content_type == "application/pdf"
+        assert artifact.renderer_template_id == "modern_two_column"
+        assert artifact.renderer_template_version == "1.0.0"
+        assert artifact.final_resume_json == body["finalResume"]
+        assert provenance.input_versions["atsFinalReviewId"] == body["id"]
     invalid_template = client.get(
         f"/resume-tailoring/ats-final-review/{body['id']}/pdf",
         params={"templateId": "client_template"},

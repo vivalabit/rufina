@@ -3,6 +3,7 @@ import base64
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 import json
+import re
 from uuid import uuid4
 
 import pytest
@@ -410,7 +411,11 @@ def test_initial_document_list_paginates_relations_and_batches_freshness_context
     ]
     assert file_queries
     assert all(
-        "document_files.content" not in statement.partition(" from document_files")[0]
+        re.search(
+            r"\bdocument_files\.content(?:\s+as|\s*,|\s+from)",
+            statement.partition(" from document_files")[0],
+        )
+        is None
         for statement in file_queries
     )
 

@@ -3,6 +3,7 @@ type GeneratedDocumentVersionLike = {
   factualValidation?: { status?: string };
   visualValidation?: { status?: string };
   hasRenderedDocx?: boolean;
+  hasRenderedArtifact?: boolean;
 };
 
 type GeneratedDocumentLike = {
@@ -23,8 +24,11 @@ export function getDocumentVersionDownloadWarnings(
   if (version?.visualValidation?.status !== "passed") {
     warnings.push("automated structural checks have not passed");
   }
-  if (version?.hasRenderedDocx !== true) {
-    warnings.push("a rendered DOCX is not available");
+  if (
+    version?.hasRenderedArtifact !== true
+    && version?.hasRenderedDocx !== true
+  ) {
+    warnings.push("a rendered document artifact is not available");
   }
 
   return warnings;
@@ -55,8 +59,9 @@ export function getGeneratedDocumentReadiness(
     : currentVersion?.factualValidation?.status !== "passed" ||
         currentVersion?.visualValidation?.status !== "passed"
       ? "Unvalidated"
-      : currentVersion?.hasRenderedDocx !== true
-        ? "DOCX missing"
+      : currentVersion?.hasRenderedArtifact !== true
+          && currentVersion?.hasRenderedDocx !== true
+        ? "Artifact missing"
         : "Ready";
 
   return {

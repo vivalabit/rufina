@@ -299,7 +299,7 @@ def test_document_versions_download_and_application_attachments() -> None:
     assert listed.json()[0]["generationFingerprint"] is None
     assert downloaded.status_code == 410
     assert downloaded.json()["detail"] == (
-        "Rendered DOCX is no longer available for recovery"
+        "Rendered document artifact is no longer available for recovery"
     )
     assert detached.status_code == 204
     assert deleted.status_code == 204
@@ -366,6 +366,86 @@ def test_document_download_preserves_unicode_filename_for_rendered_docx() -> Non
     assert downloaded.headers["content-disposition"] == (
         'attachment; filename="R-sum-v1.docx"; '
         "filename*=UTF-8''R%C3%A9sum%C3%A9-%D0%95%D0%B4%D1%83%D0%B0%D1%80%D0%B4-v1.docx"
+    )
+
+
+def test_pdf_artifact_download_and_restore_preserve_format_metadata() -> None:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+    testing_session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+    with testing_session_local() as db:
+        record = DocumentRecord(
+            id="pdf-document",
+            type="tailored_resume",
+            title="Ada resume",
+            current_version=1,
+        )
+        record.versions.append(
+            DocumentVersionRecord(
+                id="pdf-version",
+                document_id=record.id,
+                version=1,
+                content='{"id":"final-resume"}',
+            )
+        )
+        record.files.append(
+            DocumentFileRecord(
+                id="pdf-file",
+                document_id=record.id,
+                version=1,
+                template_id=None,
+                file_name="Ada-Lovelace-resume.pdf",
+                content_type="application/pdf",
+                renderer_template_id="modern_single",
+                renderer_template_version="1.0.0",
+                final_resume_json={"id": "final-resume"},
+                stage_results={"atsFinalReview": {"status": "passed"}},
+                provenance={"contentSha256": "abc123"},
+                content=b"%PDF-1.7\nstored",
+            )
+        )
+        db.add(record)
+        db.commit()
+
+    def override_get_db() -> Generator[Session, None, None]:
+        with testing_session_local() as db:
+            yield db
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+    try:
+        detail = client.get("/documents/pdf-document")
+        downloaded = client.get("/documents/pdf-document/download")
+        restored = client.post(
+            "/documents/pdf-document/restore",
+            json={"version": 1},
+        )
+        restored_download = client.get(
+            "/documents/pdf-document/download",
+            params={"version": 2},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    artifact = detail.json()["versions"][0]["artifact"]
+    restored_artifact = restored.json()["versions"][-1]["artifact"]
+    assert detail.status_code == 200
+    assert artifact["contentType"] == "application/pdf"
+    assert artifact["templateId"] == "modern_single"
+    assert artifact["templateVersion"] == "1.0.0"
+    assert artifact["finalResumeJson"] == {"id": "final-resume"}
+    assert restored.status_code == 200
+    assert restored_artifact["contentType"] == "application/pdf"
+    assert restored_artifact["finalResumeJson"] == {"id": "final-resume"}
+    assert downloaded.content == restored_download.content == b"%PDF-1.7\nstored"
+    assert downloaded.headers["content-type"] == "application/pdf"
+    assert restored_download.headers["content-disposition"].startswith(
+        'attachment; filename="Ada-Lovelace-resume.pdf"'
     )
 
 

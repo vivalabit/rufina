@@ -18,7 +18,7 @@ function generatedDocument(overrides = {}) {
   };
 }
 
-test("requires current fingerprint, validations, and rendered DOCX for readiness", () => {
+test("requires current fingerprint, validations, and a rendered artifact for readiness", () => {
   assert.equal(
     getGeneratedDocumentReadiness(generatedDocument(), false).ready,
     true,
@@ -43,9 +43,22 @@ test("requires current fingerprint, validations, and rendered DOCX for readiness
   );
   assert.equal(
     getGeneratedDocumentReadiness(
-      generatedDocument({ hasRenderedDocx: false }),
+      generatedDocument({
+        hasRenderedDocx: false,
+        hasRenderedArtifact: false,
+      }),
       false,
     ).ready,
     false,
+  );
+  assert.equal(
+    getGeneratedDocumentReadiness(
+      generatedDocument({
+        hasRenderedDocx: false,
+        hasRenderedArtifact: true,
+      }),
+      false,
+    ).ready,
+    true,
   );
 });

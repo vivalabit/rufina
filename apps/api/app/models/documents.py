@@ -348,6 +348,12 @@ class DocumentFileRecord(Base):
     __tablename__ = "document_files"
     __table_args__ = (
         UniqueConstraint("document_id", "version", name="uq_document_files_version"),
+        UniqueConstraint(
+            "source_ats_final_review_id",
+            "renderer_template_id",
+            "renderer_template_version",
+            name="uq_document_files_resume_pdf_source",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -364,6 +370,49 @@ class DocumentFileRecord(Base):
         nullable=True,
         index=True,
     )
+    file_name: Mapped[str] = mapped_column(
+        String(240),
+        nullable=False,
+        default="",
+    )
+    content_type: Mapped[str] = mapped_column(
+        String(160),
+        nullable=False,
+        default=(
+            "application/vnd.openxmlformats-officedocument."
+            "wordprocessingml.document"
+        ),
+    )
+    renderer_template_id: Mapped[str | None] = mapped_column(
+        String(80),
+        nullable=True,
+    )
+    renderer_template_version: Mapped[str | None] = mapped_column(
+        String(40),
+        nullable=True,
+    )
+    source_ats_final_review_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey(
+            "ats_final_reviews.id",
+            ondelete="SET NULL",
+            name="fk_document_files_ats_final_review",
+        ),
+        nullable=True,
+        index=True,
+    )
+    final_resume_json: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON,
+        nullable=True,
+    )
+    stage_results: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON,
+        nullable=True,
+    )
+    provenance: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON,
+        nullable=True,
+    )
     content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     document: Mapped[DocumentRecord] = relationship(back_populates="files")
@@ -375,12 +424,39 @@ DocumentPackPersistenceMode = Literal["atomic", "partial"]
 WorkspaceSourceCategory = Literal["CV / Resume", "Cover Letter"]
 
 
+class DocumentArtifactPayload(BaseModel):
+    file_name: str = Field(alias="fileName")
+    content_type: str = Field(alias="contentType")
+    template_id: str | None = Field(default=None, alias="templateId")
+    template_version: str | None = Field(default=None, alias="templateVersion")
+    source_ats_final_review_id: str | None = Field(
+        default=None,
+        alias="sourceAtsFinalReviewId",
+    )
+    final_resume_json: dict[str, Any] | None = Field(
+        default=None,
+        alias="finalResumeJson",
+    )
+    stage_results: dict[str, Any] | None = Field(
+        default=None,
+        alias="stageResults",
+    )
+    provenance: dict[str, Any] | None = None
+
+    model_config = {"populate_by_name": True}
+
+
 class DocumentVersionPayload(BaseModel):
     id: str
     version: int
     content: str
     created_at: datetime = Field(alias="createdAt")
     has_rendered_docx: bool = Field(default=False, alias="hasRenderedDocx")
+    has_rendered_artifact: bool = Field(
+        default=False,
+        alias="hasRenderedArtifact",
+    )
+    artifact: DocumentArtifactPayload | None = None
     factual_validation: dict[str, Any] = Field(
         default_factory=dict,
         alias="factualValidation",

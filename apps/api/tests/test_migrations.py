@@ -128,7 +128,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260725_0025"
+            assert revision == "20260725_0026"
         assert inspect(engine).get_pk_constraint("stored_jobs")["constrained_columns"] == [
             "owner_id",
             "id",
@@ -237,6 +237,46 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
         } == {
             (("resume_master_id",), "resume_masters", "CASCADE"),
             (("source_file_id",), "resume_source_files", "SET NULL"),
+        }
+        document_file_columns = {
+            column["name"]
+            for column in inspect(engine).get_columns("document_files")
+        }
+        assert document_file_columns >= {
+            "file_name",
+            "content_type",
+            "renderer_template_id",
+            "renderer_template_version",
+            "source_ats_final_review_id",
+            "final_resume_json",
+            "stage_results",
+            "provenance",
+        }
+        assert (
+            "source_ats_final_review_id",
+            "renderer_template_id",
+            "renderer_template_version",
+        ) in {
+            tuple(constraint["column_names"])
+            for constraint in inspect(engine).get_unique_constraints(
+                "document_files"
+            )
+        }
+        assert {
+            (
+                tuple(foreign_key["constrained_columns"]),
+                foreign_key["referred_table"],
+                foreign_key["options"].get("ondelete"),
+            )
+            for foreign_key in inspect(engine).get_foreign_keys(
+                "document_files"
+            )
+        } >= {
+            (
+                ("source_ats_final_review_id",),
+                "ats_final_reviews",
+                "SET NULL",
+            ),
         }
         run_columns = {
             column["name"]
@@ -753,7 +793,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-        assert revision == "20260725_0025"
+            assert revision == "20260725_0026"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))

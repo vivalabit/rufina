@@ -12,7 +12,7 @@ from uuid import uuid4
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy.orm import Session, selectinload
+from sqlalchemy.orm import Session, load_only, selectinload
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 
@@ -28,6 +28,7 @@ from app.models.assistant import (
 )
 from app.models.documents import (
     BundledResumeTemplatePayload,
+    DocumentArtifactPayload,
     DocumentAttachRequest,
     DocumentAttachmentRecord,
     DocumentCreateRequest,
@@ -90,6 +91,7 @@ from app.services.resume_template_registry import (
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
 
 DOCX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+PDF_CONTENT_TYPE = "application/pdf"
 MAX_TEMPLATE_BYTES = 10_000_000
 VALIDATION_ARTIFACT_TTL = timedelta(minutes=30)
 PACK_JOB_TTL = timedelta(days=7)
@@ -551,13 +553,14 @@ def list_resume_templates() -> list[BundledResumeTemplatePayload]:
 @router.get("/{document_id}", response_model=DocumentPayload)
 def get_document(document_id: str, db: Session = Depends(get_db)) -> DocumentPayload:
     try:
-        record = db.get(DocumentRecord, document_id)
-        if record is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Document not found",
-            )
-        return initial_document_payloads(db, [record])[0]
+        record = require_document(db, document_id)
+        return document_payload(
+            record,
+            current_generation_fingerprint=(
+                authoritative_current_generation_fingerprint(db, record)
+            ),
+            version_limit=DOCUMENT_VERSION_PAGE_SIZE,
+        )
     except HTTPException:
         raise
     except SQLAlchemyError as exc:
@@ -572,7 +575,8 @@ def list_document_versions(
     db: Session = Depends(get_db),
 ) -> DocumentVersionPagePayload:
     try:
-        if db.get(DocumentRecord, document_id) is None:
+        record = db.get(DocumentRecord, document_id)
+        if record is None:
             raise HTTPException(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Document not found",
@@ -594,18 +598,33 @@ def list_document_versions(
             )
         )
         version_numbers = [version.version for version in versions]
-        rendered_versions = (
-            set(
-                db.scalars(
-                    select(DocumentFileRecord.version).where(
-                        DocumentFileRecord.document_id == document_id,
-                        DocumentFileRecord.version.in_(version_numbers),
+        artifacts = (
+            db.scalars(
+                select(DocumentFileRecord)
+                .options(
+                    load_only(
+                        DocumentFileRecord.id,
+                        DocumentFileRecord.document_id,
+                        DocumentFileRecord.version,
+                        DocumentFileRecord.template_id,
+                        DocumentFileRecord.file_name,
+                        DocumentFileRecord.content_type,
+                        DocumentFileRecord.renderer_template_id,
+                        DocumentFileRecord.renderer_template_version,
+                        DocumentFileRecord.source_ats_final_review_id,
                     )
-                ).all()
-            )
+                )
+                .where(
+                    DocumentFileRecord.document_id == document_id,
+                    DocumentFileRecord.version.in_(version_numbers),
+                )
+            ).all()
             if version_numbers
-            else set()
+            else []
         )
+        artifacts_by_version = {
+            artifact.version: artifact for artifact in artifacts
+        }
         validations = (
             db.scalars(
                 select(DocumentVersionValidationRecord).where(
@@ -619,7 +638,10 @@ def list_document_versions(
         return DocumentVersionPagePayload(
             items=document_version_payloads(
                 versions,
-                rendered_versions=rendered_versions,
+                rendered_versions=set(artifacts_by_version),
+                artifacts_by_version=artifacts_by_version,
+                include_artifact_details=False,
+                artifact_title=record.title,
                 validations_by_version={
                     validation.version: validation for validation in validations
                 },
@@ -854,6 +876,15 @@ def restore_document_version(
                     document_id=record.id,
                     version=next_version,
                     template_id=source_file.template_id,
+                    file_name=source_file.file_name,
+                    content_type=source_file.content_type,
+                    renderer_template_id=source_file.renderer_template_id,
+                    renderer_template_version=(
+                        source_file.renderer_template_version
+                    ),
+                    final_resume_json=source_file.final_resume_json,
+                    stage_results=source_file.stage_results,
+                    provenance=source_file.provenance,
                     content=source_file.content,
                     created_at=now,
                 )
@@ -1007,14 +1038,16 @@ def download_document(
         if not rendered_file:
             raise HTTPException(
                 status_code=status.HTTP_410_GONE,
-                detail="Rendered DOCX is no longer available for recovery",
+                detail="Rendered document artifact is no longer available for recovery",
             )
-        filename = f"{safe_filename(record.title)}-v{selected_version.version}.docx"
+        content_type = rendered_file.content_type or DOCX_CONTENT_TYPE
+        extension = ".pdf" if content_type == PDF_CONTENT_TYPE else ".docx"
+        filename = rendered_file.file_name.strip() or (
+            f"{safe_filename(record.title)}-v{selected_version.version}{extension}"
+        )
         return Response(
             content=rendered_file.content,
-            media_type=(
-                DOCX_CONTENT_TYPE
-            ),
+            media_type=content_type,
             headers={"Content-Disposition": content_disposition(filename)},
         )
     except HTTPException:
@@ -1974,6 +2007,8 @@ class DocumentPayloadRelations:
     application_ids: tuple[str, ...]
     provenance: DocumentGenerationProvenanceRecord | None
     rendered_versions: frozenset[int]
+    artifacts_by_version: Mapping[int, DocumentFileRecord]
+    artifact_details_loaded: bool
     validations_by_version: Mapping[int, DocumentVersionValidationRecord]
     current_template_id: str | None
 
@@ -2048,13 +2083,26 @@ def load_initial_document_relations(
         versions_by_document[version.document_id].append(version)
 
     rendered_versions_by_document: dict[str, set[int]] = defaultdict(set)
+    artifacts_by_document: dict[
+        str,
+        dict[int, DocumentFileRecord],
+    ] = defaultdict(dict)
     current_template_by_document: dict[str, str] = {}
     if versions:
-        file_rows = db.execute(
-            select(
-                DocumentFileRecord.document_id,
-                DocumentFileRecord.version,
-                DocumentFileRecord.template_id,
+        file_rows = db.scalars(
+            select(DocumentFileRecord)
+            .options(
+                load_only(
+                    DocumentFileRecord.id,
+                    DocumentFileRecord.document_id,
+                    DocumentFileRecord.version,
+                    DocumentFileRecord.template_id,
+                    DocumentFileRecord.file_name,
+                    DocumentFileRecord.content_type,
+                    DocumentFileRecord.renderer_template_id,
+                    DocumentFileRecord.renderer_template_version,
+                    DocumentFileRecord.source_ats_final_review_id,
+                )
             )
             .join(
                 ranked_version_ids,
@@ -2067,10 +2115,20 @@ def load_initial_document_relations(
             .where(ranked_version_ids.c.page_row <= DOCUMENT_VERSION_PAGE_SIZE)
         ).all()
         current_versions = {record.id: record.current_version for record in records}
-        for document_id, version, template_id in file_rows:
-            rendered_versions_by_document[document_id].add(version)
-            if version == current_versions[document_id] and template_id:
-                current_template_by_document[document_id] = template_id
+        for artifact in file_rows:
+            rendered_versions_by_document[artifact.document_id].add(
+                artifact.version
+            )
+            artifacts_by_document[artifact.document_id][
+                artifact.version
+            ] = artifact
+            if (
+                artifact.version == current_versions[artifact.document_id]
+                and artifact.template_id
+            ):
+                current_template_by_document[
+                    artifact.document_id
+                ] = artifact.template_id
 
     validations_by_document: dict[
         str,
@@ -2119,6 +2177,8 @@ def load_initial_document_relations(
             application_ids=tuple(application_ids_by_document[record.id]),
             provenance=provenance_by_document.get(record.id),
             rendered_versions=frozenset(rendered_versions_by_document[record.id]),
+            artifacts_by_version=artifacts_by_document[record.id],
+            artifact_details_loaded=False,
             validations_by_version=validations_by_document[record.id],
             current_template_id=current_template_by_document.get(record.id),
         )
@@ -2135,9 +2195,24 @@ def batch_current_generation_fingerprints(
 ) -> dict[str, str]:
     candidate_application_by_document: dict[str, str] = {}
     template_ids: set[str] = set()
+    fingerprints: dict[str, str] = {}
     for record in records:
         relations = relations_by_document[record.id]
-        if relations.provenance is None or not relations.current_template_id:
+        if relations.provenance is None:
+            continue
+        current_artifact = relations.artifacts_by_version.get(
+            record.current_version
+        )
+        if (
+            current_artifact is not None
+            and current_artifact.content_type == PDF_CONTENT_TYPE
+            and current_artifact.renderer_template_id
+        ):
+            fingerprints[record.id] = (
+                relations.provenance.generation_fingerprint
+            )
+            continue
+        if not relations.current_template_id:
             continue
         resolved_application_id = application_id
         if resolved_application_id is None and len(relations.application_ids) == 1:
@@ -2185,7 +2260,6 @@ def batch_current_generation_fingerprints(
         except GenerationContextError:
             application_contexts[resolved_application_id] = None
 
-    fingerprints: dict[str, str] = {}
     for record in records:
         resolved_application_id = candidate_application_by_document.get(record.id)
         if not resolved_application_id:
@@ -2215,7 +2289,14 @@ def authoritative_current_generation_fingerprint(
     if record.generation_provenance is None:
         return None
     current_file = document_file_record(db, record.id, record.current_version)
-    if current_file is None or not current_file.template_id:
+    if current_file is None:
+        return None
+    if (
+        current_file.content_type == PDF_CONTENT_TYPE
+        and current_file.renderer_template_id
+    ):
+        return record.generation_provenance.generation_fingerprint
+    if not current_file.template_id:
         return None
     resolved_application_id = application_id or single_attachment_application_id(record)
     if not resolved_application_id:
@@ -2244,19 +2325,23 @@ def document_payload(
     if relations is None:
         provenance = record.generation_provenance
         rendered_versions = {file.version for file in record.files}
+        artifacts_by_version = {file.version: file for file in record.files}
         validations_by_version = {
             validation.version: validation for validation in record.version_validations
         }
         source_versions = record.versions
         versions_total = len(record.versions)
         application_ids = [item.application_id for item in record.attachments]
+        artifact_details_loaded = True
     else:
         provenance = relations.provenance
         rendered_versions = set(relations.rendered_versions)
+        artifacts_by_version = dict(relations.artifacts_by_version)
         validations_by_version = dict(relations.validations_by_version)
         source_versions = relations.versions
         versions_total = relations.versions_total
         application_ids = list(relations.application_ids)
+        artifact_details_loaded = relations.artifact_details_loaded
     ordered_versions = sorted(
         source_versions,
         key=lambda version: version.version,
@@ -2283,6 +2368,9 @@ def document_payload(
         versions=document_version_payloads(
             paged_versions,
             rendered_versions=rendered_versions,
+            artifacts_by_version=artifacts_by_version,
+            include_artifact_details=artifact_details_loaded,
+            artifact_title=record.title,
             validations_by_version=validations_by_version,
         ),
         versions_total=versions_total,
@@ -2294,6 +2382,9 @@ def document_version_payloads(
     versions: list[DocumentVersionRecord],
     *,
     rendered_versions: set[int],
+    artifacts_by_version: dict[int, DocumentFileRecord],
+    include_artifact_details: bool,
+    artifact_title: str,
     validations_by_version: dict[int, DocumentVersionValidationRecord],
 ) -> list[DocumentVersionPayload]:
     return [
@@ -2302,7 +2393,24 @@ def document_version_payloads(
             version=version.version,
             content=version.content,
             created_at=version.created_at,
-            has_rendered_docx=version.version in rendered_versions,
+            has_rendered_docx=(
+                version.version in artifacts_by_version
+                and (
+                    not artifacts_by_version[version.version].content_type
+                    or artifacts_by_version[version.version].content_type
+                    == DOCX_CONTENT_TYPE
+                )
+            ),
+            has_rendered_artifact=version.version in rendered_versions,
+            artifact=(
+                document_artifact_payload(
+                    artifacts_by_version[version.version],
+                    include_details=include_artifact_details,
+                    artifact_title=artifact_title,
+                )
+                if version.version in artifacts_by_version
+                else None
+            ),
             factual_validation=(
                 validations_by_version[version.version].factual_report
                 if version.version in validations_by_version
@@ -2321,6 +2429,36 @@ def document_version_payloads(
         )
         for version in versions
     ]
+
+
+def document_artifact_payload(
+    artifact: DocumentFileRecord,
+    *,
+    include_details: bool,
+    artifact_title: str,
+) -> DocumentArtifactPayload:
+    content_type = artifact.content_type or DOCX_CONTENT_TYPE
+    extension = ".pdf" if content_type == PDF_CONTENT_TYPE else ".docx"
+    return DocumentArtifactPayload(
+        file_name=artifact.file_name.strip()
+        or (
+            f"{safe_filename(artifact_title)}-v"
+            f"{artifact.version}{extension}"
+        ),
+        content_type=content_type,
+        template_id=artifact.renderer_template_id or artifact.template_id,
+        template_version=artifact.renderer_template_version,
+        source_ats_final_review_id=artifact.source_ats_final_review_id,
+        final_resume_json=(
+            artifact.final_resume_json if include_details else None
+        ),
+        stage_results=(
+            artifact.stage_results if include_details else None
+        ),
+        provenance=(
+            artifact.provenance if include_details else None
+        ),
+    )
 
 
 def safe_filename(value: str) -> str:

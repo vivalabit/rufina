@@ -438,7 +438,7 @@ describe("ApplicationWorkspace", () => {
     expect(fireEvent.click(downloadLink)).toBe(false);
     expect(confirmDownload).toHaveBeenCalledWith(
       expect.stringMatching(
-        /fingerprint is outdated.*factual validation has not passed.*automated structural checks have not passed.*rendered DOCX is not available/,
+        /fingerprint is outdated.*factual validation has not passed.*automated structural checks have not passed.*rendered document artifact is not available/,
       ),
     );
   });

@@ -1,5 +1,7 @@
+from datetime import UTC, datetime
+
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
@@ -52,7 +54,13 @@ from app.services.resume_tailoring_runs import (
 )
 from app.services.resume_pdf_renderer import (
     ResumePdfRenderError,
+    load_template_bundle,
     render_final_resume_pdf,
+)
+from app.services.resume_pdf_artifacts import (
+    StoredResumePdfArtifact,
+    find_resume_pdf_artifact,
+    store_resume_pdf_artifact,
 )
 from app.services.resume_template_registry import ResumeTemplateId
 
@@ -439,6 +447,7 @@ def download_ats_final_resume_pdf(
     ),
     db: Session = Depends(get_db),
 ) -> Response:
+    template_version: str | None = None
     try:
         record = db.scalar(
             select(AtsFinalReviewRecord).where(
@@ -458,30 +467,111 @@ def download_ats_final_resume_pdf(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Stored FinalResume render input is invalid",
             ) from exc
+        bundle = load_template_bundle(template_id)
+        template_version = bundle.manifest.template_version
+        existing = find_resume_pdf_artifact(
+            db,
+            ats_final_review_id=record.id,
+            template_id=template_id,
+            template_version=template_version,
+        )
+        if existing is not None:
+            return resume_pdf_artifact_response(existing)
+        rewrite = db.scalar(
+            select(ExperienceRewriteRecord).where(
+                ExperienceRewriteRecord.id == record.experience_rewrite_id,
+                ExperienceRewriteRecord.owner_id == get_bound_owner_id(),
+            )
+        )
+        if rewrite is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Stored experience rewrite provenance is unavailable",
+            )
+        analysis = db.scalar(
+            select(SeniorRecruiterAnalysisRecord).where(
+                SeniorRecruiterAnalysisRecord.id
+                == rewrite.senior_recruiter_analysis_id,
+                SeniorRecruiterAnalysisRecord.owner_id
+                == get_bound_owner_id(),
+            )
+        )
+        if analysis is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Stored recruiter analysis provenance is unavailable",
+            )
         pdf = render_final_resume_pdf(
             resume.model_dump(by_alias=True, exclude_none=True),
             template_id=template_id,
         )
         filename = safe_resume_pdf_filename(resume.basics.full_name)
-        return Response(
-            content=pdf,
-            media_type="application/pdf",
-            headers={
-                "Content-Disposition": f'attachment; filename="{filename}"',
-            },
+        artifact = store_resume_pdf_artifact(
+            db,
+            ats_review=record,
+            experience_rewrite=rewrite,
+            recruiter_analysis=analysis,
+            final_resume=resume,
+            pdf=pdf,
+            file_name=filename,
+            template_id=template_id,
+            template_version=template_version,
+            created_at=datetime.now(UTC),
         )
+        db.commit()
+        return resume_pdf_artifact_response(artifact)
     except HTTPException:
+        db.rollback()
         raise
     except ResumePdfRenderError as exc:
+        db.rollback()
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail=str(exc),
         ) from exc
-    except SQLAlchemyError as exc:
+    except IntegrityError as exc:
+        db.rollback()
+        if template_version is not None:
+            existing = find_resume_pdf_artifact(
+                db,
+                ats_final_review_id=review_id,
+                template_id=template_id,
+                template_version=template_version,
+            )
+            if existing is not None:
+                return resume_pdf_artifact_response(existing)
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Final resume PDF is temporarily unavailable",
         ) from exc
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Final resume PDF is temporarily unavailable",
+        ) from exc
+
+
+def resume_pdf_artifact_response(
+    artifact: StoredResumePdfArtifact,
+) -> Response:
+    return Response(
+        content=artifact.file.content,
+        media_type=artifact.file.content_type,
+        headers={
+            "Content-Disposition": (
+                f'attachment; filename="{artifact.file.file_name}"'
+            ),
+            "X-Rufina-Document-Id": artifact.document.id,
+            "X-Rufina-Document-Version": str(artifact.file.version),
+            "X-Rufina-Template-Id": (
+                artifact.file.renderer_template_id or ""
+            ),
+            "X-Rufina-Template-Version": (
+                artifact.file.renderer_template_version or ""
+            ),
+        },
+    )
 
 
 def safe_resume_pdf_filename(full_name: str) -> str:

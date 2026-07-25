@@ -59,7 +59,7 @@ function importedJobData({
     companyInfo: "Example vacancy",
     reviews: [],
     similarJobs: [],
-    addedAt: "2026-07-23T10:00:00.000Z",
+    addedAt: new Date().toISOString(),
   };
 }
 
