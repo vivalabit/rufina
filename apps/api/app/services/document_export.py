@@ -20,12 +20,7 @@ from app.services.cover_letter_blocks import (
     replace_date_in_line,
     replace_cover_letter_text_span,
 )
-from app.services.resume_blocks import (
-    parse_resume_blocks,
-    replace_resume_text_span,
-    set_text_node_value,
-)
-from app.models.resume import FinalResume
+from app.services.word_structure import set_text_node_value
 from app.services.resume_pdf_renderer import (
     render_final_resume_json as render_final_resume_pdf_json,
 )
@@ -42,178 +37,6 @@ def render_final_resume_json(
 ) -> bytes:
     """Render a canonical FinalResume JSON payload to PDF."""
     return render_final_resume_pdf_json(final_resume_json)
-
-
-def render_final_resume_docx(
-    final_resume_json: dict[str, object],
-) -> bytes:
-    """Legacy deterministic DOCX renderer retained for internal compatibility."""
-    resume = FinalResume.model_validate(final_resume_json)
-    document = Document()
-    configure_document(document)
-
-    name = document.add_paragraph()
-    name.paragraph_format.space_after = Pt(2)
-    set_run_font(
-        name.add_run(resume.basics.full_name),
-        BODY_FONT,
-        22,
-        RGBColor(0, 0, 0),
-        bold=True,
-    )
-    if resume.basics.headline:
-        headline = document.add_paragraph(resume.basics.headline)
-        headline.paragraph_format.space_after = Pt(4)
-    contact_values = [
-        resume.basics.email,
-        resume.basics.phone,
-        resume.basics.location,
-        resume.basics.linkedin,
-        resume.basics.github,
-        resume.basics.portfolio,
-    ]
-    contacts = " · ".join(value for value in contact_values if value)
-    if contacts:
-        contact_paragraph = document.add_paragraph(contacts)
-        contact_paragraph.paragraph_format.space_after = Pt(10)
-
-    for section in resume.section_order:
-        render_final_resume_section(document, resume, section)
-
-    output = BytesIO()
-    document.save(output)
-    return output.getvalue()
-
-
-def render_final_resume_section(
-    document: Document,
-    resume: FinalResume,
-    section: str,
-) -> None:
-    headings = {
-        "summary": "Summary",
-        "experience": "Experience",
-        "skills": "Skills",
-        "education": "Education",
-        "projects": "Projects",
-        "certifications": "Certifications",
-        "languages": "Languages",
-        "additional": "Additional",
-    }
-    document.add_paragraph(headings[section], style="Heading 2")
-    if section == "summary" and resume.summary is not None:
-        document.add_paragraph(resume.summary.text)
-    elif section == "experience":
-        for experience in resume.experiences:
-            add_resume_item_heading(
-                document,
-                experience.title,
-                experience.company,
-                experience.period,
-                experience.location,
-            )
-            add_resume_bullets(
-                document,
-                [bullet.text for bullet in experience.bullets],
-            )
-    elif section == "skills":
-        for skill in resume.skills:
-            label = f"{skill.category}: " if skill.category else ""
-            document.add_paragraph(f"{label}{skill.name}")
-    elif section == "education":
-        for education in resume.education:
-            period = " — ".join(
-                value
-                for value in (education.start_date, education.end_date)
-                if value
-            )
-            credential = " · ".join(
-                value
-                for value in (education.credential, education.field_of_study)
-                if value
-            )
-            add_resume_item_heading(
-                document,
-                credential,
-                education.institution,
-                period,
-                education.location,
-            )
-            add_resume_bullets(
-                document,
-                [detail.text for detail in education.details],
-            )
-    elif section == "projects":
-        for project in resume.projects:
-            add_resume_item_heading(
-                document,
-                project.name,
-                project.role,
-                "",
-                "",
-            )
-            add_resume_bullets(
-                document,
-                [bullet.text for bullet in project.bullets],
-            )
-    elif section == "certifications":
-        for certification in resume.certifications:
-            issued = (
-                f"Issued {certification.issued_on}"
-                if certification.issued_on
-                else ""
-            )
-            document.add_paragraph(
-                " · ".join(
-                    value
-                    for value in (
-                        certification.name,
-                        certification.issuer,
-                        issued,
-                    )
-                    if value
-                )
-            )
-    elif section == "languages":
-        for language in resume.languages:
-            document.add_paragraph(
-                f"{language.name} · {language.proficiency}"
-            )
-    elif section == "additional":
-        for additional in resume.additional_sections:
-            document.add_paragraph(additional.title, style="Heading 3")
-            add_resume_bullets(
-                document,
-                [item.text for item in additional.items],
-            )
-
-
-def add_resume_item_heading(
-    document: Document,
-    primary: str,
-    secondary: str,
-    period: str,
-    location: str,
-) -> None:
-    paragraph = document.add_paragraph()
-    paragraph.paragraph_format.keep_with_next = True
-    set_run_font(
-        paragraph.add_run(primary),
-        BODY_FONT,
-        11,
-        RGBColor(0, 0, 0),
-        bold=True,
-    )
-    details = " · ".join(
-        value for value in (secondary, period, location) if value
-    )
-    if details:
-        paragraph.add_run(f" · {details}")
-
-
-def add_resume_bullets(document: Document, bullets: list[str]) -> None:
-    for bullet in bullets:
-        document.add_paragraph(bullet, style="List Bullet")
 
 
 def build_document_docx(
@@ -242,7 +65,9 @@ def build_document_from_template(
 ) -> bytes:
     """Replace text inside a copied DOCX while retaining its visual structure."""
     if document_type == "tailored_resume":
-        return build_resume_from_template_package(template_content, content)
+        raise ValueError(
+            "Legacy DOCX resume patching was removed; render FinalResume as PDF"
+        )
     if is_structured_cover_letter_content(content):
         return build_cover_letter_from_template_package(template_content, content)
 
@@ -366,32 +191,6 @@ def format_cover_letter_date(value: date, language: str) -> str:
     return f"{months[value.month - 1]} {value.day}, {value.year}"
 
 
-def build_resume_from_template_package(template_content: bytes, content: str) -> bytes:
-    """Patch only document.xml so every other DOCX package part remains untouched."""
-    with zipfile.ZipFile(BytesIO(template_content)) as source:
-        document_xml = source.read("word/document.xml")
-        root = etree.fromstring(document_xml)
-        body = root.find(qn("w:body"))
-        if body is None:
-            raise ValueError("Resume template has no document body")
-        replace_resume_text(body, content)
-        rendered_xml = etree.tostring(
-            root,
-            encoding="UTF-8",
-            xml_declaration=True,
-            standalone=True,
-        )
-
-        output = BytesIO()
-        with zipfile.ZipFile(output, "w") as target:
-            for item in source.infolist():
-                target.writestr(
-                    item,
-                    rendered_xml if item.filename == "word/document.xml" else source.read(item.filename),
-                )
-    return output.getvalue()
-
-
 def replace_cover_letter_spans(body, content: str) -> None:
     paragraphs = parse_cover_letter_blocks(body)
     paragraphs_by_id = {paragraph.paragraph_id: paragraph for paragraph in paragraphs}
@@ -476,81 +275,6 @@ def replace_cover_letter_text(document: Document, content: str) -> None:
         if generated_closing:
             set_paragraph_element_text(paragraphs[closing_index]._p, generated_closing)
 
-
-
-def replace_resume_text(body, content: str) -> None:
-    blocks = parse_resume_blocks(body)
-    blocks_by_id = {block.block_id: block for block in blocks}
-    seen_span_ids: set[str] = set()
-    for replacement in parse_resume_replacements(content):
-        block_id = replacement["blockId"]
-        block = blocks_by_id.get(block_id)
-        if block is None:
-            raise ValueError(f"Unknown resume block: {block_id}")
-        span_id = replacement["spanId"]
-        if span_id in seen_span_ids:
-            raise ValueError(f"Duplicate resume replacement for {span_id}")
-        seen_span_ids.add(span_id)
-        span = next((candidate for candidate in block.spans if candidate.span_id == span_id), None)
-        if span is None:
-            raise ValueError(f"Unknown resume span for {block_id}: {span_id}")
-        if replacement["original"] != span.original:
-            raise ValueError(f"Resume span original does not match template: {span_id}")
-        replace_resume_text_span(span, replacement["replacement"])
-
-
-def parse_resume_replacements(content: str) -> list[dict[str, object]]:
-    cleaned = content.strip()
-    fenced = re.fullmatch(r"```(?:json)?\s*(.*?)\s*```", cleaned, re.DOTALL | re.IGNORECASE)
-    if fenced:
-        cleaned = fenced.group(1).strip()
-    try:
-        payload = json.loads(cleaned)
-    except json.JSONDecodeError as exc:
-        raise ValueError("Generated resume must be structured JSON") from exc
-
-    if isinstance(payload, dict) and isinstance(payload.get("replacements"), list):
-        raw_replacements = payload["replacements"]
-    elif isinstance(payload, list):
-        raw_replacements = payload
-    elif isinstance(payload, dict) and "blockId" in payload:
-        raw_replacements = [payload]
-    else:
-        raise ValueError("Generated resume JSON must contain a replacements array")
-
-    replacements: list[dict[str, object]] = []
-    required_fields = ("blockId", "spanId", "original", "replacement", "reason")
-    for index, raw_replacement in enumerate(raw_replacements):
-        if not isinstance(raw_replacement, dict) or not all(
-            isinstance(raw_replacement.get(field), str) for field in required_fields
-        ):
-            raise ValueError(
-                f"Resume replacement {index + 1} must contain string fields: "
-                "blockId, spanId, original, replacement, reason"
-            )
-        evidence_ids = raw_replacement.get("evidenceIds")
-        if (
-            not isinstance(evidence_ids, list)
-            or not 1 <= len(evidence_ids) <= 20
-            or not all(
-                isinstance(evidence_id, str)
-                and evidence_id == evidence_id.strip()
-                and 1 <= len(evidence_id) <= 200
-                for evidence_id in evidence_ids
-            )
-            or len(set(evidence_ids)) != len(evidence_ids)
-        ):
-            raise ValueError(
-                f"Resume replacement {index + 1} must contain 1-20 unique "
-                "evidenceIds strings"
-            )
-        replacements.append(
-            {
-                **{field: raw_replacement[field] for field in required_fields},
-                "evidenceIds": evidence_ids,
-            }
-        )
-    return replacements
 
 
 def is_structured_cover_letter_content(content: str) -> bool:

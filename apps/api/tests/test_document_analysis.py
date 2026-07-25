@@ -17,13 +17,13 @@ from app.services.document_analysis import (
     document_analysis_cache_info,
 )
 from app.services.document_preflight import analyze_document_template
-from app.services.resume_blocks import extract_resume_blocks_from_docx
-
-
-def resume_content() -> bytes:
+def document_content() -> bytes:
     document = Document()
     document.add_paragraph("SUMMARY", style="Heading 1")
+    document.add_paragraph("Dear Hiring Team,")
     document.add_paragraph("Backend engineer delivering reliable API services.")
+    document.add_paragraph("Kind regards,")
+    document.add_paragraph("Eduard")
     output = BytesIO()
     document.save(output)
     return output.getvalue()
@@ -32,7 +32,7 @@ def resume_content() -> bytes:
 def test_source_analysis_reuses_one_zip_pass_for_all_consumers(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    content = resume_content()
+    content = document_content()
     encoded = base64.b64encode(content).decode()
     real_validate = document_analysis.validate_and_read_docx_package
     real_zip_file = document_security.zipfile.ZipFile
@@ -57,15 +57,14 @@ def test_source_analysis_reuses_one_zip_pass_for_all_consumers(
     )
     monkeypatch.setattr(document_security.zipfile, "ZipFile", counted_zip_file)
     try:
-        preflight = analyze_document_template(content, "tailored_resume")
-        blocks = extract_resume_blocks_from_docx(content)
+        preflight = analyze_document_template(content, "cover_letter")
         context = build_source_document_context(
             [
                 AssistantSourceDocument(
-                    id="source-resume",
-                    title="Source resume",
-                    category="CV / Resume",
-                    fileName="resume.docx",
+                    id="source-cover-letter",
+                    title="Source cover letter",
+                    category="Cover Letter",
+                    fileName="cover-letter.docx",
                     dataUrl=(
                         "data:application/vnd.openxmlformats-officedocument."
                         f"wordprocessingml.document;base64,{encoded}"
@@ -73,29 +72,28 @@ def test_source_analysis_reuses_one_zip_pass_for_all_consumers(
                 )
             ]
         )
-        analysis = analyze_docx_source(bytes(content), "tailored_resume")
+        analysis = analyze_docx_source(bytes(content), "cover_letter")
         cache_info = document_analysis_cache_info()
     finally:
         clear_document_analysis_cache()
 
     assert preflight["supported"] is True
-    assert blocks[1]["type"] == "summary"
-    assert context[0]["format"] == "resume-blocks-v2"
-    assert context[0]["blocks"] == blocks
+    assert context[0]["format"] == "cover-letter-blocks-v1"
+    assert context[0]["paragraphs"]
     assert validation_calls == 1
     assert zip_open_calls == 1
     assert cache_info.misses == 1
-    assert cache_info.hits >= 3
+    assert cache_info.hits >= 2
     assert cache_info.size == 1
     assert analysis.content_sha256 == hashlib.sha256(content).hexdigest()
 
 
 def test_cached_analysis_is_immutable_and_returns_independent_payloads() -> None:
-    content = resume_content()
+    content = document_content()
     clear_document_analysis_cache()
     try:
-        analysis = analyze_docx_source(content, "tailored_resume")
-        cached = analyze_docx_source(content, "tailored_resume")
+        analysis = analyze_docx_source(content, "cover_letter")
+        cached = analyze_docx_source(content, "cover_letter")
         first_payload = analysis.structured_elements()
         first_payload[0]["original"] = "mutated outside cache"
         second_payload = cached.structured_elements()
@@ -111,41 +109,41 @@ def test_cached_analysis_is_immutable_and_returns_independent_payloads() -> None
 def test_ai_context_prioritizes_editable_blocks_over_large_immutable_content() -> None:
     elements = [
         {
-            "blockId": "block-0001",
+            "paragraphId": "paragraph-0001",
             "type": "immutable",
             "original": "x" * 2_000,
             "editable": False,
             "spans": [],
         },
         {
-            "blockId": "block-0002",
+            "paragraphId": "paragraph-0002",
             "type": "heading",
             "original": "Experience",
             "editable": False,
             "spans": [],
         },
         {
-            "blockId": "block-0003",
+            "paragraphId": "paragraph-0003",
             "type": "achievement",
             "original": "Built reliable Python services.",
             "editable": True,
             "spans": [
                 {
-                    "spanId": "block-0003-span-0001",
+                    "spanId": "paragraph-0003-span-0001",
                     "type": "text",
                     "original": "Built reliable Python services.",
                     "editable": True,
-                    "evidenceId": "source:block-0003-span-0001",
+                    "evidenceId": "source:paragraph-0003-span-0001",
                 }
             ],
         },
     ]
     analysis = DocumentAnalysisResult(
         content_sha256="a" * 64,
-        document_type="tailored_resume",
+        document_type="cover_letter",
         extracted_text="",
-        format_name="resume-blocks-v2",
-        elements_key="blocks",
+        format_name="cover-letter-blocks-v1",
+        elements_key="paragraphs",
         structured_elements_json=json.dumps(elements),
         preflight_json="{}",
     )
@@ -158,7 +156,7 @@ def test_ai_context_prioritizes_editable_blocks_over_large_immutable_content() -
         max_characters=900,
     )
 
-    assert [block["blockId"] for block in context["blocks"]] == [
-        "block-0002",
-        "block-0003",
+    assert [paragraph["paragraphId"] for paragraph in context["paragraphs"]] == [
+        "paragraph-0002",
+        "paragraph-0003",
     ]

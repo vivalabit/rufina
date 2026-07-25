@@ -329,6 +329,7 @@ def test_confirm_master_resume_creates_one_immutable_version_idempotently(
         "/profile/import-master-resume/confirm",
         json=request_payload,
     )
+    current_response = client.get("/profile/master-resume")
     second_response = client.post(
         "/profile/import-master-resume/confirm",
         json=request_payload,
@@ -341,6 +342,12 @@ def test_confirm_master_resume_creates_one_immutable_version_idempotently(
     )
 
     assert first_response.status_code == 200
+    assert current_response.status_code == 200
+    assert current_response.json()["masterResumeId"] == "master-confirmed"
+    assert current_response.json()["version"] == 1
+    assert current_response.json()["masterResume"] == MasterResume.model_validate(
+        master_resume
+    ).model_dump(mode="json", by_alias=True)
     assert second_response.status_code == 200
     assert second_response.json() == first_response.json()
     assert conflicting_response.status_code == 409
@@ -383,6 +390,15 @@ def test_confirm_master_resume_requires_all_review_sections(
     )
 
     assert response.status_code == 422
+
+
+def test_current_master_resume_returns_404_before_confirmation(
+    api_sessions: sessionmaker[Session],
+) -> None:
+    response = TestClient(app).get("/profile/master-resume")
+
+    assert response.status_code == 404
+    assert response.json()["detail"] == "Confirmed Master Resume not found"
 
 
 def test_confirm_master_resume_is_owner_scoped(

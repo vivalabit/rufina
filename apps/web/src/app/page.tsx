@@ -672,12 +672,10 @@ const maxStoredAppLogs = 300;
 
 const assistantPrompts = {
   analyzeJob: "Analyze this vacancy against my profile. Summarize the strongest evidence, gaps, risks, and whether I should apply.",
-  tailorResume: "Create a complete tailored resume draft for this job using only verified evidence from my profile. Use clear section headings and concise achievement bullets.",
   writeCoverLetter: "Write a concise, evidence-based cover letter for this job using only verified information from my profile.",
   followUpApplication: "Write a concise recruiter follow-up for this application based on its current status, next step, and notes.",
   prepareInterview: "Prepare me for an interview for this role with likely questions, answer guidance, verified evidence to use, and questions to ask.",
   improveProfile: "Review my candidate profile and give me a prioritized, evidence-based improvement plan. Identify missing or weak sections and rewrite my headline and summary without inventing facts.",
-  improveResume: "Review my profile and attached resume. Create an improved general resume draft using only verified evidence, with clear sections and concise achievement bullets. Call out missing metrics instead of inventing them.",
 } as const;
 
 const defaultParserSearchForm: ParserSearchForm = {
@@ -838,7 +836,6 @@ const defaultManualJobDraft: ManualJobDraft = {
 };
 
 const documentCategories = [
-  "CV / Resume",
   "Cover Letter",
   "Diploma",
   "Certificate",
@@ -5194,61 +5191,6 @@ export default function HomePage() {
     reader.readAsDataURL(file);
   }
 
-  async function saveResumeFile(file: File) {
-    if (!file.name.toLowerCase().endsWith(".docx")) {
-      window.alert("Upload a DOCX resume so Rufina can preserve its design during generation.");
-      return;
-    }
-
-    if (file.size > 5_000_000) {
-      window.alert("Resume file must be under 5MB.");
-      return;
-    }
-
-    const reader = new FileReader();
-    reader.onload = async () => {
-      if (typeof reader.result !== "string") return;
-
-      const nextProfile = normalizeCandidateProfile({
-        ...profile,
-        resume_file_name: file.name,
-        resume_file_size: formatFileSize(file.size),
-        resume_updated_at: new Date().toISOString(),
-        resume_data_url: reader.result,
-      });
-
-      setProfile(nextProfile);
-      setProfileDraft(nextProfile);
-      setProfileSaveStatus("loading");
-      setProfileSaveMessage("");
-
-      try {
-        const response = await fetch(`${apiBaseUrl}/profile`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(nextProfile),
-        });
-        const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
-
-        if (!response.ok) {
-          throw new Error(savedProfile.detail ?? "Resume save failed");
-        }
-
-        const normalizedProfile = normalizeCandidateProfile(savedProfile);
-        setProfile(normalizedProfile);
-        setProfileDraft(normalizedProfile);
-        setProfileSaveStatus("ready");
-        setProfileSaveMessage("Resume saved");
-      } catch (error) {
-        const message = error instanceof Error ? error.message : "Resume save failed";
-        setProfileSaveStatus("error");
-        setProfileSaveMessage(message);
-        window.alert(message);
-      }
-    };
-    reader.readAsDataURL(file);
-  }
-
   async function persistUserJobs(userJobs: Job[]) {
     const storedUserJobs = keepStoredUserJobs(userJobs);
     window.localStorage.setItem(importedJobsStorageKey, JSON.stringify(storedUserJobs));
@@ -5642,7 +5584,6 @@ export default function HomePage() {
             onImportSkillsFromCv={importSkillsFromCv}
             isSkillsImporting={isSkillsImporting}
             skillsImportMessage={skillsImportMessage}
-            onSaveResume={saveResumeFile}
           />
         ) : activeView === "Settings" ? (
           <SettingsView
@@ -5947,10 +5888,9 @@ export default function HomePage() {
 
               <div>
                 <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-muted 2xl:mb-3 2xl:text-xs">Ask Assistant</p>
-                <div className="grid gap-2 sm:grid-cols-3 2xl:gap-3">
+                <div className="grid gap-2 sm:grid-cols-2 2xl:gap-3">
                   {[
                     { label: "Analyze", prompt: assistantPrompts.analyzeJob, icon: Sparkles },
-                    { label: "Tailor resume", prompt: assistantPrompts.tailorResume, icon: FileText },
                     { label: "Write cover letter", prompt: assistantPrompts.writeCoverLetter, icon: Mail },
                   ].map((action) => {
                     const Icon = action.icon;
@@ -7993,7 +7933,6 @@ function ApplicationsView({
                 {[
                   { label: "Follow-up", prompt: assistantPrompts.followUpApplication },
                   { label: "Prepare interview", prompt: assistantPrompts.prepareInterview },
-                  { label: "Tailor resume", prompt: "Tailor my resume for this job and suggest the five highest-impact changes." },
                   { label: "Summarize fit", prompt: "Summarize my fit for this role, including the strongest evidence, gaps, and next step." },
                 ].map((action) => (
                   <Button
@@ -9849,7 +9788,6 @@ function ProfileView({
   onImportSkillsFromCv,
   isSkillsImporting,
   skillsImportMessage,
-  onSaveResume,
 }: {
   profile: CandidateProfile;
   onOpenAssistant: (prompt: string) => void;
@@ -9876,7 +9814,6 @@ function ProfileView({
   onImportSkillsFromCv: () => void;
   isSkillsImporting: boolean;
   skillsImportMessage: string;
-  onSaveResume: (file: File) => void;
 }) {
   return (
     <section className="job-scroll flex h-screen min-w-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
@@ -9895,22 +9832,12 @@ function ProfileView({
             <Sparkles className="h-4 w-4 text-accent" />
             Improve profile
           </Button>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={() => onOpenAssistant(assistantPrompts.improveResume)}
-            className="h-10 rounded-md border border-border bg-white/[0.025] px-3 text-xs font-bold text-white hover:bg-white/[0.07] 2xl:h-11 2xl:px-4 2xl:text-sm"
-          >
-            <FileText className="h-4 w-4 text-accent" />
-            Improve resume
-          </Button>
         </div>
       </header>
 
       <ProfileHero profile={profile} onEditProfile={onEditProfile} />
 
       <div className="mt-4 grid shrink-0 content-start gap-4 2xl:gap-5">
-        <ResumePanel profile={profile} onSaveResume={onSaveResume} />
         <MasterResumeEditor
           apiBaseUrl={apiBaseUrl}
           profileResume={
@@ -10093,81 +10020,6 @@ function EmptyProfileState({
         {action}
       </Button>
     </div>
-  );
-}
-
-function ResumeUploadButton({
-  label,
-  onSaveResume,
-  className,
-}: {
-  label: string;
-  onSaveResume: (file: File) => void;
-  className?: string;
-}) {
-  return (
-    <label className={cn("inline-flex cursor-pointer items-center justify-center gap-2 rounded-md border border-border text-[#e6ebf3] transition hover:bg-white/[0.06]", className)}>
-      <Upload className="h-4 w-4" />
-      {label}
-      <input
-        type="file"
-        accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-        className="hidden"
-        onChange={(event) => {
-          const file = event.target.files?.[0];
-          if (file) {
-            onSaveResume(file);
-          }
-          event.currentTarget.value = "";
-        }}
-      />
-    </label>
-  );
-}
-
-function ResumePanel({ profile, onSaveResume }: { profile: CandidateProfile; onSaveResume: (file: File) => void }) {
-  const hasResume = hasProfileValue(profile.resume_file_name);
-  const hasDocxResume = profile.resume_file_name.toLowerCase().endsWith(".docx");
-
-  return (
-    <section className="panel p-4 2xl:p-5">
-      <div className="flex items-center gap-3">
-        <h2 className="text-base font-bold 2xl:text-lg">Primary Resume / CV</h2>
-      </div>
-      {hasResume ? (
-        <div className="mt-4 grid gap-3 rounded-md border border-border bg-white/[0.025] p-3 sm:grid-cols-[48px_minmax(0,1fr)_auto] sm:items-center">
-          <div className="grid h-12 w-12 place-items-center rounded-md bg-[#ef4444] text-xs font-black text-white">
-            {hasDocxResume ? "DOCX" : "FILE"}
-          </div>
-          <div className="min-w-0">
-            <div className="flex flex-wrap items-center gap-2">
-              <p className="truncate text-sm font-bold text-white">{profile.resume_file_name}</p>
-              <span className={cn("rounded px-2 py-0.5 text-[11px] font-bold", hasDocxResume ? "bg-success/18 text-success" : "bg-amber-400/15 text-amber-300")}>{hasDocxResume ? "Ready for generation" : "Replace with DOCX"}</span>
-            </div>
-            <p className="mt-1 text-xs font-medium text-muted">
-              {profile.resume_updated_at ? `Updated ${formatProfileDate(profile.resume_updated_at)}` : "Attached"}
-              {profile.resume_file_size ? ` • ${profile.resume_file_size}` : ""}
-            </p>
-          </div>
-          <ResumeUploadButton
-            label={hasDocxResume ? "Replace" : "Replace with DOCX"}
-            onSaveResume={onSaveResume}
-            className="h-9 px-3 text-xs font-semibold"
-          />
-          <p className="sm:col-span-3 text-[11px] leading-4 text-muted">Add your second language version under Supporting Documents and label each CV as English or German.</p>
-        </div>
-      ) : (
-        <div className="mt-4 rounded-md border border-dashed border-white/[0.16] bg-white/[0.025] p-3">
-          <p className="text-sm font-bold text-white">No resume uploaded</p>
-          <p className="mt-1 text-xs leading-5 text-muted 2xl:text-[13px]">Attach the primary DOCX resume, then add the English or German alternative under Supporting Documents.</p>
-          <ResumeUploadButton
-            label="Attach resume"
-            onSaveResume={onSaveResume}
-            className="mt-3 h-8 px-3 text-xs font-semibold"
-          />
-        </div>
-      )}
-    </section>
   );
 }
 
@@ -10557,7 +10409,7 @@ function DocumentsPanel({
         <EmptyProfileState
           className="mt-4"
           title="No application documents yet"
-          description="Add English and German CV DOCX files, language-specific cover letters, certificates and other reusable documents."
+          description="Add language-specific cover letters, certificates and other reusable documents. Import and confirm your canonical CV in Master Resume."
           action="Add document"
           onAction={onAddDocument}
         />

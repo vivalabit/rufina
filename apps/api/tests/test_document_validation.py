@@ -149,8 +149,9 @@ def test_factual_validation_uses_fact_boundaries_and_checks_job_titles() -> None
 
 def test_authoritative_evidence_catalog_contains_source_profile_confirmation_and_vacancy() -> None:
     source = Document()
-    source.add_paragraph("SUMMARY", style="Heading 1")
+    source.add_paragraph("Dear Hiring Team,")
     source.add_paragraph("Built a Python service at Acme.")
+    source.add_paragraph("Kind regards,")
 
     catalog = build_authoritative_evidence_catalog(
         document_bytes(source),
@@ -168,7 +169,7 @@ def test_authoritative_evidence_catalog_contains_source_profile_confirmation_and
         },
     )
 
-    assert catalog["source:block-0002-span-0001"] == {
+    assert catalog["source:paragraph-0002-span-0001"] == {
         "type": "source",
         "text": "Built a Python service at Acme.",
     }
@@ -500,59 +501,23 @@ def test_period_does_not_authorize_a_same_number_of_clients() -> None:
     assert any('number "2023 clients"' in issue for issue in issues)
 
 
-def test_generated_resume_validation_rejects_unknown_evidence_before_success(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_legacy_docx_resume_validation_is_removed() -> None:
     source = Document()
     source.add_paragraph("SUMMARY", style="Heading 1")
     source.add_paragraph("Built a Python service at Acme in 2023.")
     source_content = document_bytes(source)
-    replacement = {
-        "blockId": "block-0002",
-        "spanId": "block-0002-span-0001",
-        "original": "Built a Python service at Acme in 2023.",
-        "replacement": "Built a FastAPI service at Acme in 2023.",
-        "reason": "Uses the verified profile skill",
-        "evidenceIds": ["source:block-0002-span-0001", "profile:missing"],
-    }
-    monkeypatch.setattr(
-        "app.services.document_validation.validate_visual_output",
-        lambda _source, _rendered, **_kwargs: ({"status": "passed"}, []),
-    )
 
     with pytest.raises(
         DocumentValidationError,
-        match='references unknown evidence "profile:missing"',
+        match="Legacy DOCX resume validation was removed",
     ):
         validate_generated_document(
             template_content=source_content,
             rendered_content=source_content,
-            generated_content=json.dumps({"replacements": [replacement]}),
+            generated_content='{"replacements":[]}',
             document_type="tailored_resume",
             evidence={"evidenceCatalog": []},
         )
-
-    replacement["evidenceIds"] = [
-        "source:block-0002-span-0001",
-        "profile:skills",
-    ]
-    report = validate_generated_document(
-        template_content=source_content,
-        rendered_content=source_content,
-        generated_content=json.dumps({"replacements": [replacement]}),
-        document_type="tailored_resume",
-        evidence={
-            "evidenceCatalog": [
-                {"id": "profile:skills", "type": "profile", "text": "FastAPI"}
-            ]
-        },
-    )
-
-    assert report["factual"] == {
-        "status": "passed",
-        "checkedChanges": 1,
-        "checkedEvidenceCharacters": len("Built a Python service at Acme in 2023.FastAPI"),
-    }
 
 
 def test_cover_letter_diff_compares_the_rendered_docx() -> None:

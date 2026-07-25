@@ -284,6 +284,17 @@ async def chat_with_assistant(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="The assistant is temporarily disabled. Check the server configuration.",
         )
+    if (
+        request.generation_context is not None
+        and request.generation_context.document_type == "tailored_resume"
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail=(
+                "Legacy assistant-based DOCX resume tailoring was removed; "
+                "use the three-stage resume-tailoring API"
+            ),
+        )
     validate_assistant_message_length(
         request.message,
         settings,
@@ -1313,6 +1324,14 @@ def execute_assistant_action(db: Session, action) -> AssistantActionApplyRespons
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Document type is invalid",
+            )
+        if document_type == "tailored_resume":
+            raise HTTPException(
+                status_code=status.HTTP_410_GONE,
+                detail=(
+                    "Legacy assistant resume saves were removed; only server-rendered "
+                    "FinalResume PDF artifacts can be saved"
+                ),
             )
         application_id = payload_string(
             payload,

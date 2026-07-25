@@ -6,7 +6,8 @@ from typing import Any, Literal
 from docx.oxml.ns import qn
 from lxml import etree
 
-from app.services.resume_blocks import (
+from app.services.word_structure import (
+    UnsupportedWordStructureError,
     set_text_node_value,
     symbol_label,
     validate_supported_word_structure,
@@ -229,7 +230,10 @@ def parse_cover_letter_blocks(
     validate_structure: bool = True,
 ) -> list[CoverLetterParagraph]:
     if validate_structure:
-        validate_supported_word_structure(body)
+        try:
+            validate_supported_word_structure(body)
+        except UnsupportedWordStructureError as exc:
+            raise UnsupportedCoverLetterStructureError(str(exc)) from exc
     targets = hyperlink_targets or {}
     elements = list(body.iter(qn("w:p")))
     originals = [paragraph_text(element) for element in elements]

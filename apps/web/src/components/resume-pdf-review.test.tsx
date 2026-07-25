@@ -158,6 +158,7 @@ describe("ResumePdfReview", () => {
     render(
       <ResumePdfReview
         apiBaseUrl="http://localhost:8000"
+        applicationId="application-1"
         document={detail}
         templates={templates}
         selectedTemplateId="classic_single"
@@ -201,7 +202,7 @@ describe("ResumePdfReview", () => {
           headers: { "X-Rufina-Document-Id": "pdf-document-modern" },
         });
       }
-      if (url.pathname === "/documents/pdf-document-modern") {
+      if (url.pathname === "/documents/pdf-document-modern/attachments") {
         return Response.json(modern);
       }
       throw new Error(`Unhandled request: ${url.pathname}`);
@@ -211,6 +212,7 @@ describe("ResumePdfReview", () => {
     render(
       <ResumePdfReview
         apiBaseUrl="http://localhost:8000"
+        applicationId="application-1"
         document={classic}
         templates={templates}
         selectedTemplateId="modern_single"

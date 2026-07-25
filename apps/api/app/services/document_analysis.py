@@ -16,14 +16,12 @@ from app.services.cover_letter_blocks import (
     parse_cover_letter_blocks,
 )
 from app.services.document_security import validate_and_read_docx_package
-from app.services.resume_blocks import (
-    UnsupportedResumeStructureError,
+from app.services.word_structure import (
     find_unsupported_word_constructions,
-    parse_resume_blocks,
 )
 
 
-AnalyzedDocumentType = Literal["cover_letter", "generic", "tailored_resume"]
+AnalyzedDocumentType = Literal["cover_letter", "generic"]
 SOURCE_CONTEXT_MAX_CHARS = 16_000
 DOCUMENT_ANALYSIS_CACHE_SIZE = 64
 
@@ -207,22 +205,16 @@ def build_document_analysis(
         )
 
     try:
-        if document_type == "tailored_resume":
-            structured_elements = [
-                block.as_context()
-                for block in parse_resume_blocks(body, validate_structure=False)
-            ]
-        else:
-            hyperlink_targets = extract_hyperlink_targets_from_parts(package.parts)
-            structured_elements = [
-                paragraph.as_context()
-                for paragraph in parse_cover_letter_blocks(
-                    body,
-                    hyperlink_targets=hyperlink_targets,
-                    validate_structure=False,
-                )
-            ]
-    except (UnsupportedResumeStructureError, UnsupportedCoverLetterStructureError) as exc:
+        hyperlink_targets = extract_hyperlink_targets_from_parts(package.parts)
+        structured_elements = [
+            paragraph.as_context()
+            for paragraph in parse_cover_letter_blocks(
+                body,
+                hyperlink_targets=hyperlink_targets,
+                validate_structure=False,
+            )
+        ]
+    except UnsupportedCoverLetterStructureError as exc:
         description = str(exc).removeprefix("Unsupported DOCX construction: ")
         report = unsupported_report(element="mixedFormat", description=description)
         return immutable_result(
@@ -286,8 +278,6 @@ def immutable_result(
 def document_format(
     document_type: AnalyzedDocumentType,
 ) -> tuple[str, str, str]:
-    if document_type == "tailored_resume":
-        return "resume-blocks-v2", "blocks", "blockId"
     if document_type == "generic":
         return "docx-text-v1", "elements", "id"
     return "cover-letter-blocks-v1", "paragraphs", "paragraphId"

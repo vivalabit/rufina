@@ -169,7 +169,7 @@ type AssistantDocument = {
 
 type AssistantDocumentDraft = {
   id: string;
-  type: AssistantDocument["type"];
+  type: "cover_letter";
   title: string;
   content: string;
   jobId: string;
@@ -212,12 +212,6 @@ const defaultAiPrivacySettings: AiPrivacySettings = {
 const assistantActionMarkerPattern = /\s*<!--TASKO_ACTIONS:([A-Za-z0-9_\-=]+)-->\s*$/;
 
 const quickActions = [
-  {
-    title: "Tailor my resume",
-    description: "Create an editable vacancy-specific draft",
-    prompt: "Create a complete tailored resume draft for this job using only verified evidence from my profile. Use clear section headings and concise achievement bullets.",
-    icon: FileText,
-  },
   {
     title: "Write a cover letter",
     description: "Create a focused, evidence-based draft",
@@ -883,17 +877,14 @@ export function AssistantView({
     if (activeThreadId === threadId) setActiveThreadId("");
   }
 
-  function openDocumentFromMessage(
-    message: AssistantMessage,
-    type: AssistantDocument["type"],
-  ) {
+  function openDocumentFromMessage(message: AssistantMessage) {
     const roleLabel = selectedJob
       ? `${selectedJob.title} · ${selectedJob.company}`
       : profile.desired_role || profile.current_role || "Job search";
     setDocumentDraft({
       id: "",
-      type,
-      title: `${type === "cover_letter" ? "Cover letter" : "Tailored resume"} · ${roleLabel}`,
+      type: "cover_letter",
+      title: `Cover letter · ${roleLabel}`,
       content: message.content,
       jobId: selectedJob?.id ?? "",
       applicationId: selectedApplication?.id ?? "",
@@ -902,6 +893,7 @@ export function AssistantView({
   }
 
   function openSavedDocument(document: AssistantDocument) {
+    if (document.type !== "cover_letter") return;
     setDocumentDraft({
       id: document.id,
       type: document.type,
@@ -1665,11 +1657,8 @@ export function AssistantView({
                           <Button variant="ghost" size="sm" onClick={() => regenerateMessage(message.id)} className="h-7 px-2 text-[10px] text-muted hover:text-white">
                             <RefreshCw className="h-3.5 w-3.5" /> Regenerate
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => openDocumentFromMessage(message, "cover_letter")} className="h-7 px-2 text-[10px] text-muted hover:text-white">
+                          <Button variant="ghost" size="sm" onClick={() => openDocumentFromMessage(message)} className="h-7 px-2 text-[10px] text-muted hover:text-white">
                             <Save className="h-3.5 w-3.5" /> Save as cover letter
-                          </Button>
-                          <Button variant="ghost" size="sm" onClick={() => openDocumentFromMessage(message, "tailored_resume")} className="h-7 px-2 text-[10px] text-muted hover:text-white">
-                            <FileText className="h-3.5 w-3.5" /> Save tailored resume
                           </Button>
                         </div>
                       )}
@@ -1771,12 +1760,15 @@ export function AssistantView({
             <div className="mt-2 space-y-1.5">
               {documents.length ? documents.slice(0, 5).map((document) => (
                 <div key={document.id} className="flex items-center gap-1.5 rounded-md border border-border bg-white/[0.025] p-2">
-                  <button type="button" onClick={() => openSavedDocument(document)} className="min-w-0 flex-1 text-left">
+                  {document.type === "cover_letter" ? <button type="button" onClick={() => openSavedDocument(document)} className="min-w-0 flex-1 text-left">
                     <p className="truncate text-[10px] font-bold text-[#e2e7ef]">{document.title}</p>
                     <p className="mt-0.5 text-[9px] text-muted">
-                      {document.type === "cover_letter" ? "Cover letter" : "Tailored resume"} · v{document.currentVersion}
+                      Cover letter · v{document.currentVersion}
                     </p>
-                  </button>
+                  </button> : <div className="min-w-0 flex-1">
+                    <p className="truncate text-[10px] font-bold text-[#e2e7ef]">{document.title}</p>
+                    <p className="mt-0.5 text-[9px] text-muted">Historical resume · download only · v{document.currentVersion}</p>
+                  </div>}
                   <a
                     href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`}
                     download={documentFileName(document)}
@@ -1787,7 +1779,7 @@ export function AssistantView({
                   </a>
                 </div>
               )) : (
-                <p className="text-[10px] leading-4 text-muted">Save an Assistant response to create an editable DOCX artifact.</p>
+                <p className="text-[10px] leading-4 text-muted">Save an Assistant response as an editable cover-letter DOCX.</p>
               )}
             </div>
           </div>
@@ -1825,11 +1817,10 @@ export function AssistantView({
                   <select
                     value={documentDraft.type}
                     disabled={Boolean(documentDraft.id)}
-                    onChange={(event) => setDocumentDraft((draft) => draft ? { ...draft, type: event.target.value as AssistantDocument["type"] } : draft)}
+                    onChange={(event) => setDocumentDraft((draft) => draft ? { ...draft, type: event.target.value as "cover_letter" } : draft)}
                     className="h-9 w-full rounded-md border border-border bg-[#151c24] px-2.5 text-xs text-white outline-none focus:border-accent/60 disabled:opacity-60"
                   >
                     <option value="cover_letter">Cover letter</option>
-                    <option value="tailored_resume">Tailored resume</option>
                   </select>
                 </label>
                 <label className="space-y-1">

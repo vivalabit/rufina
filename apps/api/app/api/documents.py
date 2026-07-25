@@ -5,7 +5,7 @@ import re
 import unicodedata
 from collections import defaultdict
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Mapping
 from urllib.parse import quote
 from uuid import uuid4
@@ -35,11 +35,8 @@ from app.models.documents import (
     DocumentFileRecord,
     DocumentGenerationArtifactRecord,
     DocumentGenerationProvenanceRecord,
-    DocumentPackItemRequest,
-    DocumentPackJobRecord,
     DocumentPackPayload,
     DocumentPackRequest,
-    DocumentPackStagePayload,
     DocumentPackValidationRequest,
     DocumentPackValidationPayload,
     DocumentPayload,
@@ -51,7 +48,6 @@ from app.models.documents import (
     DocumentTemplatePreflightRequest,
     DocumentTemplateRecord,
     DocumentUpdateRequest,
-    DocumentValidationArtifactRecord,
     DocumentVersionGenerationProvenanceRecord,
     DocumentVersionPagePayload,
     DocumentVersionPayload,
@@ -85,7 +81,6 @@ from app.services.document_preflight import analyze_document_template
 from app.services.resume_template_registry import (
     is_bundled_resume_template_id,
     list_bundled_resume_templates,
-    materialize_bundled_resume_template,
 )
 
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
@@ -93,8 +88,6 @@ router = APIRouter(dependencies=[Depends(bind_request_identity)])
 DOCX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 PDF_CONTENT_TYPE = "application/pdf"
 MAX_TEMPLATE_BYTES = 10_000_000
-VALIDATION_ARTIFACT_TTL = timedelta(minutes=30)
-PACK_JOB_TTL = timedelta(days=7)
 DOCUMENT_VERSION_PAGE_SIZE = 20
 
 
@@ -130,6 +123,14 @@ def create_document(
     request: DocumentCreateRequest,
     db: Session = Depends(get_db),
 ) -> DocumentPayload:
+    if request.type == "tailored_resume":
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail=(
+                "Legacy DOCX resume creation was removed; run the three-stage "
+                "resume-tailoring pipeline and render finalResume as PDF"
+            ),
+        )
     try:
         generation_artifact = (
             require_generation_artifact(
@@ -264,52 +265,15 @@ def create_document(
     response_model=DocumentPackValidationPayload,
 )
 def validate_resume_pack_item(
-    request: DocumentPackValidationRequest,
-    db: Session = Depends(get_db),
+    _request: DocumentPackValidationRequest,
 ) -> DocumentPackValidationPayload:
-    try:
-        require_pack_document_ownership(
-            db,
-            request.resume,
-            document_type="tailored_resume",
-            application_id=request.application_id,
-        )
-        generation_artifact = require_generation_artifact(
-            db,
-            artifact_id=request.resume.generation_artifact_id,
-            application_id=request.application_id,
-            document_type="tailored_resume",
-        )
-        rendered_content, validation = prepare_pack_document(
-            request.resume,
-            "tailored_resume",
-            generation_artifact=generation_artifact,
-        )
-        artifact = create_validation_artifact(
-            application_id=request.application_id,
-            generation_artifact=generation_artifact,
-            rendered_content=rendered_content,
-            validation=validation,
-        )
-        db.add(artifact)
-        db.commit()
-        return DocumentPackValidationPayload(
-            validation=validation,
-            validation_artifact_id=artifact.id,
-            expires_at=artifact.expires_at,
-        )
-    except GenerationContextError as exc:
-        db.rollback()
-        raise pack_validation_failed("resume_validation", exc) from exc
-    except DocumentValidationError as exc:
-        db.rollback()
-        raise pack_validation_failed("resume_validation", exc) from exc
-    except ValueError as exc:
-        db.rollback()
-        raise pack_validation_failed("resume_validation", exc) from exc
-    except SQLAlchemyError as exc:
-        db.rollback()
-        raise database_unavailable(exc) from exc
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail=(
+            "Legacy DOCX resume pack validation was removed; use the validated "
+            "PDF artifact returned by resume tailoring"
+        ),
+    )
 
 
 @router.post(
@@ -318,191 +282,15 @@ def validate_resume_pack_item(
     status_code=status.HTTP_201_CREATED,
 )
 def create_document_pack(
-    request: DocumentPackRequest,
-    db: Session = Depends(get_db),
+    _request: DocumentPackRequest,
 ) -> DocumentPackPayload:
-    try:
-        if request.persistence_mode == "atomic" and request.cover_letter is None:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail={
-                    "stage": "cover_letter_generation",
-                    "status": "rolled_back",
-                    "message": "Atomic application packs require a cover letter",
-                },
-            )
-
-        request_fingerprint = document_pack_request_fingerprint(request)
-        existing_job = db.get(DocumentPackJobRecord, request.pack_job_id)
-        if existing_job:
-            if existing_job.request_fingerprint != request_fingerprint:
-                raise HTTPException(
-                    status_code=status.HTTP_409_CONFLICT,
-                    detail="Pack job ID was already used for a different request",
-                )
-            return document_pack_payload(existing_job, db)
-
-        require_pack_document_ownership(
-            db,
-            request.resume,
-            document_type="tailored_resume",
-            application_id=request.application_id,
-        )
-        if request.cover_letter is not None:
-            require_pack_document_ownership(
-                db,
-                request.cover_letter,
-                document_type="cover_letter",
-                application_id=request.application_id,
-            )
-
-        resume_artifact = require_generation_artifact(
-            db,
-            artifact_id=request.resume.generation_artifact_id,
-            application_id=request.application_id,
-            document_type="tailored_resume",
-            expected_job_id=request.job_id,
-        )
-
-        cover_prepared: (
-            tuple[
-                DocumentGenerationArtifactRecord,
-                bytes,
-                dict[str, object],
-            ]
-            | None
-        ) = None
-        cover_failure = ""
-        cover_artifact = None
-        if request.cover_letter is not None:
-            try:
-                cover_artifact = require_generation_artifact(
-                    db,
-                    artifact_id=request.cover_letter.generation_artifact_id,
-                    application_id=request.application_id,
-                    document_type="cover_letter",
-                    expected_job_id=request.job_id,
-                )
-            except (DocumentValidationError, GenerationContextError, ValueError) as exc:
-                cover_failure = str(exc)
-                if request.persistence_mode == "atomic":
-                    raise pack_validation_failed("cover_letter_validation", exc) from exc
-        else:
-            cover_failure = request.partial_reason or "Cover letter generation did not complete"
-
-        try:
-            if request.resume.validation_artifact_id:
-                resume_content, resume_validation = consume_validation_artifact(
-                    db,
-                    artifact_id=request.resume.validation_artifact_id,
-                    generation_artifact=resume_artifact,
-                )
-            else:
-                resume_content, resume_validation = prepare_pack_document(
-                    request.resume,
-                    "tailored_resume",
-                    generation_artifact=resume_artifact,
-                )
-        except (DocumentValidationError, GenerationContextError, ValueError) as exc:
-            raise pack_validation_failed("resume_validation", exc) from exc
-
-        if request.cover_letter is not None and cover_artifact is not None:
-            try:
-                cover_content, cover_validation = prepare_pack_document(
-                    request.cover_letter,
-                    "cover_letter",
-                    generation_artifact=cover_artifact,
-                )
-                cover_prepared = cover_artifact, cover_content, cover_validation
-            except (DocumentValidationError, GenerationContextError, ValueError) as exc:
-                cover_failure = str(exc)
-                if request.persistence_mode == "atomic":
-                    raise pack_validation_failed("cover_letter_validation", exc) from exc
-
-        now = utc_now()
-        document_ids = [
-            persist_pack_document(
-                db=db,
-                item=request.resume,
-                document_type="tailored_resume",
-                generation_artifact=resume_artifact,
-                rendered_content=resume_content,
-                validation=resume_validation,
-                created_at=now,
-            )
-        ]
-        stages = [
-            {
-                "id": "resume_validation",
-                "status": "completed",
-                "message": "CV passed factual and visual validation",
-            }
-        ]
-        pack_status = "partial"
-        message = cover_failure
-        if request.cover_letter is not None and cover_prepared is not None:
-            cover_artifact, cover_content, cover_validation = cover_prepared
-            document_ids.append(
-                persist_pack_document(
-                    db=db,
-                    item=request.cover_letter,
-                    document_type="cover_letter",
-                    generation_artifact=cover_artifact,
-                    rendered_content=cover_content,
-                    validation=cover_validation,
-                    created_at=now,
-                )
-            )
-            pack_status = "completed"
-            message = "Application pack saved atomically"
-            stages.append(
-                {
-                    "id": "cover_letter_validation",
-                    "status": "completed",
-                    "message": "Cover letter generated and saved without blocking validation",
-                }
-            )
-        else:
-            stages.append(
-                {
-                    "id": "cover_letter_validation",
-                    "status": "failed" if request.cover_letter else "skipped",
-                    "message": cover_failure,
-                }
-            )
-        stages.append(
-            {
-                "id": "saving",
-                "status": "completed",
-                "message": (
-                    "Both documents committed in one transaction"
-                    if pack_status == "completed"
-                    else "Validated CV saved as an explicit partial pack"
-                ),
-            }
-        )
-        job = DocumentPackJobRecord(
-            id=request.pack_job_id,
-            request_fingerprint=request_fingerprint,
-            application_id=request.application_id,
-            persistence_mode=request.persistence_mode,
-            status=pack_status,
-            document_ids=document_ids,
-            stages=stages,
-            message=message,
-            created_at=now,
-            updated_at=now,
-            expires_at=now + PACK_JOB_TTL,
-        )
-        db.add(job)
-        db.commit()
-        return document_pack_payload(job, db)
-    except HTTPException:
-        db.rollback()
-        raise
-    except SQLAlchemyError as exc:
-        db.rollback()
-        raise database_unavailable(exc) from exc
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail=(
+            "Legacy DOCX application packs were removed; save the tailored PDF "
+            "artifact and cover letter independently"
+        ),
+    )
 
 
 @router.get(
@@ -512,25 +300,12 @@ def create_document_pack(
 def get_document_pack_status(
     pack_job_id: str,
     application_id: str = Query(min_length=1, max_length=160, alias="applicationId"),
-    db: Session = Depends(get_db),
 ) -> DocumentPackPayload:
-    try:
-        job = db.get(DocumentPackJobRecord, pack_job_id)
-        if not job:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Pack job not found",
-            )
-        if job.application_id != application_id:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Pack job is not attached to the application",
-            )
-        return document_pack_payload(job, db)
-    except HTTPException:
-        raise
-    except SQLAlchemyError as exc:
-        raise database_unavailable(exc) from exc
+    del pack_job_id, application_id
+    raise HTTPException(
+        status_code=status.HTTP_410_GONE,
+        detail="Legacy DOCX application packs were removed",
+    )
 
 
 @router.get(
@@ -664,6 +439,14 @@ def update_document(
 ) -> DocumentPayload:
     try:
         record = require_document(db, document_id)
+        if record.type == "tailored_resume":
+            raise HTTPException(
+                status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+                detail=(
+                    "Tailored resume artifacts are immutable; generate a new "
+                    "three-stage PDF instead"
+                ),
+            )
         fields = request.model_fields_set
         generation_artifact = (
             require_generation_artifact(
@@ -848,6 +631,14 @@ def restore_document_version(
 ) -> DocumentPayload:
     try:
         record = require_document(db, document_id)
+        if record.type == "tailored_resume":
+            raise HTTPException(
+                status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+                detail=(
+                    "Tailored resume artifacts are read-only; generate a new "
+                    "three-stage PDF instead of restoring a version"
+                ),
+            )
         source = next(
             (version for version in record.versions if version.version == request.version),
             None,
@@ -1155,10 +946,7 @@ def preflight_document_template(
             )
             source_context = dict(report["sourceContext"])
             actual_source_context = build_source_document_context([source])[0]
-            source_elements = actual_source_context.get(
-                "blocks" if request.type == "tailored_resume" else "paragraphs",
-                [],
-            )
+            source_elements = actual_source_context.get("paragraphs", [])
             actual_source_characters = len(
                 json.dumps(
                     actual_source_context,
@@ -1234,6 +1022,14 @@ def create_workspace_source_document(
     request: WorkspaceSourceDocumentCreateRequest,
     db: Session = Depends(get_db),
 ) -> WorkspaceSourceDocumentPayload:
+    if request.category == "CV / Resume":
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail=(
+                "Application-level CV sources were removed; import and confirm "
+                "one canonical Master Resume in My Profile"
+            ),
+        )
     if not request.file_name.lower().endswith(".docx"):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -1246,10 +1042,7 @@ def create_workspace_source_document(
             detail="Workspace source must be a non-empty DOCX file under 10 MB",
         )
     try:
-        analyze_docx_source(
-            content,
-            "tailored_resume" if request.category == "CV / Resume" else "cover_letter",
-        )
+        analyze_docx_source(content, "cover_letter")
     except DocumentSecurityError as exc:
         raise HTTPException(
             status_code=(
@@ -1434,6 +1227,14 @@ def delete_document_template(template_id: str, db: Session = Depends(get_db)) ->
 def delete_document(document_id: str, db: Session = Depends(get_db)) -> None:
     try:
         record = require_document(db, document_id)
+        if record.type == "tailored_resume":
+            raise HTTPException(
+                status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+                detail=(
+                    "Resume artifacts are immutable and retained read-only; "
+                    "historical DOCX files remain available for download"
+                ),
+            )
         db.delete(record)
         db.commit()
     except HTTPException:
@@ -1594,280 +1395,6 @@ def require_generation_artifact(
     return artifact
 
 
-def prepare_pack_document(
-    item: DocumentPackItemRequest,
-    document_type: str,
-    *,
-    generation_artifact: DocumentGenerationArtifactRecord,
-) -> tuple[bytes, dict[str, object]]:
-    assert generation_artifact.result_content is not None
-    rendered_content = build_document_from_template(
-        template_content=generation_artifact.template_content,
-        content=generation_artifact.result_content,
-        document_type=document_type,
-    )
-    validation = (
-        validate_generated_document(
-            template_content=generation_artifact.template_content,
-            rendered_content=rendered_content,
-            generated_content=generation_artifact.result_content,
-            document_type=document_type,
-            evidence=generation_artifact.validation_evidence,
-        )
-        if document_type != "cover_letter"
-        else {}
-    )
-    return rendered_content, validation
-
-
-def create_validation_artifact(
-    *,
-    application_id: str,
-    generation_artifact: DocumentGenerationArtifactRecord,
-    rendered_content: bytes,
-    validation: dict[str, object],
-) -> DocumentValidationArtifactRecord:
-    now = utc_now()
-    template_hash, result_hash, evidence_hash = validation_artifact_hashes(
-        generation_artifact,
-    )
-    return DocumentValidationArtifactRecord(
-        id=str(uuid4()),
-        application_id=application_id,
-        document_type="tailored_resume",
-        template_id=generation_artifact.template_id,
-        generation_artifact_id=generation_artifact.id,
-        template_hash=template_hash,
-        result_hash=result_hash,
-        evidence_hash=evidence_hash,
-        rendered_hash=hashlib.sha256(rendered_content).hexdigest(),
-        rendered_content=rendered_content,
-        validation_report=validation,
-        consumed_at=None,
-        expires_at=now + VALIDATION_ARTIFACT_TTL,
-        created_at=now,
-    )
-
-
-def consume_validation_artifact(
-    db: Session,
-    *,
-    artifact_id: str,
-    generation_artifact: DocumentGenerationArtifactRecord,
-) -> tuple[bytes, dict[str, object]]:
-    artifact = db.scalar(
-        select(DocumentValidationArtifactRecord)
-        .where(DocumentValidationArtifactRecord.id == artifact_id)
-        .with_for_update()
-    )
-    if artifact is None:
-        raise ValueError("Resume validation artifact was not found")
-    if artifact.consumed_at is not None:
-        raise ValueError("Resume validation artifact has already been used")
-    expires_at = artifact.expires_at
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=utc_now().tzinfo)
-    if expires_at <= utc_now():
-        raise ValueError("Resume validation artifact has expired")
-    if (
-        artifact.application_id != generation_artifact.application_id
-        or artifact.document_type != "tailored_resume"
-        or artifact.template_id != generation_artifact.template_id
-        or artifact.generation_artifact_id != generation_artifact.id
-    ):
-        raise ValueError("Resume validation artifact does not match the application or template")
-
-    expected_hashes = validation_artifact_hashes(generation_artifact)
-    artifact_hashes = (
-        artifact.template_hash,
-        artifact.result_hash,
-        artifact.evidence_hash,
-    )
-    if artifact_hashes != expected_hashes:
-        raise ValueError(
-            "Resume validation artifact hashes do not match the current template, result, or evidence"
-        )
-    if hashlib.sha256(artifact.rendered_content).hexdigest() != artifact.rendered_hash:
-        raise ValueError("Resume validation artifact content is corrupted")
-    artifact.consumed_at = utc_now()
-    return artifact.rendered_content, dict(artifact.validation_report)
-
-
-def validation_artifact_hashes(
-    generation_artifact: DocumentGenerationArtifactRecord,
-) -> tuple[str, str, str]:
-    assert generation_artifact.result_content is not None
-    return (
-        hashlib.sha256(generation_artifact.template_content).hexdigest(),
-        hashlib.sha256(generation_artifact.result_content.encode()).hexdigest(),
-        canonical_json_hash(generation_artifact.validation_evidence),
-    )
-
-
-def canonical_json_hash(value: object) -> str:
-    canonical = json.dumps(
-        value,
-        ensure_ascii=False,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
-    return hashlib.sha256(canonical.encode()).hexdigest()
-
-
-def persist_pack_document(
-    *,
-    db: Session,
-    item: DocumentPackItemRequest,
-    document_type: str,
-    generation_artifact: DocumentGenerationArtifactRecord,
-    rendered_content: bytes,
-    validation: dict[str, object],
-    created_at: datetime,
-) -> str:
-    assert generation_artifact.result_content is not None
-    assert generation_artifact.generation_model is not None
-    if item.document_id:
-        record = require_pack_document_ownership(
-            db,
-            item,
-            document_type=document_type,
-            application_id=generation_artifact.application_id,
-        )
-        assert record is not None
-        next_version = record.current_version + 1
-        record.title = item.title.strip()
-        record.job_id = generation_artifact.job_id
-    else:
-        document_id = str(uuid4())
-        record = DocumentRecord(
-            id=document_id,
-            type=document_type,
-            title=item.title.strip(),
-            job_id=generation_artifact.job_id,
-            current_version=1,
-            created_at=created_at,
-            updated_at=created_at,
-        )
-        db.add(record)
-        next_version = 1
-
-    record.versions.append(
-        DocumentVersionRecord(
-            id=str(uuid4()),
-            document_id=record.id,
-            version=next_version,
-            content=generation_artifact.result_content,
-            created_at=created_at,
-        )
-    )
-    set_current_generation_provenance(
-        record,
-        generation_artifact.generation_fingerprint,
-        generation_artifact.generation_model,
-        generation_artifact.input_versions,
-        created_at,
-    )
-    append_version_generation_provenance(
-        record,
-        next_version,
-        generation_artifact.generation_fingerprint,
-        generation_artifact.generation_model,
-        generation_artifact.input_versions,
-        created_at,
-    )
-    if validation:
-        append_document_validation(record, next_version, validation, created_at)
-    db.add(
-        DocumentFileRecord(
-            id=str(uuid4()),
-            document_id=record.id,
-            version=next_version,
-            template_id=generation_artifact.template_id,
-            content=rendered_content,
-            created_at=created_at,
-        )
-    )
-    attach_document_record(db, record, generation_artifact.application_id)
-    generation_artifact.consumed_at = created_at
-    record.current_version = next_version
-    record.updated_at = created_at
-    return record.id
-
-
-def require_pack_document_ownership(
-    db: Session,
-    item: DocumentPackItemRequest,
-    *,
-    document_type: str,
-    application_id: str,
-) -> DocumentRecord | None:
-    if not item.document_id:
-        return None
-    record = require_document(db, item.document_id)
-    if record.type != document_type:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Existing document type does not match pack item type",
-        )
-    require_document_application_ownership(record, application_id)
-    return record
-
-
-def document_pack_request_fingerprint(
-    request: DocumentPackRequest,
-) -> str:
-    payload = {
-        "request": request.model_dump(mode="json", by_alias=True),
-    }
-    canonical = json.dumps(
-        payload,
-        ensure_ascii=True,
-        separators=(",", ":"),
-        sort_keys=True,
-    )
-    return hashlib.sha256(canonical.encode()).hexdigest()
-
-
-def document_pack_payload(job: DocumentPackJobRecord, db: Session) -> DocumentPackPayload:
-    records_by_id = {
-        record.id: record
-        for record in db.scalars(
-            select(DocumentRecord).where(DocumentRecord.id.in_(job.document_ids))
-        ).all()
-    }
-    records = [records_by_id[document_id] for document_id in job.document_ids]
-    documents = initial_document_payloads(
-        db,
-        records,
-        application_id=job.application_id,
-    )
-    return DocumentPackPayload(
-        pack_job_id=job.id,
-        status=job.status,
-        persistence_mode=job.persistence_mode,
-        documents=documents,
-        stages=[DocumentPackStagePayload.model_validate(stage) for stage in job.stages],
-        message=job.message,
-        expires_at=job.expires_at,
-    )
-
-
-def pack_validation_failed(stage: str, exc: Exception) -> HTTPException:
-    if isinstance(exc, GenerationContextError) and str(exc) == "analysis_stale":
-        return HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="analysis_stale",
-        )
-    return HTTPException(
-        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-        detail={
-            "stage": stage,
-            "status": "rolled_back",
-            "message": str(exc),
-        },
-    )
-
-
 def require_document(db: Session, document_id: str) -> DocumentRecord:
     record = db.scalar(
         select(DocumentRecord)
@@ -1891,7 +1418,10 @@ def require_document(db: Session, document_id: str) -> DocumentRecord:
 
 def require_template(db: Session, template_id: str) -> DocumentTemplateRecord:
     if is_bundled_resume_template_id(template_id):
-        return materialize_bundled_resume_template(db, template_id)
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail="Bundled resume templates render FinalResume JSON to PDF only",
+        )
     record = db.get(DocumentTemplateRecord, template_id)
     if not record:
         raise HTTPException(
@@ -2561,11 +2091,7 @@ def assistant_preflight_inputs(
     source = AssistantSourceDocument(
         id=context.template.id,
         title=context.template.name,
-        category=(
-            "Cover Letter"
-            if context.template.type == "cover_letter"
-            else "CV / Resume"
-        ),
+        category="Cover Letter",
         fileName=context.template.file_name,
         dataUrl=(
             f"data:{context.template.content_type};base64,{encoded_template}"

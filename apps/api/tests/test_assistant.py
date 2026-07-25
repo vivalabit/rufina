@@ -5,7 +5,7 @@ import json
 import logging
 import zipfile
 from collections.abc import Generator
-from datetime import UTC, date, datetime
+from datetime import UTC, datetime
 from io import BytesIO
 
 import pytest
@@ -275,7 +275,7 @@ def test_assistant_prompt_uses_only_selected_profile_source_documents() -> None:
     assert "[removed potential prompt-injection instruction]" in prompt
 
 
-def test_assistant_prompt_passes_resume_docx_as_structured_blocks() -> None:
+def test_assistant_prompt_treats_resume_docx_as_read_only_text() -> None:
     document = Document()
     document.add_paragraph("SUMMARY", style="Heading 1")
     document.add_paragraph("Backend engineer building reliable APIs.")
@@ -303,13 +303,9 @@ def test_assistant_prompt_passes_resume_docx_as_structured_blocks() -> None:
     )
 
     context, _ = prompt.split("USER_MESSAGE (trusted instructions):\n", 1)
-    assert '"format":"resume-blocks-v2"' in context
-    assert '"blockId":"block-0001"' in context
-    assert '"type":"heading"' in context
-    assert '"original":"Backend engineer building reliable APIs."' in context
-    assert '"spanId":"block-0002-span-0001"' in context
-    assert '"editable":true' in context
-    assert '"text":' not in context
+    assert '"format":"resume-blocks-v2"' not in context
+    assert '"blocks":' not in context
+    assert '"text":"SUMMARY\\nBackend engineer building reliable APIs."' in context
 
 
 def test_assistant_prompt_passes_cover_letter_as_structured_blocks() -> None:
@@ -393,7 +389,7 @@ def test_assistant_prompt_reports_unsupported_resume_construction() -> None:
         )
 
 
-def test_source_docx_preflight_accepts_mixed_format_blocks() -> None:
+def test_source_docx_preflight_treats_resume_as_generic_read_only_text() -> None:
     document = Document()
     document.add_paragraph("SUMMARY", style="Heading 1")
     paragraph = document.add_paragraph()
@@ -420,10 +416,9 @@ def test_source_docx_preflight_accepts_mixed_format_blocks() -> None:
 
     assert analyses[0] is not None
     assert analyses[0].structure_error == ""
-    assert [span["original"] for span in analyses[0].structured_elements()[1]["spans"]] == [
-        "Bold fragment",
-        " and italic fragment",
-    ]
+    assert analyses[0].format_name == "docx-text-v1"
+    assert analyses[0].structured_elements() == []
+    assert analyses[0].extracted_text == "SUMMARY\nBold fragment and italic fragment"
 
 
 def test_source_docx_preflight_returns_all_unsupported_elements_before_ai(
@@ -1256,53 +1251,11 @@ def test_document_generation_uses_only_authoritative_server_context(
     finally:
         app.dependency_overrides.clear()
 
-    assert response.status_code == 200
-    generation_artifact_id = response.json()["metadata"]["generationArtifactId"]
+    assert response.status_code == 410
+    assert "three-stage resume-tailoring API" in response.json()["detail"]
+    assert captured == {}
     with testing_session_local() as db:
-        artifact = db.get(DocumentGenerationArtifactRecord, generation_artifact_id)
-        assert artifact is not None
-        assert artifact.status == "completed"
-        assert artifact.result_content == "Generated"
-        assert artifact.generation_model == "gpt-5.6-terra"
-        assert artifact.generation_backend == "openai_api"
-        assert artifact.input_snapshot["assistant"]["providerName"] == (
-            "OpenAI Responses API"
-        )
-        assert artifact.input_versions["generationArtifact"]["id"] == artifact.id
-        assert artifact.input_versions["generationArtifact"]["providerName"] == (
-            "OpenAI Responses API"
-        )
-        assert len(
-            artifact.input_versions["generationArtifact"]["inputSnapshotSha256"]
-        ) == 64
-        assert artifact.input_snapshot["profile"]["name"] == "Server Candidate"
-        assert artifact.input_snapshot["generationDate"] == date.today().isoformat()
-        assert artifact.input_snapshot["confirmations"][0]["example_text"] == (
-            "Built production Python services."
-        )
-        assert "Injected" not in json.dumps(artifact.input_snapshot)
-        artifact.input_snapshot = {"profile": {"name": "Tampered"}}
-        with pytest.raises(ValueError, match="input snapshot is immutable"):
-            db.commit()
-        db.rollback()
-    profile = captured["profile"]
-    job = captured["job"]
-    confirmations = captured["candidate_confirmations"]
-    application = captured["application"]
-    sources = captured["source_documents"]
-    assert isinstance(profile, ProfilePayload) and profile.name == "Server Candidate"
-    assert isinstance(job, AssistantJobContext)
-    assert job.title == "Server Platform Engineer"
-    assert job.ai_match is not None
-    assert job.ai_match.application_guide["positioning"] == "Authoritative server positioning"
-    assert isinstance(application, AssistantApplicationContext)
-    assert application.generation_date == date.today().isoformat()
-    assert isinstance(confirmations, list)
-    assert confirmations[0].answer == "YES: Built production Python services."
-    assert isinstance(sources, list)
-    assert sources[0].title == "Classic"
-    assert captured["facade"].backend.name == "openai_api"
-    assert "Injected" not in repr(captured)
+        assert db.scalar(select(DocumentGenerationArtifactRecord)) is None
 
 
 def test_assistant_chat_maps_openclaw_timeout(monkeypatch: pytest.MonkeyPatch) -> None:

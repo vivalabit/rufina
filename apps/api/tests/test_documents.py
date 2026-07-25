@@ -113,7 +113,7 @@ def test_resume_template_preflight_rejects_custom_docx_without_saving() -> None:
     assert template_count == 0
 
 
-def test_workspace_source_documents_persist_by_application_and_can_be_deleted() -> None:
+def test_workspace_sources_reject_resume_uploads_but_keep_cover_letters() -> None:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -154,7 +154,7 @@ def test_workspace_source_documents_persist_by_application_and_can_be_deleted() 
     app.dependency_overrides[get_db] = override_get_db
     client = TestClient(app)
     try:
-        created = client.post(
+        resume_rejected = client.post(
             "/documents/workspace-sources",
             json={
                 "applicationId": "application-sources",
@@ -162,6 +162,17 @@ def test_workspace_source_documents_persist_by_application_and_can_be_deleted() 
                 "title": "Target CV",
                 "language": "English",
                 "fileName": "Résumé-Едуард.docx",
+                "dataUrl": data_url,
+            },
+        )
+        created = client.post(
+            "/documents/workspace-sources",
+            json={
+                "applicationId": "application-sources",
+                "category": "Cover Letter",
+                "title": "Source cover letter",
+                "language": "English",
+                "fileName": "Cover-Letter.docx",
                 "dataUrl": data_url,
             },
         )
@@ -189,9 +200,11 @@ def test_workspace_source_documents_persist_by_application_and_can_be_deleted() 
     finally:
         app.dependency_overrides.clear()
 
+    assert resume_rejected.status_code == 410
+    assert "Master Resume" in resume_rejected.json()["detail"]
     assert created.status_code == 201
-    assert created.json()["fileName"] == "Résumé-Едуард.docx"
-    assert created.json()["category"] == "CV / Resume"
+    assert created.json()["fileName"] == "Cover-Letter.docx"
+    assert created.json()["category"] == "Cover Letter"
     assert listed.status_code == 200
     assert [source["id"] for source in listed.json()] == [source_id]
     restored_content = base64.b64decode(listed.json()[0]["dataUrl"].partition(",")[2])
@@ -369,7 +382,7 @@ def test_document_download_preserves_unicode_filename_for_rendered_docx() -> Non
     )
 
 
-def test_pdf_artifact_download_and_restore_preserve_format_metadata() -> None:
+def test_pdf_artifact_is_downloadable_but_immutable() -> None:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -433,18 +446,17 @@ def test_pdf_artifact_download_and_restore_preserve_format_metadata() -> None:
         app.dependency_overrides.clear()
 
     artifact = detail.json()["versions"][0]["artifact"]
-    restored_artifact = restored.json()["versions"][-1]["artifact"]
     assert detail.status_code == 200
     assert artifact["contentType"] == "application/pdf"
     assert artifact["templateId"] == "modern_single"
     assert artifact["templateVersion"] == "1.0.0"
     assert artifact["finalResumeJson"] == {"id": "final-resume"}
-    assert restored.status_code == 200
-    assert restored_artifact["contentType"] == "application/pdf"
-    assert restored_artifact["finalResumeJson"] == {"id": "final-resume"}
-    assert downloaded.content == restored_download.content == b"%PDF-1.7\nstored"
+    assert restored.status_code == 405
+    assert "read-only" in restored.json()["detail"]
+    assert restored_download.status_code == 404
+    assert downloaded.content == b"%PDF-1.7\nstored"
     assert downloaded.headers["content-type"] == "application/pdf"
-    assert restored_download.headers["content-disposition"].startswith(
+    assert downloaded.headers["content-disposition"].startswith(
         'attachment; filename="Ada-Lovelace-resume.pdf"'
     )
 
@@ -550,8 +562,8 @@ def test_document_attachment_requires_existing_application() -> None:
         "body",
         "generationModel",
     ]
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Application not found"
+    assert response.status_code == 410
+    assert "three-stage resume-tailoring pipeline" in response.json()["detail"]
 
 
 def test_cover_letter_template_preserves_visual_structure() -> None:
@@ -643,7 +655,7 @@ def test_cover_letter_template_preserves_visual_structure() -> None:
     assert "Original reusable body paragraph." not in body_text
 
 
-def test_bundled_resume_template_rewrites_blocks() -> None:
+def test_legacy_resume_document_creation_is_gone() -> None:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -691,17 +703,11 @@ def test_bundled_resume_template_rewrites_blocks() -> None:
                 "templateId": "classic_single",
             },
         )
-        downloaded = client.get(f"/documents/{created.json()['id']}/download")
     finally:
         app.dependency_overrides.clear()
 
-    rendered = Document(BytesIO(downloaded.content))
-    assert created.status_code == 201
-    assert downloaded.status_code == 200
-    assert rendered.paragraphs[0].text == "CANDIDATE NAME"
-    assert rendered.paragraphs[2].text == "SUMMARY"
-    assert rendered.paragraphs[3].text == "Backend engineer focused on FastAPI"
-    assert rendered.paragraphs[4].text == "EXPERIENCE"
+    assert created.status_code == 410
+    assert "three-stage resume-tailoring pipeline" in created.json()["detail"]
 
 
 def test_generated_cover_letter_skips_blocking_validation(monkeypatch) -> None:

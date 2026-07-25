@@ -84,6 +84,7 @@ it("grants versioned server consent with a user TTL before streaming", async () 
   );
 
   await screen.findByText("AI consent required");
+  expect(screen.queryByText("Tailor my resume")).not.toBeInTheDocument();
   fireEvent.change(screen.getByPlaceholderText("Ask anything about your job search…"), {
     target: { value: "Review my profile" },
   });
@@ -97,6 +98,7 @@ it("grants versioned server consent with a user TTL before streaming", async () 
   fireEvent.click(screen.getByRole("button", { name: "Continue to AI" }));
 
   expect(await screen.findByText("AI reply")).toBeInTheDocument();
+  expect(screen.queryByText("Save tailored resume")).not.toBeInTheDocument();
   expect(screen.getByText("Codex credits via OpenClaw")).toBeInTheDocument();
   expect(requests.find((request) => request.path === "/privacy/ai-consent" && request.method === "PUT")?.body).toEqual({
     version: "privacy-v1",

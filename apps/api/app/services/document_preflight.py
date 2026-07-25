@@ -6,12 +6,12 @@ from app.services.document_security import DocumentSecurityError
 
 def analyze_document_template(content: bytes, document_type: str) -> dict[str, Any]:
     try:
-        if document_type not in {"cover_letter", "tailored_resume"}:
+        if document_type != "cover_letter":
             return unsupported_report(
                 element="documentType",
-                description="Unsupported document type",
+                description="Only cover-letter DOCX templates are supported",
             )
-        return analyze_docx_source(content, document_type).preflight_report()
+        return analyze_docx_source(content, "cover_letter").preflight_report()
     except DocumentSecurityError as exc:
         return unsupported_report(
             element="invalidDocument",

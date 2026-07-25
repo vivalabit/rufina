@@ -1504,6 +1504,14 @@ class MasterResumeConfirmationResponse(StrictResumeModel):
     created_at: datetime = Field(alias="createdAt")
 
 
+class CurrentMasterResumeResponse(StrictResumeModel):
+    master_resume_id: ResumeId = Field(alias="masterResumeId")
+    version: int = Field(ge=1)
+    master_resume: MasterResume = Field(alias="masterResume")
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+
+
 class MasterResumeImportRequest(StrictResumeModel):
     resume_file_name: str = Field(
         alias="resumeFileName",
@@ -1629,6 +1637,7 @@ __all__ = [
     "AtsSkippedSection",
     "CanonicalId",
     "CanonicalMasterResume",
+    "CurrentMasterResumeResponse",
     "Evidence",
     "EvidenceBackedText",
     "EvidenceClaimType",

@@ -52,7 +52,6 @@ from app.services.resume_import import (
     extract_resume_text,
     summarize_openclaw_error,
 )
-from app.services.resume_blocks import UnsupportedResumeStructureError
 
 
 logger = logging.getLogger("uvicorn.error")
@@ -703,8 +702,7 @@ def build_source_document_context(
         if remaining_chars <= 0:
             break
         try:
-            is_resume_docx = is_resume_source_document(source)
-            if is_resume_docx or is_cover_letter_source_document(source):
+            if is_cover_letter_source_document(source):
                 if analysis is None:
                     continue
                 source_context = analysis.build_ai_context(
@@ -727,7 +725,7 @@ def build_source_document_context(
                     source.file_name,
                     source.data_url,
                 ).strip()
-        except (UnsupportedResumeStructureError, UnsupportedCoverLetterStructureError) as exc:
+        except UnsupportedCoverLetterStructureError as exc:
             raise AssistantError(
                 f"Selected DOCX cannot be tailored safely. {exc}",
                 code="unsupported_document",
@@ -763,9 +761,7 @@ def preflight_source_documents(
         try:
             _, content = decode_resume_data_url(source.data_url)
             document_type = (
-                "tailored_resume"
-                if is_resume_source_document(source)
-                else "cover_letter"
+                "cover_letter"
                 if is_cover_letter_source_document(source)
                 else "generic"
             )
@@ -815,12 +811,6 @@ def preflight_source_documents(
             unsupported_elements=unsupported_elements,
         )
     return analyses
-
-
-def is_resume_source_document(source: AssistantSourceDocument) -> bool:
-    return source.file_name.lower().endswith(".docx") and any(
-        token in source.category.lower() for token in ("cv", "resume")
-    )
 
 
 def is_cover_letter_source_document(source: AssistantSourceDocument) -> bool:

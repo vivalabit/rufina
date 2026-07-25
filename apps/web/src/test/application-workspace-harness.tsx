@@ -17,6 +17,7 @@ type ApplicationOverrides = Omit<Partial<WorkspaceApplication>, "job"> & {
 type WorkspaceApiOptions = {
   confirmationPutResponse?: unknown[];
   confirmations?: unknown[];
+  currentMasterResume?: unknown | null;
   documents?: unknown[];
   resumeTemplates?: unknown[];
   templates?: unknown[];
@@ -202,6 +203,13 @@ function createWorkspaceApplication(
 export function installApplicationWorkspaceApiMock({
   confirmationPutResponse = [],
   confirmations = [],
+  currentMasterResume = {
+    masterResumeId: "master-resume-1",
+    version: 1,
+    masterResume: {},
+    createdAt: "2026-07-25T10:00:00.000Z",
+    updatedAt: "2026-07-25T10:00:00.000Z",
+  },
   documents = [],
   resumeTemplates = [
     {
@@ -344,6 +352,14 @@ export function installApplicationWorkspaceApiMock({
     }
     if (url.pathname === "/privacy/ai-consent" && method === "DELETE") {
       return new Response(null, { status: 204 });
+    }
+    if (url.pathname === "/profile/master-resume" && method === "GET") {
+      return currentMasterResume
+        ? Response.json(currentMasterResume)
+        : Response.json(
+            { detail: "Confirmed Master Resume not found" },
+            { status: 404 },
+          );
     }
     if (
       /^\/applications\/[^/]+\/confirmations$/.test(url.pathname) &&

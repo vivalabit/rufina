@@ -308,12 +308,14 @@ function atsChanges(stageResults: ResumeStageResults | null | undefined) {
 
 export function ResumePdfReview({
   apiBaseUrl,
+  applicationId,
   document,
   templates,
   selectedTemplateId,
   onDocumentReady,
 }: {
   apiBaseUrl: string;
+  applicationId: string;
   document: ResumePdfDocument | null | undefined;
   templates: BundledResumeTemplate[];
   selectedTemplateId: ResumeTemplateId;
@@ -427,8 +429,12 @@ export function ResumePdfReview({
       if (!documentId) throw new Error("The renderer did not return a saved document ID.");
       const blob = await response.blob();
       const detailResponse = await fetchWithTimeout(
-        `${apiBaseUrl}/documents/${encodeURIComponent(documentId)}`,
-        { cache: "no-store" },
+        `${apiBaseUrl}/documents/${encodeURIComponent(documentId)}/attachments`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ applicationId }),
+        },
       );
       if (!detailResponse.ok) throw new Error("The rendered PDF details could not be loaded.");
       const detail = await detailResponse.json() as ResumePdfDocument;

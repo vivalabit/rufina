@@ -26,9 +26,7 @@ from app.services.cover_letter_blocks import extract_cover_letter_blocks_from_do
 from app.services.document_export import (
     is_structured_cover_letter_content,
     parse_cover_letter_replacements,
-    parse_resume_replacements,
 )
-from app.services.resume_blocks import extract_resume_blocks_from_docx
 
 
 TECHNOLOGIES = {
@@ -277,21 +275,22 @@ def validate_generated_document(
     document_type: str,
     evidence: dict[str, Any],
 ) -> dict[str, Any]:
+    if document_type == "tailored_resume":
+        raise DocumentValidationError(
+            "Legacy DOCX resume validation was removed; validate the rendered PDF"
+        )
     diff = build_document_diff(
         template_content,
         generated_content,
         document_type,
         rendered_content=rendered_content,
     )
-    structured_document = document_type == "tailored_resume" or (
-        document_type == "cover_letter" and is_structured_cover_letter_content(generated_content)
+    structured_document = (
+        document_type == "cover_letter"
+        and is_structured_cover_letter_content(generated_content)
     )
     if structured_document:
-        replacements = (
-            parse_resume_replacements(generated_content)
-            if document_type == "tailored_resume"
-            else parse_cover_letter_replacements(generated_content)
-        )
+        replacements = parse_cover_letter_replacements(generated_content)
         evidence_catalog = build_authoritative_evidence_catalog(
             template_content,
             evidence,
@@ -344,23 +343,9 @@ def build_document_diff(
     rendered_content: bytes | None = None,
 ) -> list[dict[str, Any]]:
     if document_type == "tailored_resume":
-        blocks = {
-            block["blockId"]: block
-            for block in extract_resume_blocks_from_docx(template_content)
-        }
-        return [
-            {
-                "blockId": replacement["blockId"],
-                "spanId": replacement["spanId"],
-                "type": blocks.get(replacement["blockId"], {}).get("type", "block"),
-                "original": replacement["original"],
-                "replacement": replacement["replacement"],
-                "reason": replacement["reason"],
-                "evidenceIds": replacement["evidenceIds"],
-            }
-            for replacement in parse_resume_replacements(generated_content)
-            if replacement["replacement"] != replacement["original"]
-        ]
+        raise DocumentValidationError(
+            "Legacy DOCX resume diffing was removed"
+        )
     if document_type == "cover_letter" and is_structured_cover_letter_content(generated_content):
         paragraphs = {
             paragraph["paragraphId"]: paragraph
@@ -434,14 +419,14 @@ def build_authoritative_evidence_catalog(
     template_content: bytes,
     evidence: dict[str, Any],
     *,
-    document_type: str = "tailored_resume",
+    document_type: str = "cover_letter",
 ) -> dict[str, dict[str, Any]]:
     catalog: dict[str, dict[str, Any]] = {}
-    containers = (
-        extract_resume_blocks_from_docx(template_content)
-        if document_type == "tailored_resume"
-        else extract_cover_letter_blocks_from_docx(template_content)
-    )
+    if document_type == "tailored_resume":
+        raise DocumentValidationError(
+            "Legacy DOCX resume evidence validation was removed"
+        )
+    containers = extract_cover_letter_blocks_from_docx(template_content)
     for container in containers:
         for span in container["spans"]:
             evidence_id = span.get("evidenceId")

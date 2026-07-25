@@ -225,8 +225,8 @@ def test_application_data_is_scoped_to_request_owner() -> None:
     assert own_download.content == b"rendered-a"
     assert foreign_document.status_code == 404
     assert foreign_download.status_code == 404
-    assert own_pack.status_code == 200
-    assert foreign_pack.status_code == 404
+    assert own_pack.status_code == 410
+    assert foreign_pack.status_code == 410
     assert {item["id"] for item in created_for_b.json()} == {
         "application-b",
         "created-for-b",

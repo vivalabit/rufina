@@ -1,6 +1,7 @@
 from binascii import Error as BinasciiError
 from uuid import uuid4
 
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -20,10 +21,13 @@ from app.models.profile import (
     ResumeSkillsImportResponse,
 )
 from app.models.resume import (
+    CurrentMasterResumeResponse,
     MasterResumeConfirmationRequest,
     MasterResumeConfirmationResponse,
     MasterResumeImportRequest,
     MasterResumeImportResponse,
+    ResumeMasterRecord,
+    ResumeMasterVersionRecord,
     ResumeSourceExtraction,
 )
 from app.services.resume_import import (
@@ -186,6 +190,54 @@ def update_profile(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Profile database is unavailable",
+        ) from exc
+
+
+@router.get(
+    "/master-resume",
+    response_model=CurrentMasterResumeResponse,
+)
+def get_current_master_resume(
+    db: Session = Depends(get_db),
+) -> CurrentMasterResumeResponse:
+    try:
+        master = db.scalar(
+            select(ResumeMasterRecord)
+            .order_by(
+                ResumeMasterRecord.updated_at.desc(),
+                ResumeMasterRecord.created_at.desc(),
+            )
+            .limit(1)
+        )
+        if master is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Confirmed Master Resume not found",
+            )
+        version = db.scalar(
+            select(ResumeMasterVersionRecord).where(
+                ResumeMasterVersionRecord.resume_master_id == master.id,
+                ResumeMasterVersionRecord.version == master.current_version,
+            )
+        )
+        if version is None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Current Master Resume version is unavailable",
+            )
+        return CurrentMasterResumeResponse(
+            master_resume_id=master.id,
+            version=version.version,
+            master_resume=version.data,
+            created_at=version.created_at,
+            updated_at=master.updated_at,
+        )
+    except HTTPException:
+        raise
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Master Resume is temporarily unavailable",
         ) from exc
 
 
