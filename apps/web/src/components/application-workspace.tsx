@@ -57,6 +57,12 @@ import {
   fetchWithTimeout,
 } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
+import {
+  completedResumeTailoringProgress,
+  ResumeTailoringProgressPanel,
+  type ResumeTailoringProgress,
+  type ResumeTailoringStageId,
+} from "@/components/resume-tailoring-progress";
 
 type WorkspaceJob = {
   id: string;
@@ -476,6 +482,14 @@ const packStageDefinitions: Array<{ id: PackStageId; label: string }> = [
   { id: "saving", label: "Save pack" },
 ];
 
+function tailoringStageLabel(stage: ResumeTailoringStageId) {
+  if (stage === "recruiter_analysis") return "recruiter analysis";
+  if (stage === "experience_rewrite") return "experience rewrite";
+  if (stage === "ats_final_review") return "ATS final review";
+  if (stage === "rendering_pdf") return "PDF rendering";
+  return "PDF validation";
+}
+
 function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -877,6 +891,8 @@ export function ApplicationWorkspace({
   const [isGeneratingPack, setIsGeneratingPack] = useState(false);
   const [packPersistenceMode, setPackPersistenceMode] = useState<PackPersistenceMode>("atomic");
   const [packProgress, setPackProgress] = useState<PackProgress | null>(null);
+  const [resumeTailoringProgress, setResumeTailoringProgress] =
+    useState<ResumeTailoringProgress | null>(null);
   const [restoringVersionKey, setRestoringVersionKey] = useState("");
   const [loadingVersionHistoryId, setLoadingVersionHistoryId] = useState("");
   const [deletingDocumentId, setDeletingDocumentId] = useState("");
@@ -936,6 +952,7 @@ export function ApplicationWorkspace({
     setDocuments([]);
     setWorkspaceSources([]);
     setDocumentError("");
+    setResumeTailoringProgress(null);
     const controller = new AbortController();
     Promise.all([
       fetchWithTimeout(`${apiBaseUrl}/documents?applicationId=${encodeURIComponent(application.id)}`, { signal: controller.signal }),
@@ -1354,6 +1371,7 @@ export function ApplicationWorkspace({
     onRetry?: (attempt: number) => void,
     correction?: DocumentGenerationCorrection,
     userInstruction = "",
+    tailoringAttempt = 1,
   ): Promise<GeneratedDocumentDraftResult> {
     if (!documentsLoaded) throw new Error("Document history is still loading");
     const isCoverLetter = type === "cover_letter";
@@ -1394,54 +1412,103 @@ export function ApplicationWorkspace({
     const invokeAssistant = async (prompt: string) => {
       const generate = () => askAssistant(ensureGenerationPromptFits(prompt), generationContext);
       return onRetry
-        ? await retryPackOperation(generate, onRetry)
+        ? await retryPackOperation(generate, (attempt) => {
+            if (!isCoverLetter) {
+              setResumeTailoringProgress((current) => current ? {
+                ...current,
+                status: "retrying",
+                attempt,
+                message: `Retrying ${tailoringStageLabel(current.stage)}…`,
+              } : current);
+            }
+            onRetry(attempt);
+          })
         : await generate();
     };
 
     if (!isCoverLetter) {
-      const recruiterResult = await invokeAssistant(
-        buildResumeRecruiterAnalysisPrompt(targetLanguage, userInstruction),
-      );
-      if (!recruiterResult.message) throw new Error("Senior recruiter analysis returned an empty response");
-      const recruiterAnalysis = parseRecruiterAnalysis(recruiterResult.message);
+      setResumeTailoringProgress({
+        stage: "recruiter_analysis",
+        status: "active",
+        message: "Recruiter analysis is reviewing the vacancy and verified candidate evidence",
+        attempt: tailoringAttempt,
+      });
+      try {
+        const recruiterResult = await invokeAssistant(
+          buildResumeRecruiterAnalysisPrompt(targetLanguage, userInstruction),
+        );
+        if (!recruiterResult.message) throw new Error("Senior recruiter analysis returned an empty response");
+        const recruiterAnalysis = parseRecruiterAnalysis(recruiterResult.message);
 
-      const experienceResult = await invokeAssistant(
-        buildResumeExperienceRewritePrompt(
-          targetLanguage,
-          recruiterAnalysis,
-          userInstruction,
-        ),
-      );
-      if (!experienceResult.message) throw new Error("Experience rewrite returned an empty response");
-      const experienceDraft = parseResumeRewrite(
-        experienceResult.message,
-        "Experience rewrite",
-      );
+        setResumeTailoringProgress({
+          stage: "experience_rewrite",
+          status: "active",
+          message: "Experience rewrite is adapting supported achievements",
+          attempt: tailoringAttempt,
+        });
+        const experienceResult = await invokeAssistant(
+          buildResumeExperienceRewritePrompt(
+            targetLanguage,
+            recruiterAnalysis,
+            userInstruction,
+          ),
+        );
+        if (!experienceResult.message) throw new Error("Experience rewrite returned an empty response");
+        const experienceDraft = parseResumeRewrite(
+          experienceResult.message,
+          "Experience rewrite",
+        );
 
-      const finalResult = await invokeAssistant(
-        buildResumeAtsFinalPrompt(targetLanguage, experienceDraft, {
-          userInstruction,
-          correction,
-        }),
-      );
-      if (!finalResult.message) throw new Error("ATS review returned an empty document");
-      if (!finalResult.generationArtifactId) {
-        throw new Error("AI generation did not return a server artifact");
+        setResumeTailoringProgress({
+          stage: "ats_final_review",
+          status: "active",
+          message: "ATS final review is checking the complete structured resume",
+          attempt: tailoringAttempt,
+        });
+        const finalResult = await invokeAssistant(
+          buildResumeAtsFinalPrompt(targetLanguage, experienceDraft, {
+            userInstruction,
+            correction,
+          }),
+        );
+        if (!finalResult.message) throw new Error("ATS review returned an empty document");
+        if (!finalResult.generationArtifactId) {
+          throw new Error("AI generation did not return a server artifact");
+        }
+        const finalReview = parseFinalResumeReview(finalResult.message);
+        const replacementCount = structuredReplacementCount(JSON.stringify(finalReview));
+        if (replacementCount === null || replacementCount === 0) {
+          throw new Error(noSafeDocumentChangesMessage("CV"));
+        }
+        setResumeTailoringProgress({
+          stage: "rendering_pdf",
+          status: "active",
+          message: "Rendering the approved structured resume as PDF",
+          attempt: tailoringAttempt,
+        });
+        const existingDocument = latestResume;
+        return {
+          draft: {
+            ...(existingDocument ? { documentId: existingDocument.id } : {}),
+            title: `Tailored CV · ${activeApplication.job.title} · ${activeApplication.job.company}`,
+            generationArtifactId: finalResult.generationArtifactId,
+          },
+          generatedContent: finalResult.message,
+        };
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Resume tailoring failed";
+        setResumeTailoringProgress((current) => current ? {
+          ...current,
+          status: "failed",
+          message,
+        } : {
+          stage: "recruiter_analysis",
+          status: "failed",
+          message,
+          attempt: tailoringAttempt,
+        });
+        throw error;
       }
-      const finalReview = parseFinalResumeReview(finalResult.message);
-      const replacementCount = structuredReplacementCount(JSON.stringify(finalReview));
-      if (replacementCount === null || replacementCount === 0) {
-        throw new Error(noSafeDocumentChangesMessage("CV"));
-      }
-      const existingDocument = latestResume;
-      return {
-        draft: {
-          ...(existingDocument ? { documentId: existingDocument.id } : {}),
-          title: `Tailored CV · ${activeApplication.job.title} · ${activeApplication.job.company}`,
-          generationArtifactId: finalResult.generationArtifactId,
-        },
-        generatedContent: finalResult.message,
-      };
     }
 
     const basePrompt = buildDocumentGenerationPrompt(type, targetLanguage);
@@ -1512,7 +1579,13 @@ export function ApplicationWorkspace({
       let correction: DocumentGenerationCorrection | undefined;
       const validationAttempts = type === "cover_letter" ? 1 : documentValidationRepairAttempts;
       for (let attempt = 1; attempt <= validationAttempts; attempt += 1) {
-        const generated = await generateDocumentDraft(type, undefined, correction, userInstruction);
+        const generated = await generateDocumentDraft(
+          type,
+          undefined,
+          correction,
+          userInstruction,
+          attempt,
+        );
         const { draft } = generated;
         const existingDocument = type === "cover_letter" ? latestCoverLetter : latestResume;
         const response = await fetch(
@@ -1534,6 +1607,14 @@ export function ApplicationWorkspace({
         );
         if (response.ok) {
           const saved = await response.json() as GeneratedDocument;
+          if (type === "tailored_resume") {
+            setResumeTailoringProgress(
+              completedResumeTailoringProgress(
+                "PDF rendered, validated, and saved",
+                attempt,
+              ),
+            );
+          }
           setDocuments((current) => [saved, ...current.filter((document) => document.id !== saved.id)]);
           onDocumentAttached(activeApplication.id, {
             artifactId: saved.id,
@@ -1547,6 +1628,14 @@ export function ApplicationWorkspace({
         }
         const message = await readApiError(response, "Document save failed");
         if (isDocumentValidationFailure(response.status, message)) {
+          if (type === "tailored_resume") {
+            setResumeTailoringProgress({
+              stage: "validating_pdf",
+              status: "failed",
+              message,
+              attempt,
+            });
+          }
           if (attempt < validationAttempts) {
             correction = {
               feedback: message,
@@ -1556,11 +1645,26 @@ export function ApplicationWorkspace({
           }
           throw new Error(documentValidationFailureMessage(type === "cover_letter" ? "cover letter" : "CV"));
         }
+        if (type === "tailored_resume") {
+          setResumeTailoringProgress((current) => current ? {
+            ...current,
+            status: "failed",
+            message,
+          } : current);
+        }
         throw new Error(message);
       }
       throw new Error(documentValidationFailureMessage(type === "cover_letter" ? "cover letter" : "CV"));
     } catch (error) {
-      setDocumentError(error instanceof Error ? error.message : "Document generation failed");
+      const message = error instanceof Error ? error.message : "Document generation failed";
+      if (type === "tailored_resume") {
+        setResumeTailoringProgress((current) => (
+          current && current.status !== "failed"
+            ? { ...current, status: "failed", message }
+            : current
+        ));
+      }
+      setDocumentError(message);
       return false;
     } finally {
       setGenerationType("");
@@ -1713,27 +1817,53 @@ export function ApplicationWorkspace({
           "tailored_resume",
           (retryAttempt) => updateProgress("resume_generation", "retrying", "Retrying CV generation…", retryAttempt),
           resumeCorrection,
+          "",
+          attempt,
         );
         resumeDraft = generatedResume.draft;
         updateProgress("resume_generation", "completed", "CV draft generated", attempt);
 
         setGenerationType("");
         updateProgress("resume_validation", "active", "Rendering and validating CV", attempt);
-        const resumeValidationResponse = await postPackRequest(
-          "/documents/packs/validate-resume",
-          { applicationId: activeApplication.id, resume: resumeDraft },
-          "resume_validation",
-          "CV validation failed",
-        );
+        let resumeValidationResponse: Response;
+        try {
+          resumeValidationResponse = await postPackRequest(
+            "/documents/packs/validate-resume",
+            { applicationId: activeApplication.id, resume: resumeDraft },
+            "resume_validation",
+            "CV validation failed",
+          );
+        } catch (error) {
+          const message = error instanceof Error ? error.message : "CV validation failed";
+          setResumeTailoringProgress({
+            stage: "validating_pdf",
+            status: "failed",
+            message,
+            attempt,
+          });
+          throw error;
+        }
         if (resumeValidationResponse.ok) {
           const resumeValidation = await resumeValidationResponse.json() as ResumeValidationResponse;
           resumeDraft = {
             ...resumeDraft,
             validationArtifactId: resumeValidation.validationArtifactId,
           };
+          setResumeTailoringProgress(
+            completedResumeTailoringProgress(
+              "PDF rendered and passed automated validation",
+              attempt,
+            ),
+          );
           break;
         }
         const message = await readApiError(resumeValidationResponse, "CV validation failed");
+        setResumeTailoringProgress({
+          stage: "validating_pdf",
+          status: "failed",
+          message,
+          attempt,
+        });
         if (
           isDocumentValidationFailure(resumeValidationResponse.status, message)
           && attempt < documentValidationRepairAttempts
@@ -2222,6 +2352,7 @@ export function ApplicationWorkspace({
               </div>
               <div className="p-5 sm:p-6">
                 {documentError ? <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-400/25 bg-red-500/[0.07] px-3 py-2.5 text-xs leading-5 text-red-200"><span>{documentError}</span><button type="button" onClick={retryApiRequests} className="inline-flex shrink-0 items-center gap-1.5 font-bold text-red-100 hover:text-white"><RefreshCw className="h-3.5 w-3.5" /> Retry</button></div> : null}
+                {resumeTailoringProgress ? <ResumeTailoringProgressPanel progress={resumeTailoringProgress} /> : null}
                 {packProgress ? <div className={cn("mb-4 rounded-xl border p-3", packProgress.status === "failed" ? "border-red-400/25 bg-red-500/[0.045]" : packProgress.status === "partial" ? "border-amber-400/25 bg-amber-400/[0.045]" : "border-white/[0.08] bg-black/15")}><div className="grid gap-2 sm:grid-cols-4">{packStageDefinitions.map((stage, index) => { const currentIndex = packStageDefinitions.findIndex((candidate) => candidate.id === packProgress.stage); const stageStatus = index < currentIndex ? "completed" : index === currentIndex ? packProgress.status : "pending"; return <div key={stage.id} className={cn("rounded-lg border px-2.5 py-2", stageStatus === "completed" ? "border-success/20 bg-success/[0.05]" : stageStatus === "failed" ? "border-red-400/25 bg-red-500/[0.06]" : stageStatus === "partial" ? "border-amber-400/25 bg-amber-400/[0.06]" : stageStatus === "active" || stageStatus === "retrying" ? "border-accent/30 bg-accent/[0.07]" : "border-white/[0.06] bg-white/[0.015]")}><div className="flex items-center gap-2">{stageStatus === "completed" ? <Check className="h-3.5 w-3.5 text-success" /> : stageStatus === "active" || stageStatus === "retrying" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin text-accent" /> : stageStatus === "failed" ? <AlertTriangle className="h-3.5 w-3.5 text-red-200" /> : <CircleDot className="h-3.5 w-3.5 text-muted" />}<span className={cn("text-[9px] font-black uppercase tracking-wide", stageStatus === "completed" ? "text-success" : stageStatus === "failed" ? "text-red-200" : stageStatus === "partial" ? "text-amber-200" : stageStatus === "active" || stageStatus === "retrying" ? "text-white" : "text-muted")}>{stage.label}</span></div></div>; })}</div><div className="mt-2 flex items-center justify-between gap-3 px-1 text-[9px]"><span className={cn(packProgress.status === "failed" ? "text-red-200" : packProgress.status === "partial" ? "text-amber-200" : "text-muted")}>{packProgress.message}</span><span className="shrink-0 font-mono text-muted">{packProgress.attempt > 1 ? `attempt ${packProgress.attempt}/3 · ` : ""}{packProgress.jobId.slice(-8)}</span></div></div> : null}
                 {effectiveLanguage && !resumeSources.some((source) => source.language === effectiveLanguage) ? <div className="mb-4 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2.5 text-xs leading-5 text-amber-200">No {effectiveLanguage} CV DOCX is saved in Profile. Add one or choose another language.</div> : null}
                 {templates.length ? <details className="mb-4 rounded-xl border border-white/[0.07] bg-black/15"><summary className="cursor-pointer px-3 py-2.5 text-[10px] font-bold text-[#cbd3df] marker:text-muted">Stored cover-letter templates · {templates.length}</summary><div className="divide-y divide-white/[0.06] border-t border-white/[0.07] px-3">{templates.map((template) => <div key={template.id} className="flex items-center gap-3 py-2"><div className="min-w-0 flex-1"><p className="truncate text-[10px] font-bold text-white">{template.name}</p><p className="truncate text-[9px] text-muted">Cover letter · {template.fileName}</p></div><Button type="button" variant="ghost" aria-label={`Delete template ${template.name}`} disabled={deletingTemplateId === template.id} onClick={() => void deleteStoredTemplate(template)} className="h-8 rounded-lg border border-red-400/20 px-2 text-red-200 hover:bg-red-500/10">{deletingTemplateId === template.id ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}</Button></div>)}</div></details> : null}

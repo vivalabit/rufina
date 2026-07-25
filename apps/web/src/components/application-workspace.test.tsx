@@ -798,6 +798,20 @@ describe("ApplicationWorkspace", () => {
     fireEvent.click(generateResume);
 
     await waitFor(() => expect(props.onDocumentAttached).toHaveBeenCalledTimes(1), { timeout: 4_000 });
+    const tailoringProgress = screen.getByRole("group", {
+      name: "Resume tailoring progress",
+    });
+    expect(
+      within(tailoringProgress).getAllByRole("listitem", {
+        name: /completed$/,
+      }),
+    ).toHaveLength(5);
+    expect(
+      within(tailoringProgress).getByText(
+        "PDF rendered, validated, and saved",
+      ),
+    ).toBeInTheDocument();
+    expect(within(tailoringProgress).getByText("attempt 2")).toBeInTheDocument();
     expect(assistantCalls).toBe(6);
     expect(saveCalls).toBe(2);
     expect(finalArtifactId).toBe("generation-artifact-6");
@@ -938,7 +952,24 @@ describe("ApplicationWorkspace", () => {
     await waitFor(() => expect(generateResume).toBeEnabled());
     fireEvent.click(generateResume);
 
-    expect(await screen.findByText(/did not find any evidence-backed changes for the CV/)).toBeInTheDocument();
+    expect(
+      await screen.findAllByText(
+        /did not find any evidence-backed changes for the CV/,
+      ),
+    ).toHaveLength(2);
+    const failedProgress = screen.getByRole("group", {
+      name: "Resume tailoring progress",
+    });
+    expect(
+      within(failedProgress).getByRole("listitem", {
+        name: "ATS final review: failed",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      within(failedProgress).getByRole("listitem", {
+        name: "Rendering PDF: pending",
+      }),
+    ).toBeInTheDocument();
     expect(assistantCalls).toBe(3);
     expect(saveCalls).toBe(0);
     expect(props.onDocumentAttached).not.toHaveBeenCalled();
