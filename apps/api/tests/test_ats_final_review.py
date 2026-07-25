@@ -1,9 +1,10 @@
 from collections.abc import Generator
+from copy import deepcopy
 from inspect import signature
 from io import BytesIO
 
 from fastapi.testclient import TestClient
-from pypdf import PdfReader
+from pypdf import PdfReader, PdfWriter
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -18,6 +19,7 @@ from app.models.resume import (
     AtsFinalReviewRecord,
     ExperienceRewrite,
     ExperienceRewriteRecord,
+    FinalResume,
     MasterResume,
     ResumeMasterRecord,
     ResumeMasterVersionRecord,
@@ -31,9 +33,17 @@ from app.services.ai_privacy import require_current_ai_consent
 from app.services.document_export import render_final_resume_json
 from app.services.resume_pdf_renderer import (
     ResumePdfRenderError,
+    chromium_pdf_from_html,
     load_template_bundle,
     render_final_resume_html,
     render_final_resume_pdf,
+    validate_rendered_pdf,
+)
+from app.services.resume_pdf_validation import (
+    PDF_TEMPLATE_VERSION_METADATA_KEY,
+    ResumePdfValidationError,
+    validate_expected_text,
+    validate_reading_order,
 )
 from app.services.resume_tailoring import (
     ATS_FINAL_REVIEW_PROMPT_VERSION,
@@ -278,6 +288,94 @@ def final_review_payload(master_resume_id: str) -> dict[str, object]:
         },
         "finalResume": final_resume,
     }
+
+
+def complete_final_resume_payload(master_resume_id: str) -> dict[str, object]:
+    final_resume = final_review_payload(master_resume_id)["finalResume"]
+    final_resume["basics"].update(
+        {
+            "phone": "+41 44 000 00 00",
+            "linkedin": "https://linkedin.example/ada",
+            "github": "https://github.example/ada",
+            "portfolio": "https://ada.example",
+        }
+    )
+    final_resume["skills"][0]["category"] = "Engineering"
+    final_resume["education"] = [
+        {
+            "id": "education:analytical-engine",
+            "institution": "University of London",
+            "credential": "BSc",
+            "fieldOfStudy": "Mathematics",
+            "location": "London",
+            "startDate": "1833",
+            "endDate": "1835",
+            "details": [
+                {
+                    "id": "bullet:education:research",
+                    "text": "Studied symbolic computation.",
+                    "evidenceIds": ["profile:summary"],
+                }
+            ],
+        }
+    ]
+    final_resume["projects"] = [
+        {
+            "id": "project:analytical-engine",
+            "name": "Analytical Engine Notes",
+            "role": "Author",
+            "url": "https://ada.example/analytical-engine",
+            "bullets": [
+                {
+                    "id": "bullet:project:algorithm",
+                    "text": "Published an algorithm for Bernoulli numbers.",
+                    "evidenceIds": ["profile:summary"],
+                }
+            ],
+        }
+    ]
+    final_resume["certifications"] = [
+        {
+            "id": "certification:cloud",
+            "name": "Cloud Architecture",
+            "issuer": "Engineering Guild",
+            "issuedOn": "2024-01",
+            "expiresOn": "2027-01",
+            "evidenceIds": ["profile:skill:python"],
+        }
+    ]
+    final_resume["languages"] = [
+        {
+            "id": "language:english",
+            "name": "English",
+            "proficiency": "Native",
+            "evidenceIds": ["profile:summary"],
+        }
+    ]
+    final_resume["additionalSections"] = [
+        {
+            "id": "additional:community",
+            "title": "Community",
+            "items": [
+                {
+                    "id": "bullet:additional:mentoring",
+                    "text": "Mentors early-career engineers.",
+                    "evidenceIds": ["profile:summary"],
+                }
+            ],
+        }
+    ]
+    final_resume["sectionOrder"] = [
+        "summary",
+        "experience",
+        "skills",
+        "education",
+        "projects",
+        "certifications",
+        "languages",
+        "additional",
+    ]
+    return final_resume
 
 
 def ai_result(payload: dict[str, object]) -> AIResult:
@@ -630,7 +728,7 @@ def test_final_resume_json_is_the_renderers_only_input() -> None:
 def test_pdf_template_manifests_are_valid_and_render_escaped_html(
     template_id: str,
 ) -> None:
-    final_resume_json = final_review_payload("master-resume")["finalResume"]
+    final_resume_json = complete_final_resume_payload("master-resume")
     final_resume_json["basics"]["fullName"] = "<b>Ada Lovelace</b>"
     final_resume_json["basics"]["linkedin"] = "javascript:alert(1)"
 
@@ -652,6 +750,16 @@ def test_pdf_template_manifests_are_valid_and_render_escaped_html(
     )
     assert rendered.startswith(b"%PDF-")
     assert len(PdfReader(BytesIO(rendered)).pages) >= 1
+    report = validate_rendered_pdf(
+        rendered,
+        resume=FinalResume.model_validate(final_resume_json),
+        bundle=bundle,
+    )
+    assert report.page_count == report.png_page_count
+    assert report.expected_text_fragment_count > 0
+    assert report.template_id == template_id
+    assert report.template_version == bundle.manifest.template_version
+    assert report.overflow_issue_count == 0
 
 
 def test_pdf_renderer_rejects_non_final_resume_fields() -> None:
@@ -664,3 +772,128 @@ def test_pdf_renderer_rejects_non_final_resume_fields() -> None:
         match="FinalResume JSON failed schema validation",
     ):
         render_final_resume_html(final_resume_json)
+
+
+def test_pdf_validation_rejects_wrong_template_version_and_page_count() -> None:
+    final_resume_json = final_review_payload("master-resume")["finalResume"]
+    resume = FinalResume.model_validate(final_resume_json)
+    bundle = load_template_bundle("classic_single")
+    rendered = render_final_resume_pdf(final_resume_json)
+
+    wrong_version = rewrite_pdf(
+        rendered,
+        template_version="9.9.9",
+    )
+    with pytest.raises(
+        ResumePdfValidationError,
+        match="metadata does not match",
+    ):
+        validate_rendered_pdf(
+            wrong_version,
+            resume=resume,
+            bundle=bundle,
+        )
+
+    too_many_pages = rewrite_pdf(
+        rendered,
+        page_count=bundle.manifest.validation.max_pages + 1,
+    )
+    with pytest.raises(
+        ResumePdfValidationError,
+        match="page count is outside",
+    ):
+        validate_rendered_pdf(
+            too_many_pages,
+            resume=resume,
+            bundle=bundle,
+        )
+
+
+def test_pdf_validation_rejects_missing_text_reading_order_and_overflow() -> None:
+    with pytest.raises(ResumePdfValidationError, match="missing expected text"):
+        validate_expected_text("first third", ["first", "second", "third"])
+    with pytest.raises(ResumePdfValidationError, match="reading order"):
+        validate_reading_order("second first", ["first", "second"])
+
+    final_resume_json = final_review_payload("master-resume")["finalResume"]
+    with pytest.raises(ResumePdfValidationError, match="contains overflow"):
+        validate_rendered_pdf(
+            render_final_resume_pdf(final_resume_json),
+            resume=FinalResume.model_validate(final_resume_json),
+            bundle=load_template_bundle("classic_single"),
+            html_overflow_issues=("paragraph exceeds resume width",),
+        )
+
+
+def test_chromium_layout_validation_detects_horizontal_overflow() -> None:
+    result = chromium_pdf_from_html(
+        """
+        <!doctype html>
+        <html>
+          <body>
+            <div class="resume-shell" style="width: 120px">
+              <p style="width: 40px; white-space: nowrap">
+                text-that-cannot-fit-inside-the-box
+              </p>
+            </div>
+          </body>
+        </html>
+        """,
+        load_template_bundle("classic_single").manifest.page,
+    )
+
+    assert any(
+        "exceeds" in issue
+        for issue in result.overflow_issues
+    )
+
+
+def test_pdf_validation_rasterizes_every_page_of_long_resume() -> None:
+    final_resume_json = final_review_payload("master-resume")["finalResume"]
+    source_experience = final_resume_json["experiences"][0]
+    experiences = []
+    for index in range(12):
+        experience = deepcopy(source_experience)
+        experience["id"] = f"rewritten-experience:{index:04d}"
+        experience["masterExperienceId"] = f"experience:company:{index:04d}"
+        experience["company"] = f"Company {index + 1}"
+        experience["bullets"][0]["id"] = f"rewritten-bullet:{index:04d}"
+        experiences.append(experience)
+    final_resume_json["experiences"] = experiences
+
+    rendered = render_final_resume_pdf(final_resume_json)
+    resume = FinalResume.model_validate(final_resume_json)
+    report = validate_rendered_pdf(
+        rendered,
+        resume=resume,
+        bundle=load_template_bundle("classic_single"),
+    )
+
+    assert report.page_count > 1
+    assert report.png_page_count == report.page_count
+
+
+def rewrite_pdf(
+    pdf: bytes,
+    *,
+    template_version: str | None = None,
+    page_count: int | None = None,
+) -> bytes:
+    reader = PdfReader(BytesIO(pdf))
+    writer = PdfWriter()
+    if page_count is None:
+        writer.clone_document_from_reader(reader)
+    else:
+        for _ in range(page_count):
+            writer.add_page(reader.pages[0])
+    metadata = {
+        key: str(value)
+        for key, value in (reader.metadata or {}).items()
+        if isinstance(key, str) and value is not None
+    }
+    if template_version is not None:
+        metadata[PDF_TEMPLATE_VERSION_METADATA_KEY] = template_version
+    writer.add_metadata(metadata)
+    output = BytesIO()
+    writer.write(output)
+    return output.getvalue()

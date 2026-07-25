@@ -21,11 +21,15 @@
 }
 
 .template-modern_two_column .side-column {
+  grid-column: 1;
+  grid-row: 1;
   border-right: 1px solid #cbd5df;
   padding-right: 18px;
 }
 
 .template-modern_two_column .primary-column {
+  grid-column: 2;
+  grid-row: 1;
   padding-left: 1px;
 }
 

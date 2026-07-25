@@ -9,5 +9,11 @@
   "page": {
     "format": "A4",
     "printBackground": true
+  },
+  "validation": {
+    "minPages": 1,
+    "maxPages": 5,
+    "pngDpi": 144,
+    "readingOrder": "primaryThenSidebar"
   }
 }

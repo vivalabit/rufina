@@ -59,6 +59,7 @@
     {% for project in resume.projects %}
     <article class="resume-item">
       <h3>{{ project.name }}{% if project.role %}<span class="separator"> · </span>{{ project.role }}{% endif %}</h3>
+      {% if project.url %}<p class="item-subheading">{{ project.url }}</p>{% endif %}
       <ul>{% for bullet in project.bullets %}<li>{{ bullet.text }}</li>{% endfor %}</ul>
     </article>
     {% endfor %}
@@ -67,7 +68,7 @@
   <section class="resume-section section-certifications">
     <h2>{{ resume.section_titles.certifications }}</h2>
     {% for certification in resume.certifications %}
-    <p class="compact-item"><strong>{{ certification.name }}</strong><span class="separator"> · </span>{{ certification.issuer }}{% if certification.issued_on %}<span class="separator"> · </span>{{ certification.issued_on }}{% endif %}</p>
+    <p class="compact-item"><strong>{{ certification.name }}</strong><span class="separator"> · </span>{{ certification.issuer }}{% if certification.issued_on %}<span class="separator"> · </span>{{ certification.issued_on }}{% endif %}{% if certification.expires_on %}<span class="separator"> · </span>{{ resume.section_titles.expires }}: {{ certification.expires_on }}{% endif %}</p>
     {% endfor %}
   </section>
   {% elif section == "languages" and resume.languages %}
@@ -81,7 +82,7 @@
     {% for additional in resume.additional_sections %}
     <article class="resume-item">
       <h3>{{ additional.title }}</h3>
-      <ul>{% for item in additional.items %}<li>{{ item.text }}</li>{% endfor %}</ul>
+      <ul>{% for item in additional["items"] %}<li>{{ item.text }}</li>{% endfor %}</ul>
     </article>
     {% endfor %}
   </section>
@@ -102,11 +103,11 @@
   </header>
   {% if template_id == "modern_two_column" %}
   <main class="resume-main two-column">
-    <div class="side-column">
-      {% for section in resume.section_order %}{% if section in ["skills", "education", "certifications", "languages", "additional"] %}{{ render_section(section) }}{% endif %}{% endfor %}
-    </div>
     <div class="primary-column">
       {% for section in resume.section_order %}{% if section in ["summary", "experience", "projects"] %}{{ render_section(section) }}{% endif %}{% endfor %}
+    </div>
+    <div class="side-column">
+      {% for section in resume.section_order %}{% if section in ["skills", "education", "certifications", "languages", "additional"] %}{{ render_section(section) }}{% endif %}{% endfor %}
     </div>
   </main>
   {% else %}
