@@ -10,13 +10,23 @@ from app.models.job_search import (
     ScreeningRule,
     SearchFilters,
 )
+from app.models.resume import (
+    ExperienceRewrite,
+    FinalResume,
+    MasterResume,
+    ResumeEvidence,
+)
 
 __all__ = [
+    "ExperienceRewrite",
+    "FinalResume",
     "JobScreeningDecisionRecord",
     "JobSearchConfigV2",
     "JobSearchConfigRecord",
     "JobSearchRunRecord",
     "JobSearchScheduleRecord",
+    "MasterResume",
+    "ResumeEvidence",
     "ScreeningConfig",
     "ScreeningRule",
     "SearchFilters",
