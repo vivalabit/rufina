@@ -394,7 +394,7 @@ class MasterExperience(StrictResumeModel):
         max_length=120,
     )
     location: OptionalText = Field(default="", max_length=240)
-    start_date: StrictText = Field(alias="startDate", max_length=40)
+    start_date: OptionalText = Field(default="", alias="startDate", max_length=40)
     end_date: OptionalText = Field(default="", alias="endDate", max_length=40)
     is_current: bool = Field(default=False, alias="isCurrent")
     bullets: list[ResumeBullet] = Field(min_length=1, max_length=MAX_ITEMS_PER_SECTION)
@@ -403,8 +403,6 @@ class MasterExperience(StrictResumeModel):
     def validate_experience(self) -> MasterExperience:
         if self.is_current and self.end_date:
             raise ValueError("endDate must be empty when isCurrent is true")
-        if not self.is_current and not self.end_date:
-            raise ValueError("endDate is required when isCurrent is false")
         _require_unique((bullet.id for bullet in self.bullets), "experience bullet IDs")
         return self
 
@@ -649,6 +647,26 @@ class FinalResume(StrictResumeModel):
         return self
 
 
+class MasterResumeImportResponse(StrictResumeModel):
+    master_resume: MasterResume = Field(alias="masterResume")
+    source: ResumeSourceExtraction
+    model: StrictText = Field(max_length=160)
+    backend: Literal["openclaw_codex", "openai_api"]
+
+
+class MasterResumeImportRequest(StrictResumeModel):
+    resume_file_name: str = Field(
+        alias="resumeFileName",
+        min_length=1,
+        max_length=240,
+    )
+    resume_data_url: str = Field(
+        alias="resumeDataUrl",
+        min_length=1,
+        max_length=20_000_000,
+    )
+
+
 def _require_unique(values: object, label: str) -> None:
     materialized = list(values)  # type: ignore[arg-type]
     if len(materialized) != len(set(materialized)):
@@ -768,6 +786,8 @@ __all__ = [
     "MasterLanguage",
     "MasterProject",
     "MasterResume",
+    "MasterResumeImportRequest",
+    "MasterResumeImportResponse",
     "MasterSkill",
     "ResumeBasics",
     "ResumeBullet",

@@ -1,3 +1,6 @@
+from binascii import Error as BinasciiError
+from uuid import uuid4
+
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
@@ -16,10 +19,25 @@ from app.models.profile import (
     ResumeExperienceImportResponse,
     ResumeSkillsImportResponse,
 )
+from app.models.resume import (
+    MasterResumeImportRequest,
+    MasterResumeImportResponse,
+    ResumeSourceExtraction,
+)
 from app.services.resume_import import (
     ResumeImportError,
     create_resume_import_ai_facade,
+    decode_resume_data_url,
     extract_resume_text,
+)
+from app.services.resume_master_import import (
+    MasterResumeImportError,
+    MasterResumeImportOutcome,
+    create_master_resume_import_ai_facade,
+)
+from app.services.resume_source_extraction import (
+    ResumeSourceExtractionError,
+    extract_resume_source,
 )
 from app.services.ai_privacy import require_current_ai_consent
 from app.services.profile_versions import (
@@ -68,6 +86,17 @@ def parse_resume_skills_with_selected_backend(
     settings: Settings,
 ) -> list[str]:
     return create_resume_import_ai_facade(settings).parse_skills(text)
+
+
+def parse_master_resume_with_selected_backend(
+    source: ResumeSourceExtraction,
+    master_resume_id: str,
+    settings: Settings,
+) -> MasterResumeImportOutcome:
+    return create_master_resume_import_ai_facade(settings).import_source(
+        source=source,
+        master_resume_id=master_resume_id,
+    )
 
 
 def normalize_profile_record(profile: ProfileRecord, db: Session) -> ProfilePayload:
@@ -188,6 +217,59 @@ def import_experience_from_resume(
     return ResumeExperienceImportResponse(
         experience=experience,
         message=f"Imported {len(experience)} experience entr{'y' if len(experience) == 1 else 'ies'} from CV",
+    )
+
+
+@router.post(
+    "/import-master-resume",
+    response_model=MasterResumeImportResponse,
+)
+def import_master_resume(
+    payload: MasterResumeImportRequest,
+    _consent=Depends(require_current_ai_consent),
+    settings: Settings = Depends(get_settings),
+) -> MasterResumeImportResponse:
+    if not settings.openclaw_resume_import_enabled:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI resume analysis is disabled.",
+        )
+
+    try:
+        content_type, content = decode_resume_data_url(payload.resume_data_url)
+        source = extract_resume_source(
+            file_name=payload.resume_file_name,
+            content_type=content_type,
+            content=content,
+        )
+    except (BinasciiError, ResumeSourceExtractionError, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Could not extract source fragments from the attached resume",
+        ) from exc
+    if not source.fragments:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Could not extract source fragments from the attached resume",
+        )
+
+    try:
+        outcome = parse_master_resume_with_selected_backend(
+            source,
+            uuid4().hex,
+            settings,
+        )
+    except MasterResumeImportError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="AI master resume import is temporarily unavailable. Please try again.",
+        ) from exc
+
+    return MasterResumeImportResponse(
+        master_resume=outcome.master_resume,
+        source=source,
+        model=outcome.model,
+        backend=outcome.backend,
     )
 
 
