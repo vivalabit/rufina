@@ -1,15 +1,23 @@
 import base64
 from collections.abc import Generator
+from copy import deepcopy
 
 from fastapi.testclient import TestClient
 import pytest
+from sqlalchemy import create_engine, select
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
 
+from app.core.database import Base, get_db
 from app.core.settings import Settings, get_settings
 from app.main import app
 from app.models.resume import (
     MasterResume,
+    ResumeMasterRecord,
+    ResumeMasterVersionRecord,
     ResumeSourceExtraction,
     ResumeSourceFragment,
+    ResumeSourceFileRecord,
 )
 from app.services.ai_backend import AIRequest, AIResult, AIUsage
 from app.services.ai_privacy import require_current_ai_consent
@@ -27,6 +35,32 @@ def bypass_ai_consent_boundary() -> Generator[None, None, None]:
         yield
     finally:
         app.dependency_overrides.pop(require_current_ai_consent, None)
+
+
+@pytest.fixture
+def api_sessions() -> Generator[sessionmaker[Session], None, None]:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+    testing_session_local = sessionmaker(
+        bind=engine,
+        autoflush=False,
+        autocommit=False,
+    )
+
+    def override_get_db() -> Generator[Session, None, None]:
+        with testing_session_local() as db:
+            yield db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        yield testing_session_local
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        engine.dispose()
 
 
 def source_extraction() -> ResumeSourceExtraction:
@@ -176,6 +210,7 @@ def test_master_resume_import_rejects_untrusted_ids_and_evidence(
 
 def test_master_resume_import_endpoint_returns_typed_draft(
     monkeypatch: pytest.MonkeyPatch,
+    api_sessions: sessionmaker[Session],
 ) -> None:
     source = source_extraction()
     master_resume = MasterResume.model_validate(
@@ -227,3 +262,169 @@ def test_master_resume_import_endpoint_returns_typed_draft(
     assert response.json()["masterResume"]["id"] == "master-import-endpoint"
     assert response.json()["source"]["fragments"][0]["text"] == "Ada Lovelace"
     assert response.json()["backend"] == "openai_api"
+    assert [section["name"] for section in response.json()["reviewSections"]] == [
+        "contacts",
+        "summary",
+        "skills",
+        "experience",
+        "education",
+        "projects",
+        "certifications",
+    ]
+    assert response.json()["reviewSections"][0]["itemCount"] == 2
+    assert response.json()["reviewSections"][1]["itemCount"] == 1
+
+    with api_sessions() as db:
+        source_file = db.get(
+            ResumeSourceFileRecord,
+            response.json()["sourceFileId"],
+        )
+        assert source_file is not None
+        assert source_file.resume_master_id is None
+        assert source_file.draft_resume_id == "master-import-endpoint"
+        assert source_file.content == b"fake-docx"
+        assert source_file.extraction["fragments"][0]["text"] == "Ada Lovelace"
+        assert db.scalars(select(ResumeMasterRecord)).all() == []
+        assert db.scalars(select(ResumeMasterVersionRecord)).all() == []
+
+
+def test_confirm_master_resume_creates_one_immutable_version_idempotently(
+    api_sessions: sessionmaker[Session],
+) -> None:
+    source = source_extraction()
+    master_resume = master_resume_payload("master-confirmed")
+    with api_sessions() as db:
+        source_file = ResumeSourceFileRecord(
+            id="source-review",
+            resume_master_id=None,
+            draft_resume_id="master-confirmed",
+            file_name="resume.docx",
+            content_type=(
+                "application/vnd.openxmlformats-officedocument."
+                "wordprocessingml.document"
+            ),
+            content_sha256="a" * 64,
+            size_bytes=4,
+            content=b"docx",
+            extraction=source.model_dump(mode="json", by_alias=True),
+        )
+        db.add(source_file)
+        db.commit()
+
+    request_payload = {
+        "sourceFileId": "source-review",
+        "masterResume": master_resume,
+        "confirmedSections": [
+            "contacts",
+            "summary",
+            "skills",
+            "experience",
+            "education",
+            "projects",
+            "certifications",
+        ],
+    }
+    client = TestClient(app)
+    first_response = client.post(
+        "/profile/import-master-resume/confirm",
+        json=request_payload,
+    )
+    second_response = client.post(
+        "/profile/import-master-resume/confirm",
+        json=request_payload,
+    )
+    changed_payload = deepcopy(request_payload)
+    changed_payload["masterResume"]["basics"]["headline"] = "Changed headline"
+    conflicting_response = client.post(
+        "/profile/import-master-resume/confirm",
+        json=changed_payload,
+    )
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 200
+    assert second_response.json() == first_response.json()
+    assert conflicting_response.status_code == 409
+    assert first_response.json()["masterResumeId"] == "master-confirmed"
+    assert first_response.json()["version"] == 1
+
+    with api_sessions() as db:
+        source_file = db.get(ResumeSourceFileRecord, "source-review")
+        assert source_file is not None
+        assert source_file.resume_master_id == "master-confirmed"
+        assert len(db.scalars(select(ResumeMasterRecord)).all()) == 1
+        versions = db.scalars(select(ResumeMasterVersionRecord)).all()
+        assert len(versions) == 1
+        assert versions[0].data == MasterResume.model_validate(
+            master_resume
+        ).model_dump(mode="json", by_alias=True)
+
+        versions[0].data = {"schemaVersion": "2.0"}
+        with pytest.raises(ValueError, match="master versions are immutable"):
+            db.commit()
+
+
+def test_confirm_master_resume_requires_all_review_sections(
+    api_sessions: sessionmaker[Session],
+) -> None:
+    response = TestClient(app).post(
+        "/profile/import-master-resume/confirm",
+        json={
+            "sourceFileId": "source-review",
+            "masterResume": master_resume_payload("master-confirmed"),
+            "confirmedSections": [
+                "contacts",
+                "summary",
+                "skills",
+                "experience",
+                "education",
+                "projects",
+            ],
+        },
+    )
+
+    assert response.status_code == 422
+
+
+def test_confirm_master_resume_is_owner_scoped(
+    api_sessions: sessionmaker[Session],
+) -> None:
+    source = source_extraction()
+    with api_sessions() as db:
+        db.add(
+            ResumeSourceFileRecord(
+                id="source-owner-a",
+                owner_id="owner-a",
+                resume_master_id=None,
+                draft_resume_id="master-owner-a",
+                file_name="resume.docx",
+                content_type=(
+                    "application/vnd.openxmlformats-officedocument."
+                    "wordprocessingml.document"
+                ),
+                content_sha256="b" * 64,
+                size_bytes=4,
+                content=b"docx",
+                extraction=source.model_dump(mode="json", by_alias=True),
+            )
+        )
+        db.commit()
+
+    response = TestClient(app).post(
+        "/profile/import-master-resume/confirm",
+        headers={"X-Rufina-Owner-Id": "owner-b"},
+        json={
+            "sourceFileId": "source-owner-a",
+            "masterResume": master_resume_payload("master-owner-a"),
+            "confirmedSections": [
+                "contacts",
+                "summary",
+                "skills",
+                "experience",
+                "education",
+                "projects",
+                "certifications",
+            ],
+        },
+    )
+
+    assert response.status_code == 404

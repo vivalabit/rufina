@@ -20,6 +20,8 @@ from app.models.profile import (
     ResumeSkillsImportResponse,
 )
 from app.models.resume import (
+    MasterResumeConfirmationRequest,
+    MasterResumeConfirmationResponse,
     MasterResumeImportRequest,
     MasterResumeImportResponse,
     ResumeSourceExtraction,
@@ -38,6 +40,12 @@ from app.services.resume_master_import import (
 from app.services.resume_source_extraction import (
     ResumeSourceExtractionError,
     extract_resume_source,
+)
+from app.services.resume_master_review import (
+    MasterResumeReviewError,
+    build_master_resume_review_sections,
+    confirm_master_resume,
+    persist_master_resume_import_source,
 )
 from app.services.ai_privacy import require_current_ai_consent
 from app.services.profile_versions import (
@@ -228,6 +236,7 @@ def import_master_resume(
     payload: MasterResumeImportRequest,
     _consent=Depends(require_current_ai_consent),
     settings: Settings = Depends(get_settings),
+    db: Session = Depends(get_db),
 ) -> MasterResumeImportResponse:
     if not settings.openclaw_resume_import_enabled:
         raise HTTPException(
@@ -265,12 +274,65 @@ def import_master_resume(
             detail="AI master resume import is temporarily unavailable. Please try again.",
         ) from exc
 
+    try:
+        source_file = persist_master_resume_import_source(
+            db,
+            file_name=payload.resume_file_name,
+            content=content,
+            source=source,
+            draft_resume_id=outcome.master_resume.id,
+        )
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Master resume import storage is temporarily unavailable",
+        ) from exc
+
     return MasterResumeImportResponse(
+        source_file_id=source_file.id,
         master_resume=outcome.master_resume,
         source=source,
+        review_sections=build_master_resume_review_sections(
+            outcome.master_resume
+        ),
         model=outcome.model,
         backend=outcome.backend,
     )
+
+
+@router.post(
+    "/import-master-resume/confirm",
+    response_model=MasterResumeConfirmationResponse,
+)
+def confirm_imported_master_resume(
+    payload: MasterResumeConfirmationRequest,
+    db: Session = Depends(get_db),
+) -> MasterResumeConfirmationResponse:
+    try:
+        return confirm_master_resume(
+            db,
+            source_file_id=payload.source_file_id,
+            master_resume=payload.master_resume,
+        )
+    except MasterResumeReviewError as exc:
+        db.rollback()
+        status_code = {
+            "not_found": status.HTTP_404_NOT_FOUND,
+            "invalid_review": status.HTTP_422_UNPROCESSABLE_ENTITY,
+            "not_reviewable": status.HTTP_409_CONFLICT,
+            "conflict": status.HTTP_409_CONFLICT,
+        }.get(exc.code, status.HTTP_409_CONFLICT)
+        raise HTTPException(
+            status_code=status_code,
+            detail=str(exc),
+        ) from exc
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Master resume confirmation storage is temporarily unavailable",
+        ) from exc
 
 
 @router.post("/import-education-from-resume", response_model=ResumeEducationImportResponse)

@@ -57,6 +57,24 @@ ResumeSectionName = Literal[
     "languages",
     "additional",
 ]
+MasterResumeReviewSectionName = Literal[
+    "contacts",
+    "summary",
+    "skills",
+    "experience",
+    "education",
+    "projects",
+    "certifications",
+]
+MASTER_RESUME_REVIEW_SECTIONS: tuple[MasterResumeReviewSectionName, ...] = (
+    "contacts",
+    "summary",
+    "skills",
+    "experience",
+    "education",
+    "projects",
+    "certifications",
+)
 EvidenceKind = Literal[
     "source",
     "profile",
@@ -140,27 +158,36 @@ class ResumeSourceFileRecord(OwnerScoped, Base):
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
-    resume_master_id: Mapped[str] = mapped_column(
+    resume_master_id: Mapped[str | None] = mapped_column(
         String(36),
         ForeignKey(
             "resume_masters.id",
             ondelete="CASCADE",
             name="fk_resume_source_files_master",
         ),
-        nullable=False,
+        nullable=True,
         index=True,
+    )
+    draft_resume_id: Mapped[str | None] = mapped_column(
+        String(36),
+        nullable=True,
     )
     file_name: Mapped[str] = mapped_column(String(240), nullable=False)
     content_type: Mapped[str] = mapped_column(String(160), nullable=False)
     content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    extraction: Mapped[dict[str, object]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
         default=utc_now,
     )
-    resume_master: Mapped[ResumeMasterRecord] = relationship(
+    resume_master: Mapped[ResumeMasterRecord | None] = relationship(
         back_populates="source_files",
     )
     imported_versions: Mapped[list[ResumeMasterVersionRecord]] = relationship(
@@ -234,17 +261,28 @@ def prevent_resume_source_file_mutation(
     source_file: ResumeSourceFileRecord,
 ) -> None:
     state = inspect(source_file)
+    master_history = state.attrs.resume_master_id.history
+    master_association_is_confirmation = (
+        master_history.has_changes()
+        and tuple(master_history.deleted) == (None,)
+        and len(master_history.added) == 1
+        and master_history.added[0] is not None
+    )
     immutable_fields = (
         "owner_id",
-        "resume_master_id",
+        "draft_resume_id",
         "file_name",
         "content_type",
         "content_sha256",
         "size_bytes",
         "content",
+        "extraction",
         "created_at",
     )
-    if any(state.attrs[field].history.has_changes() for field in immutable_fields):
+    if (
+        master_history.has_changes()
+        and not master_association_is_confirmation
+    ) or any(state.attrs[field].history.has_changes() for field in immutable_fields):
         raise ValueError("Resume import source files are immutable")
 
 
@@ -647,11 +685,56 @@ class FinalResume(StrictResumeModel):
         return self
 
 
+class MasterResumeReviewSection(StrictResumeModel):
+    name: MasterResumeReviewSectionName
+    item_count: int = Field(alias="itemCount", ge=0)
+
+
 class MasterResumeImportResponse(StrictResumeModel):
+    source_file_id: CanonicalId = Field(alias="sourceFileId")
     master_resume: MasterResume = Field(alias="masterResume")
     source: ResumeSourceExtraction
+    review_sections: list[MasterResumeReviewSection] = Field(
+        alias="reviewSections",
+        min_length=len(MASTER_RESUME_REVIEW_SECTIONS),
+        max_length=len(MASTER_RESUME_REVIEW_SECTIONS),
+    )
     model: StrictText = Field(max_length=160)
     backend: Literal["openclaw_codex", "openai_api"]
+
+    @model_validator(mode="after")
+    def validate_review_sections(self) -> MasterResumeImportResponse:
+        if tuple(section.name for section in self.review_sections) != (
+            MASTER_RESUME_REVIEW_SECTIONS
+        ):
+            raise ValueError("reviewSections must use the canonical review order")
+        return self
+
+
+class MasterResumeConfirmationRequest(StrictResumeModel):
+    source_file_id: CanonicalId = Field(alias="sourceFileId")
+    master_resume: MasterResume = Field(alias="masterResume")
+    confirmed_sections: list[MasterResumeReviewSectionName] = Field(
+        alias="confirmedSections",
+        min_length=len(MASTER_RESUME_REVIEW_SECTIONS),
+        max_length=len(MASTER_RESUME_REVIEW_SECTIONS),
+    )
+
+    @model_validator(mode="after")
+    def require_all_review_sections(self) -> MasterResumeConfirmationRequest:
+        if set(self.confirmed_sections) != set(MASTER_RESUME_REVIEW_SECTIONS):
+            raise ValueError(
+                "confirmedSections must contain every review section exactly once"
+            )
+        return self
+
+
+class MasterResumeConfirmationResponse(StrictResumeModel):
+    master_resume_id: ResumeId = Field(alias="masterResumeId")
+    version: int = Field(ge=1)
+    source_file_id: CanonicalId = Field(alias="sourceFileId")
+    master_resume: MasterResume = Field(alias="masterResume")
+    created_at: datetime = Field(alias="createdAt")
 
 
 class MasterResumeImportRequest(StrictResumeModel):

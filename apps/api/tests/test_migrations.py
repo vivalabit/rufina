@@ -123,7 +123,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260725_0020"
+            assert revision == "20260725_0021"
         assert inspect(engine).get_pk_constraint("stored_jobs")["constrained_columns"] == [
             "owner_id",
             "id",
@@ -207,7 +207,19 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
         assert "content" not in resume_master_columns
         assert "content" not in resume_version_columns
         assert {"data", "source_file_id", "content_sha256"} <= resume_version_columns
-        assert {"content", "content_type", "content_sha256"} <= resume_source_columns
+        assert {
+            "content",
+            "content_type",
+            "content_sha256",
+            "draft_resume_id",
+            "extraction",
+        } <= resume_source_columns
+        resume_master_id_column = next(
+            column
+            for column in inspect(engine).get_columns("resume_source_files")
+            if column["name"] == "resume_master_id"
+        )
+        assert resume_master_id_column["nullable"] is True
         assert {
             (
                 tuple(foreign_key["constrained_columns"]),
@@ -558,7 +570,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-        assert revision == "20260725_0020"
+        assert revision == "20260725_0021"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
