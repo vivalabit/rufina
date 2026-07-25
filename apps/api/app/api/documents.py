@@ -27,6 +27,7 @@ from app.models.assistant import (
     AssistantSourceDocument,
 )
 from app.models.documents import (
+    BundledResumeTemplatePayload,
     DocumentAttachRequest,
     DocumentAttachmentRecord,
     DocumentCreateRequest,
@@ -80,6 +81,11 @@ from app.services.document_validation import (
     validate_generated_document,
 )
 from app.services.document_preflight import analyze_document_template
+from app.services.resume_template_registry import (
+    is_bundled_resume_template_id,
+    list_bundled_resume_templates,
+    materialize_bundled_resume_template,
+)
 
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
 
@@ -523,6 +529,23 @@ def get_document_pack_status(
         raise
     except SQLAlchemyError as exc:
         raise database_unavailable(exc) from exc
+
+
+@router.get(
+    "/resume-templates",
+    response_model=list[BundledResumeTemplatePayload],
+)
+def list_resume_templates() -> list[BundledResumeTemplatePayload]:
+    return [
+        BundledResumeTemplatePayload(
+            id=template.id,
+            name=template.name,
+            description=template.description,
+            layout=template.layout,
+            columns=template.columns,
+        )
+        for template in list_bundled_resume_templates()
+    ]
 
 
 @router.get("/{document_id}", response_model=DocumentPayload)
@@ -1004,7 +1027,9 @@ def download_document(
 def list_document_templates(db: Session = Depends(get_db)) -> list[DocumentTemplatePayload]:
     try:
         records = db.scalars(
-            select(DocumentTemplateRecord).order_by(DocumentTemplateRecord.updated_at.desc())
+            select(DocumentTemplateRecord)
+            .where(DocumentTemplateRecord.type == "cover_letter")
+            .order_by(DocumentTemplateRecord.updated_at.desc())
         ).all()
         return [document_template_payload(record) for record in records]
     except SQLAlchemyError as exc:
@@ -1020,6 +1045,14 @@ def preflight_document_template(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> DocumentTemplatePreflightPayload:
+    if request.type == "tailored_resume":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Custom resume DOCX templates are not supported; choose "
+                "classic_single, modern_single, or modern_two_column"
+            ),
+        )
     if not request.file_name.lower().endswith(".docx"):
         return DocumentTemplatePreflightPayload(
             supported=False,
@@ -1261,6 +1294,14 @@ def create_document_template(
     request: DocumentTemplateCreateRequest,
     db: Session = Depends(get_db),
 ) -> DocumentTemplatePayload:
+    if request.type == "tailored_resume":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=(
+                "Custom resume DOCX templates are not supported; choose "
+                "classic_single, modern_single, or modern_two_column"
+            ),
+        )
     if not request.file_name.lower().endswith(".docx"):
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -1334,8 +1375,18 @@ def create_document_template(
 
 @router.delete("/templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_document_template(template_id: str, db: Session = Depends(get_db)) -> None:
+    if is_bundled_resume_template_id(template_id):
+        raise HTTPException(
+            status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+            detail="Bundled resume templates cannot be deleted",
+        )
     try:
         template = require_template(db, template_id)
+        if template.type == "tailored_resume":
+            raise HTTPException(
+                status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
+                detail="Bundled resume templates cannot be deleted",
+            )
         db.delete(template)
         db.commit()
     except HTTPException:
@@ -1806,6 +1857,8 @@ def require_document(db: Session, document_id: str) -> DocumentRecord:
 
 
 def require_template(db: Session, template_id: str) -> DocumentTemplateRecord:
+    if is_bundled_resume_template_id(template_id):
+        return materialize_bundled_resume_template(db, template_id)
     record = db.get(DocumentTemplateRecord, template_id)
     if not record:
         raise HTTPException(

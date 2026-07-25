@@ -1,4 +1,4 @@
-import { act, fireEvent, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -565,9 +565,9 @@ describe("ApplicationWorkspace", () => {
       }],
       templates: [{
         id: "template-delete",
-        type: "tailored_resume",
-        name: "Stored CV",
-        fileName: "resume.docx",
+        type: "cover_letter",
+        name: "Stored cover letter",
+        fileName: "cover.docx",
         createdAt: "2026-07-18T10:00:00.000Z",
         updatedAt: "2026-07-18T10:00:00.000Z",
       }],
@@ -582,7 +582,7 @@ describe("ApplicationWorkspace", () => {
       expect(screen.getByText("Consent required")).toBeInTheDocument();
       expect(screen.queryByRole("button", { name: "Delete Tailored CV" })).not.toBeInTheDocument();
     });
-    expect(screen.getByRole("button", { name: "Delete template Stored CV" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Delete template Stored cover letter" })).toBeInTheDocument();
     expect(fetchMock.mock.calls.some(([input, init]) => String(input).includes("/privacy/ai-consent") && init?.method === "DELETE")).toBe(true);
   });
 
@@ -1168,7 +1168,7 @@ describe("ApplicationWorkspace", () => {
     expect(screen.queryByText(validationMessage)).not.toBeInTheDocument();
   });
 
-  it("reports template capabilities and AI context truncation before generation", async () => {
+  it("offers only bundled resume templates without preflighting the source as a template", async () => {
     const source = {
       id: "large-resume-source",
       title: "Large CV",
@@ -1180,53 +1180,29 @@ describe("ApplicationWorkspace", () => {
       uploaded_at: "2026-07-18T10:00:00.000Z",
       data_url: "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,cv",
     };
-    installApplicationWorkspaceApiMock({
-      requestHandler: (url, method) => {
-        if (url.pathname !== "/documents/templates/preflight" || method !== "POST") return undefined;
-        return Response.json({
-          supported: true,
-          template: {
-            id: "large-template",
-            type: "tailored_resume",
-            name: "Large CV",
-            fileName: "large-resume.docx",
-            createdAt: "2026-07-18T10:00:00.000Z",
-            updatedAt: "2026-07-18T10:00:00.000Z",
-          },
-          editableCount: 12,
-          immutableCount: 3,
-          immutableElements: [
-            { id: "block-0001", type: "heading", text: "Experience", reason: "AI changes targeting this protected element will be rejected" },
-          ],
-          rejectedElements: [],
-          aiContext: {
-            maxCharacters: 32000,
-            contextBudgetCharacters: 28000,
-            estimatedCharacters: 36000,
-            includedCharacters: 28000,
-            truncated: true,
-            source: {
-              totalElements: 40,
-              includedElements: 28,
-              omittedElements: 12,
-              estimatedCharacters: 18000,
-              includedCharacters: 10000,
-              truncated: true,
-            },
-          },
-          warnings: [],
-        });
-      },
-    });
+    const fetchMock = installApplicationWorkspaceApiMock();
 
     renderApplicationWorkspace(createV3WorkspaceApplication(), {
       profile: createWorkspaceProfile({ documents: JSON.stringify([source]) }),
     });
 
-    expect(await screen.findByText("Supported · 12 editable")).toBeInTheDocument();
-    expect(screen.getByText(/3 elements \(heading\)/)).toBeInTheDocument();
-    expect(screen.getByText(/28 of 40 template elements/)).toBeInTheDocument();
-    expect(screen.getByText(/context will be truncated/)).toBeInTheDocument();
+    const selector = await screen.findByRole("combobox", { name: "Resume template" });
+    expect(selector).toHaveValue("classic_single");
+    expect(within(selector).getAllByRole("option").map((option) => option.getAttribute("value"))).toEqual([
+      "classic_single",
+      "modern_single",
+      "modern_two_column",
+    ]);
+    fireEvent.change(selector, { target: { value: "modern_two_column" } });
+    expect(selector).toHaveValue("modern_two_column");
+    expect(screen.getByText("Modern two-column resume.")).toBeInTheDocument();
+    expect(screen.getByText("Used as the factual source. Its layout is not used as a template.")).toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.filter(([input, init]) => (
+        String(input).includes("/documents/templates/preflight")
+        && init?.method === "POST"
+      )),
+    ).toHaveLength(0);
   });
 
   it("restores persisted workspace uploads and lets the user delete them", async () => {
@@ -1323,6 +1299,6 @@ describe("ApplicationWorkspace", () => {
         screen.getAllByRole("button", { name: "Select source first" }),
       ).toHaveLength(2);
     });
-    expect(fetchMock).toHaveBeenCalledTimes(7);
+    expect(fetchMock).toHaveBeenCalledTimes(8);
   });
 });

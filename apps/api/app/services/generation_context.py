@@ -12,6 +12,10 @@ from app.core.identity import get_bound_owner_id
 from app.core.settings import get_settings
 from app.models.applications import CandidateConfirmationRecord, StoredApplicationRecord
 from app.models.documents import DocumentTemplateRecord
+from app.services.resume_template_registry import (
+    is_bundled_resume_template_id,
+    materialize_bundled_resume_template,
+)
 from app.models.jobs import JobMatchRecord, StoredJobRecord
 from app.models.profile import ProfilePayload, ProfileRecord
 from app.services.ai_match import (
@@ -440,7 +444,22 @@ def load_authoritative_generation_context(
             "Generation job does not match the application vacancy",
             status_code=422,
         )
-    template = template_override or db.get(DocumentTemplateRecord, template_id)
+    if template_override is not None:
+        template = template_override
+    elif document_type == "tailored_resume":
+        if not is_bundled_resume_template_id(template_id):
+            raise GenerationContextError(
+                "Tailored resumes require a bundled resume template",
+                status_code=422,
+            )
+        template = materialize_bundled_resume_template(db, template_id)
+    elif is_bundled_resume_template_id(template_id):
+        raise GenerationContextError(
+            "Bundled resume templates can only render tailored resumes",
+            status_code=422,
+        )
+    else:
+        template = db.get(DocumentTemplateRecord, template_id)
     if not template:
         raise GenerationContextError("Document template not found", status_code=404)
     if template.type != document_type:

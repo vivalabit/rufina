@@ -335,6 +335,16 @@ type DocumentTemplate = {
   updatedAt: string;
 };
 
+type ResumeTemplateId = "classic_single" | "modern_single" | "modern_two_column";
+
+type BundledResumeTemplate = {
+  id: ResumeTemplateId;
+  name: string;
+  description: string;
+  layout: "single_column" | "two_column";
+  columns: 1 | 2;
+};
+
 type DocumentTemplatePreflight = {
   supported: boolean;
   template: DocumentTemplate | null;
@@ -833,6 +843,8 @@ export function ApplicationWorkspace({
   const [documents, setDocuments] = useState<GeneratedDocument[]>([]);
   const [documentsLoaded, setDocumentsLoaded] = useState(false);
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
+  const [resumeTemplates, setResumeTemplates] = useState<BundledResumeTemplate[]>([]);
+  const [selectedResumeTemplateId, setSelectedResumeTemplateId] = useState<ResumeTemplateId>("classic_single");
   const [selectedResumeSourceId, setSelectedResumeSourceId] = useState("");
   const [selectedCoverSourceId, setSelectedCoverSourceId] = useState("");
   const [resumePreflight, setResumePreflight] = useState<SourcePreflightState>({
@@ -914,19 +926,22 @@ export function ApplicationWorkspace({
     Promise.all([
       fetchWithTimeout(`${apiBaseUrl}/documents?applicationId=${encodeURIComponent(application.id)}`, { signal: controller.signal }),
       fetchWithTimeout(`${apiBaseUrl}/documents/templates/library`, { signal: controller.signal }),
+      fetchWithTimeout(`${apiBaseUrl}/documents/resume-templates`, { signal: controller.signal }),
       fetchWithTimeout(`${apiBaseUrl}/documents/workspace-sources/library?applicationId=${encodeURIComponent(application.id)}`, { cache: "no-store", signal: controller.signal }),
       fetchWithTimeout(`${apiBaseUrl}/assistant/config`, { signal: controller.signal }),
       fetchWithTimeout(`${apiBaseUrl}/privacy/ai-consent`, { cache: "no-store", signal: controller.signal }),
     ])
-      .then(async ([documentsResponse, templatesResponse, sourcesResponse, aiConfigurationResponse, aiPrivacyResponse]) => {
-        if (!documentsResponse.ok || !templatesResponse.ok || !sourcesResponse.ok || !aiConfigurationResponse.ok || !aiPrivacyResponse.ok) throw new Error("Application documents are temporarily unavailable");
+      .then(async ([documentsResponse, templatesResponse, resumeTemplatesResponse, sourcesResponse, aiConfigurationResponse, aiPrivacyResponse]) => {
+        if (!documentsResponse.ok || !templatesResponse.ok || !resumeTemplatesResponse.ok || !sourcesResponse.ok || !aiConfigurationResponse.ok || !aiPrivacyResponse.ok) throw new Error("Application documents are temporarily unavailable");
         const loadedDocuments = await documentsResponse.json() as GeneratedDocument[];
         const loadedTemplates = await templatesResponse.json() as DocumentTemplate[];
+        const loadedResumeTemplates = await resumeTemplatesResponse.json() as BundledResumeTemplate[];
         const loadedSources = await sourcesResponse.json() as WorkspaceSourceDocumentPayload[];
         const loadedAiConfiguration = await aiConfigurationResponse.json() as AiConfiguration;
         const loadedAiPrivacy = await aiPrivacyResponse.json() as AiPrivacySettings;
         setDocuments(loadedDocuments);
-        setTemplates(loadedTemplates);
+        setTemplates(loadedTemplates.filter((template) => template.type === "cover_letter"));
+        setResumeTemplates(loadedResumeTemplates);
         setWorkspaceSources(loadedSources.map(parseWorkspaceSourceDocument));
         setAiConfiguration(loadedAiConfiguration);
         setAiRetentionDays(loadedAiPrivacy.retentionDays);
@@ -1154,46 +1169,12 @@ export function ApplicationWorkspace({
 
   useEffect(() => {
     const source = profileSources.find((item) => item.id === selectedResumeSourceId);
-    if (!application || !source) {
+    if (!application || !source || !resumeTemplates.some((template) => template.id === selectedResumeTemplateId)) {
       setResumePreflight({ sourceId: "", status: "idle" });
       return;
     }
-    const controller = new AbortController();
-    setResumePreflight({ sourceId: source.id, status: "checking" });
-    const prompt = buildDocumentGenerationPrompt(
-      "tailored_resume",
-      effectiveLanguage || source.language || "English",
-    );
-    fetchWithTimeout(`${apiBaseUrl}/documents/templates/preflight`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
-        type: "tailored_resume",
-        name: `${source.title} · ${source.uploaded_at || source.id}`.slice(0, 240),
-        fileName: source.file_name,
-        dataUrl: source.data_url,
-        applicationId: application.id,
-        // The final pass embeds the compact output of pass 2, so reserve the
-        // full server-side generation-message budget during preflight.
-        promptCharacters: Math.max(prompt.length, documentGenerationMessageMaxChars),
-      }),
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(await readApiError(response, "Template preflight failed"));
-        const report = await response.json() as DocumentTemplatePreflight;
-        setResumePreflight({ sourceId: source.id, status: "ready", report });
-      })
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setResumePreflight({
-          sourceId: source.id,
-          status: "error",
-          error: apiUnavailableMessage(error, "Template preflight failed"),
-        });
-      });
-    return () => controller.abort();
-  }, [application?.id, application?.job.aiMatch?.updatedAt, effectiveLanguage, preflightContextRevision, profileSources, selectedResumeSourceId]);
+    setResumePreflight({ sourceId: source.id, status: "ready" });
+  }, [application, profileSources, resumeTemplates, selectedResumeSourceId, selectedResumeTemplateId]);
 
   useEffect(() => {
     const source = profileSources.find((item) => item.id === selectedCoverSourceId);
@@ -1251,7 +1232,7 @@ export function ApplicationWorkspace({
   const activeApplication = application;
   const resumePreflightReady = resumePreflight.sourceId === selectedResumeSourceId
     && resumePreflight.status === "ready"
-    && resumePreflight.report?.supported === true;
+    && resumeTemplates.some((template) => template.id === selectedResumeTemplateId);
   const coverPreflightReady = coverPreflight.sourceId === selectedCoverSourceId
     && coverPreflight.status === "ready"
     && coverPreflight.report?.supported === true;
@@ -1386,7 +1367,7 @@ export function ApplicationWorkspace({
     if (preflight.sourceId !== selectedSource.id || preflight.status !== "ready") {
       throw new Error("Wait for template preflight to finish before generating");
     }
-    if (!preflight.report?.supported) {
+    if (isCoverLetter && !preflight.report?.supported) {
       throw new Error("Selected DOCX is not supported for safe AI generation");
     }
     const targetLanguage = effectiveLanguage || selectedSource.language || "English";
@@ -1949,6 +1930,7 @@ export function ApplicationWorkspace({
   }
 
   async function ensureSourceTemplate(source: ProfileSourceDocument, type: GeneratedDocument["type"]) {
+    if (type === "tailored_resume") return selectedResumeTemplateId;
     const templateName = `${source.title} · ${source.uploaded_at || source.id}`.slice(0, 240);
     const existing = templates.find((template) => template.type === type && template.fileName === source.file_name && template.name === templateName);
     if (existing) return existing.id;
@@ -2217,7 +2199,7 @@ export function ApplicationWorkspace({
 
             <section className="workspace-card overflow-hidden">
               <div className="flex flex-col gap-4 border-b border-white/[0.07] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent/12 text-accent"><Sparkles className="h-[18px] w-[18px]" /></span><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">03 · Build your application pack</p><h2 className="mt-1 text-lg font-bold text-white">Tailored documents</h2><p className="mt-1 text-xs leading-5 text-muted">Select your originals. Rufina rewrites the content and preserves the DOCX design.</p></div></div>
+                <div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent/12 text-accent"><Sparkles className="h-[18px] w-[18px]" /></span><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">03 · Build your application pack</p><h2 className="mt-1 text-lg font-bold text-white">Tailored documents</h2><p className="mt-1 text-xs leading-5 text-muted">Select source documents and choose one of Rufina&apos;s bundled resume templates.</p></div></div>
                 <div className="flex flex-col gap-2 sm:items-end">
                   <div className="flex items-center gap-2 text-[9px] text-muted"><span>AI provider: <strong className="text-white">{aiConfiguration.providerName}</strong></span>{aiDisclosureAccepted ? <button type="button" onClick={revokeAiConsent} className="font-bold text-amber-200 hover:text-white">Revoke consent</button> : <span className="font-bold text-amber-200">Consent required</span>}</div>
                   <label className="flex items-center gap-2 text-[9px] font-bold text-muted"><span>On cover failure</span><select value={packPersistenceMode} disabled={isGeneratingPack} onChange={(event) => setPackPersistenceMode(event.target.value as PackPersistenceMode)} className="h-8 rounded-lg border border-white/[0.08] bg-[#151c24] px-2 text-[10px] font-bold text-white outline-none focus:border-accent/60 disabled:opacity-50"><option value="atomic">Roll back pack</option><option value="partial">Keep validated CV</option></select></label>
@@ -2228,7 +2210,7 @@ export function ApplicationWorkspace({
                 {documentError ? <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-400/25 bg-red-500/[0.07] px-3 py-2.5 text-xs leading-5 text-red-200"><span>{documentError}</span><button type="button" onClick={retryApiRequests} className="inline-flex shrink-0 items-center gap-1.5 font-bold text-red-100 hover:text-white"><RefreshCw className="h-3.5 w-3.5" /> Retry</button></div> : null}
                 {packProgress ? <div className={cn("mb-4 rounded-xl border p-3", packProgress.status === "failed" ? "border-red-400/25 bg-red-500/[0.045]" : packProgress.status === "partial" ? "border-amber-400/25 bg-amber-400/[0.045]" : "border-white/[0.08] bg-black/15")}><div className="grid gap-2 sm:grid-cols-4">{packStageDefinitions.map((stage, index) => { const currentIndex = packStageDefinitions.findIndex((candidate) => candidate.id === packProgress.stage); const stageStatus = index < currentIndex ? "completed" : index === currentIndex ? packProgress.status : "pending"; return <div key={stage.id} className={cn("rounded-lg border px-2.5 py-2", stageStatus === "completed" ? "border-success/20 bg-success/[0.05]" : stageStatus === "failed" ? "border-red-400/25 bg-red-500/[0.06]" : stageStatus === "partial" ? "border-amber-400/25 bg-amber-400/[0.06]" : stageStatus === "active" || stageStatus === "retrying" ? "border-accent/30 bg-accent/[0.07]" : "border-white/[0.06] bg-white/[0.015]")}><div className="flex items-center gap-2">{stageStatus === "completed" ? <Check className="h-3.5 w-3.5 text-success" /> : stageStatus === "active" || stageStatus === "retrying" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin text-accent" /> : stageStatus === "failed" ? <AlertTriangle className="h-3.5 w-3.5 text-red-200" /> : <CircleDot className="h-3.5 w-3.5 text-muted" />}<span className={cn("text-[9px] font-black uppercase tracking-wide", stageStatus === "completed" ? "text-success" : stageStatus === "failed" ? "text-red-200" : stageStatus === "partial" ? "text-amber-200" : stageStatus === "active" || stageStatus === "retrying" ? "text-white" : "text-muted")}>{stage.label}</span></div></div>; })}</div><div className="mt-2 flex items-center justify-between gap-3 px-1 text-[9px]"><span className={cn(packProgress.status === "failed" ? "text-red-200" : packProgress.status === "partial" ? "text-amber-200" : "text-muted")}>{packProgress.message}</span><span className="shrink-0 font-mono text-muted">{packProgress.attempt > 1 ? `attempt ${packProgress.attempt}/3 · ` : ""}{packProgress.jobId.slice(-8)}</span></div></div> : null}
                 {effectiveLanguage && !resumeSources.some((source) => source.language === effectiveLanguage) ? <div className="mb-4 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2.5 text-xs leading-5 text-amber-200">No {effectiveLanguage} CV DOCX is saved in Profile. Add one or choose another language.</div> : null}
-                {templates.length ? <details className="mb-4 rounded-xl border border-white/[0.07] bg-black/15"><summary className="cursor-pointer px-3 py-2.5 text-[10px] font-bold text-[#cbd3df] marker:text-muted">Stored templates · {templates.length}</summary><div className="divide-y divide-white/[0.06] border-t border-white/[0.07] px-3">{templates.map((template) => <div key={template.id} className="flex items-center gap-3 py-2"><div className="min-w-0 flex-1"><p className="truncate text-[10px] font-bold text-white">{template.name}</p><p className="truncate text-[9px] text-muted">{template.type === "tailored_resume" ? "CV" : "Cover letter"} · {template.fileName}</p></div><Button type="button" variant="ghost" aria-label={`Delete template ${template.name}`} disabled={deletingTemplateId === template.id} onClick={() => void deleteStoredTemplate(template)} className="h-8 rounded-lg border border-red-400/20 px-2 text-red-200 hover:bg-red-500/10">{deletingTemplateId === template.id ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}</Button></div>)}</div></details> : null}
+                {templates.length ? <details className="mb-4 rounded-xl border border-white/[0.07] bg-black/15"><summary className="cursor-pointer px-3 py-2.5 text-[10px] font-bold text-[#cbd3df] marker:text-muted">Stored cover-letter templates · {templates.length}</summary><div className="divide-y divide-white/[0.06] border-t border-white/[0.07] px-3">{templates.map((template) => <div key={template.id} className="flex items-center gap-3 py-2"><div className="min-w-0 flex-1"><p className="truncate text-[10px] font-bold text-white">{template.name}</p><p className="truncate text-[9px] text-muted">Cover letter · {template.fileName}</p></div><Button type="button" variant="ghost" aria-label={`Delete template ${template.name}`} disabled={deletingTemplateId === template.id} onClick={() => void deleteStoredTemplate(template)} className="h-8 rounded-lg border border-red-400/20 px-2 text-red-200 hover:bg-red-500/10">{deletingTemplateId === template.id ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}</Button></div>)}</div></details> : null}
                 <div className="mb-4 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
@@ -2278,7 +2260,7 @@ export function ApplicationWorkspace({
                   </div>
                 </div>
                 <div className="grid gap-4 lg:grid-cols-2">
-                  <DocumentCard documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Focused for this role, with your structure and visual style intact." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && selectedResumeSourceId && resumePreflightReady && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded ? documentError ? "Retry loading history" : "Loading history…" : !selectedResumeSourceId ? "Select source first" : resumePreflight.status === "checking" ? "Checking template…" : resumePreflight.status === "error" ? "Preflight failed" : !resumePreflight.report?.supported ? "Template unsupported" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<SourcePicker label="Source CV" sources={resumeSources} selectedId={selectedResumeSourceId} preflight={resumePreflight} deletingSourceId={deletingSourceId} onChange={(sourceId) => { setSelectedResumeSourceId(sourceId); setIsResumeSourceManual(Boolean(sourceId)); }} onAttach={(file) => void attachWorkspaceSource(file, "CV / Resume")} onDelete={(source) => void deleteWorkspaceSource(source)} />} />
+                  <DocumentCard documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Focused for this role and rendered with a bundled Rufina template." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && selectedResumeSourceId && resumePreflightReady && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded ? documentError ? "Retry loading history" : "Loading history…" : !selectedResumeSourceId ? "Select source first" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><SourcePicker label="Source CV" description="Used as the factual source. Its layout is not used as a template." sources={resumeSources} selectedId={selectedResumeSourceId} preflight={resumePreflight} deletingSourceId={deletingSourceId} onChange={(sourceId) => { setSelectedResumeSourceId(sourceId); setIsResumeSourceManual(Boolean(sourceId)); }} onAttach={(file) => void attachWorkspaceSource(file, "CV / Resume")} onDelete={(source) => void deleteWorkspaceSource(source)} /><label className="mt-3 block rounded-xl border border-white/[0.07] bg-white/[0.02] p-3"><span className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">Resume template</span><select aria-label="Resume template" value={selectedResumeTemplateId} onChange={(event) => setSelectedResumeTemplateId(event.target.value as ResumeTemplateId)} className="mt-2 h-9 w-full rounded-lg border border-white/[0.08] bg-[#111821] px-2.5 text-[10px] font-semibold text-white outline-none focus:border-accent/60">{resumeTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select><p className="mt-2 text-[9px] leading-4 text-muted">{resumeTemplates.find((template) => template.id === selectedResumeTemplateId)?.description ?? "Loading bundled templates…"}</p></label></>} />
                   <DocumentCard documentType="cover_letter" icon={Mail} label="Cover letter" description="A restrained Swiss-style motivation letter: why this role, relevant proof, and the value you can deliver." document={latestCoverLetter} isOutdated={isCoverLetterOutdated} isGenerating={generationType === "cover_letter"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("cover_letter")} onRestore={(version) => latestCoverLetter && restoreDocumentVersion(latestCoverLetter, version)} onLoadMoreVersions={() => latestCoverLetter && void loadMoreDocumentVersions(latestCoverLetter)} onDelete={() => latestCoverLetter && void deleteGeneratedDocument(latestCoverLetter)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && selectedCoverSourceId && coverPreflightReady && coverLetterNamesComplete && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded ? documentError ? "Retry loading history" : "Loading history…" : !selectedCoverSourceId ? "Select source first" : coverPreflight.status === "checking" ? "Checking template…" : coverPreflight.status === "error" ? "Preflight failed" : !coverPreflight.report?.supported ? "Template unsupported" : !coverLetterNamesComplete ? "Complete contact names" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<SourcePicker label="Source cover letter" sources={coverSources} selectedId={selectedCoverSourceId} preflight={coverPreflight} deletingSourceId={deletingSourceId} onChange={(sourceId) => { setSelectedCoverSourceId(sourceId); setIsCoverSourceManual(Boolean(sourceId)); }} onAttach={(file) => void attachWorkspaceSource(file, "Cover Letter")} onDelete={(source) => void deleteWorkspaceSource(source)} />} />
                 </div>
                 <div className="mt-5 rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/[0.055] to-white/[0.015] p-4 sm:p-5">
@@ -2499,6 +2481,7 @@ function DocumentCard({
 
 function SourcePicker({
   label,
+  description = "Layout, styles, images, header and footer stay intact.",
   sources,
   selectedId,
   preflight,
@@ -2508,6 +2491,7 @@ function SourcePicker({
   onDelete,
 }: {
   label: string;
+  description?: string;
   sources: ProfileSourceDocument[];
   selectedId: string;
   preflight: SourcePreflightState;
@@ -2550,7 +2534,7 @@ function SourcePicker({
           </button>
         ) : null}
       </div>
-      <p className="mt-2 text-[9px] leading-4 text-muted">{sources.length ? "Layout, styles, images, header and footer stay intact." : "No DOCX found. Upload one here or add it to Profile."}</p>
+      <p className="mt-2 text-[9px] leading-4 text-muted">{sources.length ? description : "No DOCX found. Upload one here or add it to Profile."}</p>
       {activePreflight?.status === "checking" ? (
         <p className="mt-2 flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-2 text-[9px] font-bold text-[#cbd3df]" role="status">
           <LoaderCircle className="h-3 w-3 animate-spin text-accent" /> Checking template capabilities…

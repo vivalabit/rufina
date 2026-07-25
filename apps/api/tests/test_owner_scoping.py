@@ -155,6 +155,14 @@ def test_application_data_is_scoped_to_request_owner() -> None:
         )
         templates_a = client.get("/documents/templates/library", headers=owner_a)
         templates_b = client.get("/documents/templates/library", headers=owner_b)
+        resume_templates_a = client.get(
+            "/documents/resume-templates",
+            headers=owner_a,
+        )
+        resume_templates_b = client.get(
+            "/documents/resume-templates",
+            headers=owner_b,
+        )
         documents_a = client.get("/documents", headers=owner_a)
         documents_b = client.get("/documents", headers=owner_b)
         own_download = client.get("/documents/document-a/download", headers=owner_a)
@@ -203,8 +211,14 @@ def test_application_data_is_scoped_to_request_owner() -> None:
     assert conflicting_owner_headers.status_code == 400
     assert [item["questionId"] for item in confirmations_a.json()] == ["question-a"]
     assert foreign_confirmations.status_code == 404
-    assert [item["id"] for item in templates_a.json()] == ["template-a"]
-    assert [item["id"] for item in templates_b.json()] == ["template-b"]
+    assert templates_a.json() == []
+    assert templates_b.json() == []
+    assert [item["id"] for item in resume_templates_a.json()] == [
+        "classic_single",
+        "modern_single",
+        "modern_two_column",
+    ]
+    assert resume_templates_b.json() == resume_templates_a.json()
     assert [item["id"] for item in documents_a.json()] == ["document-a"]
     assert [item["id"] for item in documents_b.json()] == ["document-b"]
     assert own_download.status_code == 200

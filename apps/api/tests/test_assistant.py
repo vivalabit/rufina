@@ -1248,7 +1248,7 @@ def test_document_generation_uses_only_authoritative_server_context(
                 ],
                 "generationContext": {
                     "applicationId": "application-authoritative",
-                    "templateId": "template-authoritative",
+                    "templateId": "classic_single",
                     "documentType": "tailored_resume",
                 },
             },
@@ -1300,7 +1300,7 @@ def test_document_generation_uses_only_authoritative_server_context(
     assert isinstance(confirmations, list)
     assert confirmations[0].answer == "YES: Built production Python services."
     assert isinstance(sources, list)
-    assert sources[0].title == "Server CV"
+    assert sources[0].title == "Classic"
     assert captured["facade"].backend.name == "openai_api"
     assert "Injected" not in repr(captured)
 

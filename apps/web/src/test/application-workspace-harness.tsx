@@ -18,6 +18,7 @@ type WorkspaceApiOptions = {
   confirmationPutResponse?: unknown[];
   confirmations?: unknown[];
   documents?: unknown[];
+  resumeTemplates?: unknown[];
   templates?: unknown[];
   workspaceSources?: unknown[];
   aiPrivacySettings?: Partial<{
@@ -202,6 +203,29 @@ export function installApplicationWorkspaceApiMock({
   confirmationPutResponse = [],
   confirmations = [],
   documents = [],
+  resumeTemplates = [
+    {
+      id: "classic_single",
+      name: "Classic Single",
+      description: "Traditional single-column resume.",
+      layout: "single_column",
+      columns: 1,
+    },
+    {
+      id: "modern_single",
+      name: "Modern Single",
+      description: "Modern single-column resume.",
+      layout: "single_column",
+      columns: 1,
+    },
+    {
+      id: "modern_two_column",
+      name: "Modern Two Column",
+      description: "Modern two-column resume.",
+      layout: "two_column",
+      columns: 2,
+    },
+  ],
   templates = [],
   workspaceSources = [],
   aiPrivacySettings = {},
@@ -227,6 +251,9 @@ export function installApplicationWorkspaceApiMock({
     }
     if (url.pathname === "/documents/templates/library" && method === "GET") {
       return Response.json(templates);
+    }
+    if (url.pathname === "/documents/resume-templates" && method === "GET") {
+      return Response.json(resumeTemplates);
     }
     if (url.pathname === "/documents/workspace-sources/library" && method === "GET") {
       return Response.json(workspaceSources);

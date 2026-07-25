@@ -3,7 +3,6 @@ import base64
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
 import json
-import zipfile
 from uuid import uuid4
 
 from docx import Document
@@ -41,7 +40,7 @@ from app.services.job_match_store import APPLICATION_GUIDE_STORAGE_KEY
 from app.services.generation_context import load_authoritative_generation_context
 
 
-def test_template_preflight_reports_capabilities_and_rejections() -> None:
+def test_resume_template_preflight_rejects_custom_docx_without_saving() -> None:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -106,22 +105,11 @@ def test_template_preflight_reports_capabilities_and_rejections() -> None:
     finally:
         app.dependency_overrides.clear()
 
-    assert supported.status_code == 200
-    assert supported.json()["supported"] is True
-    assert supported.json()["template"] is None
-    assert supported.json()["editableCount"] == 1
-    assert supported.json()["immutableCount"] == 2
-    assert {item["type"] for item in supported.json()["immutableElements"]} == {
-        "heading",
-        "drawing",
-    }
-    assert supported.json()["aiContext"] is None
-    assert rejected.status_code == 200
-    assert rejected.json()["supported"] is False
-    assert rejected.json()["template"] is None
-    assert rejected.json()["rejectedElements"] == [
-        {"element": "object", "description": "embedded objects"}
-    ]
+    assert supported.status_code == 422
+    assert rejected.status_code == 422
+    assert "Custom resume DOCX templates are not supported" in (
+        supported.json()["detail"]
+    )
     assert template_count == 0
 
 
@@ -575,7 +563,7 @@ def test_cover_letter_template_preserves_visual_structure() -> None:
     assert "Original reusable body paragraph." not in body_text
 
 
-def test_resume_template_rewrites_blocks_without_rebuilding_design() -> None:
+def test_bundled_resume_template_rewrites_blocks() -> None:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -597,34 +585,9 @@ def test_resume_template_rewrites_blocks_without_rebuilding_design() -> None:
         )
         db.commit()
 
-    template = Document()
-    template.sections[0].header.paragraphs[0].text = "EDUARD · CONTACT"
-    name = template.add_paragraph("Eduard Ishchenko")
-    name.style = template.styles["Heading 1"]
-    template.add_paragraph("Original professional summary with verified delivery experience.")
-    table = template.add_table(rows=1, cols=2)
-    table.style = "Table Grid"
-    table.cell(0, 0).text = "Python"
-    table.cell(0, 1).text = "Original achievement"
-    template.sections[0].footer.paragraphs[0].text = "Resume footer"
-    template_output = BytesIO()
-    template.save(template_output)
-    data_url = "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64," + base64.b64encode(
-        template_output.getvalue()
-    ).decode()
-
     app.dependency_overrides[get_db] = override_get_db
     client = TestClient(app)
     try:
-        uploaded = client.post(
-            "/documents/templates",
-            json={
-                "type": "tailored_resume",
-                "name": "Main CV",
-                "fileName": "resume.docx",
-                "dataUrl": data_url,
-            },
-        )
         created = client.post(
             "/documents",
             json={
@@ -634,18 +597,18 @@ def test_resume_template_rewrites_blocks_without_rebuilding_design() -> None:
                     {
                         "replacements": [
                             {
-                                "blockId": "block-0002",
-                                "spanId": "block-0002-span-0001",
-                                "original": "Original professional summary with verified delivery experience.",
+                                "blockId": "block-0004",
+                                "spanId": "block-0004-span-0001",
+                                "original": "Evidence-backed professional summary.",
                                 "replacement": "Backend engineer focused on FastAPI",
                                 "reason": "Matches the target role with verified profile evidence",
-                                "evidenceIds": ["source:block-0002-span-0001"],
+                                "evidenceIds": ["source:block-0004-span-0001"],
                             }
                         ]
                     }
                 ),
                 "applicationId": "application-resume-template",
-                "templateId": uploaded.json()["id"],
+                "templateId": "classic_single",
             },
         )
         downloaded = client.get(f"/documents/{created.json()['id']}/download")
@@ -653,28 +616,12 @@ def test_resume_template_rewrites_blocks_without_rebuilding_design() -> None:
         app.dependency_overrides.clear()
 
     rendered = Document(BytesIO(downloaded.content))
-    with zipfile.ZipFile(BytesIO(template_output.getvalue())) as source_package:
-        with zipfile.ZipFile(BytesIO(downloaded.content)) as rendered_package:
-            for preserved_part in (
-                "word/styles.xml",
-                "word/header1.xml",
-                "word/footer1.xml",
-            ):
-                assert rendered_package.read(preserved_part) == source_package.read(preserved_part)
-            assert rendered_package.read("word/document.xml") != source_package.read(
-                "word/document.xml"
-            )
-
-    assert uploaded.status_code == 201
     assert created.status_code == 201
     assert downloaded.status_code == 200
-    assert rendered.sections[0].header.paragraphs[0].text == "EDUARD · CONTACT"
-    assert rendered.sections[0].footer.paragraphs[0].text == "Resume footer"
-    assert rendered.paragraphs[0].style.name == "Heading 1"
-    assert rendered.paragraphs[1].text == "Backend engineer focused on FastAPI"
-    assert rendered.tables[0].style.name == "Table Grid"
-    assert rendered.tables[0].cell(0, 0).text == "Python"
-    assert rendered.tables[0].cell(0, 1).text == "Original achievement"
+    assert rendered.paragraphs[0].text == "CANDIDATE NAME"
+    assert rendered.paragraphs[2].text == "SUMMARY"
+    assert rendered.paragraphs[3].text == "Backend engineer focused on FastAPI"
+    assert rendered.paragraphs[4].text == "EXPERIENCE"
 
 
 def test_generated_cover_letter_skips_blocking_validation(monkeypatch) -> None:

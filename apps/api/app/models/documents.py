@@ -571,6 +571,18 @@ class DocumentTemplatePayload(BaseModel):
     model_config = {"populate_by_name": True}
 
 
+class BundledResumeTemplatePayload(BaseModel):
+    id: Literal[
+        "classic_single",
+        "modern_single",
+        "modern_two_column",
+    ]
+    name: str
+    description: str
+    layout: Literal["single_column", "two_column"]
+    columns: Literal[1, 2]
+
+
 class DocumentTemplatePreflightPayload(BaseModel):
     supported: bool
     template: DocumentTemplatePayload | None = None

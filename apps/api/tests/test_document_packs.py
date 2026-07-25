@@ -145,21 +145,10 @@ def document_data_url(document: Document) -> str:
 
 
 def upload_pack_templates(client: TestClient) -> tuple[str, str]:
-    resume = Document()
-    resume.add_paragraph("Original resume summary.")
     cover = Document()
     cover.add_paragraph("Dear Hiring Team,")
     cover.add_paragraph("Original cover letter body.")
     cover.add_paragraph("Kind regards,")
-    resume_response = client.post(
-        "/documents/templates",
-        json={
-            "type": "tailored_resume",
-            "name": "Pack CV",
-            "fileName": "cv.docx",
-            "dataUrl": document_data_url(resume),
-        },
-    )
     cover_response = client.post(
         "/documents/templates",
         json={
@@ -169,9 +158,8 @@ def upload_pack_templates(client: TestClient) -> tuple[str, str]:
             "dataUrl": document_data_url(cover),
         },
     )
-    assert resume_response.status_code == 201
     assert cover_response.status_code == 201
-    return resume_response.json()["id"], cover_response.json()["id"]
+    return "classic_single", cover_response.json()["id"]
 
 
 def pack_request(
@@ -222,14 +210,13 @@ def create_generation_artifact(
 ) -> str:
     artifact_id = str(uuid4())
     with testing_session_local() as db:
-        template = db.get(DocumentTemplateRecord, template_id)
-        assert template is not None
         context = load_authoritative_generation_context(
             db,
             application_id="application-pack",
             template_id=template_id,
             document_type=document_type,
         )
+        template = context.template
         provenance = context.provenance()
         now = datetime.now(UTC)
         db.add(
@@ -238,7 +225,7 @@ def create_generation_artifact(
                 application_id="application-pack",
                 job_id="vacancy-1",
                 document_type=document_type,
-                template_id=template_id,
+                template_id=template.id,
                 template_content=template.content,
                 input_snapshot=context.input_snapshot(prompt=f"Generate {document_type}"),
                 generation_fingerprint=provenance.generation_fingerprint,
@@ -803,6 +790,7 @@ def test_pack_uses_immutable_generation_snapshot_after_inputs_change(
             for artifact in generation_artifacts
             if artifact is not None
         }
+        resume_snapshot_template_id = generation_artifacts[0].template_id
     preflight = client.post(
         "/documents/packs/validate-resume",
         json={"applicationId": request["applicationId"], "resume": request["resume"]},
@@ -811,7 +799,7 @@ def test_pack_uses_immutable_generation_snapshot_after_inputs_change(
 
     with testing_session_local() as db:
         profile = db.get(ProfileRecord, "default")
-        template = db.get(DocumentTemplateRecord, resume_template_id)
+        template = db.get(DocumentTemplateRecord, resume_snapshot_template_id)
         assert profile is not None
         assert template is not None
         profile.data = {**profile.data, "skills": "Changed after generation"}
