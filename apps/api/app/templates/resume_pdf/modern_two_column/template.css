@@ -1,0 +1,55 @@
+.template-modern_two_column {
+  color: #182331;
+}
+
+.template-modern_two_column .identity {
+  margin-bottom: 22px;
+  border-bottom: 4px solid #243b53;
+  padding-bottom: 12px;
+}
+
+.template-modern_two_column .identity h1 {
+  color: #243b53;
+}
+
+.template-modern_two_column .headline {
+  color: #486581;
+}
+
+.template-modern_two_column .two-column {
+  align-items: start;
+}
+
+.template-modern_two_column .side-column {
+  border-right: 1px solid #cbd5df;
+  padding-right: 18px;
+}
+
+.template-modern_two_column .primary-column {
+  padding-left: 1px;
+}
+
+.template-modern_two_column .resume-section h2 {
+  color: #243b53;
+}
+
+.template-modern_two_column .side-column .resume-section h2 {
+  font-size: 9.5pt;
+}
+
+.template-modern_two_column .side-column .skill-list {
+  display: block;
+}
+
+.template-modern_two_column .side-column .skill-list p {
+  margin-top: 4px;
+}
+
+.template-modern_two_column .side-column .item-heading {
+  display: block;
+}
+
+.template-modern_two_column .side-column .item-period {
+  margin-top: 2px;
+  white-space: normal;
+}

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="{{ resume.language }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="generator" content="Rufina deterministic resume renderer">
+  <title>{{ resume.basics.full_name }} - Resume</title>
+  <style>{{ stylesheet }}</style>
+</head>
+<body class="template-{{ template_id }}" data-template-version="{{ template_version }}">
+{% macro render_section(section) %}
+  {% if section == "summary" and resume.summary %}
+  <section class="resume-section section-summary">
+    <h2>{{ resume.section_titles.summary }}</h2>
+    <p>{{ resume.summary.text }}</p>
+  </section>
+  {% elif section == "experience" and resume.experiences %}
+  <section class="resume-section section-experience">
+    <h2>{{ resume.section_titles.experience }}</h2>
+    {% for experience in resume.experiences %}
+    <article class="resume-item experience-item">
+      <div class="item-heading">
+        <h3>{{ experience.title }}</h3>
+        <p class="item-period">{{ experience.period }}</p>
+      </div>
+      <p class="item-subheading">{{ experience.company }}{% if experience.location %}<span class="separator"> · </span>{{ experience.location }}{% endif %}</p>
+      <ul>
+        {% for bullet in experience.bullets %}<li>{{ bullet.text }}</li>{% endfor %}
+      </ul>
+    </article>
+    {% endfor %}
+  </section>
+  {% elif section == "skills" and resume.skills %}
+  <section class="resume-section section-skills">
+    <h2>{{ resume.section_titles.skills }}</h2>
+    <div class="skill-list">
+      {% for skill in resume.skills %}
+      <p>{% if skill.category %}<strong>{{ skill.category }}:</strong> {% endif %}{{ skill.name }}</p>
+      {% endfor %}
+    </div>
+  </section>
+  {% elif section == "education" and resume.education %}
+  <section class="resume-section section-education">
+    <h2>{{ resume.section_titles.education }}</h2>
+    {% for education in resume.education %}
+    <article class="resume-item">
+      <div class="item-heading">
+        <h3>{{ education.credential }}{% if education.field_of_study %}<span class="separator"> · </span>{{ education.field_of_study }}{% endif %}</h3>
+        <p class="item-period">{{ education.start_date }}{% if education.start_date and education.end_date %} - {% endif %}{{ education.end_date }}</p>
+      </div>
+      <p class="item-subheading">{{ education.institution }}{% if education.location %}<span class="separator"> · </span>{{ education.location }}{% endif %}</p>
+      {% if education.details %}<ul>{% for detail in education.details %}<li>{{ detail.text }}</li>{% endfor %}</ul>{% endif %}
+    </article>
+    {% endfor %}
+  </section>
+  {% elif section == "projects" and resume.projects %}
+  <section class="resume-section section-projects">
+    <h2>{{ resume.section_titles.projects }}</h2>
+    {% for project in resume.projects %}
+    <article class="resume-item">
+      <h3>{{ project.name }}{% if project.role %}<span class="separator"> · </span>{{ project.role }}{% endif %}</h3>
+      <ul>{% for bullet in project.bullets %}<li>{{ bullet.text }}</li>{% endfor %}</ul>
+    </article>
+    {% endfor %}
+  </section>
+  {% elif section == "certifications" and resume.certifications %}
+  <section class="resume-section section-certifications">
+    <h2>{{ resume.section_titles.certifications }}</h2>
+    {% for certification in resume.certifications %}
+    <p class="compact-item"><strong>{{ certification.name }}</strong><span class="separator"> · </span>{{ certification.issuer }}{% if certification.issued_on %}<span class="separator"> · </span>{{ certification.issued_on }}{% endif %}</p>
+    {% endfor %}
+  </section>
+  {% elif section == "languages" and resume.languages %}
+  <section class="resume-section section-languages">
+    <h2>{{ resume.section_titles.languages }}</h2>
+    {% for language in resume.languages %}<p class="compact-item"><strong>{{ language.name }}</strong><span class="separator"> · </span>{{ language.proficiency }}</p>{% endfor %}
+  </section>
+  {% elif section == "additional" and resume.additional_sections %}
+  <section class="resume-section section-additional">
+    <h2>{{ resume.section_titles.additional }}</h2>
+    {% for additional in resume.additional_sections %}
+    <article class="resume-item">
+      <h3>{{ additional.title }}</h3>
+      <ul>{% for item in additional.items %}<li>{{ item.text }}</li>{% endfor %}</ul>
+    </article>
+    {% endfor %}
+  </section>
+  {% endif %}
+{% endmacro %}
+
+<div class="resume-shell">
+  <header class="identity">
+    <h1>{{ resume.basics.full_name }}</h1>
+    {% if resume.basics.headline %}<p class="headline">{{ resume.basics.headline }}</p>{% endif %}
+    {% if resume.basics.contacts %}
+    <ul class="contacts">
+      {% for contact in resume.basics.contacts %}
+      <li>{% if contact.href %}<a href="{{ contact.href }}" rel="noreferrer">{{ contact.value }}</a>{% else %}{{ contact.value }}{% endif %}</li>
+      {% endfor %}
+    </ul>
+    {% endif %}
+  </header>
+  {% if template_id == "modern_two_column" %}
+  <main class="resume-main two-column">
+    <div class="side-column">
+      {% for section in resume.section_order %}{% if section in ["skills", "education", "certifications", "languages", "additional"] %}{{ render_section(section) }}{% endif %}{% endfor %}
+    </div>
+    <div class="primary-column">
+      {% for section in resume.section_order %}{% if section in ["summary", "experience", "projects"] %}{{ render_section(section) }}{% endif %}{% endfor %}
+    </div>
+  </main>
+  {% else %}
+  <main class="resume-main single-column">
+    {% for section in resume.section_order %}{{ render_section(section) }}{% endfor %}
+  </main>
+  {% endif %}
+</div>
+</body>
+</html>

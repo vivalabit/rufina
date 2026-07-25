@@ -2,7 +2,8 @@ from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
+from pydantic import ValidationError
 
 from app.core.database import get_db
 from app.core.identity import bind_request_identity, get_bound_owner_id
@@ -11,10 +12,12 @@ from app.models.jobs import StoredJobRecord
 from app.models.resume import (
     AtsFinalReviewRequest,
     AtsFinalReviewResponse,
+    AtsFinalReviewRecord,
     ExperienceRewrite,
     ExperienceRewriteRecord,
     ExperienceRewriteRequest,
     ExperienceRewriteResponse,
+    FinalResume,
     MasterResume,
     ResumeMasterRecord,
     ResumeMasterVersionRecord,
@@ -47,6 +50,11 @@ from app.services.resume_tailoring_runs import (
     fail_stage_attempt,
     tailoring_input_fingerprint,
 )
+from app.services.resume_pdf_renderer import (
+    ResumePdfRenderError,
+    render_final_resume_pdf,
+)
+from app.services.resume_template_registry import ResumeTemplateId
 
 
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
@@ -420,6 +428,71 @@ def run_ats_final_review(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="ATS final review storage is temporarily unavailable",
         ) from exc
+
+
+@router.get("/ats-final-review/{review_id}/pdf")
+def download_ats_final_resume_pdf(
+    review_id: str,
+    template_id: ResumeTemplateId = Query(
+        default="classic_single",
+        alias="templateId",
+    ),
+    db: Session = Depends(get_db),
+) -> Response:
+    try:
+        record = db.scalar(
+            select(AtsFinalReviewRecord).where(
+                AtsFinalReviewRecord.id == review_id,
+                AtsFinalReviewRecord.owner_id == get_bound_owner_id(),
+            )
+        )
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="ATS final review not found",
+            )
+        try:
+            resume = FinalResume.model_validate(record.render_input)
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Stored FinalResume render input is invalid",
+            ) from exc
+        pdf = render_final_resume_pdf(
+            resume.model_dump(by_alias=True, exclude_none=True),
+            template_id=template_id,
+        )
+        filename = safe_resume_pdf_filename(resume.basics.full_name)
+        return Response(
+            content=pdf,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"',
+            },
+        )
+    except HTTPException:
+        raise
+    except ResumePdfRenderError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Final resume PDF is temporarily unavailable",
+        ) from exc
+
+
+def safe_resume_pdf_filename(full_name: str) -> str:
+    safe_name = "".join(
+        character
+        for character in full_name.strip()
+        if character.isascii()
+        and (character.isalnum() or character in {" ", "-", "_"})
+    )
+    safe_name = "-".join(safe_name.split()).strip("-_")
+    return f"{safe_name}-resume.pdf" if safe_name else "resume.pdf"
 
 
 def ensure_analysis_stage(

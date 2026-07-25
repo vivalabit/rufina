@@ -5,6 +5,7 @@ RUN npm install -g openclaw@2026.7.1
 FROM python:3.12-slim
 
 ENV PIP_NO_CACHE_DIR=1 \
+    PLAYWRIGHT_BROWSERS_PATH=/ms-playwright \
     PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
 
@@ -26,7 +27,8 @@ WORKDIR /workspace/apps/api
 
 COPY apps/api/pyproject.toml ./
 RUN python -m pip install --upgrade pip \
-    && python -m pip install -e .
+    && python -m pip install -e . \
+    && python -m playwright install --with-deps chromium
 
 COPY apps/api/alembic.ini ./alembic.ini
 COPY apps/api/migrations ./migrations

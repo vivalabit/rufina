@@ -2,8 +2,8 @@ from collections.abc import Generator
 from inspect import signature
 from io import BytesIO
 
-from docx import Document
 from fastapi.testclient import TestClient
+from pypdf import PdfReader
 import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -29,6 +29,12 @@ from app.models.resume import (
 from app.services.ai_backend import AIRequest, AIResult, AIUsage
 from app.services.ai_privacy import require_current_ai_consent
 from app.services.document_export import render_final_resume_json
+from app.services.resume_pdf_renderer import (
+    ResumePdfRenderError,
+    load_template_bundle,
+    render_final_resume_html,
+    render_final_resume_pdf,
+)
 from app.services.resume_tailoring import (
     ATS_FINAL_REVIEW_PROMPT_VERSION,
     AtsFinalReviewOutcome,
@@ -479,7 +485,8 @@ def test_ats_final_review_endpoint_loads_stage_two_and_persists_render_input(
         openclaw_resume_tailoring_enabled=True
     )
 
-    response = TestClient(app).post(
+    client = TestClient(app)
+    response = client.post(
         "/resume-tailoring/ats-final-review",
         json={"experienceRewriteId": rewrite_id},
     )
@@ -522,6 +529,45 @@ def test_ats_final_review_endpoint_loads_stage_two_and_persists_render_input(
         record.render_input = {}
         with pytest.raises(ValueError, match="ATS final reviews are immutable"):
             db.commit()
+
+    rendered_templates: list[str] = []
+
+    def fake_render_pdf(
+        final_resume_json: dict[str, object],
+        *,
+        template_id: str,
+    ) -> bytes:
+        assert final_resume_json == body["finalResume"]
+        rendered_templates.append(template_id)
+        return b"%PDF-1.7\nserver-rendered"
+
+    monkeypatch.setattr(
+        resume_tailoring_api,
+        "render_final_resume_pdf",
+        fake_render_pdf,
+    )
+    downloaded = client.get(
+        f"/resume-tailoring/ats-final-review/{body['id']}/pdf",
+        params={"templateId": "modern_two_column"},
+    )
+
+    assert downloaded.status_code == 200
+    assert downloaded.headers["content-type"] == "application/pdf"
+    assert downloaded.headers["content-disposition"] == (
+        'attachment; filename="Ada-Lovelace-resume.pdf"'
+    )
+    assert downloaded.content == b"%PDF-1.7\nserver-rendered"
+    assert rendered_templates == ["modern_two_column"]
+    invalid_template = client.get(
+        f"/resume-tailoring/ats-final-review/{body['id']}/pdf",
+        params={"templateId": "client_template"},
+    )
+    assert invalid_template.status_code == 422
+    foreign_owner = client.get(
+        f"/resume-tailoring/ats-final-review/{body['id']}/pdf",
+        headers={"X-Rufina-Owner-Id": "another-owner"},
+    )
+    assert foreign_owner.status_code == 404
 
 
 def test_ats_final_review_requires_saved_stage_two(
@@ -567,10 +613,54 @@ def test_final_resume_json_is_the_renderers_only_input() -> None:
         "final_resume_json"
     ]
     rendered = render_final_resume_json(final_resume_json)
-    document = Document(BytesIO(rendered))
-    text = "\n".join(paragraph.text for paragraph in document.paragraphs)
+    reader = PdfReader(BytesIO(rendered))
+    text = "\n".join(page.extract_text() or "" for page in reader.pages)
 
+    assert rendered.startswith(b"%PDF-")
     assert "Platform engineer who increased Kubernetes" in text
     assert "Increased deployment throughput by 40%" in text
     assert "Python" in text
     assert "Platform engineer building services." not in text
+
+
+@pytest.mark.parametrize(
+    "template_id",
+    ["classic_single", "modern_single", "modern_two_column"],
+)
+def test_pdf_template_manifests_are_valid_and_render_escaped_html(
+    template_id: str,
+) -> None:
+    final_resume_json = final_review_payload("master-resume")["finalResume"]
+    final_resume_json["basics"]["fullName"] = "<b>Ada Lovelace</b>"
+    final_resume_json["basics"]["linkedin"] = "javascript:alert(1)"
+
+    html, bundle = render_final_resume_html(
+        final_resume_json,
+        template_id=template_id,
+    )
+
+    assert bundle.manifest.template_id == template_id
+    assert bundle.manifest.renderer == "chromium"
+    assert "&lt;b&gt;Ada Lovelace&lt;/b&gt;" in html
+    assert "<b>Ada Lovelace</b>" not in html
+    assert 'href="javascript:' not in html
+    assert "<script" not in html.lower()
+    assert load_template_bundle(template_id).manifest == bundle.manifest
+    rendered = render_final_resume_pdf(
+        final_resume_json,
+        template_id=template_id,
+    )
+    assert rendered.startswith(b"%PDF-")
+    assert len(PdfReader(BytesIO(rendered)).pages) >= 1
+
+
+def test_pdf_renderer_rejects_non_final_resume_fields() -> None:
+    final_resume_json = final_review_payload("master-resume")["finalResume"]
+    final_resume_json["html"] = "<h1>AI-controlled HTML</h1>"
+    final_resume_json["css"] = "body { display: none }"
+
+    with pytest.raises(
+        ResumePdfRenderError,
+        match="FinalResume JSON failed schema validation",
+    ):
+        render_final_resume_html(final_resume_json)

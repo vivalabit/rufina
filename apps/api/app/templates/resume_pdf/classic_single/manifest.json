@@ -1,0 +1,13 @@
+{
+  "schemaVersion": "1.0",
+  "templateId": "classic_single",
+  "templateVersion": "1.0.0",
+  "renderer": "chromium",
+  "resumeSchemaVersions": ["1.0"],
+  "htmlTemplate": "resume.html.j2",
+  "stylesheets": ["base.css", "template.css"],
+  "page": {
+    "format": "A4",
+    "printBackground": true
+  }
+}

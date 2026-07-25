@@ -1,0 +1,18 @@
+.template-classic_single .identity {
+  border-bottom: 1px solid #262626;
+  padding-bottom: 12px;
+  text-align: center;
+}
+
+.template-classic_single .contacts {
+  justify-content: center;
+}
+
+.template-classic_single .resume-section h2 {
+  border-bottom: 1px solid #9b9b9b;
+  padding-bottom: 3px;
+}
+
+.template-classic_single .section-summary p {
+  text-align: justify;
+}

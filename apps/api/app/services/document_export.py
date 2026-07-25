@@ -26,6 +26,9 @@ from app.services.resume_blocks import (
     set_text_node_value,
 )
 from app.models.resume import FinalResume
+from app.services.resume_pdf_renderer import (
+    render_final_resume_json as render_final_resume_pdf_json,
+)
 
 
 BODY_FONT = "Calibri"
@@ -37,7 +40,14 @@ MUTED = RGBColor(0x66, 0x66, 0x66)
 def render_final_resume_json(
     final_resume_json: dict[str, object],
 ) -> bytes:
-    """Render a canonical final resume using that JSON as the only input."""
+    """Render a canonical FinalResume JSON payload to PDF."""
+    return render_final_resume_pdf_json(final_resume_json)
+
+
+def render_final_resume_docx(
+    final_resume_json: dict[str, object],
+) -> bytes:
+    """Legacy deterministic DOCX renderer retained for internal compatibility."""
     resume = FinalResume.model_validate(final_resume_json)
     document = Document()
     configure_document(document)

@@ -1,0 +1,154 @@
+@page {
+  size: A4;
+  margin: 14mm 16mm 15mm;
+}
+
+:root {
+  color-scheme: light;
+  font-family: Arial, Helvetica, sans-serif;
+  font-size: 10pt;
+  line-height: 1.35;
+  color: #151515;
+  background: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #ffffff;
+}
+
+body {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.resume-shell {
+  width: 100%;
+}
+
+.identity {
+  margin-bottom: 18px;
+}
+
+.identity h1 {
+  margin: 0;
+  font-size: 25pt;
+  line-height: 1.05;
+  letter-spacing: -0.02em;
+}
+
+.headline {
+  margin: 5px 0 0;
+  font-size: 12pt;
+  line-height: 1.25;
+}
+
+.contacts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 3px 13px;
+  margin: 8px 0 0;
+  padding: 0;
+  color: #454545;
+  font-size: 8.7pt;
+  list-style: none;
+}
+
+.contacts li {
+  overflow-wrap: anywhere;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.resume-section {
+  margin-top: 14px;
+}
+
+.resume-section:first-child {
+  margin-top: 0;
+}
+
+.resume-section h2 {
+  margin: 0 0 7px;
+  font-size: 10.5pt;
+  line-height: 1.2;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.resume-section p {
+  margin: 0;
+}
+
+.resume-item {
+  break-inside: avoid;
+  margin-top: 10px;
+}
+
+.resume-section h2 + .resume-item {
+  margin-top: 0;
+}
+
+.resume-item h3 {
+  margin: 0;
+  font-size: 10.3pt;
+  line-height: 1.25;
+}
+
+.item-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 12px;
+}
+
+.item-period {
+  white-space: nowrap;
+  color: #4d4d4d;
+  font-size: 8.7pt;
+}
+
+.item-subheading {
+  margin-top: 2px !important;
+  color: #383838;
+  font-size: 9.2pt;
+}
+
+.separator {
+  color: #777777;
+}
+
+ul {
+  margin: 5px 0 0;
+  padding-left: 17px;
+}
+
+li {
+  margin: 2px 0;
+  padding-left: 2px;
+}
+
+.skill-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+}
+
+.compact-item + .compact-item {
+  margin-top: 4px;
+}
+
+.two-column {
+  display: grid;
+  grid-template-columns: 31% minmax(0, 1fr);
+  gap: 24px;
+}
