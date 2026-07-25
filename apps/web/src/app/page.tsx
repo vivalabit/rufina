@@ -71,6 +71,7 @@ import {
   JobsToolbar,
   type BulkAnalysisScope,
 } from "@/components/jobs-toolbar";
+import { MasterResumeEditor } from "@/components/master-resume-editor";
 import { getAiMatchAnalysisStatus, legacyAiMatchVersion } from "@/lib/ai-match";
 import { getAiSourceLabel, type AiBackend, type AiSource } from "@/lib/ai-source";
 import { findWorkspaceApplication, getHashForView, getRouteFromHash, type View } from "@/lib/app-route";
@@ -9910,6 +9911,18 @@ function ProfileView({
 
       <div className="mt-4 grid shrink-0 content-start gap-4 2xl:gap-5">
         <ResumePanel profile={profile} onSaveResume={onSaveResume} />
+        <MasterResumeEditor
+          apiBaseUrl={apiBaseUrl}
+          profileResume={
+            profile.resume_file_name && profile.resume_data_url
+              ? {
+                  fileName: profile.resume_file_name,
+                  fileSize: profile.resume_file_size,
+                  dataUrl: profile.resume_data_url,
+                }
+              : null
+          }
+        />
         <div className="grid gap-4 xl:grid-cols-2 2xl:gap-5">
           <ActivityPanel profile={profile} onEditProfile={onEditProfile} />
           <AiMatchProfilePanel profile={profile} onEditProfile={onEditProfile} />
