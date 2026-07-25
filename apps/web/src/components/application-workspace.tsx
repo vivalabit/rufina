@@ -63,6 +63,13 @@ import {
   type ResumeTailoringProgress,
   type ResumeTailoringStageId,
 } from "@/components/resume-tailoring-progress";
+import {
+  ResumePdfReview,
+  ResumeTemplatePicker,
+  type BundledResumeTemplate,
+  type ResumePdfArtifact,
+  type ResumeTemplateId,
+} from "@/components/resume-pdf-review";
 
 type WorkspaceJob = {
   id: string;
@@ -203,10 +210,14 @@ type GeneratedDocumentVersion = {
   hasRenderedDocx?: boolean;
   hasRenderedArtifact?: boolean;
   artifact?: {
-    fileName: string;
-    contentType: string;
-    templateId?: string | null;
-    templateVersion?: string | null;
+    fileName: ResumePdfArtifact["fileName"];
+    contentType: ResumePdfArtifact["contentType"];
+    templateId?: ResumePdfArtifact["templateId"];
+    templateVersion?: ResumePdfArtifact["templateVersion"];
+    sourceAtsFinalReviewId?: ResumePdfArtifact["sourceAtsFinalReviewId"];
+    finalResumeJson?: ResumePdfArtifact["finalResumeJson"];
+    stageResults?: ResumePdfArtifact["stageResults"];
+    provenance?: ResumePdfArtifact["provenance"];
   } | null;
   factualValidation: {
     status?: string;
@@ -348,16 +359,6 @@ type DocumentTemplate = {
   updatedAt: string;
 };
 
-type ResumeTemplateId = "classic_single" | "modern_single" | "modern_two_column";
-
-type BundledResumeTemplate = {
-  id: ResumeTemplateId;
-  name: string;
-  description: string;
-  layout: "single_column" | "two_column";
-  columns: 1 | 2;
-};
-
 type DocumentTemplatePreflight = {
   supported: boolean;
   template: DocumentTemplate | null;
@@ -443,6 +444,7 @@ const defaultAiConfiguration: AiConfiguration = {
 const confirmationAnswerMaxChars = 1_500;
 const documentRevisionMessageMaxChars = 7_000;
 const documentGenerationMessageMaxChars = 11_500;
+const resumeTemplateStorageKeyPrefix = "tasko.resume-template.v1";
 const coverLetterRecipientQuestion = {
   id: "cover-letter-recipient-name",
   requirement: "Named recruiter or intended hiring contact",
@@ -920,6 +922,16 @@ export function ApplicationWorkspace({
   const [apiHealth, setApiHealth] = useState<"checking" | "available" | "unavailable">("checking");
   const [apiRetryVersion, setApiRetryVersion] = useState(0);
 
+  function selectResumeTemplate(templateId: ResumeTemplateId) {
+    setSelectedResumeTemplateId(templateId);
+    if (application) {
+      window.localStorage.setItem(
+        `${resumeTemplateStorageKeyPrefix}.${application.id}`,
+        templateId,
+      );
+    }
+  }
+
   function retryApiRequests() {
     setApiHealth("checking");
     setDocumentError("");
@@ -948,6 +960,18 @@ export function ApplicationWorkspace({
 
   useEffect(() => {
     if (!application) return;
+    const savedTemplateId = window.localStorage.getItem(
+      `${resumeTemplateStorageKeyPrefix}.${application.id}`,
+    );
+    if (
+      savedTemplateId === "classic_single"
+      || savedTemplateId === "modern_single"
+      || savedTemplateId === "modern_two_column"
+    ) {
+      setSelectedResumeTemplateId(savedTemplateId);
+    } else {
+      setSelectedResumeTemplateId("classic_single");
+    }
     setDocumentsLoaded(false);
     setDocuments([]);
     setWorkspaceSources([]);
@@ -2405,9 +2429,21 @@ export function ApplicationWorkspace({
                   </div>
                 </div>
                 <div className="grid gap-4 lg:grid-cols-2">
-                  <DocumentCard documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Focused for this role and rendered with a bundled Rufina template." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && selectedResumeSourceId && resumePreflightReady && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded ? documentError ? "Retry loading history" : "Loading history…" : !selectedResumeSourceId ? "Select source first" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><SourcePicker label="Source CV" description="Used as the factual source. Its layout is not used as a template." sources={resumeSources} selectedId={selectedResumeSourceId} preflight={resumePreflight} deletingSourceId={deletingSourceId} onChange={(sourceId) => { setSelectedResumeSourceId(sourceId); setIsResumeSourceManual(Boolean(sourceId)); }} onAttach={(file) => void attachWorkspaceSource(file, "CV / Resume")} onDelete={(source) => void deleteWorkspaceSource(source)} /><label className="mt-3 block rounded-xl border border-white/[0.07] bg-white/[0.02] p-3"><span className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">Resume template</span><select aria-label="Resume template" value={selectedResumeTemplateId} onChange={(event) => setSelectedResumeTemplateId(event.target.value as ResumeTemplateId)} className="mt-2 h-9 w-full rounded-lg border border-white/[0.08] bg-[#111821] px-2.5 text-[10px] font-semibold text-white outline-none focus:border-accent/60">{resumeTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}</option>)}</select><p className="mt-2 text-[9px] leading-4 text-muted">{resumeTemplates.find((template) => template.id === selectedResumeTemplateId)?.description ?? "Loading bundled templates…"}</p></label></>} />
+                  <DocumentCard documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Focused for this role and rendered with a bundled Rufina template." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && selectedResumeSourceId && resumePreflightReady && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded ? documentError ? "Retry loading history" : "Loading history…" : !selectedResumeSourceId ? "Select source first" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><SourcePicker label="Source CV" description="Used as the factual source. Its layout is not used as a template." sources={resumeSources} selectedId={selectedResumeSourceId} preflight={resumePreflight} deletingSourceId={deletingSourceId} onChange={(sourceId) => { setSelectedResumeSourceId(sourceId); setIsResumeSourceManual(Boolean(sourceId)); }} onAttach={(file) => void attachWorkspaceSource(file, "CV / Resume")} onDelete={(source) => void deleteWorkspaceSource(source)} /><ResumeTemplatePicker templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} /></>} />
                   <DocumentCard documentType="cover_letter" icon={Mail} label="Cover letter" description="A restrained Swiss-style motivation letter: why this role, relevant proof, and the value you can deliver." document={latestCoverLetter} isOutdated={isCoverLetterOutdated} isGenerating={generationType === "cover_letter"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("cover_letter")} onRestore={(version) => latestCoverLetter && restoreDocumentVersion(latestCoverLetter, version)} onLoadMoreVersions={() => latestCoverLetter && void loadMoreDocumentVersions(latestCoverLetter)} onDelete={() => latestCoverLetter && void deleteGeneratedDocument(latestCoverLetter)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && selectedCoverSourceId && coverPreflightReady && coverLetterNamesComplete && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded ? documentError ? "Retry loading history" : "Loading history…" : !selectedCoverSourceId ? "Select source first" : coverPreflight.status === "checking" ? "Checking template…" : coverPreflight.status === "error" ? "Preflight failed" : !coverPreflight.report?.supported ? "Template unsupported" : !coverLetterNamesComplete ? "Complete contact names" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<SourcePicker label="Source cover letter" sources={coverSources} selectedId={selectedCoverSourceId} preflight={coverPreflight} deletingSourceId={deletingSourceId} onChange={(sourceId) => { setSelectedCoverSourceId(sourceId); setIsCoverSourceManual(Boolean(sourceId)); }} onAttach={(file) => void attachWorkspaceSource(file, "Cover Letter")} onDelete={(source) => void deleteWorkspaceSource(source)} />} />
                 </div>
+                <ResumePdfReview
+                  apiBaseUrl={apiBaseUrl}
+                  document={latestResume}
+                  templates={resumeTemplates}
+                  selectedTemplateId={selectedResumeTemplateId}
+                  onDocumentReady={(renderedDocument) => {
+                    setDocuments((current) => [
+                      renderedDocument as GeneratedDocument,
+                      ...current.filter((item) => item.id !== renderedDocument.id),
+                    ]);
+                  }}
+                />
                 <div className="mt-5 rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/[0.055] to-white/[0.015] p-4 sm:p-5">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>

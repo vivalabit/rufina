@@ -1200,6 +1200,9 @@ describe("ApplicationWorkspace", () => {
   });
 
   it("offers only bundled resume templates without preflighting the source as a template", async () => {
+    window.localStorage.removeItem(
+      "tasko.resume-template.v1.application-v3",
+    );
     const source = {
       id: "large-resume-source",
       title: "Large CV",
@@ -1227,6 +1230,14 @@ describe("ApplicationWorkspace", () => {
     fireEvent.change(selector, { target: { value: "modern_two_column" } });
     expect(selector).toHaveValue("modern_two_column");
     expect(screen.getByText("Modern two-column resume.")).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem(
+        "tasko.resume-template.v1.application-v3",
+      ),
+    ).toBe("modern_two_column");
+    window.localStorage.removeItem(
+      "tasko.resume-template.v1.application-v3",
+    );
     expect(screen.getByText("Used as the factual source. Its layout is not used as a template.")).toBeInTheDocument();
     expect(
       fetchMock.mock.calls.filter(([input, init]) => (
