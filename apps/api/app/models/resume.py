@@ -281,6 +281,54 @@ class StrictResumeModel(BaseModel):
     )
 
 
+class ResumeSourceBoundingBox(StrictResumeModel):
+    """Normalized source coordinates in the range 0..1."""
+
+    x0: float = Field(ge=0, le=1)
+    y0: float = Field(ge=0, le=1)
+    x1: float = Field(ge=0, le=1)
+    y1: float = Field(ge=0, le=1)
+
+    @model_validator(mode="after")
+    def validate_coordinates(self) -> ResumeSourceBoundingBox:
+        if self.x1 <= self.x0 or self.y1 <= self.y0:
+            raise ValueError("source bounding box must have positive width and height")
+        return self
+
+
+class ResumeSourceFragment(StrictResumeModel):
+    id: ResumeItemId
+    text: StrictText
+    order: int = Field(ge=0)
+    page_number: int | None = Field(default=None, ge=1, alias="pageNumber")
+    column_index: int | None = Field(default=None, ge=0, le=1, alias="columnIndex")
+    kind: Literal["paragraph", "line", "table_cell", "header", "footer"]
+    extraction_method: Literal["docx", "pdf_text", "pdf_ocr"] = Field(
+        alias="extractionMethod",
+    )
+    bbox: ResumeSourceBoundingBox | None = None
+
+
+class ResumeSourceExtraction(StrictResumeModel):
+    source_format: Literal["pdf", "docx"] = Field(alias="sourceFormat")
+    layout: Literal["one_column", "two_column", "mixed"]
+    page_count: int | None = Field(default=None, ge=1, alias="pageCount")
+    used_ocr: bool = Field(default=False, alias="usedOcr")
+    fragments: list[ResumeSourceFragment] = Field(max_length=10_000)
+
+    @model_validator(mode="after")
+    def validate_fragment_order(self) -> ResumeSourceExtraction:
+        orders = [fragment.order for fragment in self.fragments]
+        if orders != list(range(len(self.fragments))):
+            raise ValueError("source fragment order must be contiguous and zero-based")
+        _require_unique((fragment.id for fragment in self.fragments), "source fragment IDs")
+        return self
+
+    @property
+    def text(self) -> str:
+        return "\n".join(fragment.text for fragment in self.fragments)
+
+
 class ResumeEvidence(StrictResumeModel):
     """An authoritative fact that may support one or more resume statements."""
 
@@ -729,6 +777,9 @@ __all__ = [
     "ResumeMasterRecord",
     "ResumeMasterVersionRecord",
     "ResumeSectionName",
+    "ResumeSourceBoundingBox",
+    "ResumeSourceExtraction",
+    "ResumeSourceFragment",
     "ResumeSourceFileRecord",
     "RewrittenExperience",
     "StrictResumeModel",

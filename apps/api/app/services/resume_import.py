@@ -30,6 +30,10 @@ from app.services.resume_headings import (
     SKILL_HEADINGS as RESUME_SKILL_HEADINGS,
     normalize_resume_heading,
 )
+from app.services.resume_source_extraction import (
+    ResumeSourceExtractionError,
+    extract_resume_source,
+)
 
 EXPERIENCE_HEADINGS = RESUME_EXPERIENCE_HEADINGS
 EDUCATION_HEADINGS = frozenset().union(
@@ -281,6 +285,23 @@ def decode_resume_data_url(data_url: str) -> tuple[str, bytes]:
 def extract_resume_text(file_name: str, data_url: str) -> str:
     content_type, content = decode_resume_data_url(data_url)
     lower_name = file_name.lower()
+
+    if (
+        lower_name.endswith((".docx", ".pdf"))
+        or "wordprocessingml" in content_type
+        or content_type == "application/pdf"
+    ):
+        try:
+            extraction = extract_resume_source(
+                file_name=file_name,
+                content_type=content_type,
+                content=content,
+            )
+            if extraction.text:
+                return extraction.text
+        except ResumeSourceExtractionError:
+            if content.startswith(b"%PDF"):
+                return ""
 
     if lower_name.endswith(".docx") or "wordprocessingml" in content_type:
         text = extract_docx_text(content)

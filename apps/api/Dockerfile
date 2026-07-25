@@ -9,7 +9,13 @@ ENV PIP_NO_CACHE_DIR=1 \
     PYTHONUNBUFFERED=1
 
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends libreoffice-writer poppler-utils \
+    && apt-get install -y --no-install-recommends \
+        libreoffice-writer \
+        poppler-utils \
+        tesseract-ocr \
+        tesseract-ocr-deu \
+        tesseract-ocr-eng \
+        tesseract-ocr-fra \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=node /usr/local/bin/node /usr/local/bin/node

@@ -17,6 +17,9 @@ from app.models.resume import (
     ResumeEvidence,
     ResumeMasterRecord,
     ResumeMasterVersionRecord,
+    ResumeSourceBoundingBox,
+    ResumeSourceExtraction,
+    ResumeSourceFragment,
     ResumeSourceFileRecord,
 )
 
@@ -32,6 +35,9 @@ __all__ = [
     "ResumeEvidence",
     "ResumeMasterRecord",
     "ResumeMasterVersionRecord",
+    "ResumeSourceBoundingBox",
+    "ResumeSourceExtraction",
+    "ResumeSourceFragment",
     "ResumeSourceFileRecord",
     "ScreeningConfig",
     "ScreeningRule",
