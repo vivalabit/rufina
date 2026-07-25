@@ -25,11 +25,27 @@ from app.models.resume import (
 )
 from app.services.ai_privacy import require_current_ai_consent
 from app.services.resume_tailoring import (
+    ATS_FINAL_REVIEW_PROMPT_VERSION,
+    EXPERIENCE_REWRITE_PROMPT_VERSION,
+    SENIOR_RECRUITER_PROMPT_VERSION,
     ResumeTailoringError,
     create_resume_tailoring_ai_facade,
     persist_ats_final_review,
     persist_experience_rewrite,
     persist_senior_recruiter_analysis,
+)
+from app.services.resume_tailoring_runs import (
+    ATS_FINAL_REVIEW_REQUEST_TYPE,
+    EXPERIENCE_REWRITE_REQUEST_TYPE,
+    SENIOR_RECRUITER_REQUEST_TYPE,
+    ResumeTailoringAttempt,
+    ResumeTailoringTransitionError,
+    begin_first_stage,
+    begin_next_stage,
+    bootstrap_successful_stage,
+    complete_stage_attempt,
+    fail_stage_attempt,
+    tailoring_input_fingerprint,
 )
 
 
@@ -46,6 +62,7 @@ def run_senior_recruiter_analysis(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> SeniorRecruiterAnalysisResponse:
+    stage_attempt: ResumeTailoringAttempt | None = None
     if not settings.openclaw_resume_tailoring_enabled:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -82,6 +99,24 @@ def run_senior_recruiter_analysis(
             )
 
         master_resume = MasterResume.model_validate(master_version.data)
+        stage_attempt = begin_first_stage(
+            db,
+            resume_master_id=master.id,
+            resume_master_version_id=master_version.id,
+            target_job_id=job.id,
+            input_fingerprint=tailoring_input_fingerprint(
+                SENIOR_RECRUITER_REQUEST_TYPE,
+                {
+                    "promptVersion": SENIOR_RECRUITER_PROMPT_VERSION,
+                    "masterResumeVersionId": master_version.id,
+                    "masterResume": master_version.data,
+                    "targetJobId": job.id,
+                    "vacancy": job.data,
+                },
+            ),
+            model=configured_tailoring_model(settings),
+            backend=settings.ai_backend_mode,
+        )
         outcome = create_resume_tailoring_ai_facade(
             settings
         ).analyze_as_senior_recruiter(
@@ -89,17 +124,39 @@ def run_senior_recruiter_analysis(
             target_job_id=job.id,
             vacancy=job.data,
         )
-        return persist_senior_recruiter_analysis(
+        response = persist_senior_recruiter_analysis(
             db,
             master_version=master_version,
             target_job_id=job.id,
             outcome=outcome,
         )
+        complete_stage_attempt(
+            db,
+            attempt=stage_attempt,
+            structured_output=outcome.analysis.model_dump(
+                by_alias=True,
+                exclude_none=True,
+            ),
+            result=outcome.result,
+            output_record_id=response.id,
+        )
+        return response.model_copy(
+            update={
+                "run_id": stage_attempt.run_id,
+                "attempt": stage_attempt.attempt,
+            }
+        )
     except HTTPException:
         db.rollback()
         raise
+    except ResumeTailoringTransitionError as exc:
+        fail_attempt_safely(db, stage_attempt, str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     except ResumeTailoringError as exc:
-        db.rollback()
+        fail_attempt_safely(db, stage_attempt, str(exc))
         status_code = (
             status.HTTP_422_UNPROCESSABLE_ENTITY
             if exc.code in {"invalid_input", "context_too_large"}
@@ -110,7 +167,7 @@ def run_senior_recruiter_analysis(
             detail=str(exc),
         ) from exc
     except SQLAlchemyError as exc:
-        db.rollback()
+        fail_attempt_safely(db, stage_attempt, str(exc))
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Senior recruiter analysis storage is temporarily unavailable",
@@ -127,6 +184,7 @@ def run_xyz_experience_rewrite(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> ExperienceRewriteResponse:
+    stage_attempt: ResumeTailoringAttempt | None = None
     if not settings.openclaw_resume_tailoring_enabled:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -154,8 +212,28 @@ def run_xyz_experience_rewrite(
             )
 
         master_resume = MasterResume.model_validate(master_version.data)
+        ensure_analysis_stage(db, recruiter_analysis)
         saved_analysis = SeniorRecruiterAnalysis.model_validate(
             recruiter_analysis.result
+        )
+        stage_attempt = begin_next_stage(
+            db,
+            previous_output_record_id=recruiter_analysis.id,
+            previous_output=recruiter_analysis.result,
+            stage_number=2,
+            input_fingerprint=tailoring_input_fingerprint(
+                EXPERIENCE_REWRITE_REQUEST_TYPE,
+                {
+                    "promptVersion": EXPERIENCE_REWRITE_PROMPT_VERSION,
+                    "masterResumeVersionId": master_version.id,
+                    "masterResume": master_version.data,
+                    "targetJobId": recruiter_analysis.target_job_id,
+                    "recruiterAnalysisId": recruiter_analysis.id,
+                    "recruiterAnalysis": recruiter_analysis.result,
+                },
+            ),
+            model=configured_tailoring_model(settings),
+            backend=settings.ai_backend_mode,
         )
         outcome = create_resume_tailoring_ai_facade(
             settings
@@ -164,18 +242,40 @@ def run_xyz_experience_rewrite(
             target_job_id=recruiter_analysis.target_job_id,
             recruiter_analysis=saved_analysis,
         )
-        return persist_experience_rewrite(
+        response = persist_experience_rewrite(
             db,
             recruiter_analysis=recruiter_analysis,
             master_version=master_version,
             master_resume=master_resume,
             outcome=outcome,
         )
+        complete_stage_attempt(
+            db,
+            attempt=stage_attempt,
+            structured_output=outcome.rewrite.model_dump(
+                by_alias=True,
+                exclude_none=True,
+            ),
+            result=outcome.result,
+            output_record_id=response.id,
+        )
+        return response.model_copy(
+            update={
+                "run_id": stage_attempt.run_id,
+                "attempt": stage_attempt.attempt,
+            }
+        )
     except HTTPException:
         db.rollback()
         raise
+    except ResumeTailoringTransitionError as exc:
+        fail_attempt_safely(db, stage_attempt, str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     except ResumeTailoringError as exc:
-        db.rollback()
+        fail_attempt_safely(db, stage_attempt, str(exc))
         status_code = (
             status.HTTP_422_UNPROCESSABLE_ENTITY
             if exc.code in {"invalid_input", "context_too_large"}
@@ -186,7 +286,7 @@ def run_xyz_experience_rewrite(
             detail=str(exc),
         ) from exc
     except SQLAlchemyError as exc:
-        db.rollback()
+        fail_attempt_safely(db, stage_attempt, str(exc))
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Experience rewrite storage is temporarily unavailable",
@@ -204,6 +304,7 @@ def run_ats_final_review(
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> AtsFinalReviewResponse:
+    stage_attempt: ResumeTailoringAttempt | None = None
     if not settings.openclaw_resume_tailoring_enabled:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -235,11 +336,33 @@ def run_ats_final_review(
             )
 
         master_resume = MasterResume.model_validate(master_version.data)
+        ensure_rewrite_stage(db, experience_rewrite, recruiter_analysis)
         saved_rewrite = ExperienceRewrite.model_validate(
             experience_rewrite.result
         )
         saved_analysis = SeniorRecruiterAnalysis.model_validate(
             recruiter_analysis.result
+        )
+        stage_attempt = begin_next_stage(
+            db,
+            previous_output_record_id=experience_rewrite.id,
+            previous_output=experience_rewrite.result,
+            stage_number=3,
+            input_fingerprint=tailoring_input_fingerprint(
+                ATS_FINAL_REVIEW_REQUEST_TYPE,
+                {
+                    "promptVersion": ATS_FINAL_REVIEW_PROMPT_VERSION,
+                    "masterResumeVersionId": master_version.id,
+                    "masterResume": master_version.data,
+                    "targetJobId": experience_rewrite.target_job_id,
+                    "recruiterAnalysisId": recruiter_analysis.id,
+                    "recruiterAnalysis": recruiter_analysis.result,
+                    "experienceRewriteId": experience_rewrite.id,
+                    "experienceRewrite": experience_rewrite.result,
+                },
+            ),
+            model=configured_tailoring_model(settings),
+            backend=settings.ai_backend_mode,
         )
         outcome = create_resume_tailoring_ai_facade(
             settings
@@ -249,17 +372,39 @@ def run_ats_final_review(
             recruiter_analysis=saved_analysis,
             experience_rewrite=saved_rewrite,
         )
-        return persist_ats_final_review(
+        response = persist_ats_final_review(
             db,
             experience_rewrite=experience_rewrite,
             master_version=master_version,
             outcome=outcome,
         )
+        complete_stage_attempt(
+            db,
+            attempt=stage_attempt,
+            structured_output=outcome.review.model_dump(
+                by_alias=True,
+                exclude_none=True,
+            ),
+            result=outcome.result,
+            output_record_id=response.id,
+        )
+        return response.model_copy(
+            update={
+                "run_id": stage_attempt.run_id,
+                "attempt": stage_attempt.attempt,
+            }
+        )
     except HTTPException:
         db.rollback()
         raise
+    except ResumeTailoringTransitionError as exc:
+        fail_attempt_safely(db, stage_attempt, str(exc))
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
     except ResumeTailoringError as exc:
-        db.rollback()
+        fail_attempt_safely(db, stage_attempt, str(exc))
         status_code = (
             status.HTTP_422_UNPROCESSABLE_ENTITY
             if exc.code in {"invalid_input", "context_too_large"}
@@ -270,11 +415,98 @@ def run_ats_final_review(
             detail=str(exc),
         ) from exc
     except SQLAlchemyError as exc:
-        db.rollback()
+        fail_attempt_safely(db, stage_attempt, str(exc))
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="ATS final review storage is temporarily unavailable",
         ) from exc
+
+
+def ensure_analysis_stage(
+    db: Session,
+    analysis: SeniorRecruiterAnalysisRecord,
+) -> None:
+    bootstrap_successful_stage(
+        db,
+        stage_number=1,
+        output_record_id=analysis.id,
+        structured_output=analysis.result,
+        input_fingerprint=tailoring_input_fingerprint(
+            SENIOR_RECRUITER_REQUEST_TYPE,
+            {
+                "legacyArtifactId": analysis.id,
+                "resumeMasterVersionId": analysis.resume_master_version_id,
+                "targetJobId": analysis.target_job_id,
+                "vacancyHash": analysis.vacancy_hash,
+                "promptVersion": analysis.prompt_version,
+            },
+        ),
+        resume_master_id=analysis.resume_master_id,
+        resume_master_version_id=analysis.resume_master_version_id,
+        target_job_id=analysis.target_job_id,
+        previous_output_record_id=None,
+        model=analysis.model,
+        backend=analysis.backend,
+        latency_ms=analysis.latency_ms,
+        input_tokens=analysis.input_tokens,
+        output_tokens=analysis.output_tokens,
+        total_tokens=analysis.total_tokens,
+        token_count_source=analysis.token_count_source,
+    )
+
+
+def ensure_rewrite_stage(
+    db: Session,
+    rewrite: ExperienceRewriteRecord,
+    analysis: SeniorRecruiterAnalysisRecord,
+) -> None:
+    ensure_analysis_stage(db, analysis)
+    bootstrap_successful_stage(
+        db,
+        stage_number=2,
+        output_record_id=rewrite.id,
+        structured_output=rewrite.result,
+        input_fingerprint=tailoring_input_fingerprint(
+            EXPERIENCE_REWRITE_REQUEST_TYPE,
+            {
+                "legacyArtifactId": rewrite.id,
+                "recruiterAnalysisId": analysis.id,
+                "resumeMasterVersionId": rewrite.resume_master_version_id,
+                "targetJobId": rewrite.target_job_id,
+                "promptVersion": rewrite.prompt_version,
+            },
+        ),
+        resume_master_id=rewrite.resume_master_id,
+        resume_master_version_id=rewrite.resume_master_version_id,
+        target_job_id=rewrite.target_job_id,
+        previous_output_record_id=analysis.id,
+        model=rewrite.model,
+        backend=rewrite.backend,
+        latency_ms=rewrite.latency_ms,
+        input_tokens=rewrite.input_tokens,
+        output_tokens=rewrite.output_tokens,
+        total_tokens=rewrite.total_tokens,
+        token_count_source=rewrite.token_count_source,
+    )
+
+
+def fail_attempt_safely(
+    db: Session,
+    attempt: ResumeTailoringAttempt | None,
+    error: str,
+) -> None:
+    try:
+        fail_stage_attempt(db, attempt=attempt, error=error)
+    except SQLAlchemyError:
+        db.rollback()
+
+
+def configured_tailoring_model(settings: Settings) -> str:
+    return (
+        settings.openai_api_model
+        if settings.ai_backend_mode == "openai_api"
+        else settings.openclaw_resume_tailoring_model
+    )
 
 
 __all__ = [

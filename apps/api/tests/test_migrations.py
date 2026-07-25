@@ -109,6 +109,8 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "senior_recruiter_analyses",
             "experience_rewrites",
             "ats_final_reviews",
+            "resume_tailoring_runs",
+            "resume_tailoring_stages",
         }
         for table_name in owner_tables:
             owner_column = next(
@@ -126,7 +128,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260725_0024"
+            assert revision == "20260725_0025"
         assert inspect(engine).get_pk_constraint("stored_jobs")["constrained_columns"] == [
             "owner_id",
             "id",
@@ -235,6 +237,58 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
         } == {
             (("resume_master_id",), "resume_masters", "CASCADE"),
             (("source_file_id",), "resume_source_files", "SET NULL"),
+        }
+        run_columns = {
+            column["name"]
+            for column in inspect(engine).get_columns(
+                "resume_tailoring_runs"
+            )
+        }
+        assert run_columns >= {
+            "resume_master_id",
+            "resume_master_version_id",
+            "target_job_id",
+            "status",
+            "current_stage",
+            "error",
+            "completed_at",
+        }
+        stage_columns = {
+            column["name"]
+            for column in inspect(engine).get_columns(
+                "resume_tailoring_stages"
+            )
+        }
+        assert stage_columns >= {
+            "run_id",
+            "stage_number",
+            "request_type",
+            "input_fingerprint",
+            "structured_output",
+            "output_record_id",
+            "model",
+            "backend",
+            "latency_ms",
+            "input_tokens",
+            "output_tokens",
+            "total_tokens",
+            "token_count_source",
+            "status",
+            "error",
+            "attempt",
+            "completed_at",
+        }
+        assert {
+            (
+                tuple(foreign_key["constrained_columns"]),
+                foreign_key["referred_table"],
+                foreign_key["options"].get("ondelete"),
+            )
+            for foreign_key in inspect(engine).get_foreign_keys(
+                "resume_tailoring_stages"
+            )
+        } == {
+            (("run_id",), "resume_tailoring_runs", "CASCADE"),
         }
         ats_review_columns = {
             column["name"]
@@ -699,7 +753,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-        assert revision == "20260725_0024"
+        assert revision == "20260725_0025"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))

@@ -16,6 +16,8 @@ from app.models.resume import (
     MasterResume,
     ResumeMasterRecord,
     ResumeMasterVersionRecord,
+    ResumeTailoringRunRecord,
+    ResumeTailoringStageRecord,
     SeniorRecruiterAnalysis,
     SeniorRecruiterAnalysisRecord,
 )
@@ -391,6 +393,8 @@ def test_senior_recruiter_endpoint_persists_result_and_metrics(
     assert body["model"] == "gpt-5.6-terra"
     assert body["backend"] == "openai_api"
     assert body["promptVersion"] == SENIOR_RECRUITER_PROMPT_VERSION
+    assert body["attempt"] == 1
+    assert isinstance(body["runId"], str)
 
     with api_sessions() as db:
         records = db.scalars(select(SeniorRecruiterAnalysisRecord)).all()
@@ -405,6 +409,15 @@ def test_senior_recruiter_endpoint_persists_result_and_metrics(
         assert record.token_count_source == "provider"
         assert record.latency_ms == 432
         assert record.provider_session_id == "response-recruiter-1"
+        run = db.get(ResumeTailoringRunRecord, body["runId"])
+        stage = db.scalar(select(ResumeTailoringStageRecord))
+        assert run is not None
+        assert run.status == "running"
+        assert run.current_stage == 1
+        assert stage is not None
+        assert stage.status == "succeeded"
+        assert stage.output_record_id == record.id
+        assert stage.structured_output == recruiter_analysis_payload()
 
 
 def test_senior_recruiter_endpoint_enforces_owner_scope(
@@ -458,3 +471,84 @@ def test_senior_recruiter_endpoint_enforces_owner_scope(
 
     assert response.status_code == 404
     assert response.json()["detail"] == "Master resume not found"
+
+
+def test_senior_recruiter_failure_is_persisted_as_failed_attempt(
+    monkeypatch: pytest.MonkeyPatch,
+    api_sessions: sessionmaker[Session],
+) -> None:
+    master_resume_id = "1" * 32
+    master_version_id = "2" * 32
+    master_resume = MasterResume.model_validate(
+        master_resume_payload(master_resume_id)
+    )
+    with api_sessions() as db:
+        db.add(
+            ResumeMasterRecord(
+                id=master_resume_id,
+                name="Main resume",
+                language="English",
+                current_version=1,
+            )
+        )
+        db.add(
+            ResumeMasterVersionRecord(
+                id=master_version_id,
+                resume_master_id=master_resume_id,
+                version=1,
+                schema_version="1.0",
+                data=master_resume.model_dump(by_alias=True, exclude_none=True),
+                content_sha256="3" * 64,
+            )
+        )
+        db.add(
+            StoredJobRecord(
+                id="job-platform",
+                data=vacancy_payload(),
+                status="active",
+            )
+        )
+        db.commit()
+
+    class FailingFacade:
+        def analyze_as_senior_recruiter(
+            self,
+            *,
+            master_resume: MasterResume,
+            target_job_id: str,
+            vacancy: dict[str, object],
+        ) -> SeniorRecruiterAnalysisOutcome:
+            raise ResumeTailoringError("Simulated provider failure")
+
+    monkeypatch.setattr(
+        resume_tailoring_api,
+        "create_resume_tailoring_ai_facade",
+        lambda _settings: FailingFacade(),
+    )
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        openclaw_resume_tailoring_enabled=True
+    )
+
+    response = TestClient(app).post(
+        "/resume-tailoring/senior-recruiter-analysis",
+        json={
+            "masterResumeId": master_resume_id,
+            "targetJobId": "job-platform",
+        },
+    )
+
+    assert response.status_code == 502
+    with api_sessions() as db:
+        run = db.scalar(select(ResumeTailoringRunRecord))
+        stage = db.scalar(select(ResumeTailoringStageRecord))
+        assert run is not None
+        assert run.status == "failed"
+        assert run.error == "Simulated provider failure"
+        assert stage is not None
+        assert stage.status == "failed"
+        assert stage.error == "Simulated provider failure"
+        assert stage.attempt == 1
+        assert stage.model
+        assert stage.backend in {"openclaw_codex", "openai_api"}
+        assert len(stage.input_fingerprint) == 64
+        assert stage.structured_output is None

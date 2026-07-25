@@ -21,6 +21,8 @@ from app.models.resume import (
     MasterResume,
     ResumeMasterRecord,
     ResumeMasterVersionRecord,
+    ResumeTailoringRunRecord,
+    ResumeTailoringStageRecord,
     SeniorRecruiterAnalysis,
     SeniorRecruiterAnalysisRecord,
 )
@@ -493,6 +495,8 @@ def test_ats_final_review_endpoint_loads_stage_two_and_persists_render_input(
     ]
     assert body["metrics"]["totalTokens"] == 420
     assert body["promptVersion"] == ATS_FINAL_REVIEW_PROMPT_VERSION
+    assert body["attempt"] == 1
+    assert isinstance(body["runId"], str)
 
     with api_sessions() as db:
         records = db.scalars(select(AtsFinalReviewRecord)).all()
@@ -501,6 +505,20 @@ def test_ats_final_review_endpoint_loads_stage_two_and_persists_render_input(
         assert record.experience_rewrite_id == rewrite_id
         assert record.result == final_review_payload(master_resume_id)
         assert record.render_input == record.result["finalResume"]
+        run = db.get(ResumeTailoringRunRecord, body["runId"])
+        stages = db.scalars(
+            select(ResumeTailoringStageRecord).order_by(
+                ResumeTailoringStageRecord.stage_number
+            )
+        ).all()
+        assert run is not None
+        assert run.status == "succeeded"
+        assert run.current_stage == 3
+        assert len(stages) == 3
+        assert all(stage.status == "succeeded" for stage in stages)
+        assert stages[2].structured_output == final_review_payload(
+            master_resume_id
+        )
         record.render_input = {}
         with pytest.raises(ValueError, match="ATS final reviews are immutable"):
             db.commit()

@@ -13,6 +13,7 @@ from sqlalchemy import (
     Integer,
     LargeBinary,
     String,
+    Text,
     UniqueConstraint,
     event,
     inspect,
@@ -499,6 +500,168 @@ class AtsFinalReviewRecord(OwnerScoped, Base):
     )
 
 
+class ResumeTailoringRunRecord(OwnerScoped, Base):
+    """Durable identity and aggregate status for one three-stage tailoring run."""
+
+    __tablename__ = "resume_tailoring_runs"
+    __table_args__ = (
+        CheckConstraint(
+            "status IN ('running', 'succeeded', 'failed')",
+            name="ck_resume_tailoring_runs_status",
+        ),
+        CheckConstraint(
+            "current_stage >= 1 AND current_stage <= 3",
+            name="ck_resume_tailoring_runs_current_stage",
+        ),
+        Index(
+            "ix_resume_tailoring_runs_input",
+            "owner_id",
+            "resume_master_version_id",
+            "target_job_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    resume_master_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "resume_masters.id",
+            ondelete="CASCADE",
+            name="fk_resume_tailoring_runs_master",
+        ),
+        nullable=False,
+        index=True,
+    )
+    resume_master_version_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "resume_master_versions.id",
+            ondelete="CASCADE",
+            name="fk_resume_tailoring_runs_master_version",
+        ),
+        nullable=False,
+        index=True,
+    )
+    target_job_id: Mapped[str] = mapped_column(
+        String(160),
+        nullable=False,
+        index=True,
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    current_stage: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+
+class ResumeTailoringStageRecord(OwnerScoped, Base):
+    """One durable, independently auditable attempt of a tailoring stage."""
+
+    __tablename__ = "resume_tailoring_stages"
+    __table_args__ = (
+        CheckConstraint(
+            "stage_number >= 1 AND stage_number <= 3",
+            name="ck_resume_tailoring_stages_number",
+        ),
+        CheckConstraint(
+            "attempt >= 1",
+            name="ck_resume_tailoring_stages_attempt",
+        ),
+        CheckConstraint(
+            "status IN ('running', 'succeeded', 'failed')",
+            name="ck_resume_tailoring_stages_status",
+        ),
+        CheckConstraint(
+            "request_type IN ("
+            "'senior_recruiter_analysis', "
+            "'xyz_experience_rewrite', "
+            "'ats_final_review'"
+            ")",
+            name="ck_resume_tailoring_stages_request_type",
+        ),
+        CheckConstraint(
+            "input_tokens >= 0 AND output_tokens >= 0 AND total_tokens >= 0",
+            name="ck_resume_tailoring_stages_tokens_nonnegative",
+        ),
+        CheckConstraint(
+            "latency_ms >= 0",
+            name="ck_resume_tailoring_stages_latency_nonnegative",
+        ),
+        UniqueConstraint(
+            "run_id",
+            "stage_number",
+            "attempt",
+            name="uq_resume_tailoring_stages_attempt",
+        ),
+        Index(
+            "ix_resume_tailoring_stages_output",
+            "owner_id",
+            "output_record_id",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    run_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "resume_tailoring_runs.id",
+            ondelete="CASCADE",
+            name="fk_resume_tailoring_stages_run",
+        ),
+        nullable=False,
+        index=True,
+    )
+    stage_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    request_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    structured_output: Mapped[dict[str, object] | None] = mapped_column(
+        JSON,
+        nullable=True,
+    )
+    output_record_id: Mapped[str | None] = mapped_column(
+        String(36),
+        nullable=True,
+        index=True,
+    )
+    model: Mapped[str] = mapped_column(String(160), nullable=False, default="")
+    backend: Mapped[str] = mapped_column(String(32), nullable=False, default="")
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    token_count_source: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="unavailable",
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    error: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    attempt: Mapped[int] = mapped_column(Integer, nullable=False)
+    started_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
+
+
 @event.listens_for(ResumeSourceFileRecord, "before_update")
 def prevent_resume_source_file_mutation(
     _mapper: object,
@@ -586,6 +749,54 @@ def prevent_ats_final_review_mutation(
     state = inspect(review)
     if any(attribute.history.has_changes() for attribute in state.attrs):
         raise ValueError("ATS final reviews are immutable")
+
+
+@event.listens_for(ResumeTailoringStageRecord, "before_update")
+def protect_resume_tailoring_stage_audit_input(
+    _mapper: object,
+    _connection: object,
+    stage: ResumeTailoringStageRecord,
+) -> None:
+    state = inspect(stage)
+    immutable_fields = (
+        "owner_id",
+        "run_id",
+        "stage_number",
+        "request_type",
+        "input_fingerprint",
+        "attempt",
+        "started_at",
+    )
+    if any(state.attrs[field].history.has_changes() for field in immutable_fields):
+        raise ValueError("Resume tailoring stage inputs are immutable")
+    status_history = state.attrs.status.history
+    previous_status = (
+        status_history.deleted[0]
+        if status_history.has_changes() and status_history.deleted
+        else stage.status
+    )
+    if previous_status in {"succeeded", "failed"} and any(
+        attribute.history.has_changes() for attribute in state.attrs
+    ):
+        raise ValueError("Completed resume tailoring stages are immutable")
+
+
+@event.listens_for(ResumeTailoringRunRecord, "before_update")
+def protect_resume_tailoring_run_identity(
+    _mapper: object,
+    _connection: object,
+    run: ResumeTailoringRunRecord,
+) -> None:
+    state = inspect(run)
+    immutable_fields = (
+        "owner_id",
+        "resume_master_id",
+        "resume_master_version_id",
+        "target_job_id",
+        "created_at",
+    )
+    if any(state.attrs[field].history.has_changes() for field in immutable_fields):
+        raise ValueError("Resume tailoring run identity is immutable")
 
 
 class StrictResumeModel(BaseModel):
@@ -1161,6 +1372,8 @@ class SeniorRecruiterAnalysisMetrics(StrictResumeModel):
 
 class SeniorRecruiterAnalysisResponse(StrictResumeModel):
     id: CanonicalId
+    run_id: CanonicalId | None = Field(default=None, alias="runId")
+    attempt: int | None = Field(default=None, ge=1)
     master_resume_id: ResumeId = Field(alias="masterResumeId")
     master_resume_version: int = Field(alias="masterResumeVersion", ge=1)
     target_job_id: TailoringTargetJobId = Field(alias="targetJobId")
@@ -1191,6 +1404,8 @@ class ExperienceRewriteMetrics(StrictResumeModel):
 
 class ExperienceRewriteResponse(StrictResumeModel):
     id: CanonicalId
+    run_id: CanonicalId | None = Field(default=None, alias="runId")
+    attempt: int | None = Field(default=None, ge=1)
     senior_recruiter_analysis_id: CanonicalId = Field(
         alias="seniorRecruiterAnalysisId",
     )
@@ -1222,6 +1437,8 @@ class AtsFinalReviewMetrics(StrictResumeModel):
 
 class AtsFinalReviewResponse(StrictResumeModel):
     id: CanonicalId
+    run_id: CanonicalId | None = Field(default=None, alias="runId")
+    attempt: int | None = Field(default=None, ge=1)
     experience_rewrite_id: CanonicalId = Field(alias="experienceRewriteId")
     master_resume_id: ResumeId = Field(alias="masterResumeId")
     master_resume_version: int = Field(alias="masterResumeVersion", ge=1)
@@ -1445,6 +1662,8 @@ __all__ = [
     "ResumeItemId",
     "ResumeMasterRecord",
     "ResumeMasterVersionRecord",
+    "ResumeTailoringRunRecord",
+    "ResumeTailoringStageRecord",
     "ResumeSectionName",
     "ResumeSourceBoundingBox",
     "ResumeSourceExtraction",

@@ -16,6 +16,8 @@ from app.models.resume import (
     MasterResume,
     ResumeMasterRecord,
     ResumeMasterVersionRecord,
+    ResumeTailoringRunRecord,
+    ResumeTailoringStageRecord,
     SeniorRecruiterAnalysis,
     SeniorRecruiterAnalysisRecord,
 )
@@ -523,6 +525,8 @@ def test_experience_rewrite_endpoint_loads_stage_one_and_persists_links(
         "tokenCountSource": "provider",
     }
     assert body["promptVersion"] == EXPERIENCE_REWRITE_PROMPT_VERSION
+    assert body["attempt"] == 1
+    assert isinstance(body["runId"], str)
 
     with api_sessions() as db:
         records = db.scalars(select(ExperienceRewriteRecord)).all()
@@ -543,6 +547,22 @@ def test_experience_rewrite_endpoint_loads_stage_one_and_persists_links(
         assert record.total_tokens == 300
         assert record.latency_ms == 654
         assert record.provider_session_id == "response-experience-rewrite-1"
+        run = db.get(ResumeTailoringRunRecord, body["runId"])
+        stages = db.scalars(
+            select(ResumeTailoringStageRecord).order_by(
+                ResumeTailoringStageRecord.stage_number
+            )
+        ).all()
+        assert run is not None
+        assert run.status == "running"
+        assert run.current_stage == 2
+        assert [stage.status for stage in stages] == [
+            "succeeded",
+            "succeeded",
+        ]
+        assert stages[1].structured_output == experience_rewrite_payload(
+            master_resume_id
+        )
         record.links = []
         with pytest.raises(ValueError, match="Experience rewrites are immutable"):
             db.commit()
