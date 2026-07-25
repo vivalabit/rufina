@@ -1,8 +1,24 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, model_validator
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    UniqueConstraint,
+    event,
+    inspect,
+)
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+
+from app.core.database import Base, OwnerScoped
 
 
 MAX_TEXT_LENGTH = 20_000
@@ -55,6 +71,202 @@ EvidenceClaimType = Literal[
     "technology",
     "achievement",
 ]
+
+
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+class ResumeMasterRecord(OwnerScoped, Base):
+    """Mutable resume identity pointing at an immutable canonical version."""
+
+    __tablename__ = "resume_masters"
+    __table_args__ = (
+        CheckConstraint(
+            "current_version >= 1",
+            name="ck_resume_masters_current_version_positive",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    name: Mapped[str] = mapped_column(String(240), nullable=False)
+    language: Mapped[str] = mapped_column(String(40), nullable=False, default="")
+    current_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
+        index=True,
+    )
+    versions: Mapped[list[ResumeMasterVersionRecord]] = relationship(
+        back_populates="resume_master",
+        cascade="all, delete-orphan",
+        order_by="ResumeMasterVersionRecord.version",
+    )
+    source_files: Mapped[list[ResumeSourceFileRecord]] = relationship(
+        back_populates="resume_master",
+        cascade="all, delete-orphan",
+        order_by="ResumeSourceFileRecord.created_at",
+    )
+
+
+class ResumeSourceFileRecord(OwnerScoped, Base):
+    """Original PDF/DOCX retained solely as provenance for resume import."""
+
+    __tablename__ = "resume_source_files"
+    __table_args__ = (
+        CheckConstraint(
+            "content_type IN ("
+            "'application/pdf', "
+            "'application/vnd.openxmlformats-officedocument.wordprocessingml.document'"
+            ")",
+            name="ck_resume_source_files_content_type",
+        ),
+        CheckConstraint(
+            "size_bytes > 0",
+            name="ck_resume_source_files_size_positive",
+        ),
+        UniqueConstraint(
+            "resume_master_id",
+            "content_sha256",
+            name="uq_resume_source_files_master_sha256",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    resume_master_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "resume_masters.id",
+            ondelete="CASCADE",
+            name="fk_resume_source_files_master",
+        ),
+        nullable=False,
+        index=True,
+    )
+    file_name: Mapped[str] = mapped_column(String(240), nullable=False)
+    content_type: Mapped[str] = mapped_column(String(160), nullable=False)
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    resume_master: Mapped[ResumeMasterRecord] = relationship(
+        back_populates="source_files",
+    )
+    imported_versions: Mapped[list[ResumeMasterVersionRecord]] = relationship(
+        back_populates="source_file",
+        passive_deletes=True,
+    )
+
+
+class ResumeMasterVersionRecord(OwnerScoped, Base):
+    """Immutable canonical snapshot produced by an import."""
+
+    __tablename__ = "resume_master_versions"
+    __table_args__ = (
+        CheckConstraint(
+            "version >= 1",
+            name="ck_resume_master_versions_version_positive",
+        ),
+        UniqueConstraint(
+            "resume_master_id",
+            "version",
+            name="uq_resume_master_versions_number",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    resume_master_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "resume_masters.id",
+            ondelete="CASCADE",
+            name="fk_resume_master_versions_master",
+        ),
+        nullable=False,
+        index=True,
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    schema_version: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="1.0",
+    )
+    data: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_file_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey(
+            "resume_source_files.id",
+            ondelete="SET NULL",
+            name="fk_resume_master_versions_source",
+        ),
+        nullable=True,
+        index=True,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    resume_master: Mapped[ResumeMasterRecord] = relationship(
+        back_populates="versions",
+    )
+    source_file: Mapped[ResumeSourceFileRecord | None] = relationship(
+        back_populates="imported_versions",
+    )
+
+
+@event.listens_for(ResumeSourceFileRecord, "before_update")
+def prevent_resume_source_file_mutation(
+    _mapper: object,
+    _connection: object,
+    source_file: ResumeSourceFileRecord,
+) -> None:
+    state = inspect(source_file)
+    immutable_fields = (
+        "owner_id",
+        "resume_master_id",
+        "file_name",
+        "content_type",
+        "content_sha256",
+        "size_bytes",
+        "content",
+        "created_at",
+    )
+    if any(state.attrs[field].history.has_changes() for field in immutable_fields):
+        raise ValueError("Resume import source files are immutable")
+
+
+@event.listens_for(ResumeMasterVersionRecord, "before_update")
+def prevent_resume_master_version_mutation(
+    _mapper: object,
+    _connection: object,
+    version: ResumeMasterVersionRecord,
+) -> None:
+    state = inspect(version)
+    immutable_fields = (
+        "owner_id",
+        "resume_master_id",
+        "version",
+        "schema_version",
+        "data",
+        "content_sha256",
+        "source_file_id",
+        "created_at",
+    )
+    if any(state.attrs[field].history.has_changes() for field in immutable_fields):
+        raise ValueError("Resume master versions are immutable")
 
 
 class StrictResumeModel(BaseModel):
@@ -514,7 +726,10 @@ __all__ = [
     "ResumeEvidence",
     "ResumeId",
     "ResumeItemId",
+    "ResumeMasterRecord",
+    "ResumeMasterVersionRecord",
     "ResumeSectionName",
+    "ResumeSourceFileRecord",
     "RewrittenExperience",
     "StrictResumeModel",
     "TailoredResume",

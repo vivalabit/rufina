@@ -103,6 +103,9 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "job_search_schedules",
             "job_search_runs",
             "job_screening_decisions",
+            "resume_masters",
+            "resume_master_versions",
+            "resume_source_files",
         }
         for table_name in owner_tables:
             owner_column = next(
@@ -120,7 +123,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260724_0019"
+            assert revision == "20260725_0020"
         assert inspect(engine).get_pk_constraint("stored_jobs")["constrained_columns"] == [
             "owner_id",
             "id",
@@ -189,6 +192,35 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "model",
             "prompt_version",
         ]
+        resume_master_columns = {
+            column["name"]
+            for column in inspect(engine).get_columns("resume_masters")
+        }
+        resume_version_columns = {
+            column["name"]
+            for column in inspect(engine).get_columns("resume_master_versions")
+        }
+        resume_source_columns = {
+            column["name"]
+            for column in inspect(engine).get_columns("resume_source_files")
+        }
+        assert "content" not in resume_master_columns
+        assert "content" not in resume_version_columns
+        assert {"data", "source_file_id", "content_sha256"} <= resume_version_columns
+        assert {"content", "content_type", "content_sha256"} <= resume_source_columns
+        assert {
+            (
+                tuple(foreign_key["constrained_columns"]),
+                foreign_key["referred_table"],
+                foreign_key["options"].get("ondelete"),
+            )
+            for foreign_key in inspect(engine).get_foreign_keys(
+                "resume_master_versions"
+            )
+        } == {
+            (("resume_master_id",), "resume_masters", "CASCADE"),
+            (("source_file_id",), "resume_source_files", "SET NULL"),
+        }
         run_columns = {
             column["name"]
             for column in inspect(engine).get_columns("job_search_runs")
@@ -526,7 +558,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-        assert revision == "20260724_0019"
+        assert revision == "20260725_0020"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))

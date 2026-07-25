@@ -15,6 +15,9 @@ from app.models.resume import (
     FinalResume,
     MasterResume,
     ResumeEvidence,
+    ResumeMasterRecord,
+    ResumeMasterVersionRecord,
+    ResumeSourceFileRecord,
 )
 
 __all__ = [
@@ -27,6 +30,9 @@ __all__ = [
     "JobSearchScheduleRecord",
     "MasterResume",
     "ResumeEvidence",
+    "ResumeMasterRecord",
+    "ResumeMasterVersionRecord",
+    "ResumeSourceFileRecord",
     "ScreeningConfig",
     "ScreeningRule",
     "SearchFilters",
