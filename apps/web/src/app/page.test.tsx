@@ -131,6 +131,61 @@ it("deletes a legacy supporting document that has no stored ID", async () => {
   ]);
 });
 
+it("offers CV / Resume as a supporting document type", async () => {
+  window.history.replaceState(null, "", "#profile");
+  const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+    const url = new URL(requestUrl, "http://localhost");
+    const method = init?.method ?? "GET";
+
+    if (url.pathname === "/job-search/configs" && method === "GET") return Response.json([]);
+    if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
+    if (url.pathname === "/applications" && method === "GET") return Response.json([]);
+    if (url.pathname === "/applications/events" && method === "GET") return Response.json([]);
+    if (url.pathname === "/profile" && method === "GET") {
+      return Response.json({ name: "Eduard Ishchenko", documents: "" });
+    }
+    if (url.pathname === "/settings" && method === "GET") {
+      return Response.json(configuredAppSettings);
+    }
+    if (
+      (url.pathname === "/applications" ||
+        url.pathname === "/applications/events" ||
+        url.pathname === "/jobs/dismissed-ids") &&
+      method === "PUT"
+    ) {
+      return Response.json([]);
+    }
+    throw new Error(`Unhandled request: ${method} ${url.pathname}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<HomePage />);
+
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Add document" }),
+  );
+  const typeSelect = screen.getByRole("combobox", { name: "Type" });
+  expect(
+    within(typeSelect).getByRole("option", { name: "CV / Resume" }),
+  ).toBeInTheDocument();
+
+  fireEvent.change(typeSelect, { target: { value: "CV / Resume" } });
+  const languageLabel = screen
+    .getByText("Document language", { exact: true })
+    .closest("label");
+  expect(languageLabel).not.toBeNull();
+  expect(
+    within(languageLabel!).getByRole("combobox"),
+  ).toBeInTheDocument();
+  expect(screen.getByText(/DOCX under 5MB/)).toBeInTheDocument();
+});
+
 it("saves a selectable AI backend without overwriting unrelated settings", async () => {
   window.history.replaceState(null, "", "#settings");
   const requests: Array<{ path: string; method: string; body?: Record<string, unknown> }> = [];

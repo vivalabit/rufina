@@ -7,7 +7,7 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.settings import Settings
@@ -48,6 +48,15 @@ class ResumeTailoringError(RuntimeError):
     def __init__(self, message: str, *, code: str = "ai_error") -> None:
         super().__init__(message)
         self.code = code
+
+
+def compact_json_schema(model: type[BaseModel]) -> str:
+    """Expose the typed response contract to backends without native schema support."""
+    return json.dumps(
+        model.model_json_schema(by_alias=True),
+        ensure_ascii=False,
+        separators=(",", ":"),
+    )
 
 
 @dataclass(frozen=True)
@@ -224,6 +233,7 @@ def build_senior_recruiter_prompt(
     master_resume: MasterResume,
     vacancy: dict[str, Any],
 ) -> str:
+    response_schema = compact_json_schema(SeniorRecruiterAnalysis)
     context = json.dumps(
         {
             "masterResume": master_resume.model_dump(
@@ -262,6 +272,8 @@ def build_senior_recruiter_prompt(
         "scan of this resume for this vacancy.\n"
         "- Do not rewrite the resume and never invent facts, experience, metrics, "
         "tools, seniority, responsibilities, or evidence IDs.\n"
+        "SENIOR_RECRUITER_ANALYSIS_JSON_SCHEMA:\n"
+        f"{response_schema}\n"
         "CONTEXT_JSON:\n"
         f"{context}"
     )
@@ -337,6 +349,7 @@ def build_xyz_experience_rewrite_prompt(
     target_job_id: str,
     recruiter_analysis: SeniorRecruiterAnalysis,
 ) -> str:
+    response_schema = compact_json_schema(ExperienceRewrite)
     rewrite_template = build_experience_rewrite_template(master_resume)
     context = json.dumps(
         {
@@ -394,6 +407,8 @@ def build_xyz_experience_rewrite_prompt(
         "- Never invent achievements, numbers, employers, titles, dates, tools, "
         "responsibilities, seniority, or evidence IDs.\n"
         "- This request produces structured data only. Do not render a document.\n"
+        "EXPERIENCE_REWRITE_JSON_SCHEMA:\n"
+        f"{response_schema}\n"
         "EXPERIENCE_ONLY_CONTEXT_JSON:\n"
         f"{context}"
     )
@@ -674,6 +689,7 @@ def build_ats_final_review_prompt(
     resume_after_stage_two: FinalResume,
     recruiter_analysis: SeniorRecruiterAnalysis,
 ) -> str:
+    response_schema = compact_json_schema(AtsFinalReview)
     final_template = resume_after_stage_two.model_dump(
         by_alias=True,
         exclude_none=True,
@@ -730,6 +746,8 @@ def build_ats_final_review_prompt(
         "seniority, qualifications, or evidence IDs.\n"
         "- The finalResume JSON is the sole renderer input. Do not return layout "
         "instructions, Markdown, a document, or any renderer-specific patch.\n"
+        "ATS_FINAL_REVIEW_JSON_SCHEMA:\n"
+        f"{response_schema}\n"
         "ATS_REVIEW_CONTEXT_JSON:\n"
         f"{context}"
     )

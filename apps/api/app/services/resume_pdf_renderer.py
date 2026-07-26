@@ -306,6 +306,7 @@ def resume_view_model(resume: FinalResume) -> dict[str, object]:
             for experience in resume.experiences
         ],
         "skills": [skill.model_dump() for skill in resume.skills],
+        "skill_groups": skill_group_view(resume),
         "education": [item.model_dump() for item in resume.education],
         "projects": [item.model_dump() for item in resume.projects],
         "certifications": [
@@ -319,6 +320,22 @@ def resume_view_model(resume: FinalResume) -> dict[str, object]:
         "section_titles": section_titles,
     }
     return normalize_display_mapping(view_model)
+
+
+def skill_group_view(resume: FinalResume) -> list[dict[str, object]]:
+    groups: list[dict[str, object]] = []
+    indexes_by_category: dict[str, int] = {}
+    for skill in resume.skills:
+        category_key = skill.category.casefold()
+        group_index = indexes_by_category.get(category_key)
+        if group_index is None:
+            group_index = len(groups)
+            indexes_by_category[category_key] = group_index
+            groups.append({"category": skill.category, "names": []})
+        names = groups[group_index]["names"]
+        if isinstance(names, list):
+            names.append(skill.name)
+    return groups
 
 
 def resume_section_titles(resume: FinalResume) -> dict[str, str]:
@@ -404,8 +421,15 @@ def expected_resume_text_fragments(
                     ]
                 )
         elif section == "skills":
-            for skill in resume.skills:
-                fragments.extend([skill.category, skill.name])
+            for group in skill_group_view(resume):
+                category = group["category"]
+                names = group["names"]
+                if isinstance(category, str) and category:
+                    fragments.append(category)
+                if isinstance(names, list):
+                    fragments.extend(
+                        name for name in names if isinstance(name, str)
+                    )
         elif section == "education":
             for education in resume.education:
                 fragments.extend(

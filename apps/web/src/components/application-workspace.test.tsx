@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { AI_GENERATION_REQUEST_TIMEOUT_MS } from "@/lib/api-client";
 import {
   createLegacyWorkspaceApplication,
   createV3WorkspaceApplication,
@@ -151,6 +152,7 @@ describe("ApplicationWorkspace", () => {
   it("runs exactly three sequential server stages before rendering finalResume as PDF", async () => {
     const requestOrder: string[] = [];
     const saved = generatedPdfDocument();
+    const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
     const fetchMock = installApplicationWorkspaceApiMock({
       aiPrivacySettings: consent,
       requestHandler: async (url, method, init) => {
@@ -254,6 +256,10 @@ describe("ApplicationWorkspace", () => {
         && String(init.body).includes("tailored_resume"),
       ),
     ).toBe(false);
+    expect(timeoutSpy).toHaveBeenCalledWith(
+      expect.any(Function),
+      AI_GENERATION_REQUEST_TIMEOUT_MS,
+    );
     expect(props.onDocumentAttached).toHaveBeenCalledWith(
       "application-v3",
       expect.objectContaining({

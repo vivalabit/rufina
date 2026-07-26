@@ -65,6 +65,13 @@ app.add_middleware(
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
+    expose_headers=[
+        "Content-Disposition",
+        "X-Rufina-Document-Id",
+        "X-Rufina-Document-Version",
+        "X-Rufina-Template-Id",
+        "X-Rufina-Template-Version",
+    ],
 )
 
 app.include_router(health_router, prefix="/health", tags=["health"])

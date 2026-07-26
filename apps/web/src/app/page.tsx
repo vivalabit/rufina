@@ -836,6 +836,7 @@ const defaultManualJobDraft: ManualJobDraft = {
 };
 
 const documentCategories = [
+  "CV / Resume",
   "Cover Letter",
   "Diploma",
   "Certificate",

@@ -437,6 +437,13 @@ def test_ats_final_review_uses_stage_two_resume_and_returns_full_resume() -> Non
     assert "reading 200 resumes in one sitting" in requests[0].prompt
     assert "resumeAfterStageTwo" in requests[0].prompt
     assert "sole renderer input" in requests[0].prompt
+    schema_text = (
+        requests[0]
+        .prompt.split("ATS_FINAL_REVIEW_JSON_SCHEMA:\n", 1)[1]
+        .split("\nATS_REVIEW_CONTEXT_JSON:\n", 1)[0]
+    )
+    prompt_schema = json.loads(schema_text)
+    assert set(prompt_schema["required"]) == {"atsScan", "finalResume"}
     assert outcome.review.ats_scan.skipped_sections[0].section == "summary"
     assert outcome.review.final_resume.experiences[0].bullets[0].text.startswith(
         "Increased deployment throughput by 40%"
@@ -653,10 +660,21 @@ def test_ats_final_review_endpoint_loads_stage_two_and_persists_render_input(
     downloaded = client.get(
         f"/resume-tailoring/ats-final-review/{body['id']}/pdf",
         params={"templateId": "modern_two_column"},
+        headers={"Origin": "http://localhost:3000"},
     )
 
     assert downloaded.status_code == 200
     assert downloaded.headers["content-type"] == "application/pdf"
+    assert downloaded.headers["access-control-allow-origin"] == (
+        "http://localhost:3000"
+    )
+    exposed_headers = {
+        header.strip().casefold()
+        for header in downloaded.headers["access-control-expose-headers"].split(
+            ","
+        )
+    }
+    assert "x-rufina-document-id" in exposed_headers
     assert downloaded.headers["content-disposition"] == (
         'attachment; filename="Ada-Lovelace-resume.pdf"'
     )
@@ -665,7 +683,7 @@ def test_ats_final_review_endpoint_loads_stage_two_and_persists_render_input(
     assert downloaded.headers["x-rufina-template-id"] == (
         "modern_two_column"
     )
-    assert downloaded.headers["x-rufina-template-version"] == "1.0.0"
+    assert downloaded.headers["x-rufina-template-version"] == "1.0.1"
     assert rendered_templates == ["modern_two_column"]
     cached_download = client.get(
         f"/resume-tailoring/ats-final-review/{body['id']}/pdf",
@@ -701,7 +719,7 @@ def test_ats_final_review_endpoint_loads_stage_two_and_persists_render_input(
     assert artifact_payload["contentType"] == "application/pdf"
     assert artifact_payload["fileName"] == "Ada-Lovelace-resume.pdf"
     assert artifact_payload["templateId"] == "modern_two_column"
-    assert artifact_payload["templateVersion"] == "1.0.0"
+    assert artifact_payload["templateVersion"] == "1.0.1"
     assert artifact_payload["sourceAtsFinalReviewId"] == body["id"]
     assert artifact_payload["finalResumeJson"] == body["finalResume"]
     assert set(artifact_payload["stageResults"]) == {
@@ -731,7 +749,7 @@ def test_ats_final_review_endpoint_loads_stage_two_and_persists_render_input(
         assert json.loads(document.versions[0].content) == body["finalResume"]
         assert artifact.content_type == "application/pdf"
         assert artifact.renderer_template_id == "modern_two_column"
-        assert artifact.renderer_template_version == "1.0.0"
+        assert artifact.renderer_template_version == "1.0.1"
         assert artifact.final_resume_json == body["finalResume"]
         assert provenance.input_versions["atsFinalReviewId"] == body["id"]
     invalid_template = client.get(
@@ -838,6 +856,50 @@ def test_pdf_template_manifests_are_valid_and_render_escaped_html(
     assert report.template_id == template_id
     assert report.template_version == bundle.manifest.template_version
     assert report.overflow_issue_count == 0
+
+
+@pytest.mark.parametrize(
+    "template_id",
+    ["classic_single", "modern_single", "modern_two_column"],
+)
+def test_pdf_templates_group_skills_by_category(template_id: str) -> None:
+    final_resume_json = final_review_payload("master-resume")["finalResume"]
+    final_resume_json["skills"] = [
+        {
+            "id": "skill:python",
+            "name": "Python",
+            "category": "Languages",
+            "evidenceIds": ["profile:skill:python"],
+        },
+        {
+            "id": "skill:typescript",
+            "name": "TypeScript",
+            "category": "Languages",
+            "evidenceIds": ["profile:skill:python"],
+        },
+        {
+            "id": "skill:fastapi",
+            "name": "FastAPI",
+            "category": "Frameworks",
+            "evidenceIds": ["profile:skill:python"],
+        },
+        {
+            "id": "skill:react",
+            "name": "React",
+            "category": "Frameworks",
+            "evidenceIds": ["profile:skill:python"],
+        },
+    ]
+
+    html, _bundle = render_final_resume_html(
+        final_resume_json,
+        template_id=template_id,
+    )
+
+    assert html.count("<strong>Languages:</strong>") == 1
+    assert html.count("<strong>Frameworks:</strong>") == 1
+    assert html.index("Python") < html.index("TypeScript")
+    assert html.index("FastAPI") < html.index("React")
 
 
 def test_pdf_renderer_rejects_non_final_resume_fields() -> None:

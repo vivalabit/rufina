@@ -1,5 +1,9 @@
 export const API_REQUEST_TIMEOUT_MS = 10_000;
 export const API_HEALTH_TIMEOUT_MS = 3_000;
+// AI endpoints can legitimately run for the backend's configured maximum of
+// 600 seconds. Keep the browser deadline slightly longer so the backend owns
+// timeout and retry decisions instead of reporting a healthy API as offline.
+export const AI_GENERATION_REQUEST_TIMEOUT_MS = 610_000;
 
 export class ApiUnavailableError extends Error {
   constructor(message = "API unavailable. Check that the backend is running and retry.") {

@@ -1,4 +1,5 @@
 import base64
+import json
 from collections.abc import Generator
 from copy import deepcopy
 
@@ -154,6 +155,21 @@ def test_master_resume_import_uses_exactly_one_typed_ai_request() -> None:
     assert "ONE-TIME MASTER RESUME IMPORT" in requests[0].prompt
     assert "not a vacancy analysis" in requests[0].prompt
     assert "source:fragment-000002" in requests[0].prompt
+    schema_text = (
+        requests[0]
+        .prompt.split("MASTER_RESUME_JSON_SCHEMA:\n", 1)[1]
+        .split("\nSOURCE_FRAGMENTS_JSON:\n", 1)[0]
+    )
+    prompt_schema = json.loads(schema_text)
+    assert {
+        "language",
+        "basics",
+        "experiences",
+        "additionalSections",
+    } <= prompt_schema["properties"].keys()
+    assert {"language", "basics", "evidence", "sectionOrder"} <= set(
+        prompt_schema["required"]
+    )
     assert outcome.master_resume.id == master_resume_id
     assert outcome.master_resume.summary is not None
     assert outcome.backend == "openai_api"
@@ -206,6 +222,56 @@ def test_master_resume_import_rejects_untrusted_ids_and_evidence(
             thinking="medium",
             timeout_seconds=120,
         )
+
+
+def test_master_resume_import_normalizes_present_for_current_role() -> None:
+    master_resume_id = "master-current-role"
+    payload = master_resume_payload(master_resume_id)
+    payload["experiences"] = [
+        {
+            "id": "experience.current",
+            "company": "Analytical Engines",
+            "title": "Platform Engineer",
+            "startDate": "2025-01",
+            "endDate": "Present",
+            "isCurrent": True,
+            "bullets": [
+                {
+                    "id": "experience.current.bullet-1",
+                    "text": "Platform engineer building reliable Python services.",
+                    "evidenceIds": ["source:fragment-000002"],
+                }
+            ],
+        }
+    ]
+    payload["sectionOrder"] = ["summary", "experience"]
+
+    class FakeBackend:
+        name = "openclaw_codex"
+
+        def generate(self, _request: AIRequest) -> AIResult:
+            return AIResult(
+                text="",
+                structured_data=payload,
+                model="gpt-5.6-terra",
+                backend="openclaw_codex",
+                usage=AIUsage(),
+                latency_ms=1,
+                session_id="session-master-current-role",
+            )
+
+    outcome = import_master_resume_with_ai(
+        source=source_extraction(),
+        master_resume_id=master_resume_id,
+        backend=FakeBackend(),
+        model="",
+        agent_id="rufina-assistant",
+        thinking="high",
+        timeout_seconds=120,
+    )
+
+    assert outcome.master_resume.experiences[0].is_current is True
+    assert outcome.master_resume.experiences[0].end_date == ""
 
 
 def test_master_resume_import_endpoint_returns_typed_draft(

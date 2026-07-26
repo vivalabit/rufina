@@ -1,3 +1,4 @@
+import json
 from collections.abc import Generator
 
 from fastapi.testclient import TestClient
@@ -253,6 +254,17 @@ def test_senior_recruiter_analysis_uses_one_isolated_typed_ai_request() -> None:
     assert "exactly five missingKeywords and exactly three redFlags" in (
         requests[0].prompt
     )
+    schema_text = (
+        requests[0]
+        .prompt.split("SENIOR_RECRUITER_ANALYSIS_JSON_SCHEMA:\n", 1)[1]
+        .split("\nCONTEXT_JSON:\n", 1)[0]
+    )
+    prompt_schema = json.loads(schema_text)
+    assert set(prompt_schema["required"]) == {"missingKeywords", "redFlags"}
+    assert prompt_schema["properties"]["missingKeywords"]["minItems"] == 5
+    assert prompt_schema["properties"]["missingKeywords"]["maxItems"] == 5
+    assert prompt_schema["properties"]["redFlags"]["minItems"] == 3
+    assert prompt_schema["properties"]["redFlags"]["maxItems"] == 3
     assert len(outcome.analysis.missing_keywords) == 5
     assert len(outcome.analysis.red_flags) == 3
 

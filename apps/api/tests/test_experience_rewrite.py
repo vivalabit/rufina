@@ -1,3 +1,4 @@
+import json
 from collections.abc import Callable, Generator
 
 from fastapi.testclient import TestClient
@@ -325,6 +326,18 @@ def test_xyz_rewrite_uses_one_typed_experience_only_ai_request() -> None:
     assert "Use the Google XYZ formula" in requests[0].prompt
     assert "Rewrite Experience only" in requests[0].prompt
     assert "Do not render a document" in requests[0].prompt
+    schema_text = (
+        requests[0]
+        .prompt.split("EXPERIENCE_REWRITE_JSON_SCHEMA:\n", 1)[1]
+        .split("\nEXPERIENCE_ONLY_CONTEXT_JSON:\n", 1)[0]
+    )
+    prompt_schema = json.loads(schema_text)
+    assert {
+        "masterResumeId",
+        "targetJobId",
+        "experiences",
+        "links",
+    } == set(prompt_schema["required"])
     assert len(outcome.rewrite.experiences) == 2
     assert [
         item.master_experience_id for item in outcome.rewrite.experiences

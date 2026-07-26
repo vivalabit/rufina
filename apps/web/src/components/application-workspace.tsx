@@ -51,6 +51,7 @@ import {
   getGeneratedDocumentReadiness,
 } from "@/lib/document-readiness";
 import {
+  AI_GENERATION_REQUEST_TIMEOUT_MS,
   API_HEALTH_TIMEOUT_MS,
   apiUnavailableMessage,
   fetchWithTimeout,
@@ -1354,11 +1355,15 @@ export function ApplicationWorkspace({
       body: unknown,
       fallback: string,
     ): Promise<T> => {
-      const response = await fetchWithTimeout(`${apiBaseUrl}${path}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
+      const response = await fetchWithTimeout(
+        `${apiBaseUrl}${path}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        },
+        AI_GENERATION_REQUEST_TIMEOUT_MS,
+      );
       if (!response.ok) {
         throw new Error(await readApiError(response, fallback));
       }
@@ -1414,6 +1419,7 @@ export function ApplicationWorkspace({
       const pdfResponse = await fetchWithTimeout(
         `${apiBaseUrl}/resume-tailoring/ats-final-review/${encodeURIComponent(review.id)}/pdf?templateId=${encodeURIComponent(selectedResumeTemplateId)}`,
         { cache: "no-store" },
+        AI_GENERATION_REQUEST_TIMEOUT_MS,
       );
       if (!pdfResponse.ok) {
         throw new Error(await readApiError(pdfResponse, "PDF rendering failed"));

@@ -30,12 +30,12 @@
     </article>
     {% endfor %}
   </section>
-  {% elif section == "skills" and resume.skills %}
+  {% elif section == "skills" and resume.skill_groups %}
   <section class="resume-section section-skills">
     <h2>{{ resume.section_titles.skills }}</h2>
     <div class="skill-list">
-      {% for skill in resume.skills %}
-      <p>{% if skill.category %}<strong>{{ skill.category }}:</strong> {% endif %}{{ skill.name }}</p>
+      {% for group in resume.skill_groups %}
+      <p>{% if group.category %}<strong>{{ group.category }}:</strong> {% endif %}{% for name in group.names %}{{ name }}{% if not loop.last %}<span class="separator"> · </span>{% endif %}{% endfor %}</p>
       {% endfor %}
     </div>
   </section>

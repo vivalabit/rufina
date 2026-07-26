@@ -1,7 +1,7 @@
 {
   "schemaVersion": "1.0",
   "templateId": "classic_single",
-  "templateVersion": "1.0.0",
+  "templateVersion": "1.0.1",
   "renderer": "chromium",
   "resumeSchemaVersions": ["1.0"],
   "htmlTemplate": "resume.html.j2",
