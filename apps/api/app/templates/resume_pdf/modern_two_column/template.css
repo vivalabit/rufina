@@ -4,12 +4,12 @@
 
 .template-modern_two_column .identity {
   margin-bottom: 22px;
-  border-bottom: 4px solid #243b53;
+  border-bottom: 4px solid var(--resume-accent, #243b53);
   padding-bottom: 12px;
 }
 
 .template-modern_two_column .identity h1 {
-  color: #243b53;
+  color: var(--resume-accent, #243b53);
 }
 
 .template-modern_two_column .headline {
@@ -34,7 +34,7 @@
 }
 
 .template-modern_two_column .resume-section h2 {
-  color: #243b53;
+  color: var(--resume-accent, #243b53);
 }
 
 .template-modern_two_column .side-column .resume-section h2 {

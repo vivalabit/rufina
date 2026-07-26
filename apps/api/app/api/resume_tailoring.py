@@ -53,18 +53,19 @@ from app.services.resume_tailoring_runs import (
     tailoring_input_fingerprint,
 )
 from app.services.resume_pdf_renderer import (
+    ResolvedResumeTemplate,
     ResumePdfRenderError,
-    load_template_bundle,
+    ResumeTemplateNotFoundError,
     render_final_resume_pdf,
+    render_resolved_final_resume_pdf,
+    resolve_resume_template,
 )
 from app.services.resume_pdf_artifacts import (
     StoredResumePdfArtifact,
     find_resume_pdf_artifact,
     store_resume_pdf_artifact,
 )
-from app.services.resume_template_registry import ResumeTemplateId
-
-
+from app.services.resume_template_registry import is_bundled_resume_template_id
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
 
 
@@ -441,13 +442,15 @@ def run_ats_final_review(
 @router.get("/ats-final-review/{review_id}/pdf")
 def download_ats_final_resume_pdf(
     review_id: str,
-    template_id: ResumeTemplateId = Query(
+    template_id: str = Query(
         default="classic_single",
         alias="templateId",
+        min_length=1,
+        max_length=80,
     ),
     db: Session = Depends(get_db),
 ) -> Response:
-    template_version: str | None = None
+    resolved_template: ResolvedResumeTemplate | None = None
     try:
         record = db.scalar(
             select(AtsFinalReviewRecord).where(
@@ -467,13 +470,13 @@ def download_ats_final_resume_pdf(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Stored FinalResume render input is invalid",
             ) from exc
-        bundle = load_template_bundle(template_id)
-        template_version = bundle.manifest.template_version
+        resolved_template = resolve_resume_template(db, template_id)
         existing = find_resume_pdf_artifact(
             db,
             ats_final_review_id=record.id,
-            template_id=template_id,
-            template_version=template_version,
+            template_id=resolved_template.id,
+            template_version=resolved_template.version,
+            design_sha256=resolved_template.design_sha256,
         )
         if existing is not None:
             return resume_pdf_artifact_response(existing)
@@ -501,10 +504,17 @@ def download_ats_final_resume_pdf(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Stored recruiter analysis provenance is unavailable",
             )
-        pdf = render_final_resume_pdf(
-            resume.model_dump(by_alias=True, exclude_none=True),
-            template_id=template_id,
-        )
+        final_resume_json = resume.model_dump(by_alias=True, exclude_none=True)
+        if is_bundled_resume_template_id(resolved_template.id):
+            pdf = render_final_resume_pdf(
+                final_resume_json,
+                template_id=resolved_template.base_template_id,
+            )
+        else:
+            pdf = render_resolved_final_resume_pdf(
+                final_resume_json,
+                template=resolved_template,
+            )
         filename = safe_resume_pdf_filename(resume.basics.full_name)
         artifact = store_resume_pdf_artifact(
             db,
@@ -514,8 +524,7 @@ def download_ats_final_resume_pdf(
             final_resume=resume,
             pdf=pdf,
             file_name=filename,
-            template_id=template_id,
-            template_version=template_version,
+            template=resolved_template,
             created_at=datetime.now(UTC),
         )
         db.commit()
@@ -523,6 +532,12 @@ def download_ats_final_resume_pdf(
     except HTTPException:
         db.rollback()
         raise
+    except ResumeTemplateNotFoundError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
     except ResumePdfRenderError as exc:
         db.rollback()
         raise HTTPException(
@@ -531,12 +546,13 @@ def download_ats_final_resume_pdf(
         ) from exc
     except IntegrityError as exc:
         db.rollback()
-        if template_version is not None:
+        if resolved_template is not None:
             existing = find_resume_pdf_artifact(
                 db,
                 ats_final_review_id=review_id,
-                template_id=template_id,
-                template_version=template_version,
+                template_id=resolved_template.id,
+                template_version=resolved_template.version,
+                design_sha256=resolved_template.design_sha256,
             )
             if existing is not None:
                 return resume_pdf_artifact_response(existing)

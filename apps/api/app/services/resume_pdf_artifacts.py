@@ -23,10 +23,11 @@ from app.models.resume import (
     FinalResume,
     SeniorRecruiterAnalysisRecord,
 )
+from app.services.resume_pdf_renderer import ResolvedResumeTemplate
 
 
 PDF_CONTENT_TYPE = "application/pdf"
-RESUME_PDF_ARTIFACT_SCHEMA_VERSION = "1.0"
+RESUME_PDF_ARTIFACT_SCHEMA_VERSION = "1.1"
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,7 @@ def find_resume_pdf_artifact(
     ats_final_review_id: str,
     template_id: str,
     template_version: str,
+    design_sha256: str,
 ) -> StoredResumePdfArtifact | None:
     artifact = db.scalar(
         select(DocumentFileRecord)
@@ -50,6 +52,7 @@ def find_resume_pdf_artifact(
             DocumentFileRecord.source_ats_final_review_id == ats_final_review_id,
             DocumentFileRecord.renderer_template_id == template_id,
             DocumentFileRecord.renderer_template_version == template_version,
+            DocumentFileRecord.renderer_design_sha256 == design_sha256,
         )
     )
     if artifact is None:
@@ -73,15 +76,15 @@ def store_resume_pdf_artifact(
     final_resume: FinalResume,
     pdf: bytes,
     file_name: str,
-    template_id: str,
-    template_version: str,
+    template: ResolvedResumeTemplate,
     created_at: datetime,
 ) -> StoredResumePdfArtifact:
     existing = find_resume_pdf_artifact(
         db,
         ats_final_review_id=ats_review.id,
-        template_id=template_id,
-        template_version=template_version,
+        template_id=template.id,
+        template_version=template.version,
+        design_sha256=template.design_sha256,
     )
     if existing is not None:
         return existing
@@ -104,8 +107,12 @@ def store_resume_pdf_artifact(
         "seniorRecruiterAnalysisId": recruiter_analysis.id,
         "experienceRewriteId": experience_rewrite.id,
         "atsFinalReviewId": ats_review.id,
-        "templateId": template_id,
-        "templateVersion": template_version,
+        "templateId": template.id,
+        "templateVersion": template.version,
+        "customTemplateId": template.id,
+        "customTemplateVersion": template.version,
+        "baseTemplateId": template.base_template_id,
+        "designHash": template.design_sha256,
     }
     generation_fingerprint = hashlib.sha256(
         json.dumps(
@@ -132,7 +139,10 @@ def store_resume_pdf_artifact(
     document_id = str(
         uuid5(
             NAMESPACE_URL,
-            (f"rufina:resume-pdf:{owner_id}:{ats_review.id}:{template_id}:{template_version}"),
+            (
+                f"rufina:resume-pdf:{owner_id}:{ats_review.id}:"
+                f"{template.id}:{template.version}:{template.design_sha256}"
+            ),
         )
     )
     document = DocumentRecord(
@@ -165,8 +175,9 @@ def store_resume_pdf_artifact(
         template_id=None,
         file_name=file_name,
         content_type=PDF_CONTENT_TYPE,
-        renderer_template_id=template_id,
-        renderer_template_version=template_version,
+        renderer_template_id=template.id,
+        renderer_template_version=template.version,
+        renderer_design_sha256=template.design_sha256,
         source_ats_final_review_id=ats_review.id,
         final_resume_json=final_resume_json,
         stage_results=stage_results,

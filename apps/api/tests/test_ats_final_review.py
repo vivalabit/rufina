@@ -1,5 +1,6 @@
 from collections.abc import Generator
 from copy import deepcopy
+from dataclasses import replace
 from inspect import signature
 from io import BytesIO
 import json
@@ -13,6 +14,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.api import resume_tailoring as resume_tailoring_api
 from app.core.database import Base, get_db
+from app.core.identity import current_owner_id
 from app.core.settings import Settings, get_settings
 from app.main import app
 from app.models.documents import (
@@ -34,15 +36,20 @@ from app.models.resume import (
     SeniorRecruiterAnalysis,
     SeniorRecruiterAnalysisRecord,
 )
+from app.models.resume_templates import ResumeTemplateDefinitionRecord
 from app.services.ai_backend import AIRequest, AIResult, AIUsage
 from app.services.ai_privacy import require_current_ai_consent
 from app.services.document_export import render_final_resume_json
 from app.services.resume_pdf_renderer import (
+    ResumeTemplateNotFoundError,
     ResumePdfRenderError,
     chromium_pdf_from_html,
     load_template_bundle,
     render_final_resume_html,
     render_final_resume_pdf,
+    render_resolved_final_resume_html,
+    render_resolved_final_resume_pdf,
+    resolve_resume_template,
     validate_rendered_pdf,
 )
 from app.services.resume_pdf_validation import (
@@ -750,13 +757,134 @@ def test_ats_final_review_endpoint_loads_stage_two_and_persists_render_input(
         assert artifact.content_type == "application/pdf"
         assert artifact.renderer_template_id == "modern_two_column"
         assert artifact.renderer_template_version == "1.0.1"
+        assert artifact.renderer_design_sha256 is not None
+        assert len(artifact.renderer_design_sha256) == 64
         assert artifact.final_resume_json == body["finalResume"]
         assert provenance.input_versions["atsFinalReviewId"] == body["id"]
+
+    custom_template = client.post(
+        "/resume-templates",
+        json={
+            "name": "Claret two column",
+            "baseTemplateId": "modern_two_column",
+            "designJson": {
+                "accentColor": "#8A1538",
+                "fontFamily": "Inter",
+                "fontScale": 1,
+                "density": "compact",
+                "pageMargins": {
+                    "top": 12,
+                    "right": 12,
+                    "bottom": 12,
+                    "left": 12,
+                },
+                "headingStyle": "accent-rule",
+                "skillsStyle": "pills",
+                "sidebarWidth": 32,
+                "sidebarSections": ["skills", "languages"],
+            },
+        },
+    )
+    assert custom_template.status_code == 201
+    custom_template_id = custom_template.json()["id"]
+    custom_renders: list[tuple[str, str]] = []
+
+    def fake_render_resolved_pdf(
+        final_resume_json: dict[str, object],
+        *,
+        template,
+    ) -> bytes:
+        assert final_resume_json == body["finalResume"]
+        custom_renders.append((template.id, template.version))
+        assert template.html_template == load_template_bundle(
+            "modern_two_column"
+        ).html_template
+        assert "--resume-accent: #8A1538;" in template.stylesheet or (
+            "--resume-accent: #243B53;" in template.stylesheet
+        )
+        return f"%PDF-1.7\\ncustom-v{template.version}".encode()
+
+    monkeypatch.setattr(
+        resume_tailoring_api,
+        "render_resolved_final_resume_pdf",
+        fake_render_resolved_pdf,
+    )
+    custom_download_v1 = client.get(
+        f"/resume-tailoring/ats-final-review/{body['id']}/pdf",
+        params={"templateId": custom_template_id},
+    )
+    custom_cached_v1 = client.get(
+        f"/resume-tailoring/ats-final-review/{body['id']}/pdf",
+        params={"templateId": custom_template_id},
+    )
+    assert custom_download_v1.status_code == 200
+    assert custom_cached_v1.headers["x-rufina-document-id"] == (
+        custom_download_v1.headers["x-rufina-document-id"]
+    )
+    assert custom_download_v1.headers["x-rufina-template-version"] == "1"
+    assert custom_renders == [(custom_template_id, "1")]
+
+    updated_custom_template = client.patch(
+        f"/resume-templates/{custom_template_id}",
+        json={
+            "designJson": {
+                **custom_template.json()["designJson"],
+                "accentColor": "#243B53",
+            }
+        },
+    )
+    assert updated_custom_template.status_code == 200
+    assert updated_custom_template.json()["version"] == 2
+
+    custom_download_v2 = client.get(
+        f"/resume-tailoring/ats-final-review/{body['id']}/pdf",
+        params={"templateId": custom_template_id},
+    )
+    assert custom_download_v2.status_code == 200
+    assert custom_download_v2.headers["x-rufina-template-version"] == "2"
+    assert custom_download_v2.headers["x-rufina-document-id"] != (
+        custom_download_v1.headers["x-rufina-document-id"]
+    )
+    assert custom_renders == [
+        (custom_template_id, "1"),
+        (custom_template_id, "2"),
+    ]
+    historical_download = client.get(
+        "/documents/"
+        f"{custom_download_v1.headers['x-rufina-document-id']}/download"
+    )
+    assert historical_download.status_code == 200
+    assert historical_download.content == custom_download_v1.content
+
+    with api_sessions() as db:
+        custom_artifacts = db.scalars(
+            select(DocumentFileRecord)
+            .where(
+                DocumentFileRecord.renderer_template_id
+                == custom_template_id
+            )
+            .order_by(DocumentFileRecord.renderer_template_version)
+        ).all()
+        assert [
+            artifact.renderer_template_version
+            for artifact in custom_artifacts
+        ] == ["1", "2"]
+        assert len(
+            {
+                artifact.renderer_design_sha256
+                for artifact in custom_artifacts
+            }
+        ) == 2
+        assert all(
+            artifact.provenance["customTemplateId"] == custom_template_id
+            for artifact in custom_artifacts
+            if artifact.provenance is not None
+        )
     invalid_template = client.get(
         f"/resume-tailoring/ats-final-review/{body['id']}/pdf",
         params={"templateId": "client_template"},
     )
-    assert invalid_template.status_code == 422
+    assert invalid_template.status_code == 404
     foreign_owner = client.get(
         f"/resume-tailoring/ats-final-review/{body['id']}/pdf",
         headers={"X-Rufina-Owner-Id": "another-owner"},
@@ -856,6 +984,89 @@ def test_pdf_template_manifests_are_valid_and_render_escaped_html(
     assert report.template_id == template_id
     assert report.template_version == bundle.manifest.template_version
     assert report.overflow_issue_count == 0
+
+
+def test_custom_template_resolver_only_uses_server_owned_markup(
+    api_sessions: sessionmaker[Session],
+) -> None:
+    with api_sessions() as db:
+        db.add(
+            ResumeTemplateDefinitionRecord(
+                id="custom-resolved-template",
+                owner_id="local-owner",
+                name="Safe custom template",
+                base_template_id="modern_two_column",
+                design_json={
+                    "accentColor": "#8A1538",
+                    "fontFamily": "Inter",
+                    "fontScale": 1,
+                    "density": "compact",
+                    "pageMargins": {
+                        "top": 12,
+                        "right": 13,
+                        "bottom": 14,
+                        "left": 15,
+                    },
+                    "headingStyle": "accent-rule",
+                    "skillsStyle": "pills",
+                    "sidebarWidth": 32,
+                    "sidebarSections": ["skills", "languages"],
+                },
+                version=3,
+                content_sha256="a" * 64,
+            )
+        )
+        db.commit()
+        resolved = resolve_resume_template(db, "custom-resolved-template")
+
+        assert resolved.id == "custom-resolved-template"
+        assert resolved.version == "3"
+        assert resolved.base_template_id == "modern_two_column"
+        assert resolved.html_template == load_template_bundle(
+            "modern_two_column"
+        ).html_template
+        assert "--resume-accent: #8A1538;" in resolved.stylesheet
+        assert "--resume-font-scale: 1;" in resolved.stylesheet
+        assert "--resume-sidebar-width: 32%;" in resolved.stylesheet
+        assert "--resume-page-margin-left: 15mm;" in resolved.stylesheet
+        assert len(resolved.design_sha256) == 64
+
+        html, _bundle = render_resolved_final_resume_html(
+            final_review_payload("master-resume")["finalResume"],
+            template=resolved,
+        )
+        assert "--resume-accent: #8A1538;" in html
+        assert "sidebar_sections" not in html
+        rendered = render_resolved_final_resume_pdf(
+            final_review_payload("master-resume")["finalResume"],
+            template=resolved,
+        )
+        reader = PdfReader(BytesIO(rendered))
+        assert reader.metadata["/ResumeTemplateId"] == resolved.id
+        assert reader.metadata["/ResumeTemplateVersion"] == resolved.version
+
+        tampered = replace(
+            resolved,
+            stylesheet=resolved.stylesheet + "\nbody { display: none; }",
+        )
+        with pytest.raises(
+            ResumePdfRenderError,
+            match="does not use its server-owned bundle",
+        ):
+            render_resolved_final_resume_html(
+                final_review_payload("master-resume")["finalResume"],
+                template=tampered,
+            )
+
+        owner_token = current_owner_id.set("another-owner")
+        try:
+            with pytest.raises(
+                ResumeTemplateNotFoundError,
+                match="Resume template not found",
+            ):
+                resolve_resume_template(db, "custom-resolved-template")
+        finally:
+            current_owner_id.reset(owner_token)
 
 
 @pytest.mark.parametrize(

@@ -3,12 +3,12 @@
 }
 
 .template-modern_single .identity {
-  border-left: 5px solid #176b87;
+  border-left: 5px solid var(--resume-accent, #176b87);
   padding: 2px 0 3px 16px;
 }
 
 .template-modern_single .identity h1 {
-  color: #164e63;
+  color: var(--resume-accent, #164e63);
 }
 
 .template-modern_single .headline {
@@ -16,7 +16,7 @@
 }
 
 .template-modern_single .resume-section h2 {
-  color: #176b87;
+  color: var(--resume-accent, #176b87);
 }
 
 .template-modern_single .resume-section h2::after {
@@ -24,7 +24,7 @@
   width: 34px;
   height: 2px;
   margin-top: 4px;
-  background: #54a8bb;
+  background: var(--resume-accent, #54a8bb);
   content: "";
 }
 

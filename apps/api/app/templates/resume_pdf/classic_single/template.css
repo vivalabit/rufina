@@ -1,5 +1,5 @@
 .template-classic_single .identity {
-  border-bottom: 1px solid #262626;
+  border-bottom: 1px solid var(--resume-accent, #262626);
   padding-bottom: 12px;
   text-align: center;
 }
@@ -9,7 +9,7 @@
 }
 
 .template-classic_single .resume-section h2 {
-  border-bottom: 1px solid #9b9b9b;
+  border-bottom: 1px solid var(--resume-accent, #9b9b9b);
   padding-bottom: 3px;
 }
 

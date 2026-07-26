@@ -5,9 +5,9 @@
 
 :root {
   color-scheme: light;
-  font-family: Arial, Helvetica, sans-serif;
-  font-size: 10pt;
-  line-height: 1.35;
+  font-family: var(--resume-font-family, Arial, Helvetica, sans-serif);
+  font-size: calc(10pt * var(--resume-font-scale, 1));
+  line-height: calc(1.35 * var(--resume-density-scale, 1));
   color: #151515;
   background: #ffffff;
 }
@@ -70,7 +70,7 @@ a {
 }
 
 .resume-section {
-  margin-top: 14px;
+  margin-top: calc(14px * var(--resume-density-scale, 1));
 }
 
 .resume-section:first-child {
@@ -91,7 +91,7 @@ a {
 
 .resume-item {
   break-inside: avoid;
-  margin-top: 10px;
+  margin-top: calc(10px * var(--resume-density-scale, 1));
 }
 
 .resume-section h2 + .resume-item {
@@ -149,6 +149,6 @@ li {
 
 .two-column {
   display: grid;
-  grid-template-columns: 31% minmax(0, 1fr);
+  grid-template-columns: var(--resume-sidebar-width, 31%) minmax(0, 1fr);
   gap: 24px;
 }

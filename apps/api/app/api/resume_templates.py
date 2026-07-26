@@ -21,6 +21,7 @@ from app.models.resume_templates import (
     ResumeTemplateDesignTokens,
     ResumeTemplatePayload,
 )
+from app.services.resume_pdf_renderer import default_bundled_design_tokens
 from app.services.resume_template_registry import (
     ResumeTemplateId,
     get_bundled_resume_template,
@@ -291,47 +292,6 @@ def custom_template_payload(
         created_at=record.created_at,
         updated_at=record.updated_at,
     )
-
-
-def default_bundled_design_tokens(
-    template_id: ResumeTemplateId,
-) -> ResumeTemplateDesignTokens:
-    defaults: dict[ResumeTemplateId, dict[str, object]] = {
-        "classic_single": {
-            "accentColor": "#2B2B2B",
-            "fontFamily": "Georgia",
-            "fontScale": 1.0,
-            "density": "standard",
-            "pageMargins": {"top": 15, "right": 15, "bottom": 15, "left": 15},
-            "headingStyle": "underlined",
-            "skillsStyle": "inline",
-            "sidebarWidth": 0,
-            "sidebarSections": [],
-        },
-        "modern_single": {
-            "accentColor": "#176B87",
-            "fontFamily": "Inter",
-            "fontScale": 1.0,
-            "density": "standard",
-            "pageMargins": {"top": 14, "right": 14, "bottom": 14, "left": 14},
-            "headingStyle": "accent-rule",
-            "skillsStyle": "pills",
-            "sidebarWidth": 0,
-            "sidebarSections": [],
-        },
-        "modern_two_column": {
-            "accentColor": "#243B53",
-            "fontFamily": "Inter",
-            "fontScale": 1.0,
-            "density": "compact",
-            "pageMargins": {"top": 12, "right": 12, "bottom": 12, "left": 12},
-            "headingStyle": "accent-rule",
-            "skillsStyle": "pills",
-            "sidebarWidth": 32,
-            "sidebarSections": ["skills", "languages", "certifications"],
-        },
-    }
-    return ResumeTemplateDesignTokens.model_validate(defaults[template_id])
 
 
 def database_unavailable(exc: Exception) -> HTTPException:

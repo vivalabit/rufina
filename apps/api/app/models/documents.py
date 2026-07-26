@@ -352,6 +352,7 @@ class DocumentFileRecord(Base):
             "source_ats_final_review_id",
             "renderer_template_id",
             "renderer_template_version",
+            "renderer_design_sha256",
             name="uq_document_files_resume_pdf_source",
         ),
     )
@@ -389,6 +390,10 @@ class DocumentFileRecord(Base):
     )
     renderer_template_version: Mapped[str | None] = mapped_column(
         String(40),
+        nullable=True,
+    )
+    renderer_design_sha256: Mapped[str | None] = mapped_column(
+        String(64),
         nullable=True,
     )
     source_ats_final_review_id: Mapped[str | None] = mapped_column(
@@ -429,6 +434,7 @@ class DocumentArtifactPayload(BaseModel):
     content_type: str = Field(alias="contentType")
     template_id: str | None = Field(default=None, alias="templateId")
     template_version: str | None = Field(default=None, alias="templateVersion")
+    design_sha256: str | None = Field(default=None, alias="designSha256")
     source_ats_final_review_id: str | None = Field(
         default=None,
         alias="sourceAtsFinalReviewId",

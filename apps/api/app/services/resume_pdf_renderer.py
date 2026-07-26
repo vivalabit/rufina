@@ -2,16 +2,23 @@ from __future__ import annotations
 
 import json
 import re
+import hashlib
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal
+from typing import Literal, cast
 from urllib.parse import urlparse
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
-from markupsafe import Markup
 from pydantic import BaseModel, Field, ValidationError, model_validator
+from sqlalchemy import select
+from sqlalchemy.orm import Session
 
+from app.core.identity import get_bound_owner_id
 from app.models.resume import FinalResume
+from app.models.resume_templates import (
+    ResumeTemplateDefinitionRecord,
+    ResumeTemplateDesignTokens,
+)
 from app.services.resume_pdf_validation import (
     ResumePdfValidationError,
     ResumePdfValidationPolicy,
@@ -19,7 +26,10 @@ from app.services.resume_pdf_validation import (
     stamp_resume_pdf_metadata,
     validate_resume_pdf,
 )
-from app.services.resume_template_registry import ResumeTemplateId
+from app.services.resume_template_registry import (
+    ResumeTemplateId,
+    is_bundled_resume_template_id,
+)
 
 
 DEFAULT_RESUME_PDF_TEMPLATE_ID: ResumeTemplateId = "classic_single"
@@ -38,9 +48,14 @@ _UNSAFE_JINJA = re.compile(
     r"{%\s*(?:extends|include|import|from)\b",
     re.IGNORECASE,
 )
+_STYLESHEET_SENTINEL = "RUFINA_SERVER_OWNED_STYLESHEET"
 
 
 class ResumePdfRenderError(RuntimeError):
+    pass
+
+
+class ResumeTemplateNotFoundError(ResumePdfRenderError):
     pass
 
 
@@ -112,6 +127,20 @@ class ResumePdfTemplateBundle:
 
 
 @dataclass(frozen=True)
+class ResolvedResumeTemplate:
+    id: str
+    version: str
+    base_template_id: ResumeTemplateId
+    design: ResumeTemplateDesignTokens
+    html_template: str
+    stylesheet: str
+
+    @property
+    def design_sha256(self) -> str:
+        return resume_design_sha256(self.design)
+
+
+@dataclass(frozen=True)
 class ChromiumPdfRenderResult:
     pdf: bytes
     overflow_issues: tuple[str, ...]
@@ -130,26 +159,39 @@ def render_final_resume_pdf(
     *,
     template_id: ResumeTemplateId = DEFAULT_RESUME_PDF_TEMPLATE_ID,
 ) -> bytes:
+    resolved = resolve_bundled_resume_template(template_id)
+    return render_resolved_final_resume_pdf(
+        final_resume_json,
+        template=resolved,
+    )
+
+
+def render_resolved_final_resume_pdf(
+    final_resume_json: dict[str, object],
+    *,
+    template: ResolvedResumeTemplate,
+) -> bytes:
     try:
         resume = FinalResume.model_validate(final_resume_json)
     except ValidationError as exc:
         raise ResumePdfRenderError("FinalResume JSON failed schema validation") from exc
-    html, bundle = render_final_resume_html(
+    html, bundle = render_resolved_final_resume_html(
         final_resume_json,
-        template_id=template_id,
+        template=template,
     )
     render_result = chromium_pdf_from_html(html, bundle.manifest.page)
     try:
         pdf = stamp_resume_pdf_metadata(
             render_result.pdf,
-            template_id=bundle.manifest.template_id,
-            template_version=bundle.manifest.template_version,
+            template_id=template.id,
+            template_version=template.version,
             resume_schema_version=resume.schema_version,
         )
         validate_rendered_pdf(
             pdf,
             resume=resume,
             bundle=bundle,
+            resolved_template=template,
             html_overflow_issues=render_result.overflow_issues,
         )
     except ResumePdfValidationError as exc:
@@ -162,15 +204,35 @@ def render_final_resume_html(
     *,
     template_id: ResumeTemplateId = DEFAULT_RESUME_PDF_TEMPLATE_ID,
 ) -> tuple[str, ResumePdfTemplateBundle]:
+    resolved = resolve_bundled_resume_template(template_id)
+    return render_resolved_final_resume_html(
+        final_resume_json,
+        template=resolved,
+    )
+
+
+def render_resolved_final_resume_html(
+    final_resume_json: dict[str, object],
+    *,
+    template: ResolvedResumeTemplate,
+) -> tuple[str, ResumePdfTemplateBundle]:
     try:
         resume = FinalResume.model_validate(final_resume_json)
     except ValidationError as exc:
         raise ResumePdfRenderError("FinalResume JSON failed schema validation") from exc
 
-    bundle = load_template_bundle(template_id)
+    bundle = load_template_bundle(template.base_template_id)
     if resume.schema_version not in bundle.manifest.resume_schema_versions:
         raise ResumePdfRenderError(
             "FinalResume schema version is not supported by the PDF template"
+        )
+    if (
+        template.html_template != bundle.html_template
+        or template.stylesheet
+        != resolved_stylesheet(bundle.stylesheet, template.design)
+    ):
+        raise ResumePdfRenderError(
+            "Resolved resume template does not use its server-owned bundle"
         )
 
     environment = Environment(
@@ -180,19 +242,273 @@ def render_final_resume_html(
         enable_async=False,
     )
     try:
-        template = environment.from_string(bundle.html_template)
-        html = template.render(
+        jinja_template = environment.from_string(template.html_template)
+        html = jinja_template.render(
             resume=resume_view_model(resume),
-            stylesheet=Markup(bundle.stylesheet),
-            template_id=bundle.manifest.template_id,
-            template_version=bundle.manifest.template_version,
+            stylesheet=_STYLESHEET_SENTINEL,
+            template_id=template.base_template_id,
+            template_version=template.version,
+            sidebar_sections=template.design.sidebar_sections,
         )
     except Exception as exc:
         raise ResumePdfRenderError("Resume HTML rendering failed") from exc
 
+    if html.count(_STYLESHEET_SENTINEL) != 1:
+        raise ResumePdfRenderError(
+            "Resume HTML template has an invalid stylesheet slot"
+        )
+    html = html.replace(_STYLESHEET_SENTINEL, template.stylesheet, 1)
     if "<script" in html.lower():
         raise ResumePdfRenderError("Rendered resume HTML contains a script element")
     return html, bundle
+
+
+def resolve_resume_template(
+    db: Session,
+    template_id: str,
+) -> ResolvedResumeTemplate:
+    if template_id in {
+        "classic_single",
+        "modern_single",
+        "modern_two_column",
+    }:
+        return resolve_bundled_resume_template(
+            cast(ResumeTemplateId, template_id)
+        )
+    record = db.scalar(
+        select(ResumeTemplateDefinitionRecord).where(
+            ResumeTemplateDefinitionRecord.id == template_id,
+            ResumeTemplateDefinitionRecord.owner_id == get_bound_owner_id(),
+        )
+    )
+    if record is None:
+        raise ResumeTemplateNotFoundError("Resume template not found")
+    try:
+        design = ResumeTemplateDesignTokens.model_validate(record.design_json)
+    except ValidationError as exc:
+        raise ResumePdfRenderError(
+            "Stored resume template design is invalid"
+        ) from exc
+    if not is_bundled_resume_template_id(record.base_template_id):
+        raise ResumePdfRenderError(
+            "Stored resume template base is not a bundled template"
+        )
+    bundle = load_template_bundle(record.base_template_id)
+    return ResolvedResumeTemplate(
+        id=record.id,
+        version=str(record.version),
+        base_template_id=bundle.manifest.template_id,
+        design=design,
+        html_template=bundle.html_template,
+        stylesheet=resolved_stylesheet(bundle.stylesheet, design),
+    )
+
+
+def resolve_bundled_resume_template(
+    template_id: ResumeTemplateId,
+) -> ResolvedResumeTemplate:
+    bundle = load_template_bundle(template_id)
+    design = default_bundled_design_tokens(template_id)
+    return ResolvedResumeTemplate(
+        id=template_id,
+        version=bundle.manifest.template_version,
+        base_template_id=template_id,
+        design=design,
+        html_template=bundle.html_template,
+        stylesheet=resolved_stylesheet(bundle.stylesheet, design),
+    )
+
+
+def resolved_stylesheet(
+    server_owned_stylesheet: str,
+    design: ResumeTemplateDesignTokens,
+) -> str:
+    return "\n".join(
+        (
+            server_owned_stylesheet,
+            resume_design_css(design),
+            server_owned_design_rules(design),
+        )
+    )
+
+
+def resume_design_css(design: ResumeTemplateDesignTokens) -> str:
+    margins = design.page_margins
+    density_scale = {
+        "compact": 0.86,
+        "standard": 1.0,
+        "comfortable": 1.15,
+    }[design.density]
+    sidebar_sections = ",".join(design.sidebar_sections)
+    return "\n".join(
+        (
+            ":root {",
+            f"  --resume-accent: {design.accent_color};",
+            f'  --resume-font-family: "{design.font_family}", Arial, sans-serif;',
+            f"  --resume-font-scale: {css_number(design.font_scale)};",
+            f"  --resume-density-scale: {css_number(density_scale)};",
+            f"  --resume-page-margin-top: {css_number(margins.top)}mm;",
+            f"  --resume-page-margin-right: {css_number(margins.right)}mm;",
+            f"  --resume-page-margin-bottom: {css_number(margins.bottom)}mm;",
+            f"  --resume-page-margin-left: {css_number(margins.left)}mm;",
+            f"  --resume-heading-style: {design.heading_style};",
+            f"  --resume-skills-style: {design.skills_style};",
+            f"  --resume-sidebar-width: {css_number(design.sidebar_width)}%;",
+            f'  --resume-sidebar-sections: "{sidebar_sections}";',
+            "}",
+            "@page {",
+            f"  margin: {css_number(margins.top)}mm"
+            f" {css_number(margins.right)}mm"
+            f" {css_number(margins.bottom)}mm"
+            f" {css_number(margins.left)}mm;",
+            "  margin: var(--resume-page-margin-top)"
+            " var(--resume-page-margin-right)"
+            " var(--resume-page-margin-bottom)"
+            " var(--resume-page-margin-left);",
+            "}",
+        )
+    )
+
+
+def server_owned_design_rules(design: ResumeTemplateDesignTokens) -> str:
+    heading_rules = {
+        "plain": (
+            "border-bottom: 0;",
+            "padding-bottom: 0;",
+            "color: var(--resume-accent);",
+        ),
+        "underlined": (
+            "border-bottom: 1px solid var(--resume-accent);",
+            "padding-bottom: 3px;",
+            "color: var(--resume-accent);",
+        ),
+        "accent-rule": (
+            "border-bottom: 0;",
+            "padding-bottom: 0;",
+            "color: var(--resume-accent);",
+        ),
+    }.get(
+        design.heading_style,
+        (
+            "border-bottom: 0;",
+            "padding-bottom: 0;",
+            "color: var(--resume-accent);",
+        ),
+    )
+    skills_rules = {
+        "inline": (
+            "display: flex;",
+            "gap: 4px 16px;",
+            "background: transparent;",
+            "border-radius: 0;",
+            "padding: 0;",
+        ),
+        "list": (
+            "display: block;",
+            "gap: 0;",
+            "background: transparent;",
+            "border-radius: 0;",
+            "padding: 0;",
+        ),
+        "pills": (
+            "display: flex;",
+            "gap: 5px 8px;",
+            "background: color-mix(in srgb, var(--resume-accent) 10%, white);",
+            "border-radius: 999px;",
+            "padding: 3px 8px;",
+        ),
+    }.get(
+        design.skills_style,
+        (
+            "display: flex;",
+            "gap: 4px 16px;",
+            "background: transparent;",
+            "border-radius: 0;",
+            "padding: 0;",
+        ),
+    )
+    accent_rule_display = (
+        "block" if design.heading_style == "accent-rule" else "none"
+    )
+    return "\n".join(
+        (
+            ".resume-shell .resume-section h2 {",
+            *(f"  {rule}" for rule in heading_rules),
+            "}",
+            ".resume-shell .resume-section h2::after {",
+            f"  display: {accent_rule_display};",
+            "  background: var(--resume-accent);",
+            "}",
+            ".resume-shell .skill-list {",
+            f"  {skills_rules[0]}",
+            f"  {skills_rules[1]}",
+            "}",
+            ".resume-shell .skill-list p {",
+            *(f"  {rule}" for rule in skills_rules[2:]),
+            "}",
+        )
+    )
+
+
+def resume_design_sha256(design: ResumeTemplateDesignTokens) -> str:
+    canonical = json.dumps(
+        design.model_dump(mode="json", by_alias=True),
+        ensure_ascii=True,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
+    return hashlib.sha256(canonical).hexdigest()
+
+
+def css_number(value: float) -> str:
+    return format(value, ".6g")
+
+
+def default_bundled_design_tokens(
+    template_id: ResumeTemplateId,
+) -> ResumeTemplateDesignTokens:
+    defaults: dict[ResumeTemplateId, dict[str, object]] = {
+        "classic_single": {
+            "accentColor": "#2B2B2B",
+            "fontFamily": "Georgia",
+            "fontScale": 1.0,
+            "density": "standard",
+            "pageMargins": {"top": 15, "right": 15, "bottom": 15, "left": 15},
+            "headingStyle": "underlined",
+            "skillsStyle": "inline",
+            "sidebarWidth": 0,
+            "sidebarSections": [],
+        },
+        "modern_single": {
+            "accentColor": "#176B87",
+            "fontFamily": "Inter",
+            "fontScale": 1.0,
+            "density": "standard",
+            "pageMargins": {"top": 14, "right": 14, "bottom": 14, "left": 14},
+            "headingStyle": "accent-rule",
+            "skillsStyle": "pills",
+            "sidebarWidth": 0,
+            "sidebarSections": [],
+        },
+        "modern_two_column": {
+            "accentColor": "#243B53",
+            "fontFamily": "Inter",
+            "fontScale": 1.0,
+            "density": "compact",
+            "pageMargins": {"top": 12, "right": 12, "bottom": 12, "left": 12},
+            "headingStyle": "accent-rule",
+            "skillsStyle": "pills",
+            "sidebarWidth": 32,
+            "sidebarSections": [
+                "skills",
+                "education",
+                "certifications",
+                "languages",
+                "additional",
+            ],
+        },
+    }
+    return ResumeTemplateDesignTokens.model_validate(defaults[template_id])
 
 
 def load_template_bundle(template_id: ResumeTemplateId) -> ResumePdfTemplateBundle:
@@ -385,6 +701,7 @@ def expected_resume_text_fragments(
     resume: FinalResume,
     *,
     reading_order: Literal["resumeSectionOrder", "primaryThenSidebar"],
+    sidebar_sections: list[str] | None = None,
 ) -> list[str]:
     fragments = [
         resume.basics.full_name,
@@ -398,11 +715,21 @@ def expected_resume_text_fragments(
     ]
     sections = list(resume.section_order)
     if reading_order == "primaryThenSidebar":
-        primary = {"summary", "experience", "projects"}
+        sidebar = set(
+            sidebar_sections
+            if sidebar_sections is not None
+            else [
+                "skills",
+                "education",
+                "certifications",
+                "languages",
+                "additional",
+            ]
+        )
         sections = [
-            section for section in resume.section_order if section in primary
+            section for section in resume.section_order if section not in sidebar
         ] + [
-            section for section in resume.section_order if section not in primary
+            section for section in resume.section_order if section in sidebar
         ]
     titles = resume_section_titles(resume)
     for section in sections:
@@ -577,16 +904,32 @@ def validate_rendered_pdf(
     *,
     resume: FinalResume,
     bundle: ResumePdfTemplateBundle,
+    resolved_template: ResolvedResumeTemplate | None = None,
     html_overflow_issues: tuple[str, ...] = (),
 ) -> ResumePdfValidationReport:
+    template_id = (
+        resolved_template.id
+        if resolved_template is not None
+        else bundle.manifest.template_id
+    )
+    template_version = (
+        resolved_template.version
+        if resolved_template is not None
+        else bundle.manifest.template_version
+    )
     return validate_resume_pdf(
         pdf,
         expected_text_fragments=expected_resume_text_fragments(
             resume,
             reading_order=bundle.manifest.validation.reading_order,
+            sidebar_sections=(
+                resolved_template.design.sidebar_sections
+                if resolved_template is not None
+                else None
+            ),
         ),
-        template_id=bundle.manifest.template_id,
-        template_version=bundle.manifest.template_version,
+        template_id=template_id,
+        template_version=template_version,
         resume_schema_version=resume.schema_version,
         policy=bundle.manifest.validation_policy(),
         html_overflow_issues=html_overflow_issues,
@@ -596,18 +939,27 @@ def validate_rendered_pdf(
 __all__ = [
     "ChromiumPdfRenderResult",
     "DEFAULT_RESUME_PDF_TEMPLATE_ID",
+    "ResolvedResumeTemplate",
     "ResumePdfPageManifest",
     "ResumePdfRenderError",
+    "ResumeTemplateNotFoundError",
     "ResumePdfTemplateBundle",
     "ResumePdfTemplateManifest",
     "ResumePdfValidationManifest",
     "chromium_pdf_from_html",
     "expected_resume_text_fragments",
+    "default_bundled_design_tokens",
     "load_template_bundle",
     "normalize_display_mapping",
     "render_final_resume_html",
     "render_final_resume_json",
     "render_final_resume_pdf",
+    "render_resolved_final_resume_html",
+    "render_resolved_final_resume_pdf",
+    "resolve_bundled_resume_template",
+    "resolve_resume_template",
+    "resume_design_css",
+    "resume_design_sha256",
     "resume_section_titles",
     "resume_view_model",
     "validate_rendered_pdf",
