@@ -90,23 +90,18 @@ a {
   .application-workspace {
     background:
       radial-gradient(
-        circle at 42% -8%,
-        rgba(255, 90, 0, 0.075),
-        transparent 28rem
+        circle at 42% -12%,
+        rgba(255, 90, 0, 0.04),
+        transparent 25rem
       ),
-      linear-gradient(180deg, rgba(255, 255, 255, 0.012), transparent 22rem);
+      #0a0f15;
   }
 
   .application-hero {
     background:
-      radial-gradient(
-        circle at 88% 0%,
-        rgba(255, 90, 0, 0.11),
-        transparent 22rem
-      ),
-      linear-gradient(145deg, rgba(25, 32, 41, 0.98), rgba(13, 18, 25, 0.98));
+      linear-gradient(145deg, rgba(19, 27, 36, 0.98), rgba(13, 19, 27, 0.98));
     box-shadow:
-      0 24px 70px rgba(0, 0, 0, 0.24),
+      0 16px 42px rgba(0, 0, 0, 0.2),
       inset 0 1px 0 rgba(255, 255, 255, 0.035);
   }
 
@@ -138,11 +133,9 @@ a {
   .workspace-card {
     border: 1px solid rgba(255, 255, 255, 0.085);
     border-radius: 16px;
-    background:
-      linear-gradient(145deg, rgba(255, 255, 255, 0.025), transparent 40%),
-      rgba(16, 22, 30, 0.94);
+    background: rgba(16, 23, 32, 0.96);
     box-shadow:
-      0 18px 50px rgba(0, 0, 0, 0.16),
+      0 14px 38px rgba(0, 0, 0, 0.14),
       inset 0 1px 0 rgba(255, 255, 255, 0.025);
   }
 }

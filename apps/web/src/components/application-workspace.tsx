@@ -14,11 +14,9 @@ import {
   FileCheck2,
   FileText,
   LoaderCircle,
-  LockKeyhole,
   Mail,
   MessageSquareText,
   RefreshCw,
-  Rocket,
   Send,
   ShieldCheck,
   Sparkles,
@@ -310,6 +308,7 @@ type AiPrivacySettings = {
 
 type PackStageId = "resume_generation" | "resume_validation" | "cover_letter_generation" | "saving";
 type PackProgressStatus = "active" | "retrying" | "failed" | "completed" | "partial";
+type WorkspaceStep = "review" | "confirm" | "create" | "final";
 
 type CoverLetterDraft = {
   documentId?: string;
@@ -798,6 +797,9 @@ export function ApplicationWorkspace({
   const [documentChatInput, setDocumentChatInput] = useState("");
   const [documentChatMessages, setDocumentChatMessages] = useState<DocumentChatMessage[]>([]);
   const [analysisTab, setAnalysisTab] = useState<"overview" | "evidence" | "strategy">("overview");
+  const [activeWorkspaceStep, setActiveWorkspaceStep] = useState<WorkspaceStep>(
+    () => hasCurrentApplicationGuide(application?.job.aiMatch) ? "create" : "review",
+  );
   const [aiDisclosureAccepted, setAiDisclosureAccepted] = useState(false);
   const [aiDisclosureConfirmed, setAiDisclosureConfirmed] = useState(false);
   const [pendingAiGeneration, setPendingAiGeneration] = useState<PendingAiGeneration>(null);
@@ -1015,6 +1017,9 @@ export function ApplicationWorkspace({
     setIsCoverSourceManual(false);
     setSelectedCoverSourceId("");
     setAnalysisTab("overview");
+    setActiveWorkspaceStep(
+      hasCurrentApplicationGuide(application?.job.aiMatch) ? "create" : "review",
+    );
     setDocumentChatInput("");
     setDocumentChatMessages([]);
     if (!application) {
@@ -1242,10 +1247,10 @@ export function ApplicationWorkspace({
   const readyCount = checklist.filter((item) => item.ready).length;
   const progress = Math.round((readyCount / checklist.length) * 100);
   const preparationSteps = [
-    { label: "Review match", detail: isAnalysisOutdated ? "Analysis outdated" : "Positioning and requirements", ready: hasCurrentAnalysis, icon: Target },
-    { label: "Confirm facts", detail: !hasCurrentAnalysis ? "Refresh analysis first" : hasOversizedConfirmation ? "Shorten a long answer" : unansweredBlockingQuestions.length ? `${unansweredBlockingQuestions.length} answer${unansweredBlockingQuestions.length === 1 ? "" : "s"} required` : "Evidence confirmed", ready: confirmationsReady, icon: MessageSquareText },
-    { label: "Create documents", detail: resumeReady && coverLetterReady ? "Application pack ready" : "CV and cover letter", ready: resumeReady && coverLetterReady, icon: FileText },
-    { label: "Final review", detail: progress === 100 ? "Ready to submit" : `${readyCount} of ${checklist.length} checks ready`, ready: progress === 100, icon: ShieldCheck },
+    { id: "review" as const, label: "Review fit", detail: isAnalysisOutdated ? "Analysis outdated" : "Positioning and requirements", ready: hasCurrentAnalysis, icon: Target },
+    { id: "confirm" as const, label: "Confirm details", detail: !hasCurrentAnalysis ? "Refresh analysis first" : hasOversizedConfirmation ? "Shorten a long answer" : unansweredBlockingQuestions.length ? `${unansweredBlockingQuestions.length} answer${unansweredBlockingQuestions.length === 1 ? "" : "s"} required` : "Evidence confirmed", ready: confirmationsReady, icon: MessageSquareText },
+    { id: "create" as const, label: "Create documents", detail: resumeReady && coverLetterReady ? "Application pack ready" : "CV and cover letter", ready: resumeReady && coverLetterReady, icon: FileText },
+    { id: "final" as const, label: "Final review", detail: progress === 100 ? "Ready to submit" : `${readyCount} of ${checklist.length} checks ready`, ready: progress === 100, icon: ShieldCheck },
   ];
 
   function updateCandidateConfirmation(
@@ -2019,50 +2024,57 @@ export function ApplicationWorkspace({
         </button>
 
         <header className="application-hero overflow-hidden rounded-2xl border border-white/[0.09]">
-          <div className="relative grid gap-5 px-5 py-6 sm:px-7 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="relative grid gap-5 px-5 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="rounded-full border border-accent/30 bg-accent/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-[0.14em] text-[#ff8b4a]">Application prep</span>
+                <span className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">Application workspace</span>
+                <span className="sr-only">Application prep</span>
+                <span className="text-white/20">/</span>
                 <span className="rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-[10px] font-bold capitalize text-[#cbd3df]">{application.status === "draft" ? "In progress" : application.status}</span>
-                <span className={cn("inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[10px] font-bold", apiHealth === "available" ? "border-success/25 bg-success/10 text-success" : apiHealth === "unavailable" ? "border-red-400/30 bg-red-500/10 text-red-200" : "border-white/10 bg-white/[0.045] text-muted")} role="status" aria-live="polite">
-                  <span className={cn("h-1.5 w-1.5 rounded-full", apiHealth === "available" ? "bg-success" : apiHealth === "unavailable" ? "bg-red-300" : "animate-pulse bg-muted")} />
-                  {apiHealth === "available" ? "API online" : apiHealth === "unavailable" ? "API unavailable" : "Checking API…"}
-                </span>
-                {apiHealth === "unavailable" ? <button type="button" onClick={retryApiRequests} className="inline-flex items-center gap-1 text-[10px] font-bold text-red-200 hover:text-white"><RefreshCw className="h-3 w-3" /> Retry</button> : null}
               </div>
-              <h1 className="mt-4 max-w-4xl text-2xl font-bold leading-[1.15] tracking-[-0.025em] text-white sm:text-3xl">{application.job.title}</h1>
+              <h1 className="mt-3 max-w-4xl text-xl font-bold leading-tight tracking-[-0.02em] text-white sm:text-2xl">{application.job.title}</h1>
               <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-[#aeb7c5]">
                 <span className="text-[#eef1f6]">{application.job.company}</span><span className="text-white/25">/</span><span>{application.job.location}</span><span className="text-white/25">/</span><span>{application.job.type}</span>
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-              <div className="mr-2 flex h-14 items-center gap-3 rounded-xl border border-success/20 bg-success/[0.07] px-4">
-                <div><p className="text-[9px] font-black uppercase tracking-[0.12em] text-[#9aa5b4]">AI match</p><p className="text-xl font-black text-success">{application.job.match}%</p></div>
-                <CheckCircle2 className="h-5 w-5 text-success/80" />
+              <div className="mr-1 flex h-11 items-center gap-2 rounded-xl border border-success/20 bg-success/[0.055] px-3.5">
+                <CheckCircle2 className="h-4 w-4 text-success" />
+                <div><p className="text-[8px] font-black uppercase tracking-[0.12em] text-[#9aa5b4]">Match</p><p className="text-sm font-black text-success">{application.job.match}%</p></div>
               </div>
-              <Button variant="ghost" disabled={!jobUrl} onClick={() => jobUrl && window.open(jobUrl, "_blank", "noopener,noreferrer")} className="h-11 rounded-xl border border-white/10 bg-white/[0.035] px-4 text-xs text-[#e6ebf3] hover:bg-white/[0.07] disabled:opacity-45">
+              <Button variant="ghost" disabled={!jobUrl} onClick={() => jobUrl && window.open(jobUrl, "_blank", "noopener,noreferrer")} className="h-11 rounded-xl border border-white/10 bg-white/[0.025] px-4 text-xs text-[#e6ebf3] hover:bg-white/[0.07] disabled:opacity-45">
                 <ExternalLink className="h-4 w-4" /> View vacancy
-              </Button>
-              <Button onClick={() => jobUrl && window.open(jobUrl, "_blank", "noopener,noreferrer")} disabled={!jobUrl} className="h-11 rounded-xl bg-accent px-4 text-xs font-bold text-white shadow-[0_12px_30px_rgba(255,90,0,0.22)] hover:bg-[#ff6a14] disabled:opacity-45">
-                Apply on website <ChevronRight className="h-4 w-4" />
               </Button>
             </div>
           </div>
-          <div className="grid border-t border-white/[0.07] bg-black/15 sm:grid-cols-2 xl:grid-cols-4">
+          <nav className="grid border-t border-white/[0.07] bg-black/15 sm:grid-cols-2 xl:grid-cols-4" aria-label="Application preparation steps">
             {preparationSteps.map((step, index) => {
               const StepIcon = step.icon;
               return (
-                <div key={step.label} className={cn("flex min-w-0 items-center gap-3 border-white/[0.07] px-5 py-4 xl:border-r xl:last:border-r-0", index > 0 && "border-t sm:border-t-0", index === 2 && "sm:border-t xl:border-t-0")}>
-                  <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full border text-[11px] font-black", step.ready ? "border-success/25 bg-success/10 text-success" : "border-white/10 bg-white/[0.035] text-[#7f8998]")}>{step.ready ? <Check className="h-4 w-4" /> : <StepIcon className="h-3.5 w-3.5" />}</span>
-                  <div className="min-w-0"><p className={cn("truncate text-xs font-bold", step.ready ? "text-white" : "text-[#bbc3cf]")}>{index + 1}. {step.label}</p><p className="mt-0.5 truncate text-[10px] text-[#7f8998]">{step.detail}</p></div>
-                </div>
+                <button
+                  key={step.id}
+                  type="button"
+                  aria-current={activeWorkspaceStep === step.id ? "step" : undefined}
+                  onClick={() => setActiveWorkspaceStep(step.id)}
+                  className={cn(
+                    "group relative flex min-w-0 items-center gap-3 border-white/[0.07] px-5 py-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/45 xl:border-r xl:last:border-r-0",
+                    index > 0 && "border-t sm:border-t-0",
+                    index === 2 && "sm:border-t xl:border-t-0",
+                    activeWorkspaceStep === step.id ? "bg-white/[0.055]" : "hover:bg-white/[0.025]",
+                  )}
+                >
+                  <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full border text-[11px] font-black transition", activeWorkspaceStep === step.id ? "border-accent bg-accent text-white" : step.ready ? "border-success/25 bg-success/10 text-success" : "border-white/10 bg-white/[0.035] text-[#7f8998]")}>{activeWorkspaceStep === step.id ? index + 1 : step.ready ? <Check className="h-4 w-4" /> : <StepIcon className="h-3.5 w-3.5" />}</span>
+                  <span className="min-w-0"><span className={cn("block truncate text-xs font-bold", activeWorkspaceStep === step.id ? "text-white" : step.ready ? "text-[#e4e9ef]" : "text-[#bbc3cf]")}>{step.label}</span><span className="mt-0.5 block truncate text-[10px] text-[#7f8998]">{step.detail}</span></span>
+                  {activeWorkspaceStep === step.id ? <span className="absolute inset-x-5 bottom-0 h-0.5 rounded-full bg-accent" /> : null}
+                </button>
               );
             })}
-          </div>
+          </nav>
         </header>
 
         <div className="mt-5 grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_330px]">
           <main className="min-w-0 space-y-5">
+            <div className={cn(activeWorkspaceStep !== "review" && "hidden")}>
             <section className="workspace-card overflow-hidden">
               <div className="flex flex-col gap-4 border-b border-white/[0.07] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div className="flex items-start gap-3">
@@ -2159,7 +2171,9 @@ export function ApplicationWorkspace({
                 </div>
               ) : <div className="m-5 rounded-xl border border-white/[0.07] bg-black/15 py-12 text-center"><Sparkles className="mx-auto h-5 w-5 text-muted" /><p className="mt-2 text-xs text-muted">Run AI Match for this vacancy to create the application plan.</p></div>}
             </section>
+            </div>
 
+            <div className={cn(activeWorkspaceStep !== "confirm" && "hidden")}>
             <section className={cn("workspace-card overflow-hidden", !confirmationsReady && "border-amber-300/20")}>
               <div className="flex items-start gap-3 border-b border-white/[0.07] px-5 py-5 sm:px-6">
                 <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", !confirmationsReady ? "bg-amber-400/10 text-amber-200" : "bg-success/10 text-success")}><MessageSquareText className="h-[18px] w-[18px]" /></span>
@@ -2177,14 +2191,13 @@ export function ApplicationWorkspace({
                 })}</div> : <div className="flex items-center gap-3 rounded-xl border border-success/15 bg-success/[0.035] px-4 py-3 text-xs text-[#dfe5ec]"><CheckCircle2 className="h-5 w-5 shrink-0 text-success" /><span>No additional confirmations are required. Your verified profile is enough to continue.</span></div>}
               </div>
             </section>
+            </div>
 
+            <div className={cn(activeWorkspaceStep !== "create" && "hidden")}>
             <section className="workspace-card overflow-hidden">
               <div className="flex flex-col gap-4 border-b border-white/[0.07] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent/12 text-accent"><Sparkles className="h-[18px] w-[18px]" /></span><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">03 · Build your application pack</p><h2 className="mt-1 text-lg font-bold text-white">Tailored documents</h2><p className="mt-1 text-xs leading-5 text-muted">Select source documents and choose one of Rufina&apos;s bundled resume templates.</p></div></div>
-                <div className="flex flex-col gap-2 sm:items-end">
-                  <div className="flex items-center gap-2 text-[9px] text-muted"><span>AI provider: <strong className="text-white">{aiConfiguration.providerName}</strong></span>{aiDisclosureAccepted ? <button type="button" onClick={revokeAiConsent} className="font-bold text-amber-200 hover:text-white">Revoke consent</button> : <span className="font-bold text-amber-200">Consent required</span>}</div>
-                  <Button onClick={() => requestAiGeneration("pack")} disabled={isGeneratingPack || Boolean(generationType) || !documentsLoaded || !currentMasterResume || !selectedCoverSourceId || !coverPreflightReady || !coverLetterNamesComplete || !applicationReview || !confirmationsReady} className="h-11 shrink-0 rounded-xl bg-accent px-4 text-xs font-bold text-white shadow-[0_12px_28px_rgba(255,90,0,0.2)] hover:bg-[#ff6a14] disabled:opacity-40">{isGeneratingPack ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}{isGeneratingPack ? packStageDefinitions.find((stage) => stage.id === packProgress?.stage)?.label ?? "Generating pack…" : "Generate both documents"}</Button>
-                </div>
+                <div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent/12 text-accent"><Sparkles className="h-[18px] w-[18px]" /></span><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">03 · Create documents</p><h2 className="mt-1 text-lg font-bold text-white">Application package</h2><p className="mt-1 text-xs leading-5 text-muted">Prepare the resume and cover letter here, then generate the complete pack from the readiness panel.</p></div></div>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] text-muted"><span>AI provider: <strong className="text-white">{aiConfiguration.providerName}</strong></span>{aiDisclosureAccepted ? <button type="button" onClick={revokeAiConsent} className="font-bold text-amber-200 hover:text-white">Revoke consent</button> : <span className="font-bold text-amber-200">Consent required</span>}</div>
               </div>
               <div className="p-5 sm:p-6">
                 {documentError ? <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-400/25 bg-red-500/[0.07] px-3 py-2.5 text-xs leading-5 text-red-200"><span>{documentError}</span><button type="button" onClick={retryApiRequests} className="inline-flex shrink-0 items-center gap-1.5 font-bold text-red-100 hover:text-white"><RefreshCw className="h-3.5 w-3.5" /> Retry</button></div> : null}
@@ -2192,16 +2205,18 @@ export function ApplicationWorkspace({
                 {packProgress ? <div className={cn("mb-4 rounded-xl border p-3", packProgress.status === "failed" ? "border-red-400/25 bg-red-500/[0.045]" : packProgress.status === "partial" ? "border-amber-400/25 bg-amber-400/[0.045]" : "border-white/[0.08] bg-black/15")}><div className="grid gap-2 sm:grid-cols-4">{packStageDefinitions.map((stage, index) => { const currentIndex = packStageDefinitions.findIndex((candidate) => candidate.id === packProgress.stage); const stageStatus = index < currentIndex ? "completed" : index === currentIndex ? packProgress.status : "pending"; return <div key={stage.id} className={cn("rounded-lg border px-2.5 py-2", stageStatus === "completed" ? "border-success/20 bg-success/[0.05]" : stageStatus === "failed" ? "border-red-400/25 bg-red-500/[0.06]" : stageStatus === "partial" ? "border-amber-400/25 bg-amber-400/[0.06]" : stageStatus === "active" || stageStatus === "retrying" ? "border-accent/30 bg-accent/[0.07]" : "border-white/[0.06] bg-white/[0.015]")}><div className="flex items-center gap-2">{stageStatus === "completed" ? <Check className="h-3.5 w-3.5 text-success" /> : stageStatus === "active" || stageStatus === "retrying" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin text-accent" /> : stageStatus === "failed" ? <AlertTriangle className="h-3.5 w-3.5 text-red-200" /> : <CircleDot className="h-3.5 w-3.5 text-muted" />}<span className={cn("text-[9px] font-black uppercase tracking-wide", stageStatus === "completed" ? "text-success" : stageStatus === "failed" ? "text-red-200" : stageStatus === "partial" ? "text-amber-200" : stageStatus === "active" || stageStatus === "retrying" ? "text-white" : "text-muted")}>{stage.label}</span></div></div>; })}</div><div className="mt-2 flex items-center justify-between gap-3 px-1 text-[9px]"><span className={cn(packProgress.status === "failed" ? "text-red-200" : packProgress.status === "partial" ? "text-amber-200" : "text-muted")}>{packProgress.message}</span><span className="shrink-0 font-mono text-muted">{packProgress.attempt > 1 ? `attempt ${packProgress.attempt}/3 · ` : ""}{packProgress.jobId.slice(-8)}</span></div></div> : null}
                 {masterResumeLoaded && !currentMasterResume ? <div className="mb-4 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2.5 text-xs leading-5 text-amber-200">Confirm your Master Resume in My Profile before tailoring a vacancy.</div> : null}
                 {templates.length ? <details className="mb-4 rounded-xl border border-white/[0.07] bg-black/15"><summary className="cursor-pointer px-3 py-2.5 text-[10px] font-bold text-[#cbd3df] marker:text-muted">Stored cover-letter templates · {templates.length}</summary><div className="divide-y divide-white/[0.06] border-t border-white/[0.07] px-3">{templates.map((template) => <div key={template.id} className="flex items-center gap-3 py-2"><div className="min-w-0 flex-1"><p className="truncate text-[10px] font-bold text-white">{template.name}</p><p className="truncate text-[9px] text-muted">Cover letter · {template.fileName}</p></div><Button type="button" variant="ghost" aria-label={`Delete template ${template.name}`} disabled={deletingTemplateId === template.id} onClick={() => void deleteStoredTemplate(template)} className="h-8 rounded-lg border border-red-400/20 px-2 text-red-200 hover:bg-red-500/10">{deletingTemplateId === template.id ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}</Button></div>)}</div></details> : null}
-                <div className="mb-4 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
+                <details className="group mb-4 overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]">
+                  <summary className="cursor-pointer list-none px-4 py-4 sm:px-5">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.12em] text-accent">Cover letter context</p>
-                      <h3 className="mt-1 text-sm font-bold text-white">Optional personal context</h3>
+                      <h3 className="mt-1 text-sm font-bold text-white">Personalize cover letter</h3>
                       <p className="mt-1 max-w-3xl text-[11px] leading-5 text-muted">The letter is grounded in the resume and vacancy. Add only details that are true and useful.</p>
                     </div>
-                    <span className={cn("rounded-full border px-2 py-1 text-[9px] font-black", confirmationsDirty ? "border-amber-400/20 bg-amber-400/[0.06] text-amber-200" : "border-success/20 bg-success/[0.06] text-success")}>{confirmationsDirty ? "Saving…" : "Saved"}</span>
+                    <span className="flex items-center gap-3"><span className={cn("rounded-full border px-2 py-1 text-[9px] font-black", confirmationsDirty ? "border-amber-400/20 bg-amber-400/[0.06] text-amber-200" : "border-success/20 bg-success/[0.06] text-success")}>{confirmationsDirty ? "Saving…" : "Saved"}</span><ChevronRight className="h-4 w-4 text-muted transition group-open:rotate-90" /></span>
                   </div>
-                  <div className="mt-4 grid gap-4 lg:grid-cols-2">
+                  </summary>
+                  <div className="grid gap-4 border-t border-white/[0.07] p-4 lg:grid-cols-2 sm:p-5">
                     <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4">
                       <p className="text-xs font-bold text-white">Is a recruiter or hiring contact named?</p>
                       <p className="mt-1 text-[10px] leading-4 text-muted">If yes, provide the full name and the letter will greet that person. Otherwise it will greet the company&apos;s hiring team.</p>
@@ -2239,11 +2254,17 @@ export function ApplicationWorkspace({
                       <textarea aria-label="Additional cover letter context" value={coverLetterAdditionalContext?.exampleText ?? ""} maxLength={confirmationAnswerMaxChars} onChange={(event) => updateCandidateConfirmation(coverLetterAdditionalContextQuestion, { response: event.target.value.trim() ? "yes" : "no", exampleText: event.target.value })} rows={3} placeholder="Example: I am particularly interested in the company’s product; emphasize stakeholder work; do not mention relocation." className="mt-3 w-full resize-y rounded-xl border border-white/[0.08] bg-[#0b1118] px-3 py-2.5 text-xs leading-5 text-white outline-none placeholder:text-muted/55 focus:border-accent/40" />
                     </label>
                   </div>
+                </details>
+                <div className="space-y-10">
+                  <DocumentCard sectionLabel="Resume document" documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Three server-side AI stages produce finalResume once; built-in or personal templates can render it repeatedly without rerunning AI." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><div className="mt-3 rounded-xl border border-success/20 bg-success/[0.045] px-3 py-2.5"><p className="text-[9px] font-black uppercase tracking-wide text-success">Confirmed Master Resume</p><p className="mt-1 text-[9px] leading-4 text-muted">{currentMasterResume ? `Version ${currentMasterResume.version} · canonical structured source` : "Required before tailoring"}</p></div><ResumeTemplatePicker templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} />
+                  <DocumentCard sectionLabel="Cover letter document" documentType="cover_letter" icon={Mail} label="Cover letter" description="A restrained Swiss-style motivation letter: why this role, relevant proof, and the value you can deliver." document={latestCoverLetter} isOutdated={isCoverLetterOutdated} isGenerating={generationType === "cover_letter"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("cover_letter")} onRestore={(version) => latestCoverLetter && restoreDocumentVersion(latestCoverLetter, version)} onLoadMoreVersions={() => latestCoverLetter && void loadMoreDocumentVersions(latestCoverLetter)} onDelete={() => latestCoverLetter && void deleteGeneratedDocument(latestCoverLetter)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && selectedCoverSourceId && coverPreflightReady && coverLetterNamesComplete && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded ? documentError ? "Retry loading history" : "Loading history…" : !selectedCoverSourceId ? "Select source first" : coverPreflight.status === "checking" ? "Checking template…" : coverPreflight.status === "error" ? "Preflight failed" : !coverPreflight.report?.supported ? "Template unsupported" : !coverLetterNamesComplete ? "Complete contact names" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<SourcePicker label="Source cover letter" sources={coverSources} selectedId={selectedCoverSourceId} preflight={coverPreflight} deletingSourceId={deletingSourceId} onChange={(sourceId) => { setSelectedCoverSourceId(sourceId); setIsCoverSourceManual(Boolean(sourceId)); }} onAttach={(file) => void attachWorkspaceSource(file, "Cover Letter")} onDelete={(source) => void deleteWorkspaceSource(source)} />} />
                 </div>
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <DocumentCard documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Three server-side AI stages produce finalResume once; built-in or personal templates can render it repeatedly without rerunning AI." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><div className="mt-3 rounded-xl border border-success/20 bg-success/[0.045] px-3 py-2.5"><p className="text-[9px] font-black uppercase tracking-wide text-success">Confirmed Master Resume</p><p className="mt-1 text-[9px] leading-4 text-muted">{currentMasterResume ? `Version ${currentMasterResume.version} · canonical structured source` : "Required before tailoring"}</p></div><ResumeTemplatePicker templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} />
-                  <DocumentCard documentType="cover_letter" icon={Mail} label="Cover letter" description="A restrained Swiss-style motivation letter: why this role, relevant proof, and the value you can deliver." document={latestCoverLetter} isOutdated={isCoverLetterOutdated} isGenerating={generationType === "cover_letter"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("cover_letter")} onRestore={(version) => latestCoverLetter && restoreDocumentVersion(latestCoverLetter, version)} onLoadMoreVersions={() => latestCoverLetter && void loadMoreDocumentVersions(latestCoverLetter)} onDelete={() => latestCoverLetter && void deleteGeneratedDocument(latestCoverLetter)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && selectedCoverSourceId && coverPreflightReady && coverLetterNamesComplete && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded ? documentError ? "Retry loading history" : "Loading history…" : !selectedCoverSourceId ? "Select source first" : coverPreflight.status === "checking" ? "Checking template…" : coverPreflight.status === "error" ? "Preflight failed" : !coverPreflight.report?.supported ? "Template unsupported" : !coverLetterNamesComplete ? "Complete contact names" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<SourcePicker label="Source cover letter" sources={coverSources} selectedId={selectedCoverSourceId} preflight={coverPreflight} deletingSourceId={deletingSourceId} onChange={(sourceId) => { setSelectedCoverSourceId(sourceId); setIsCoverSourceManual(Boolean(sourceId)); }} onAttach={(file) => void attachWorkspaceSource(file, "Cover Letter")} onDelete={(source) => void deleteWorkspaceSource(source)} />} />
-                </div>
+                <details className="group mt-4 overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.018]">
+                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 text-xs font-bold text-[#dbe2eb] sm:px-5">
+                    <span><span className="block text-sm text-white">Advanced settings &amp; document tools</span><span className="mt-1 block text-[10px] font-normal leading-4 text-muted">PDF review, document revision chat and technical controls.</span></span>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-muted transition group-open:rotate-90" />
+                  </summary>
+                  <div className="border-t border-white/[0.07] p-4 sm:p-5">
                 <ResumePdfReview
                   apiBaseUrl={apiBaseUrl}
                   applicationId={activeApplication.id}
@@ -2288,11 +2309,47 @@ export function ApplicationWorkspace({
                   </div>
                   {!documentChatTargetReady ? <p className="mt-2 text-[9px] font-bold text-amber-200">Select a supported cover letter source and complete the contact names first.</p> : null}
                 </div>
+                  </div>
+                </details>
               </div>
             </section>
+            </div>
 
-            <section className="relative overflow-hidden rounded-2xl border border-[#7c5cff]/20 bg-gradient-to-br from-[#17142a] via-[#111722] to-[#111821] p-5 sm:p-6">
-              <div className="absolute -right-12 -top-14 h-44 w-44 rounded-full bg-[#7c5cff]/12 blur-3xl" /><div className="relative flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between"><div className="flex gap-3"><span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-[#9f7aea]/25 bg-[#9f7aea]/12 text-[#c4a7ff]"><Rocket className="h-5 w-5" /></span><div><div className="flex flex-wrap items-center gap-2"><h2 className="text-sm font-bold text-white">Auto Apply</h2><span className="rounded-full border border-[#9f7aea]/25 bg-[#9f7aea]/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-wider text-[#c4a7ff]">Coming soon</span></div><p className="mt-1 max-w-2xl text-xs leading-5 text-muted">Rufina will fill the employer form with your approved answers and pause before submission.</p><p className="mt-2 inline-flex items-center gap-1.5 text-[10px] font-bold text-[#b8c0cc]"><ShieldCheck className="h-3.5 w-3.5 text-success" /> You remain in control of the final submission.</p></div></div><Button disabled className="h-10 shrink-0 rounded-xl border border-[#9f7aea]/25 bg-[#9f7aea]/10 px-4 text-xs font-bold text-[#c4a7ff] opacity-70"><LockKeyhole className="h-4 w-4" /> Auto Apply</Button></div>
+            <section className={cn("workspace-card overflow-hidden", activeWorkspaceStep !== "final" && "hidden")}>
+              <div className="border-b border-white/[0.07] px-5 py-5 sm:px-6">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">04 · Final review</p>
+                <h2 className="mt-1 text-lg font-bold text-white">Review, download and apply</h2>
+                <p className="mt-1 text-xs leading-5 text-muted">Open both documents, check the final content and continue to the employer website.</p>
+              </div>
+              <div className="p-5 sm:p-6">
+                <div className="grid gap-3 sm:grid-cols-2">
+                  {[
+                    { label: "Tailored CV", document: latestResume, ready: resumeReady, icon: FileText },
+                    { label: "Cover letter", document: latestCoverLetter, ready: coverLetterReady, icon: Mail },
+                  ].map((item) => {
+                    const ItemIcon = item.icon;
+                    return (
+                      <article key={item.label} className="rounded-2xl border border-white/[0.08] bg-black/15 p-4">
+                        <div className="flex items-start gap-3">
+                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-accent"><ItemIcon className="h-4 w-4" /></span>
+                          <div className="min-w-0 flex-1"><p className="text-sm font-bold text-white">{item.label}</p><p className={cn("mt-1 text-[10px] font-bold", item.ready ? "text-success" : "text-amber-200")}>{item.ready ? "Ready for final review" : "Needs attention before applying"}</p></div>
+                        </div>
+                        <div className="mt-4 flex gap-2">
+                          <Button type="button" variant="ghost" onClick={() => setActiveWorkspaceStep("create")} className="h-9 flex-1 rounded-xl border border-white/[0.08] text-[10px] font-bold text-[#dfe5ec] hover:bg-white/[0.05]">{item.document ? "Review & edit" : "Prepare document"}</Button>
+                          {item.document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(item.document.id)}/download`} download={documentFileName(item.document)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(item.document)}</a> : null}
+                        </div>
+                      </article>
+                    );
+                  })}
+                </div>
+                <div className="mt-5 grid gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:grid-cols-3">
+                  {[{ icon: Sparkles, label: "Generate", text: "Create both tailored documents." }, { icon: FileCheck2, label: "Review", text: "Check content, layout and validation." }, { icon: Download, label: "Download & apply", text: "Download the approved files and submit." }].map((item) => { const ItemIcon = item.icon; return <div key={item.label} className="flex gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/[0.08] text-muted"><ItemIcon className="h-4 w-4" /></span><div><p className="text-xs font-bold text-white">{item.label}</p><p className="mt-1 text-[10px] leading-4 text-muted">{item.text}</p></div></div>; })}
+                </div>
+                <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
+                  <Button type="button" variant="ghost" disabled={!jobUrl} onClick={() => jobUrl && window.open(jobUrl, "_blank", "noopener,noreferrer")} className="h-11 rounded-xl border border-white/[0.08] px-4 text-xs font-bold text-white"><ExternalLink className="h-4 w-4" /> Open vacancy</Button>
+                  {application.status === "draft" ? <Button onClick={() => onMarkApplied(application.id)} className="h-11 rounded-xl bg-success px-5 text-xs font-black text-[#071006] hover:bg-[#6de046]"><Check className="h-4 w-4" /> Mark as applied</Button> : <div className="flex h-11 items-center justify-center gap-2 rounded-xl border border-success/25 bg-success/10 px-5 text-xs font-bold text-success"><Check className="h-4 w-4" /> Application tracked</div>}
+                </div>
+              </div>
             </section>
           </main>
 
@@ -2300,11 +2357,18 @@ export function ApplicationWorkspace({
             <section className="workspace-card overflow-hidden">
               <div className="border-b border-white/[0.07] p-5"><div className="flex items-end justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.13em] text-accent">Readiness</p><h2 className="mt-1 text-base font-bold text-white">Before you apply</h2></div><span className="text-2xl font-black text-white">{progress}<span className="text-sm text-muted">%</span></span></div><div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-gradient-to-r from-accent to-[#ff9b55] transition-all" style={{ width: `${progress}%` }} /></div></div>
               <div className="p-4"><div className="space-y-1">{checklist.map((item) => <div key={item.label} className="flex items-center gap-2.5 rounded-lg px-2 py-2"><span className={cn("grid h-5 w-5 place-items-center rounded-full border", item.ready ? "border-success/25 bg-success/10 text-success" : "border-white/10 text-[#687383]")}>{item.ready ? <Check className="h-3 w-3" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}</span><span className={cn("text-[11px] font-semibold", item.ready ? "text-[#e0e5ec]" : "text-muted")}>{item.label}</span><span className="ml-auto text-[8px] font-black uppercase tracking-wide text-[#687383]">{item.ready ? "Ready" : "Missing"}</span></div>)}</div>
-                {application.status === "draft" ? <Button onClick={() => onMarkApplied(application.id)} className="mt-4 h-11 w-full rounded-xl bg-success text-xs font-black text-[#071006] hover:bg-[#6de046]"><Check className="h-4 w-4" /> Mark as applied</Button> : <div className="mt-4 flex h-11 items-center justify-center gap-2 rounded-xl border border-success/25 bg-success/10 text-xs font-bold text-success"><Check className="h-4 w-4" /> Application tracked</div>}
+                {activeWorkspaceStep === "create" ? (
+                  <Button onClick={() => requestAiGeneration("pack")} disabled={isGeneratingPack || Boolean(generationType) || !documentsLoaded || !currentMasterResume || !selectedCoverSourceId || !coverPreflightReady || !coverLetterNamesComplete || !applicationReview || !confirmationsReady} className="mt-4 min-h-12 w-full rounded-xl bg-accent px-4 text-xs font-black text-white shadow-[0_12px_28px_rgba(255,90,0,0.18)] hover:bg-[#ff6a14] disabled:opacity-40">{isGeneratingPack ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}{isGeneratingPack ? packStageDefinitions.find((stage) => stage.id === packProgress?.stage)?.label ?? "Generating pack…" : "Generate application pack"}</Button>
+                ) : activeWorkspaceStep === "final" ? (
+                  <Button type="button" onClick={() => setActiveWorkspaceStep("create")} className="mt-4 h-11 w-full rounded-xl bg-accent text-xs font-bold text-white"><FileText className="h-4 w-4" /> Back to documents</Button>
+                ) : (
+                  <Button type="button" onClick={() => setActiveWorkspaceStep(activeWorkspaceStep === "review" ? "confirm" : "create")} className="mt-4 h-11 w-full rounded-xl bg-accent text-xs font-bold text-white">Continue <ChevronRight className="h-4 w-4" /></Button>
+                )}
+                <div className={cn("mt-3 flex items-center justify-between rounded-lg px-2 py-2 text-[9px]", apiHealth === "unavailable" ? "bg-red-500/[0.06] text-red-200" : "text-muted")} role="status" aria-live="polite"><span className="inline-flex items-center gap-1.5"><span className={cn("h-1.5 w-1.5 rounded-full", apiHealth === "available" ? "bg-success" : apiHealth === "unavailable" ? "bg-red-300" : "animate-pulse bg-muted")} />{apiHealth === "available" ? "Services available" : apiHealth === "unavailable" ? "Services unavailable" : "Checking services…"}</span>{apiHealth === "unavailable" ? <button type="button" onClick={retryApiRequests} className="inline-flex items-center gap-1 font-bold hover:text-white"><RefreshCw className="h-3 w-3" /> Retry</button> : null}</div>
               </div>
             </section>
 
-            <section className="workspace-card overflow-hidden">
+            <section className={cn("workspace-card overflow-hidden", activeWorkspaceStep === "create" && "hidden")}>
               <div className="flex items-center gap-3 border-b border-white/[0.07] p-4"><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent/12 text-accent"><Bot className="h-4 w-4" /></span><div><h2 className="text-sm font-bold text-white">Application coach</h2><p className="mt-0.5 text-[10px] text-muted">Ask about this vacancy</p></div></div>
               <div className="p-4"><div className="grid gap-2">{["What should I emphasize?", "What are the biggest risks?", "Help with application questions"].map((prompt) => <button key={prompt} type="button" disabled={isLoadingAdvice} onClick={() => requestAdvice(prompt)} className={cn("rounded-xl border px-3 py-2.5 text-left text-[11px] font-semibold leading-4 transition", advicePrompt === prompt ? "border-accent/35 bg-accent/10 text-white" : "border-white/[0.07] bg-white/[0.02] text-[#cbd3df] hover:border-accent/25 hover:bg-accent/[0.05]")}>{prompt}</button>)}</div>
                 {(isLoadingAdvice || advice) ? <div className="job-scroll mt-3 max-h-[300px] overflow-y-auto rounded-xl border border-white/[0.07] bg-black/20 p-3">{isLoadingAdvice ? <div className="flex items-center gap-2 text-xs text-muted"><LoaderCircle className="h-4 w-4 animate-spin text-accent" /> Reviewing…</div> : <p className="whitespace-pre-wrap text-[11px] leading-5 text-[#dfe4ec]">{advice}</p>}</div> : null}
@@ -2342,6 +2406,7 @@ export function ApplicationWorkspace({
 }
 
 function DocumentCard({
+  sectionLabel,
   documentType,
   icon: Icon,
   label,
@@ -2360,6 +2425,7 @@ function DocumentCard({
   disabledLabel,
   sourceControl,
 }: {
+  sectionLabel: string;
   documentType: GeneratedDocument["type"];
   icon: typeof FileText;
   label: string;
@@ -2404,18 +2470,25 @@ function DocumentCard({
   const showsChangeList = isResume || hasStructuredReplacements(document);
   const isRestoringDocument = Boolean(document && restoringVersionKey.startsWith(`${document.id}:`));
   return (
-    <article className="flex flex-col rounded-2xl border border-white/[0.08] bg-black/15 p-4 transition hover:border-white/[0.12]">
+    <article className="flex flex-col rounded-2xl border border-white/[0.11] bg-[#0a1017] p-4 shadow-[0_18px_45px_rgba(0,0,0,0.18)] transition hover:border-white/[0.16] sm:p-5">
+      <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.08] pb-3">
+        <p className="text-[9px] font-black uppercase tracking-[0.16em] text-accent">{isResume ? "01" : "02"} · {sectionLabel}</p>
+        <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted">{isResume ? "CV" : "Letter"}</span>
+      </div>
       <div className="flex items-start gap-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.07] bg-white/[0.035] text-accent"><Icon className="h-[18px] w-[18px]" /></span>
         <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-bold text-white">{label}</h3>{document ? readiness.ready ? <span className="inline-flex items-center gap-1 rounded-full border border-success/25 bg-success/10 px-2 py-1 text-[8px] font-black uppercase tracking-wide text-success"><FileCheck2 className="h-3 w-3" /> Ready · v{document.currentVersion}</span> : <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[8px] font-black uppercase tracking-wide text-amber-200"><AlertTriangle className="h-3 w-3" /> {readiness.label} · v{document.currentVersion}</span> : <span className="rounded-full border border-white/[0.08] bg-white/[0.025] px-2 py-1 text-[8px] font-black uppercase tracking-wide text-muted">Not generated</span>}</div><p className="mt-1 text-[10px] leading-4 text-muted">{description}</p></div>
       </div>
       {sourceControl}
-      <div className="mt-3"><p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">{showsChangeList ? `${isResume ? "CV" : "Cover letter"} change list` : "Document text preview"}</p>{showsChangeList ? <p className="mt-1 text-[9px] leading-4 text-muted">Proposed content changes only — this is not a visual DOCX preview.</p> : null}</div>
+      <details className="group mt-3 overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.015]">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5"><span><span className="block text-[10px] font-bold text-[#d8dfe8]">Preview, validation &amp; changes</span><span className="mt-0.5 block text-[9px] font-normal text-muted">{content ? "Inspect the generated document details" : "Available after generation"}</span></span><ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted transition group-open:rotate-90" /></summary>
+      <div className="border-t border-white/[0.07] p-3">
+      <div><p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">{showsChangeList ? `${isResume ? "CV" : "Cover letter"} change list` : "Document text preview"}</p>{showsChangeList ? <p className="mt-1 text-[9px] leading-4 text-muted">Proposed content changes only — this is not a visual DOCX preview.</p> : null}</div>
       <div className={cn("mt-2 min-h-[132px] overflow-hidden rounded-xl border p-4", content ? showsChangeList ? "border-white/[0.09] bg-white/[0.025] text-[#dfe5ec]" : "border-white/[0.09] bg-[#f6f4ef] text-[#20242a] shadow-inner" : "border-dashed border-white/[0.1] bg-white/[0.015]")}>
         {isGenerating ? <div className="grid min-h-[100px] place-items-center text-center"><div><LoaderCircle className="mx-auto h-5 w-5 animate-spin text-accent" /><p className="mt-2 text-[11px] font-semibold text-muted">Writing an evidence-based version…</p></div></div> : content ? <p className={cn("line-clamp-[7] whitespace-pre-wrap text-[9px] leading-[1.55]", !showsChangeList && "font-serif")}>{content}</p> : <div className="grid min-h-[100px] place-items-center text-center"><div><Icon className="mx-auto h-5 w-5 text-[#606b79]" /><p className="mt-2 text-[10px] font-semibold text-[#7f8998]">{showsChangeList ? "Change list will appear after generation" : "Text preview will appear after generation"}</p></div></div>}
       </div>
       {currentVersion ? (
-        <details open className="mt-3 rounded-xl border border-white/[0.08] bg-white/[0.02]">
+        <details className="mt-3 rounded-xl border border-white/[0.08] bg-white/[0.02]">
           <summary className="cursor-pointer px-3 py-2.5 text-[10px] font-bold text-white marker:text-muted">Validation and change review · {currentVersion.diff.length} change{currentVersion.diff.length === 1 ? "" : "s"}</summary>
           <div className="job-scroll max-h-72 space-y-2 overflow-y-auto border-t border-white/[0.07] p-3">
             <div className="flex flex-wrap gap-1.5"><span className={cn("rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-wide", factualValidationStatus === "passed" ? "border-success/25 bg-success/10 text-success" : "border-amber-400/25 bg-amber-400/10 text-amber-200")}>Factual validation · {factualValidationStatus}</span></div>
@@ -2436,6 +2509,8 @@ function DocumentCard({
           </div>
         </details>
       ) : null}
+      </div>
+      </details>
       <div className="mt-3 flex gap-2">
         <Button type="button" disabled={isGenerating || isRestoringDocument || !canGenerate} onClick={onGenerate} className="h-10 flex-1 rounded-xl bg-accent px-3 text-[11px] font-bold text-white hover:bg-[#ff6a14] disabled:opacity-40">{isGenerating ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : document ? <RefreshCw className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}{isGenerating ? "Generating…" : !canGenerate ? disabledLabel : document ? "Regenerate" : `Generate ${label}`}</Button>
         {document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`} download={documentFileName(document)} onClick={(event) => confirmDocumentDownload(event, readiness.warnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(document)}</a> : null}
@@ -2537,7 +2612,7 @@ function SourcePicker({
         <p className="mt-2 rounded-lg border border-red-400/25 bg-red-500/[0.06] px-2.5 py-2 text-[9px] leading-4 text-red-200" role="alert">{activePreflight.error}</p>
       ) : null}
       {report ? (
-        <details open className={cn("mt-2 rounded-lg border", report.supported ? "border-success/20 bg-success/[0.035]" : "border-red-400/25 bg-red-500/[0.045]")}>
+        <details className={cn("mt-2 rounded-lg border", report.supported ? "border-success/20 bg-success/[0.035]" : "border-red-400/25 bg-red-500/[0.045]")}>
           <summary className={cn("cursor-pointer px-2.5 py-2 text-[9px] font-black uppercase tracking-wide", report.supported ? "text-success" : "text-red-200")}>
             {report.supported ? `Supported · ${report.editableCount} editable` : "Template unsupported"}
           </summary>
