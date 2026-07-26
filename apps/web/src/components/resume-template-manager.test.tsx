@@ -2,7 +2,7 @@ import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
 import { ResumeTemplateManager } from "@/components/resume-template-manager";
-import type { ResumeTemplate } from "@/components/resume-template-editor";
+import type { ResumeTemplate } from "@/lib/resume-templates";
 
 const bundledTemplate: ResumeTemplate = {
   id: "modern_two_column",

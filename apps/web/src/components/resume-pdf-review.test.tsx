@@ -4,37 +4,87 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   ResumePdfReview,
   ResumeTemplatePicker,
-  type BundledResumeTemplate,
+  type ResumeTemplate,
   type ResumePdfDocument,
 } from "@/components/resume-pdf-review";
 
-const templates: BundledResumeTemplate[] = [
+const classicDesign = {
+  accentColor: "#2B2B2B",
+  fontFamily: "Georgia",
+  fontScale: 1,
+  density: "standard" as const,
+  pageMargins: { top: 15, right: 15, bottom: 15, left: 15 },
+  headingStyle: "underlined",
+  skillsStyle: "inline",
+  sidebarWidth: 0,
+  sidebarSections: [],
+};
+
+const templates: ResumeTemplate[] = [
   {
     id: "classic_single",
+    kind: "bundled",
     name: "Classic Single",
     description: "Traditional single-column resume.",
     layout: "single_column",
     columns: 1,
+    baseTemplateId: "classic_single",
+    designJson: classicDesign,
   },
   {
     id: "modern_single",
+    kind: "bundled",
     name: "Modern Single",
     description: "Modern single-column resume.",
     layout: "single_column",
     columns: 1,
+    baseTemplateId: "modern_single",
+    designJson: {
+      ...classicDesign,
+      accentColor: "#176B87",
+      fontFamily: "Inter",
+      headingStyle: "accent-rule",
+      skillsStyle: "pills",
+    },
   },
   {
     id: "modern_two_column",
+    kind: "bundled",
     name: "Modern Two Column",
     description: "Modern two-column resume.",
     layout: "two_column",
     columns: 2,
+    baseTemplateId: "modern_two_column",
+    designJson: {
+      ...classicDesign,
+      accentColor: "#243B53",
+      fontFamily: "Inter",
+      density: "compact",
+      headingStyle: "accent-rule",
+      skillsStyle: "pills",
+      sidebarWidth: 32,
+      sidebarSections: ["skills", "education"],
+    },
   },
 ];
+
+const customTemplate: ResumeTemplate = {
+  ...templates[2],
+  id: "4ce57ea1-74a2-44cb-90c2-bfe24c549233",
+  kind: "custom",
+  name: "My Swiss CV",
+  description: "Personal design based on Modern Two Column.",
+  version: 2,
+  designJson: {
+    ...templates[2].designJson,
+    accentColor: "#8A1538",
+  },
+};
 
 function pdfDocument(
   id = "pdf-document-classic",
   templateId = "classic_single",
+  templateVersion = "1.0.0",
 ): ResumePdfDocument {
   return {
     id,
@@ -52,7 +102,7 @@ function pdfDocument(
           fileName: "Ada-Lovelace-resume.pdf",
           contentType: "application/pdf",
           templateId,
-          templateVersion: "1.0.0",
+          templateVersion,
           sourceAtsFinalReviewId: "ats-review-1",
           stageResults: {
             experienceRewrite: {
@@ -98,29 +148,42 @@ function pdfDocument(
 }
 
 describe("ResumeTemplatePicker", () => {
-  it("offers only bundled templates and exposes the allowed theme", () => {
+  it("groups personal and built-in templates and previews custom tokens", () => {
     const onChange = vi.fn();
     render(
       <ResumeTemplatePicker
-        templates={templates}
+        templates={[customTemplate, ...templates]}
         selectedId="modern_two_column"
         onChange={onChange}
       />,
     );
 
     const selector = screen.getByRole("combobox", { name: "Resume template" });
-    expect(within(selector).getAllByRole("option")).toHaveLength(3);
+    expect(within(selector).getAllByRole("option")).toHaveLength(4);
+    expect(
+      within(selector).getByRole("group", { name: "My templates" }),
+    ).toBeInTheDocument();
+    expect(
+      within(selector).getByRole("group", { name: "Built-in" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", {
+        name: "Use My Swiss CV resume template",
+      }),
+    ).toBeInTheDocument();
     expect(screen.getByText("Navy")).toBeInTheDocument();
     expect(screen.getByText("A4")).toBeInTheDocument();
     expect(screen.getByText("Two column")).toBeInTheDocument();
-    expect(screen.getByText(/Custom HTML, CSS, and DOCX templates are not accepted/)).toBeInTheDocument();
+    expect(
+      screen.getByText(/User HTML, CSS, and DOCX templates are never accepted/),
+    ).toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Use Modern Single resume template",
+        name: "Use My Swiss CV resume template",
       }),
     );
-    expect(onChange).toHaveBeenCalledWith("modern_single");
+    expect(onChange).toHaveBeenCalledWith(customTemplate.id);
   });
 });
 
@@ -185,9 +248,9 @@ describe("ResumePdfReview", () => {
     ).toBeInTheDocument();
   });
 
-  it("renders another bundled template and switches to its saved artifact", async () => {
+  it("renders a custom UUID from the saved FinalResume and switches artifacts", async () => {
     const classic = pdfDocument();
-    const modern = pdfDocument("pdf-document-modern", "modern_single");
+    const modern = pdfDocument("pdf-document-modern", customTemplate.id, "2");
     const onDocumentReady = vi.fn();
     const fetchMock = vi.fn<typeof fetch>(async (input) => {
       const url = new URL(String(input));
@@ -214,14 +277,14 @@ describe("ResumePdfReview", () => {
         apiBaseUrl="http://localhost:8000"
         applicationId="application-1"
         document={classic}
-        templates={templates}
-        selectedTemplateId="modern_single"
+        templates={[customTemplate, ...templates]}
+        selectedTemplateId={customTemplate.id}
         onDocumentReady={onDocumentReady}
       />,
     );
 
     const renderButton = await screen.findByRole("button", {
-      name: "Render Modern Single",
+      name: "Render My Swiss CV",
     });
     fireEvent.click(renderButton);
 
@@ -229,14 +292,63 @@ describe("ResumePdfReview", () => {
     expect(
       fetchMock.mock.calls.some(([input]) =>
         String(input).includes(
-          "/resume-tailoring/ats-final-review/ats-review-1/pdf?templateId=modern_single",
+          `/resume-tailoring/ats-final-review/ats-review-1/pdf?templateId=${customTemplate.id}`,
         ),
       ),
     ).toBe(true);
-    expect(screen.getByText("modern_single · v1.0.0")).toBeInTheDocument();
+    expect(screen.getByText("My Swiss CV · v2")).toBeInTheDocument();
     expect(screen.getByRole("link", { name: "Download PDF" })).toHaveAttribute(
       "href",
       "http://localhost:8000/documents/pdf-document-modern/download",
     );
+  });
+
+  it("reports a deleted custom template and asks the picker to fall back", async () => {
+    const classic = pdfDocument();
+    const onTemplateUnavailable = vi.fn();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async (input) => {
+        const url = new URL(String(input));
+        if (url.pathname === "/documents/pdf-document-classic") {
+          return Response.json(classic);
+        }
+        if (url.pathname === "/documents/pdf-document-classic/download") {
+          return new Response(new Blob(["%PDF-classic"]));
+        }
+        if (
+          url.pathname ===
+          "/resume-tailoring/ats-final-review/ats-review-1/pdf"
+        ) {
+          return Response.json(
+            { detail: "Resume template not found" },
+            { status: 404 },
+          );
+        }
+        throw new Error(`Unhandled request: ${url.pathname}`);
+      }),
+    );
+
+    render(
+      <ResumePdfReview
+        apiBaseUrl="http://localhost:8000"
+        applicationId="application-1"
+        document={classic}
+        templates={[customTemplate, ...templates]}
+        selectedTemplateId={customTemplate.id}
+        onDocumentReady={vi.fn()}
+        onTemplateUnavailable={onTemplateUnavailable}
+      />,
+    );
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Render My Swiss CV" }),
+    );
+    expect(
+      await screen.findByText(
+        "This resume template was deleted or is no longer available. Choose another template.",
+      ),
+    ).toBeInTheDocument();
+    expect(onTemplateUnavailable).toHaveBeenCalledWith(customTemplate.id);
   });
 });

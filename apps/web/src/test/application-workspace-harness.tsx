@@ -214,24 +214,63 @@ export function installApplicationWorkspaceApiMock({
   resumeTemplates = [
     {
       id: "classic_single",
+      kind: "bundled",
       name: "Classic Single",
       description: "Traditional single-column resume.",
       layout: "single_column",
       columns: 1,
+      baseTemplateId: "classic_single",
+      designJson: {
+        accentColor: "#2B2B2B",
+        fontFamily: "Georgia",
+        fontScale: 1,
+        density: "standard",
+        pageMargins: { top: 15, right: 15, bottom: 15, left: 15 },
+        headingStyle: "underlined",
+        skillsStyle: "inline",
+        sidebarWidth: 0,
+        sidebarSections: [],
+      },
     },
     {
       id: "modern_single",
+      kind: "bundled",
       name: "Modern Single",
       description: "Modern single-column resume.",
       layout: "single_column",
       columns: 1,
+      baseTemplateId: "modern_single",
+      designJson: {
+        accentColor: "#176B87",
+        fontFamily: "Inter",
+        fontScale: 1,
+        density: "standard",
+        pageMargins: { top: 14, right: 14, bottom: 14, left: 14 },
+        headingStyle: "accent-rule",
+        skillsStyle: "pills",
+        sidebarWidth: 0,
+        sidebarSections: [],
+      },
     },
     {
       id: "modern_two_column",
+      kind: "bundled",
       name: "Modern Two Column",
       description: "Modern two-column resume.",
       layout: "two_column",
       columns: 2,
+      baseTemplateId: "modern_two_column",
+      designJson: {
+        accentColor: "#243B53",
+        fontFamily: "Inter",
+        fontScale: 1,
+        density: "compact",
+        pageMargins: { top: 12, right: 12, bottom: 12, left: 12 },
+        headingStyle: "accent-rule",
+        skillsStyle: "pills",
+        sidebarWidth: 32,
+        sidebarSections: ["skills", "education"],
+      },
     },
   ],
   templates = [],
@@ -260,7 +299,7 @@ export function installApplicationWorkspaceApiMock({
     if (url.pathname === "/documents/templates/library" && method === "GET") {
       return Response.json(templates);
     }
-    if (url.pathname === "/documents/resume-templates" && method === "GET") {
+    if (url.pathname === "/resume-templates" && method === "GET") {
       return Response.json(resumeTemplates);
     }
     if (url.pathname === "/documents/workspace-sources/library" && method === "GET") {

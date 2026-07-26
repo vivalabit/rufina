@@ -1,10 +1,8 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
-import {
-  type ResumeTemplateDraft,
-} from "@/components/resume-template-editor";
 import { ResumeTemplatePreview } from "@/components/resume-template-preview";
+import type { ResumeTemplateDraft } from "@/lib/resume-templates";
 
 const draft: ResumeTemplateDraft = {
   name: "Preview",

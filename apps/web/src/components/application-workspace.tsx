@@ -65,10 +65,12 @@ import {
 import {
   ResumePdfReview,
   ResumeTemplatePicker,
-  type BundledResumeTemplate,
   type ResumePdfArtifact,
-  type ResumeTemplateId,
 } from "@/components/resume-pdf-review";
+import type {
+  ResumeTemplate,
+  ResumeTemplateId,
+} from "@/lib/resume-templates";
 
 type WorkspaceJob = {
   id: string;
@@ -654,6 +656,22 @@ async function readApiError(response: Response, fallback: string) {
   return fallback;
 }
 
+function reusableFinalResumeReviewId(
+  document: GeneratedDocument | undefined,
+  isOutdated: boolean,
+): string | null {
+  const version = document?.versions.find(
+    (candidate) => candidate.version === document.currentVersion,
+  );
+  const artifact = version?.artifact;
+  return !isOutdated &&
+    artifact?.contentType === "application/pdf" &&
+    artifact.finalResumeJson &&
+    artifact.sourceAtsFinalReviewId
+    ? artifact.sourceAtsFinalReviewId
+    : null;
+}
+
 function parseProfileSourceDocuments(profile: WorkspaceProfile): ProfileSourceDocument[] {
   const sources: ProfileSourceDocument[] = [];
   if (!profile.documents.trim()) return sources;
@@ -743,8 +761,9 @@ export function ApplicationWorkspace({
   const [documents, setDocuments] = useState<GeneratedDocument[]>([]);
   const [documentsLoaded, setDocumentsLoaded] = useState(false);
   const [templates, setTemplates] = useState<DocumentTemplate[]>([]);
-  const [resumeTemplates, setResumeTemplates] = useState<BundledResumeTemplate[]>([]);
+  const [resumeTemplates, setResumeTemplates] = useState<ResumeTemplate[]>([]);
   const [selectedResumeTemplateId, setSelectedResumeTemplateId] = useState<ResumeTemplateId>("classic_single");
+  const [resumeTemplateNotice, setResumeTemplateNotice] = useState("");
   const [currentMasterResume, setCurrentMasterResume] =
     useState<CurrentMasterResume | null>(null);
   const [masterResumeLoaded, setMasterResumeLoaded] = useState(false);
@@ -790,11 +809,36 @@ export function ApplicationWorkspace({
 
   function selectResumeTemplate(templateId: ResumeTemplateId) {
     setSelectedResumeTemplateId(templateId);
+    setResumeTemplateNotice("");
     if (application) {
       window.localStorage.setItem(
         `${resumeTemplateStorageKeyPrefix}.${application.id}`,
         templateId,
       );
+    }
+  }
+
+  function handleResumeTemplateUnavailable(templateId: ResumeTemplateId) {
+    const remainingTemplates = resumeTemplates.filter(
+      (template) => template.id !== templateId,
+    );
+    const fallbackTemplate =
+      remainingTemplates.find(
+        (template) => template.id === "classic_single",
+      ) ??
+      remainingTemplates.find((template) => template.kind === "bundled") ??
+      remainingTemplates[0];
+    setResumeTemplates(remainingTemplates);
+    setSelectedResumeTemplateId(fallbackTemplate?.id ?? "");
+    setResumeTemplateNotice(
+      "The selected resume template was deleted or is no longer available. Choose another template and render again.",
+    );
+    if (!application) return;
+    const storageKey = `${resumeTemplateStorageKeyPrefix}.${application.id}`;
+    if (fallbackTemplate) {
+      window.localStorage.setItem(storageKey, fallbackTemplate.id);
+    } else {
+      window.localStorage.removeItem(storageKey);
     }
   }
 
@@ -829,15 +873,8 @@ export function ApplicationWorkspace({
     const savedTemplateId = window.localStorage.getItem(
       `${resumeTemplateStorageKeyPrefix}.${application.id}`,
     );
-    if (
-      savedTemplateId === "classic_single"
-      || savedTemplateId === "modern_single"
-      || savedTemplateId === "modern_two_column"
-    ) {
-      setSelectedResumeTemplateId(savedTemplateId);
-    } else {
-      setSelectedResumeTemplateId("classic_single");
-    }
+    setSelectedResumeTemplateId(savedTemplateId || "classic_single");
+    setResumeTemplateNotice("");
     setDocumentsLoaded(false);
     setMasterResumeLoaded(false);
     setCurrentMasterResume(null);
@@ -849,7 +886,7 @@ export function ApplicationWorkspace({
     Promise.all([
       fetchWithTimeout(`${apiBaseUrl}/documents?applicationId=${encodeURIComponent(application.id)}`, { signal: controller.signal }),
       fetchWithTimeout(`${apiBaseUrl}/documents/templates/library`, { signal: controller.signal }),
-      fetchWithTimeout(`${apiBaseUrl}/documents/resume-templates`, { signal: controller.signal }),
+      fetchWithTimeout(`${apiBaseUrl}/resume-templates`, { cache: "no-store", signal: controller.signal }),
       fetchWithTimeout(`${apiBaseUrl}/documents/workspace-sources/library?applicationId=${encodeURIComponent(application.id)}`, { cache: "no-store", signal: controller.signal }),
       fetchWithTimeout(`${apiBaseUrl}/assistant/config`, { signal: controller.signal }),
       fetchWithTimeout(`${apiBaseUrl}/privacy/ai-consent`, { cache: "no-store", signal: controller.signal }),
@@ -859,7 +896,7 @@ export function ApplicationWorkspace({
         if (!documentsResponse.ok || !templatesResponse.ok || !resumeTemplatesResponse.ok || !sourcesResponse.ok || !aiConfigurationResponse.ok || !aiPrivacyResponse.ok || (!masterResumeResponse.ok && masterResumeResponse.status !== 404)) throw new Error("Application documents are temporarily unavailable");
         const loadedDocuments = await documentsResponse.json() as GeneratedDocument[];
         const loadedTemplates = await templatesResponse.json() as DocumentTemplate[];
-        const loadedResumeTemplates = await resumeTemplatesResponse.json() as BundledResumeTemplate[];
+        const loadedResumeTemplates = await resumeTemplatesResponse.json() as ResumeTemplate[];
         const loadedSources = await sourcesResponse.json() as WorkspaceSourceDocumentPayload[];
         const loadedAiConfiguration = await aiConfigurationResponse.json() as AiConfiguration;
         const loadedAiPrivacy = await aiPrivacyResponse.json() as AiPrivacySettings;
@@ -869,6 +906,35 @@ export function ApplicationWorkspace({
         setDocuments(loadedDocuments);
         setTemplates(loadedTemplates.filter((template) => template.type === "cover_letter"));
         setResumeTemplates(loadedResumeTemplates);
+        const preferredResumeTemplate =
+          loadedResumeTemplates.find(
+            (template) => template.id === savedTemplateId,
+          ) ??
+          loadedResumeTemplates.find(
+            (template) => template.id === "classic_single",
+          ) ??
+          loadedResumeTemplates[0];
+        setSelectedResumeTemplateId(preferredResumeTemplate?.id ?? "");
+        if (
+          savedTemplateId &&
+          !loadedResumeTemplates.some(
+            (template) => template.id === savedTemplateId,
+          )
+        ) {
+          setResumeTemplateNotice(
+            "Your previously selected resume template is no longer available. An available built-in template was selected.",
+          );
+          if (preferredResumeTemplate) {
+            window.localStorage.setItem(
+              `${resumeTemplateStorageKeyPrefix}.${application.id}`,
+              preferredResumeTemplate.id,
+            );
+          } else {
+            window.localStorage.removeItem(
+              `${resumeTemplateStorageKeyPrefix}.${application.id}`,
+            );
+          }
+        }
         setWorkspaceSources(loadedSources.map(parseWorkspaceSourceDocument));
         setAiConfiguration(loadedAiConfiguration);
         setAiRetentionDays(loadedAiPrivacy.retentionDays);
@@ -1343,11 +1409,15 @@ export function ApplicationWorkspace({
       return false;
     }
     if (!resumeTemplates.some((template) => template.id === selectedResumeTemplateId)) {
-      setDocumentError("Choose a bundled resume template");
+      setDocumentError("Choose an available resume template");
       return false;
     }
 
     const attempt = 1;
+    const savedFinalResumeReviewId = reusableFinalResumeReviewId(
+      latestResume,
+      isResumeOutdated,
+    );
     setGenerationType("tailored_resume");
     setDocumentError("");
     const postStage = async <T extends { id: string }>(
@@ -1369,8 +1439,87 @@ export function ApplicationWorkspace({
       }
       return await response.json() as T;
     };
+    const renderAndAttachFinalResume = async (
+      reviewId: string,
+      reuseSavedFinalResume: boolean,
+    ) => {
+      setResumeTailoringProgress({
+        stage: "rendering_pdf",
+        status: "active",
+        message: reuseSavedFinalResume
+          ? "Rendering the saved finalResume with the selected template — no AI rerun"
+          : "Rendering finalResume with the selected resume template",
+        attempt,
+      });
+      const pdfResponse = await fetchWithTimeout(
+        `${apiBaseUrl}/resume-tailoring/ats-final-review/${encodeURIComponent(reviewId)}/pdf?templateId=${encodeURIComponent(selectedResumeTemplateId)}`,
+        { cache: "no-store" },
+        AI_GENERATION_REQUEST_TIMEOUT_MS,
+      );
+      if (!pdfResponse.ok) {
+        const detail = await readApiError(pdfResponse, "PDF rendering failed");
+        if (pdfResponse.status === 404) {
+          handleResumeTemplateUnavailable(selectedResumeTemplateId);
+          throw new Error(
+            "The selected resume template was deleted or is no longer available. Choose another template.",
+          );
+        }
+        throw new Error(detail);
+      }
+      const documentId = pdfResponse.headers.get("X-Rufina-Document-Id");
+      if (!documentId) {
+        throw new Error("PDF renderer did not return a saved document ID");
+      }
+      await pdfResponse.arrayBuffer();
+
+      setResumeTailoringProgress({
+        stage: "validating_pdf",
+        status: "active",
+        message: "Loading the server-validated PDF artifact",
+        attempt,
+      });
+      const attachResponse = await fetchWithTimeout(
+        `${apiBaseUrl}/documents/${encodeURIComponent(documentId)}/attachments`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ applicationId: activeApplication.id }),
+        },
+      );
+      if (!attachResponse.ok) {
+        throw new Error(await readApiError(attachResponse, "PDF could not be attached to the application"));
+      }
+      const saved = await attachResponse.json() as GeneratedDocument;
+      setDocuments((current) => [
+        saved,
+        ...current.filter((document) => document.id !== saved.id),
+      ]);
+      setResumeTailoringProgress(
+        completedResumeTailoringProgress(
+          reuseSavedFinalResume
+            ? "Saved finalResume rendered with the selected template"
+            : "PDF rendered, validated, and saved",
+          attempt,
+        ),
+      );
+      onDocumentAttached(activeApplication.id, {
+        artifactId: saved.id,
+        title: saved.title,
+        fileName: documentFileName(saved),
+        fileType: "application/pdf",
+        uploadedAt: saved.updatedAt,
+        dataUrl: `${apiBaseUrl}/documents/${encodeURIComponent(saved.id)}/download`,
+      });
+      return true;
+    };
 
     try {
+      if (savedFinalResumeReviewId) {
+        return await renderAndAttachFinalResume(
+          savedFinalResumeReviewId,
+          true,
+        );
+      }
       setResumeTailoringProgress({
         stage: "recruiter_analysis",
         status: "active",
@@ -1409,64 +1558,7 @@ export function ApplicationWorkspace({
         { experienceRewriteId: rewrite.id },
         "ATS final review failed",
       );
-
-      setResumeTailoringProgress({
-        stage: "rendering_pdf",
-        status: "active",
-        message: "Rendering finalResume with the selected bundled template",
-        attempt,
-      });
-      const pdfResponse = await fetchWithTimeout(
-        `${apiBaseUrl}/resume-tailoring/ats-final-review/${encodeURIComponent(review.id)}/pdf?templateId=${encodeURIComponent(selectedResumeTemplateId)}`,
-        { cache: "no-store" },
-        AI_GENERATION_REQUEST_TIMEOUT_MS,
-      );
-      if (!pdfResponse.ok) {
-        throw new Error(await readApiError(pdfResponse, "PDF rendering failed"));
-      }
-      const documentId = pdfResponse.headers.get("X-Rufina-Document-Id");
-      if (!documentId) {
-        throw new Error("PDF renderer did not return a saved document ID");
-      }
-      await pdfResponse.arrayBuffer();
-
-      setResumeTailoringProgress({
-        stage: "validating_pdf",
-        status: "active",
-        message: "Loading the server-validated PDF artifact",
-        attempt,
-      });
-      const attachResponse = await fetchWithTimeout(
-        `${apiBaseUrl}/documents/${encodeURIComponent(documentId)}/attachments`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ applicationId: activeApplication.id }),
-        },
-      );
-      if (!attachResponse.ok) {
-        throw new Error(await readApiError(attachResponse, "PDF could not be attached to the application"));
-      }
-      const saved = await attachResponse.json() as GeneratedDocument;
-      setDocuments((current) => [
-        saved,
-        ...current.filter((document) => document.id !== saved.id),
-      ]);
-      setResumeTailoringProgress(
-        completedResumeTailoringProgress(
-          "PDF rendered, validated, and saved",
-          attempt,
-        ),
-      );
-      onDocumentAttached(activeApplication.id, {
-        artifactId: saved.id,
-        title: saved.title,
-        fileName: documentFileName(saved),
-        fileType: "application/pdf",
-        uploadedAt: saved.updatedAt,
-        dataUrl: `${apiBaseUrl}/documents/${encodeURIComponent(saved.id)}/download`,
-      });
-      return true;
+      return await renderAndAttachFinalResume(review.id, false);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Resume tailoring failed";
       setResumeTailoringProgress((current) => current
@@ -1553,7 +1645,10 @@ export function ApplicationWorkspace({
     action: GeneratedDocument["type"] | "pack",
     instruction = "",
   ) {
-    if (!aiDisclosureAccepted) {
+    const canRenderSavedFinalResumeWithoutAi =
+      action === "tailored_resume" &&
+      Boolean(reusableFinalResumeReviewId(latestResume, isResumeOutdated));
+    if (!aiDisclosureAccepted && !canRenderSavedFinalResumeWithoutAi) {
       setAiDisclosureConfirmed(false);
       setPendingAiGeneration({ action, instruction });
       return;
@@ -2146,7 +2241,7 @@ export function ApplicationWorkspace({
                   </div>
                 </div>
                 <div className="grid gap-4 lg:grid-cols-2">
-                  <DocumentCard documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Three server-side AI stages produce finalResume, which is rendered only through a bundled PDF template." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><div className="mt-3 rounded-xl border border-success/20 bg-success/[0.045] px-3 py-2.5"><p className="text-[9px] font-black uppercase tracking-wide text-success">Confirmed Master Resume</p><p className="mt-1 text-[9px] leading-4 text-muted">{currentMasterResume ? `Version ${currentMasterResume.version} · canonical structured source` : "Required before tailoring"}</p></div><ResumeTemplatePicker templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} /></>} />
+                  <DocumentCard documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Three server-side AI stages produce finalResume once; built-in or personal templates can render it repeatedly without rerunning AI." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><div className="mt-3 rounded-xl border border-success/20 bg-success/[0.045] px-3 py-2.5"><p className="text-[9px] font-black uppercase tracking-wide text-success">Confirmed Master Resume</p><p className="mt-1 text-[9px] leading-4 text-muted">{currentMasterResume ? `Version ${currentMasterResume.version} · canonical structured source` : "Required before tailoring"}</p></div><ResumeTemplatePicker templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} />
                   <DocumentCard documentType="cover_letter" icon={Mail} label="Cover letter" description="A restrained Swiss-style motivation letter: why this role, relevant proof, and the value you can deliver." document={latestCoverLetter} isOutdated={isCoverLetterOutdated} isGenerating={generationType === "cover_letter"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("cover_letter")} onRestore={(version) => latestCoverLetter && restoreDocumentVersion(latestCoverLetter, version)} onLoadMoreVersions={() => latestCoverLetter && void loadMoreDocumentVersions(latestCoverLetter)} onDelete={() => latestCoverLetter && void deleteGeneratedDocument(latestCoverLetter)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && selectedCoverSourceId && coverPreflightReady && coverLetterNamesComplete && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded ? documentError ? "Retry loading history" : "Loading history…" : !selectedCoverSourceId ? "Select source first" : coverPreflight.status === "checking" ? "Checking template…" : coverPreflight.status === "error" ? "Preflight failed" : !coverPreflight.report?.supported ? "Template unsupported" : !coverLetterNamesComplete ? "Complete contact names" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<SourcePicker label="Source cover letter" sources={coverSources} selectedId={selectedCoverSourceId} preflight={coverPreflight} deletingSourceId={deletingSourceId} onChange={(sourceId) => { setSelectedCoverSourceId(sourceId); setIsCoverSourceManual(Boolean(sourceId)); }} onAttach={(file) => void attachWorkspaceSource(file, "Cover Letter")} onDelete={(source) => void deleteWorkspaceSource(source)} />} />
                 </div>
                 <ResumePdfReview
@@ -2161,6 +2256,7 @@ export function ApplicationWorkspace({
                       ...current.filter((item) => item.id !== renderedDocument.id),
                     ]);
                   }}
+                  onTemplateUnavailable={handleResumeTemplateUnavailable}
                 />
                 <div className="mt-5 rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/[0.055] to-white/[0.015] p-4 sm:p-5">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">

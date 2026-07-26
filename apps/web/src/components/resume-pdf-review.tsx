@@ -16,20 +16,13 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { fetchWithTimeout } from "@/lib/api-client";
+import type {
+  ResumeTemplate,
+  ResumeTemplateId,
+} from "@/lib/resume-templates";
 import { cn } from "@/lib/utils";
 
-export type ResumeTemplateId =
-  | "classic_single"
-  | "modern_single"
-  | "modern_two_column";
-
-export type BundledResumeTemplate = {
-  id: ResumeTemplateId;
-  name: string;
-  description: string;
-  layout: "single_column" | "two_column";
-  columns: 1 | 2;
-};
+export type { ResumeTemplate, ResumeTemplateId } from "@/lib/resume-templates";
 
 type AtsSkippedSection = {
   section: string;
@@ -103,27 +96,27 @@ export type ResumePdfDocument = {
   versions: ResumePdfDocumentVersion[];
 };
 
-const templateTheme: Record<
-  ResumeTemplateId,
+const bundledTemplateTheme: Record<
+  string,
   {
     accentName: string;
-    accentClass: string;
+    accentColor: string;
     previewClass: string;
   }
 > = {
   classic_single: {
     accentName: "Neutral",
-    accentClass: "bg-[#2b2b2b]",
+    accentColor: "#2b2b2b",
     previewClass: "border-[#d7d2c8] bg-[#f7f4ee]",
   },
   modern_single: {
     accentName: "Teal",
-    accentClass: "bg-[#176b87]",
+    accentColor: "#176b87",
     previewClass: "border-[#bcd6dc] bg-[#f3f8f8]",
   },
   modern_two_column: {
     accentName: "Navy",
-    accentClass: "bg-[#243b53]",
+    accentColor: "#243b53",
     previewClass: "border-[#b9c5d1] bg-[#f3f6f8]",
   },
 };
@@ -134,8 +127,20 @@ function currentVersion(document: ResumePdfDocument | null | undefined) {
   );
 }
 
-function templatePreview(template: BundledResumeTemplate) {
-  const theme = templateTheme[template.id];
+function visualTheme(template: ResumeTemplate) {
+  const bundled = bundledTemplateTheme[template.id];
+  if (bundled) return bundled;
+  const accentColor = template.designJson?.accentColor || "#64748b";
+  return {
+    accentName: accentColor.toUpperCase(),
+    accentColor,
+    previewClass: "border-[#cbd5e1] bg-[#f8fafc]",
+  };
+}
+
+function templatePreview(template: ResumeTemplate) {
+  const theme = visualTheme(template);
+  const accentStyle = { backgroundColor: theme.accentColor };
   return (
     <span
       aria-hidden="true"
@@ -144,7 +149,7 @@ function templatePreview(template: BundledResumeTemplate) {
         theme.previewClass,
       )}
     >
-      <span className={cn("block h-2 w-2/3 rounded-sm", theme.accentClass)} />
+      <span className="block h-2 w-2/3 rounded-sm" style={accentStyle} />
       <span className="mt-1 block h-1 w-1/2 rounded-sm bg-slate-400/65" />
       {template.columns === 2 ? (
         <span className="mt-3 grid grid-cols-[0.72fr_1.28fr] gap-1.5">
@@ -155,7 +160,7 @@ function templatePreview(template: BundledResumeTemplate) {
             <span className="block h-1 rounded-sm bg-slate-400/50" />
           </span>
           <span className="space-y-1">
-            <span className={cn("block h-1 rounded-sm", theme.accentClass)} />
+            <span className="block h-1 rounded-sm" style={accentStyle} />
             <span className="block h-1 rounded-sm bg-slate-400/50" />
             <span className="block h-1 rounded-sm bg-slate-400/50" />
             <span className="block h-1 w-4/5 rounded-sm bg-slate-400/50" />
@@ -163,11 +168,11 @@ function templatePreview(template: BundledResumeTemplate) {
         </span>
       ) : (
         <span className="mt-3 block space-y-1">
-          <span className={cn("block h-1 w-1/3 rounded-sm", theme.accentClass)} />
+          <span className="block h-1 w-1/3 rounded-sm" style={accentStyle} />
           <span className="block h-1 rounded-sm bg-slate-400/50" />
           <span className="block h-1 rounded-sm bg-slate-400/50" />
           <span className="block h-1 w-4/5 rounded-sm bg-slate-400/50" />
-          <span className={cn("mt-2 block h-1 w-1/3 rounded-sm", theme.accentClass)} />
+          <span className="mt-2 block h-1 w-1/3 rounded-sm" style={accentStyle} />
           <span className="block h-1 rounded-sm bg-slate-400/50" />
         </span>
       )}
@@ -179,13 +184,21 @@ export function ResumeTemplatePicker({
   templates,
   selectedId,
   onChange,
+  notice,
 }: {
-  templates: BundledResumeTemplate[];
+  templates: ResumeTemplate[];
   selectedId: ResumeTemplateId;
   onChange: (templateId: ResumeTemplateId) => void;
+  notice?: string;
 }) {
   const selected = templates.find((template) => template.id === selectedId);
-  const selectedTheme = selected ? templateTheme[selected.id] : null;
+  const selectedTheme = selected ? visualTheme(selected) : null;
+  const customTemplates = templates.filter(
+    (template) => template.kind === "custom",
+  );
+  const bundledTemplates = templates.filter(
+    (template) => template.kind !== "custom",
+  );
 
   return (
     <section
@@ -201,7 +214,8 @@ export function ResumeTemplatePicker({
             Resume template
           </p>
           <p className="mt-1 text-[9px] leading-4 text-muted">
-            Bundled and ATS-safe. Custom HTML, CSS, and DOCX templates are not accepted.
+            Trusted layouts with verified design tokens. User HTML, CSS, and
+            DOCX templates are never accepted.
           </p>
         </div>
         <Columns2 className="h-4 w-4 shrink-0 text-accent" />
@@ -212,38 +226,45 @@ export function ResumeTemplatePicker({
         onChange={(event) => onChange(event.target.value as ResumeTemplateId)}
         className="sr-only"
       >
-        {templates.map((template) => (
-          <option key={template.id} value={template.id}>
-            {template.name}
-          </option>
-        ))}
-      </select>
-      <div className="mt-3 grid grid-cols-3 gap-2">
-        {templates.map((template) => {
-          const isSelected = template.id === selectedId;
-          return (
-            <button
-              key={template.id}
-              type="button"
-              aria-pressed={isSelected}
-              aria-label={`Use ${template.name} resume template`}
-              onClick={() => onChange(template.id)}
-              className={cn(
-                "rounded-lg border p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
-                isSelected
-                  ? "border-accent/55 bg-accent/[0.08]"
-                  : "border-white/[0.08] bg-black/15 hover:border-white/[0.16]",
-              )}
-            >
-              {templatePreview(template)}
-              <span className="mt-1.5 flex items-center gap-1 text-[8px] font-bold leading-3 text-white">
-                {isSelected ? <Check className="h-3 w-3 text-accent" /> : null}
+        {customTemplates.length ? (
+          <optgroup label="My templates">
+            {customTemplates.map((template) => (
+              <option key={template.id} value={template.id}>
                 {template.name}
-              </span>
-            </button>
-          );
-        })}
-      </div>
+              </option>
+            ))}
+          </optgroup>
+        ) : null}
+        <optgroup label="Built-in">
+          {bundledTemplates.map((template) => (
+            <option key={template.id} value={template.id}>
+              {template.name}
+            </option>
+          ))}
+        </optgroup>
+      </select>
+      {customTemplates.length ? (
+        <TemplatePickerGroup
+          title="My templates"
+          templates={customTemplates}
+          selectedId={selectedId}
+          onChange={onChange}
+        />
+      ) : null}
+      <TemplatePickerGroup
+        title="Built-in"
+        templates={bundledTemplates}
+        selectedId={selectedId}
+        onChange={onChange}
+      />
+      {notice ? (
+        <p
+          role="status"
+          className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] px-2.5 py-2 text-[9px] leading-4 text-amber-100"
+        >
+          {notice}
+        </p>
+      ) : null}
       {selected && selectedTheme ? (
         <div className="mt-3 rounded-lg border border-white/[0.07] bg-black/15 p-2.5">
           <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide text-[#cbd3df]">
@@ -268,10 +289,62 @@ export function ResumeTemplatePicker({
               {selected.columns === 2 ? "Two column" : "Single column"}
             </span>
           </div>
+          <p className="mt-2 text-[9px] font-bold text-[#cbd3df]">
+            {selected.kind === "custom"
+              ? `Personal template · v${selected.version ?? 1}`
+              : "Built-in template"}
+          </p>
           <p className="mt-2 text-[9px] leading-4 text-muted">{selected.description}</p>
         </div>
       ) : null}
     </section>
+  );
+}
+
+function TemplatePickerGroup({
+  title,
+  templates,
+  selectedId,
+  onChange,
+}: {
+  title: string;
+  templates: ResumeTemplate[];
+  selectedId: ResumeTemplateId;
+  onChange: (templateId: ResumeTemplateId) => void;
+}) {
+  if (!templates.length) return null;
+  return (
+    <div className="mt-3">
+      <p className="mb-1.5 text-[8px] font-black uppercase tracking-[0.12em] text-muted">
+        {title}
+      </p>
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+        {templates.map((template) => {
+          const isSelected = template.id === selectedId;
+          return (
+            <button
+              key={template.id}
+              type="button"
+              aria-pressed={isSelected}
+              aria-label={`Use ${template.name} resume template`}
+              onClick={() => onChange(template.id)}
+              className={cn(
+                "rounded-lg border p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+                isSelected
+                  ? "border-accent/55 bg-accent/[0.08]"
+                  : "border-white/[0.08] bg-black/15 hover:border-white/[0.16]",
+              )}
+            >
+              {templatePreview(template)}
+              <span className="mt-1.5 flex items-center gap-1 text-[8px] font-bold leading-3 text-white">
+                {isSelected ? <Check className="h-3 w-3 text-accent" /> : null}
+                <span className="truncate">{template.name}</span>
+              </span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -313,13 +386,15 @@ export function ResumePdfReview({
   templates,
   selectedTemplateId,
   onDocumentReady,
+  onTemplateUnavailable,
 }: {
   apiBaseUrl: string;
   applicationId: string;
   document: ResumePdfDocument | null | undefined;
-  templates: BundledResumeTemplate[];
+  templates: ResumeTemplate[];
   selectedTemplateId: ResumeTemplateId;
   onDocumentReady: (document: ResumePdfDocument) => void;
+  onTemplateUnavailable?: (templateId: ResumeTemplateId) => void;
 }) {
   const initialVersion = currentVersion(document);
   const initialArtifact = initialVersion?.artifact;
@@ -344,8 +419,19 @@ export function ResumePdfReview({
   const selectedTemplate = templates.find(
     (template) => template.id === selectedTemplateId,
   );
+  const artifactTemplate = templates.find(
+    (template) => template.id === artifact?.templateId,
+  );
   const needsRender = Boolean(
-    artifact?.templateId && artifact.templateId !== selectedTemplateId,
+    artifact?.templateId &&
+      (
+        artifact.templateId !== selectedTemplateId ||
+        (
+          selectedTemplate?.kind === "custom" &&
+          selectedTemplate.version != null &&
+          artifact.templateVersion !== String(selectedTemplate.version)
+        )
+      ),
   );
 
   function replacePreviewUrl(blob: Blob) {
@@ -424,7 +510,19 @@ export function ResumePdfReview({
         `${apiBaseUrl}/resume-tailoring/ats-final-review/${encodeURIComponent(reviewId)}/pdf?templateId=${encodeURIComponent(selectedTemplateId)}`,
         { cache: "no-store" },
       );
-      if (!response.ok) throw new Error("The selected PDF template could not be rendered.");
+      if (!response.ok) {
+        const detail = await readResumePdfError(
+          response,
+          "The selected PDF template could not be rendered.",
+        );
+        if (response.status === 404) {
+          onTemplateUnavailable?.(selectedTemplateId);
+          throw new Error(
+            "This resume template was deleted or is no longer available. Choose another template.",
+          );
+        }
+        throw new Error(detail);
+      }
       const documentId = response.headers.get("X-Rufina-Document-Id");
       if (!documentId) throw new Error("The renderer did not return a saved document ID.");
       const blob = await response.blob();
@@ -469,7 +567,10 @@ export function ResumePdfReview({
             Preview the exact submission artifact
           </h3>
           <p className="mt-1 text-[10px] leading-4 text-muted">
-            {artifact?.templateId ?? "Bundled template"}
+            {artifactTemplate?.name ??
+              (artifact?.templateId
+                ? "Unavailable historical template"
+                : "Resume template")}
             {artifact?.templateVersion ? ` · v${artifact.templateVersion}` : ""}
           </p>
         </div>
@@ -637,4 +738,16 @@ export function ResumePdfReview({
       </div>
     </section>
   );
+}
+
+async function readResumePdfError(
+  response: Response,
+  fallback: string,
+): Promise<string> {
+  const payload = await response.json().catch(() => null) as {
+    detail?: unknown;
+  } | null;
+  return typeof payload?.detail === "string" && payload.detail.trim()
+    ? payload.detail
+    : fallback;
 }

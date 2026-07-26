@@ -9,54 +9,23 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import type {
+  ResumeTemplate,
+  ResumeTemplateDensity,
+  ResumeTemplateDesignTokens,
+  ResumeTemplateDraft,
+  ResumeTemplateKind,
+} from "@/lib/resume-templates";
 import { cn } from "@/lib/utils";
 
-export type ResumeTemplateDensity =
-  | "compact"
-  | "standard"
-  | "comfortable";
-
-export type ResumeTemplatePageMargins = {
-  top: number;
-  right: number;
-  bottom: number;
-  left: number;
-};
-
-export type ResumeTemplateDesignTokens = {
-  accentColor: string;
-  fontFamily: string;
-  fontScale: number;
-  density: ResumeTemplateDensity;
-  pageMargins: ResumeTemplatePageMargins;
-  headingStyle: string;
-  skillsStyle: string;
-  sidebarWidth: number;
-  sidebarSections: string[];
-};
-
-export type ResumeTemplateKind = "bundled" | "custom";
-
-export type ResumeTemplate = {
-  id: string;
-  kind: ResumeTemplateKind;
-  name: string;
-  description: string;
-  layout: "single_column" | "two_column";
-  columns: 1 | 2;
-  baseTemplateId: string;
-  designJson: ResumeTemplateDesignTokens;
-  version?: number | null;
-  contentSha256?: string | null;
-  createdAt?: string | null;
-  updatedAt?: string | null;
-};
-
-export type ResumeTemplateDraft = {
-  name: string;
-  baseTemplateId: string;
-  designJson: ResumeTemplateDesignTokens;
-};
+export type {
+  ResumeTemplate,
+  ResumeTemplateDensity,
+  ResumeTemplateDesignTokens,
+  ResumeTemplateDraft,
+  ResumeTemplateKind,
+  ResumeTemplatePageMargins,
+} from "@/lib/resume-templates";
 
 type ResumeTemplateEditorProps = {
   draft: ResumeTemplateDraft;

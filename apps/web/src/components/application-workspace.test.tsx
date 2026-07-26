@@ -17,6 +17,78 @@ const consent = {
   hasCurrentConsent: true,
 };
 
+const resumeDesign = {
+  accentColor: "#2B2B2B",
+  fontFamily: "Georgia",
+  fontScale: 1,
+  density: "standard",
+  pageMargins: { top: 15, right: 15, bottom: 15, left: 15 },
+  headingStyle: "underlined",
+  skillsStyle: "inline",
+  sidebarWidth: 0,
+  sidebarSections: [],
+};
+
+const generationResumeTemplates = [
+  {
+    id: "4ce57ea1-74a2-44cb-90c2-bfe24c549233",
+    kind: "custom",
+    name: "My Swiss CV",
+    description: "Personal design based on Modern Two Column.",
+    layout: "two_column",
+    columns: 2,
+    baseTemplateId: "modern_two_column",
+    version: 2,
+    designJson: {
+      ...resumeDesign,
+      accentColor: "#8A1538",
+      fontFamily: "Inter",
+      sidebarWidth: 32,
+      sidebarSections: ["skills", "education"],
+    },
+  },
+  {
+    id: "classic_single",
+    kind: "bundled",
+    name: "Classic",
+    description: "Traditional single-column resume.",
+    layout: "single_column",
+    columns: 1,
+    baseTemplateId: "classic_single",
+    designJson: resumeDesign,
+  },
+  {
+    id: "modern_single",
+    kind: "bundled",
+    name: "Modern",
+    description: "Modern single-column resume.",
+    layout: "single_column",
+    columns: 1,
+    baseTemplateId: "modern_single",
+    designJson: {
+      ...resumeDesign,
+      accentColor: "#176B87",
+      fontFamily: "Inter",
+    },
+  },
+  {
+    id: "modern_two_column",
+    kind: "bundled",
+    name: "Modern two-column",
+    description: "Modern resume with a sidebar.",
+    layout: "two_column",
+    columns: 2,
+    baseTemplateId: "modern_two_column",
+    designJson: {
+      ...resumeDesign,
+      accentColor: "#243B53",
+      fontFamily: "Inter",
+      sidebarWidth: 32,
+      sidebarSections: ["skills", "education"],
+    },
+  },
+];
+
 function generatedPdfDocument(templateId = "classic_single") {
   return {
     id: `pdf-document-${templateId}`,
@@ -113,11 +185,13 @@ describe("ApplicationWorkspace", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("offers only bundled PDF templates and persists the application choice", async () => {
+  it("offers personal and built-in templates and persists a custom UUID", async () => {
     window.localStorage.removeItem(
       "tasko.resume-template.v1.application-v3",
     );
-    installApplicationWorkspaceApiMock();
+    installApplicationWorkspaceApiMock({
+      resumeTemplates: generationResumeTemplates,
+    });
     renderApplicationWorkspace(createV3WorkspaceApplication());
 
     const selector = await screen.findByRole("combobox", {
@@ -128,22 +202,56 @@ describe("ApplicationWorkspace", () => {
         .getAllByRole("option")
         .map((option) => option.getAttribute("value")),
     ).toEqual([
+      "4ce57ea1-74a2-44cb-90c2-bfe24c549233",
       "classic_single",
       "modern_single",
       "modern_two_column",
     ]);
+    expect(
+      within(selector).getByRole("group", { name: "My templates" }),
+    ).toBeInTheDocument();
+    expect(
+      within(selector).getByRole("group", { name: "Built-in" }),
+    ).toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", {
-        name: "Use Modern Two Column resume template",
+        name: "Use My Swiss CV resume template",
       }),
     );
-    expect(selector).toHaveValue("modern_two_column");
+    expect(selector).toHaveValue("4ce57ea1-74a2-44cb-90c2-bfe24c549233");
     expect(
       window.localStorage.getItem(
         "tasko.resume-template.v1.application-v3",
       ),
-    ).toBe("modern_two_column");
+    ).toBe("4ce57ea1-74a2-44cb-90c2-bfe24c549233");
+    window.localStorage.removeItem(
+      "tasko.resume-template.v1.application-v3",
+    );
+  });
+
+  it("falls back when the persisted custom template was deleted", async () => {
+    window.localStorage.setItem(
+      "tasko.resume-template.v1.application-v3",
+      "deleted-custom-template",
+    );
+    installApplicationWorkspaceApiMock();
+    renderApplicationWorkspace(createV3WorkspaceApplication());
+
+    const selector = await screen.findByRole("combobox", {
+      name: "Resume template",
+    });
+    await waitFor(() => expect(selector).toHaveValue("classic_single"));
+    expect(
+      screen.getByText(
+        "Your previously selected resume template is no longer available. An available built-in template was selected.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      window.localStorage.getItem(
+        "tasko.resume-template.v1.application-v3",
+      ),
+    ).toBe("classic_single");
     window.localStorage.removeItem(
       "tasko.resume-template.v1.application-v3",
     );
@@ -270,6 +378,111 @@ describe("ApplicationWorkspace", () => {
     expect(
       await screen.findByText("PDF rendered, validated, and saved"),
     ).toBeInTheDocument();
+  });
+
+  it("re-renders a ready FinalResume with a custom UUID without rerunning AI", async () => {
+    const customTemplateId = generationResumeTemplates[0].id;
+    window.localStorage.setItem(
+      "tasko.resume-template.v1.application-v3",
+      customTemplateId,
+    );
+    const classic = generatedPdfDocument("classic_single");
+    const custom = {
+      ...generatedPdfDocument(customTemplateId),
+      id: "pdf-document-custom",
+    };
+    const requestOrder: string[] = [];
+    const fetchMock = installApplicationWorkspaceApiMock({
+      documents: [classic],
+      resumeTemplates: generationResumeTemplates,
+      aiPrivacySettings: { hasCurrentConsent: false },
+      requestHandler: async (url, method, init) => {
+        if (
+          url.pathname === `/documents/${classic.id}` &&
+          method === "GET"
+        ) {
+          return Response.json(classic);
+        }
+        if (
+          url.pathname === `/documents/${classic.id}/download` &&
+          method === "GET"
+        ) {
+          return new Response(new Blob(["%PDF-classic"]));
+        }
+        if (
+          url.pathname ===
+            "/resume-tailoring/ats-final-review/ats-review-1/pdf" &&
+          method === "GET"
+        ) {
+          requestOrder.push(`pdf:${url.searchParams.get("templateId")}`);
+          return new Response(new Blob(["%PDF-custom"]), {
+            headers: { "X-Rufina-Document-Id": custom.id },
+          });
+        }
+        if (
+          url.pathname === `/documents/${custom.id}/attachments` &&
+          method === "POST"
+        ) {
+          requestOrder.push("attach");
+          expect(JSON.parse(String(init?.body))).toEqual({
+            applicationId: "application-v3",
+          });
+          return Response.json(custom);
+        }
+        if (
+          url.pathname === `/documents/${custom.id}` &&
+          method === "GET"
+        ) {
+          return Response.json(custom);
+        }
+        if (
+          url.pathname === `/documents/${custom.id}/download` &&
+          method === "GET"
+        ) {
+          return new Response(new Blob(["%PDF-custom"]));
+        }
+        return undefined;
+      },
+    });
+    const { props } = renderApplicationWorkspace(
+      createV3WorkspaceApplication(),
+    );
+
+    const selector = await screen.findByRole("combobox", {
+      name: "Resume template",
+    });
+    await waitFor(() => expect(selector).toHaveValue(customTemplateId));
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
+
+    await waitFor(
+      () => expect(props.onDocumentAttached).toHaveBeenCalledTimes(1),
+      { timeout: 4_000 },
+    );
+    expect(requestOrder).toEqual([`pdf:${customTemplateId}`, "attach"]);
+    expect(
+      fetchMock.mock.calls.some(([input, init]) =>
+        [
+          "/resume-tailoring/senior-recruiter-analysis",
+          "/resume-tailoring/experience-rewrite",
+          "/resume-tailoring/ats-final-review",
+        ].some(
+          (path) =>
+            new URL(String(input)).pathname === path &&
+            init?.method === "POST",
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      screen.queryByRole("dialog", { name: /AI data disclosure/i }),
+    ).not.toBeInTheDocument();
+    expect(
+      await screen.findByText(
+        "Saved finalResume rendered with the selected template",
+      ),
+    ).toBeInTheDocument();
+    window.localStorage.removeItem(
+      "tasko.resume-template.v1.application-v3",
+    );
   });
 
   it("keeps historical DOCX resumes available for download", async () => {

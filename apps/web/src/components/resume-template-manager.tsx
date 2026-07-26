@@ -15,12 +15,14 @@ import {
 
 import {
   ResumeTemplateEditor,
-  type ResumeTemplate,
-  type ResumeTemplateDraft,
 } from "@/components/resume-template-editor";
 import { ResumeTemplatePreview } from "@/components/resume-template-preview";
 import { Button } from "@/components/ui/button";
 import { apiUnavailableMessage, fetchWithTimeout } from "@/lib/api-client";
+import type {
+  ResumeTemplate,
+  ResumeTemplateDraft,
+} from "@/lib/resume-templates";
 import { cn } from "@/lib/utils";
 
 type ManagerStatus = "loading" | "ready" | "error";

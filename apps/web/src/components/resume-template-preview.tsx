@@ -3,8 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ExternalLink, FileText, LoaderCircle, RefreshCw } from "lucide-react";
 
-import type { ResumeTemplateDraft } from "@/components/resume-template-editor";
 import { apiUnavailableMessage, fetchWithTimeout } from "@/lib/api-client";
+import type { ResumeTemplateDraft } from "@/lib/resume-templates";
 
 const PREVIEW_DEBOUNCE_MS = 650;
 const PREVIEW_TIMEOUT_MS = 90_000;

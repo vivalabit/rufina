@@ -9852,7 +9852,6 @@ function ProfileView({
               : null
           }
         />
-        <ResumeTemplateManager apiBaseUrl={apiBaseUrl} />
         <div className="grid gap-4 xl:grid-cols-2 2xl:gap-5">
           <ActivityPanel profile={profile} onEditProfile={onEditProfile} />
           <AiMatchProfilePanel profile={profile} onEditProfile={onEditProfile} />
@@ -9892,6 +9891,7 @@ function ProfileView({
         />
         <AdditionalNotesPanel profile={profile} onEditAdditionalNotes={onEditAdditionalNotes} />
         <ProfileCompletenessPanel profile={profile} />
+        <ResumeTemplateManager apiBaseUrl={apiBaseUrl} />
       </div>
     </section>
   );
