@@ -58,6 +58,7 @@ from app.models.resume_templates import (
     ResumeTemplateDesignTokens,
     ResumeTemplatePageMargins,
     ResumeTemplatePayload,
+    ResumeTemplatePreviewRequest,
 )
 
 __all__ = [
@@ -104,6 +105,7 @@ __all__ = [
     "ResumeTemplateDesignTokens",
     "ResumeTemplatePageMargins",
     "ResumeTemplatePayload",
+    "ResumeTemplatePreviewRequest",
     "SeniorRecruiterAnalysis",
     "SeniorRecruiterAnalysisMetrics",
     "SeniorRecruiterAnalysisRecord",

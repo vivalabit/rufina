@@ -96,6 +96,21 @@ class Settings(BaseSettings):
     jobs_ch_max_pages: int = Field(default=50, ge=1, le=100)
     jobs_ch_detail_workers: int = Field(default=6, ge=1, le=20)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
+    resume_template_preview_max_payload_bytes: int = Field(
+        default=8_192,
+        ge=512,
+        le=65_536,
+    )
+    resume_template_preview_rate_limit: int = Field(
+        default=10,
+        ge=1,
+        le=100,
+    )
+    resume_template_preview_rate_window_seconds: int = Field(
+        default=60,
+        ge=1,
+        le=3_600,
+    )
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3001"]
     cors_origin_regex: str = (
         r"^http://(localhost|127\.0\.0\.1|0\.0\.0\.0|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"

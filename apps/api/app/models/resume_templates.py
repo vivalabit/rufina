@@ -211,6 +211,13 @@ class ResumeTemplateDefinitionDuplicateRequest(BaseModel):
         return normalized
 
 
+class ResumeTemplatePreviewRequest(BaseModel):
+    base_template_id: ResumeTemplateId = Field(alias="baseTemplateId")
+    design_json: ResumeTemplateDesignTokens = Field(alias="designJson")
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
 class ResumeTemplateDefinitionResponse(BaseModel):
     id: str
     owner_id: str = Field(alias="ownerId")
@@ -257,4 +264,5 @@ __all__ = [
     "ResumeTemplateDesignTokens",
     "ResumeTemplatePageMargins",
     "ResumeTemplatePayload",
+    "ResumeTemplatePreviewRequest",
 ]

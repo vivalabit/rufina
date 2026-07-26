@@ -5,13 +5,14 @@ import json
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.identity import bind_request_identity, get_bound_owner_id
+from app.core.settings import Settings, get_settings
 from app.models.documents import DocumentFileRecord
 from app.models.resume_templates import (
     ResumeTemplateDefinitionCreateRequest,
@@ -20,8 +21,21 @@ from app.models.resume_templates import (
     ResumeTemplateDefinitionUpdateRequest,
     ResumeTemplateDesignTokens,
     ResumeTemplatePayload,
+    ResumeTemplatePreviewRequest,
 )
-from app.services.resume_pdf_renderer import default_bundled_design_tokens
+from app.services.resume_pdf_renderer import (
+    ResolvedResumeTemplate,
+    ResumePdfRenderError,
+    ResumeTemplateNotFoundError,
+    default_bundled_design_tokens,
+    resolve_draft_resume_template,
+    resolve_resume_template,
+)
+from app.services.resume_template_preview import (
+    PreviewRateLimitExceeded,
+    preview_rate_limiter,
+    render_resume_template_preview,
+)
 from app.services.resume_template_registry import (
     ResumeTemplateId,
     get_bundled_resume_template,
@@ -31,6 +45,87 @@ from app.services.resume_template_registry import (
 
 
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
+
+
+async def enforce_preview_limits(
+    request: Request,
+    settings: Settings = Depends(get_settings),
+) -> None:
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            declared_size = int(content_length)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid Content-Length header",
+            ) from exc
+        if declared_size < 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Invalid Content-Length header",
+            )
+        if declared_size > settings.resume_template_preview_max_payload_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=(
+                    "Resume template preview payload exceeds "
+                    f"{settings.resume_template_preview_max_payload_bytes} bytes"
+                ),
+            )
+    body = await request.body()
+    if len(body) > settings.resume_template_preview_max_payload_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+            detail=(
+                "Resume template preview payload exceeds "
+                f"{settings.resume_template_preview_max_payload_bytes} bytes"
+            ),
+        )
+    try:
+        preview_rate_limiter.consume(
+            get_bound_owner_id(),
+            limit=settings.resume_template_preview_rate_limit,
+            window_seconds=(
+                settings.resume_template_preview_rate_window_seconds
+            ),
+        )
+    except PreviewRateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Resume template preview rate limit exceeded",
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+
+
+@router.post("/preview")
+def preview_draft_resume_template(
+    payload: ResumeTemplatePreviewRequest,
+    _limits: None = Depends(enforce_preview_limits),
+) -> Response:
+    template = resolve_draft_resume_template(
+        base_template_id=payload.base_template_id,
+        design=payload.design_json,
+    )
+    return render_preview_response(template)
+
+
+@router.post("/{template_id}/preview")
+def preview_saved_resume_template(
+    template_id: str,
+    _limits: None = Depends(enforce_preview_limits),
+    db: Session = Depends(get_db),
+) -> Response:
+    try:
+        template = resolve_resume_template(db, template_id)
+        return render_preview_response(template)
+    except ResumeTemplateNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except SQLAlchemyError as exc:
+        raise database_unavailable(exc) from exc
 
 
 @router.get("", response_model=list[ResumeTemplatePayload])
@@ -258,6 +353,39 @@ def definition_content_sha256(
         sort_keys=True,
     ).encode()
     return hashlib.sha256(canonical).hexdigest()
+
+
+def render_preview_response(template: ResolvedResumeTemplate) -> Response:
+    try:
+        pdf = render_resume_template_preview(template)
+    except ResumePdfRenderError as exc:
+        message = str(exc)
+        service_failure = (
+            "Chromium" in message
+            or "Playwright" in message
+            or "unavailable" in message
+        )
+        raise HTTPException(
+            status_code=(
+                status.HTTP_503_SERVICE_UNAVAILABLE
+                if service_failure
+                else status.HTTP_422_UNPROCESSABLE_CONTENT
+            ),
+            detail=message,
+        ) from exc
+    return Response(
+        content=pdf,
+        media_type="application/pdf",
+        headers={
+            "Cache-Control": "no-store",
+            "Content-Disposition": (
+                'inline; filename="resume-template-preview.pdf"'
+            ),
+            "X-Rufina-Template-Id": template.id,
+            "X-Rufina-Template-Version": template.version,
+            "X-Rufina-Design-Sha256": template.design_sha256,
+        },
+    )
 
 
 def bundled_template_payload(template_id: str) -> ResumeTemplatePayload:

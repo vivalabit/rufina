@@ -72,6 +72,7 @@ app.add_middleware(
         "X-Rufina-Document-Version",
         "X-Rufina-Template-Id",
         "X-Rufina-Template-Version",
+        "X-Rufina-Design-Sha256",
     ],
 )
 

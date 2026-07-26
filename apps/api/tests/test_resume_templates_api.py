@@ -1,19 +1,23 @@
 from collections.abc import Generator
 from datetime import UTC, datetime
+from io import BytesIO
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from pypdf import PdfReader
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
+from app.core.settings import Settings, get_settings
 from app.main import app
 from app.models.documents import (
     DocumentFileRecord,
     DocumentRecord,
     DocumentVersionRecord,
 )
+from app.services.resume_template_preview import preview_rate_limiter
 
 
 OWNER_A = {"X-Rufina-Owner-Id": "owner-a"}
@@ -46,6 +50,15 @@ def api_sessions() -> Generator[sessionmaker[Session], None, None]:
 def client(api_sessions: sessionmaker[Session]) -> TestClient:
     del api_sessions
     return TestClient(app)
+
+
+@pytest.fixture(autouse=True)
+def reset_preview_rate_limit() -> Generator[None, None, None]:
+    preview_rate_limiter.reset()
+    try:
+        yield
+    finally:
+        preview_rate_limiter.reset()
 
 
 def template_request(name: str = "Zurich backend") -> dict[str, object]:
@@ -278,3 +291,142 @@ def test_create_rejects_unknown_design_fields_and_empty_patch(
 
     assert invalid.status_code == 422
     assert empty_patch.status_code == 422
+
+
+def test_draft_preview_uses_demo_resume_and_does_not_persist(
+    client: TestClient,
+    api_sessions: sessionmaker[Session],
+) -> None:
+    request = template_request()
+    request.pop("name")
+
+    response = client.post(
+        "/resume-templates/preview",
+        headers={**OWNER_A, "Origin": "http://localhost:3000"},
+        json=request,
+    )
+
+    assert response.status_code == 200
+    assert response.content.startswith(b"%PDF-")
+    assert response.headers["content-type"] == "application/pdf"
+    assert response.headers["cache-control"] == "no-store"
+    assert response.headers["content-disposition"] == (
+        'inline; filename="resume-template-preview.pdf"'
+    )
+    assert response.headers["x-rufina-template-id"] == "preview"
+    assert response.headers["x-rufina-template-version"].startswith("draft-")
+    assert len(response.headers["x-rufina-design-sha256"]) == 64
+    assert "x-rufina-document-id" not in response.headers
+    exposed = response.headers["access-control-expose-headers"].casefold()
+    assert "x-rufina-design-sha256" in exposed
+
+    reader = PdfReader(BytesIO(response.content))
+    text = "\n".join(page.extract_text() or "" for page in reader.pages)
+    assert "Jordan Lee" in text
+    assert reader.metadata["/ResumeTemplateId"] == "preview"
+
+    with api_sessions() as db:
+        assert db.scalar(select(func.count()).select_from(DocumentRecord)) == 0
+        assert db.scalar(
+            select(func.count()).select_from(DocumentFileRecord)
+        ) == 0
+
+
+def test_saved_preview_is_owner_scoped_and_does_not_create_artifacts(
+    client: TestClient,
+    api_sessions: sessionmaker[Session],
+) -> None:
+    custom = create_custom_template(
+        client,
+        headers=OWNER_A,
+        name="Preview template",
+    )
+    template_id = custom["id"]
+
+    response = client.post(
+        f"/resume-templates/{template_id}/preview",
+        headers=OWNER_A,
+    )
+    foreign = client.post(
+        f"/resume-templates/{template_id}/preview",
+        headers=OWNER_B,
+    )
+
+    assert response.status_code == 200
+    assert response.content.startswith(b"%PDF-")
+    assert response.headers["x-rufina-template-id"] == template_id
+    assert response.headers["x-rufina-template-version"] == "1"
+    assert foreign.status_code == 404
+    with api_sessions() as db:
+        assert db.scalar(select(func.count()).select_from(DocumentRecord)) == 0
+        assert db.scalar(
+            select(func.count()).select_from(DocumentFileRecord)
+        ) == 0
+
+
+def test_preview_payload_limit_is_checked_before_render(
+    client: TestClient,
+) -> None:
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        resume_template_preview_max_payload_bytes=512,
+    )
+    request = template_request()
+    request.pop("name")
+    request["unexpectedPadding"] = "x" * 1_000
+
+    response = client.post(
+        "/resume-templates/preview",
+        headers=OWNER_A,
+        json=request,
+    )
+
+    assert response.status_code == 413
+    assert "exceeds 512 bytes" in response.json()["detail"]
+
+
+def test_preview_rate_limit_is_owner_scoped(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        resume_template_preview_rate_limit=1,
+        resume_template_preview_rate_window_seconds=60,
+    )
+    monkeypatch.setattr(
+        "app.api.resume_templates.render_resume_template_preview",
+        lambda _template: b"%PDF-1.7\npreview",
+    )
+
+    first = client.post(
+        "/resume-templates/classic_single/preview",
+        headers=OWNER_A,
+    )
+    limited = client.post(
+        "/resume-templates/classic_single/preview",
+        headers=OWNER_A,
+    )
+    other_owner = client.post(
+        "/resume-templates/classic_single/preview",
+        headers=OWNER_B,
+    )
+
+    assert first.status_code == 200
+    assert limited.status_code == 429
+    assert limited.headers["retry-after"] == "60"
+    assert other_owner.status_code == 200
+
+
+def test_draft_preview_accepts_no_resume_content(client: TestClient) -> None:
+    request = template_request()
+    request.pop("name")
+    request["finalResume"] = {
+        "basics": {"fullName": "User-controlled preview content"}
+    }
+
+    response = client.post(
+        "/resume-templates/preview",
+        headers=OWNER_A,
+        json=request,
+    )
+
+    assert response.status_code == 422

@@ -319,6 +319,23 @@ def resolve_bundled_resume_template(
     )
 
 
+def resolve_draft_resume_template(
+    *,
+    base_template_id: ResumeTemplateId,
+    design: ResumeTemplateDesignTokens,
+) -> ResolvedResumeTemplate:
+    bundle = load_template_bundle(base_template_id)
+    design_sha256 = resume_design_sha256(design)
+    return ResolvedResumeTemplate(
+        id="preview",
+        version=f"draft-{design_sha256[:12]}",
+        base_template_id=base_template_id,
+        design=design,
+        html_template=bundle.html_template,
+        stylesheet=resolved_stylesheet(bundle.stylesheet, design),
+    )
+
+
 def resolved_stylesheet(
     server_owned_stylesheet: str,
     design: ResumeTemplateDesignTokens,
@@ -957,6 +974,7 @@ __all__ = [
     "render_resolved_final_resume_html",
     "render_resolved_final_resume_pdf",
     "resolve_bundled_resume_template",
+    "resolve_draft_resume_template",
     "resolve_resume_template",
     "resume_design_css",
     "resume_design_sha256",
