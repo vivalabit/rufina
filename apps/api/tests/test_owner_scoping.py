@@ -218,6 +218,7 @@ def test_application_data_is_scoped_to_request_owner() -> None:
         "modern_single",
         "modern_two_column",
         "swiss_classic",
+        "swiss_local_german",
     ]
     assert resume_templates_b.json() == resume_templates_a.json()
     assert [item["id"] for item in documents_a.json()] == ["document-a"]

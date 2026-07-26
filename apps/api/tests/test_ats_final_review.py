@@ -947,7 +947,13 @@ def test_final_resume_json_is_the_renderers_only_input() -> None:
 
 @pytest.mark.parametrize(
     "template_id",
-    ["classic_single", "modern_single", "modern_two_column", "swiss_classic"],
+    [
+        "classic_single",
+        "modern_single",
+        "modern_two_column",
+        "swiss_classic",
+        "swiss_local_german",
+    ],
 )
 def test_pdf_template_manifests_are_valid_and_render_escaped_html(
     template_id: str,
@@ -984,6 +990,22 @@ def test_pdf_template_manifests_are_valid_and_render_escaped_html(
     assert report.template_id == template_id
     assert report.template_version == bundle.manifest.template_version
     assert report.overflow_issue_count == 0
+
+
+def test_swiss_local_german_uses_localized_single_line_header() -> None:
+    final_resume_json = complete_final_resume_payload("master-resume")
+    final_resume_json["language"] = "Deutsch"
+    final_resume_json["basics"]["location"] = "Männedorf, Zürich, Schweiz"
+
+    html, _bundle = render_final_resume_html(
+        final_resume_json,
+        template_id="swiss_local_german",
+    )
+
+    assert "Berufserfahrung" in html
+    assert "Technische Kenntnisse" in html
+    assert "Männedorf, Zürich, Schweiz" in html
+    assert 'class="identity-meta"' not in html
 
 
 def test_custom_template_resolver_only_uses_server_owned_markup(
@@ -1071,7 +1093,13 @@ def test_custom_template_resolver_only_uses_server_owned_markup(
 
 @pytest.mark.parametrize(
     "template_id",
-    ["classic_single", "modern_single", "modern_two_column", "swiss_classic"],
+    [
+        "classic_single",
+        "modern_single",
+        "modern_two_column",
+        "swiss_classic",
+        "swiss_local_german",
+    ],
 )
 def test_pdf_templates_group_skills_by_category(template_id: str) -> None:
     final_resume_json = final_review_payload("master-resume")["finalResume"]

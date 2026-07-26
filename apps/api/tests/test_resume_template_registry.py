@@ -22,9 +22,10 @@ def test_registry_contains_all_bundled_resume_templates() -> None:
         "modern_single",
         "modern_two_column",
         "swiss_classic",
+        "swiss_local_german",
     ]
-    assert [template.columns for template in templates] == [1, 1, 2, 1]
-    assert len({template.id for template in templates}) == 4
+    assert [template.columns for template in templates] == [1, 1, 2, 1, 1]
+    assert len({template.id for template in templates}) == 5
 
 
 def test_registry_is_metadata_only() -> None:
@@ -73,6 +74,7 @@ def test_resume_template_api_lists_registry_and_rejects_custom_uploads() -> None
             "modern_single",
             "modern_two_column",
             "swiss_classic",
+            "swiss_local_german",
         ]
         assert uploaded.status_code == 422
         assert "Custom resume DOCX templates are not supported" in (

@@ -9,6 +9,7 @@ ResumeTemplateId = Literal[
     "modern_single",
     "modern_two_column",
     "swiss_classic",
+    "swiss_local_german",
 ]
 
 
@@ -55,6 +56,16 @@ BUNDLED_RESUME_TEMPLATES: tuple[BundledResumeTemplate, ...] = (
         description=(
             "Dense one-page Swiss CV with traditional typography and precise "
             "timeline alignment."
+        ),
+        layout="single_column",
+        columns=1,
+    ),
+    BundledResumeTemplate(
+        id="swiss_local_german",
+        name="Swiss Local German",
+        description=(
+            "Compact German-language Swiss CV with a one-line identity header "
+            "and traditional typography."
         ),
         layout="single_column",
         columns=1,

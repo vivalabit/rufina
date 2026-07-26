@@ -659,6 +659,7 @@ class BundledResumeTemplatePayload(BaseModel):
         "modern_single",
         "modern_two_column",
         "swiss_classic",
+        "swiss_local_german",
     ]
     name: str
     description: str

@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="{{ resume.language }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="generator" content="Rufina deterministic resume renderer">
+  <title>{{ resume.basics.full_name }} - Lebenslauf</title>
+  <style>{{ stylesheet }}</style>
+</head>
+<body class="template-{{ template_id }}" data-template-version="{{ template_version }}">
+{% macro linked_contact(contact, label="") -%}
+  {% if contact.href -%}<a href="{{ contact.href }}" rel="noreferrer">{{ label or contact.value }}</a>{%- else -%}{{ label or contact.value }}{%- endif %}
+{%- endmacro %}
+
+{% macro render_section(section) %}
+  {% if section == "summary" and resume.summary %}
+  <section class="resume-section section-summary">
+    <p>{{ resume.summary.text }}</p>
+  </section>
+  {% elif section == "experience" and resume.experiences %}
+  <section class="resume-section section-experience">
+    <h2>{{ resume.section_titles.experience }}</h2>
+    {% for experience in resume.experiences %}
+    <article class="resume-item experience-item">
+      <div class="item-heading">
+        <h3>{{ experience.title }}</h3>
+        <p class="item-period">{{ experience.period | replace(" - ", " – ") }}</p>
+      </div>
+      <div class="item-subheading-row">
+        <p>{{ experience.company }}</p>
+        {% if experience.location %}<p class="item-location">{{ experience.location }}</p>{% endif %}
+      </div>
+      <ul>
+        {% for bullet in experience.bullets %}<li>{{ bullet.text }}</li>{% endfor %}
+      </ul>
+    </article>
+    {% endfor %}
+  </section>
+  {% elif section == "education" and resume.education %}
+  <section class="resume-section section-education">
+    <h2>{{ resume.section_titles.education }}</h2>
+    {% for education in resume.education %}
+    <article class="resume-item education-item">
+      <div class="item-heading">
+        <h3>{{ education.credential }}{% if education.field_of_study %} in {{ education.field_of_study }}{% endif %}</h3>
+        <p class="item-period">{{ education.start_date }}{% if education.start_date and education.end_date %} – {% endif %}{{ education.end_date }}</p>
+      </div>
+      <div class="item-subheading-row">
+        <p>{{ education.institution }}</p>
+        {% if education.location %}<p class="item-location">{{ education.location }}</p>{% endif %}
+      </div>
+      {% if education.details %}<ul>{% for detail in education.details %}<li>{{ detail.text }}</li>{% endfor %}</ul>{% endif %}
+    </article>
+    {% endfor %}
+  </section>
+  {% elif section == "languages" and resume.languages %}
+  <section class="resume-section section-languages">
+    <h2>{{ resume.section_titles.languages }}</h2>
+    <div class="language-list">
+      {% for language in resume.languages %}
+      <p>{{ language.name }}</p><p>{{ language.proficiency }}</p>
+      {% endfor %}
+    </div>
+  </section>
+  {% elif section == "skills" and resume.skill_groups %}
+  <section class="resume-section section-skills">
+    <h2>{{ resume.section_titles.skills }}</h2>
+    <div class="skill-list">
+      {% for group in resume.skill_groups %}
+      <p>{% if group.category %}<strong>{{ group.category }}:</strong> {% endif %}{{ group.names | join(", ") }}</p>
+      {% endfor %}
+    </div>
+  </section>
+  {% elif section == "projects" and resume.projects %}
+  <section class="resume-section section-projects">
+    <h2>{{ resume.section_titles.projects }}</h2>
+    {% for project in resume.projects %}
+    <article class="resume-item project-item">
+      <div class="item-heading">
+        <h3>{{ project.name }}</h3>
+        {% if project.role %}<p class="item-period">{{ project.role }}</p>{% endif %}
+      </div>
+      {% if project.url %}<p class="project-url"><a href="{{ project.url }}" rel="noreferrer">{{ project.url }}</a></p>{% endif %}
+      <ul>{% for bullet in project.bullets %}<li>{{ bullet.text }}</li>{% endfor %}</ul>
+    </article>
+    {% endfor %}
+  </section>
+  {% elif section == "certifications" and resume.certifications %}
+  <section class="resume-section section-certifications">
+    <h2>{{ resume.section_titles.certifications }}</h2>
+    {% for certification in resume.certifications %}
+    <p class="compact-item"><strong>{{ certification.name }}</strong> | {{ certification.issuer }}{% if certification.issued_on %} | {{ certification.issued_on }}{% endif %}{% if certification.expires_on %} | {{ resume.section_titles.expires }}: {{ certification.expires_on }}{% endif %}</p>
+    {% endfor %}
+  </section>
+  {% elif section == "additional" and resume.additional_sections %}
+  <section class="resume-section section-additional">
+    <h2>{{ resume.section_titles.additional }}</h2>
+    {% for additional in resume.additional_sections %}
+    <article class="resume-item additional-item">
+      <h3>{{ additional.title }}</h3>
+      <ul>{% for item in additional["items"] %}<li>{{ item.text }}</li>{% endfor %}</ul>
+    </article>
+    {% endfor %}
+  </section>
+  {% endif %}
+{% endmacro %}
+
+<div class="resume-shell">
+  <header class="identity">
+    <h1>{{ resume.basics.full_name }}</h1>
+    {% if resume.basics.headline %}<p class="headline">{{ resume.basics.headline }}</p>{% endif %}
+    {% if resume.basics.location or resume.basics.work_authorization or resume.basics.contacts %}
+    <p class="primary-contacts">
+      {% set separator = joiner(" | ") %}
+      {% if resume.basics.location %}{{ separator() }}{{ resume.basics.location }}{% endif %}
+      {% if resume.basics.work_authorization %}{{ separator() }}{{ resume.basics.work_authorization }}{% endif %}
+      {% for contact in resume.basics.contacts %}
+        {% if contact.kind not in ["location", "work_authorization"] %}{{ separator() }}{% if contact.kind == "linkedin" %}{{ linked_contact(contact, "LinkedIn") }}{% elif contact.kind == "github" %}{{ linked_contact(contact, "GitHub") }}{% elif contact.kind == "portfolio" %}{{ linked_contact(contact, "Portfolio") }}{% else %}{{ linked_contact(contact) }}{% endif %}{% endif %}
+      {% endfor %}
+    </p>
+    {% endif %}
+  </header>
+  <main class="resume-main single-column">
+    {% for section in resume.section_order %}{{ render_section(section) }}{% endfor %}
+  </main>
+</div>
+</body>
+</html>

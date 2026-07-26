@@ -272,6 +272,7 @@ def resolve_resume_template(
         "modern_single",
         "modern_two_column",
         "swiss_classic",
+        "swiss_local_german",
     }:
         return resolve_bundled_resume_template(
             cast(ResumeTemplateId, template_id)
@@ -536,6 +537,22 @@ def default_bundled_design_tokens(
             "sidebarWidth": 0,
             "sidebarSections": [],
         },
+        "swiss_local_german": {
+            "accentColor": "#000000",
+            "fontFamily": "Times New Roman",
+            "fontScale": 1.0,
+            "density": "standard",
+            "pageMargins": {
+                "top": 16.5,
+                "right": 20,
+                "bottom": 25,
+                "left": 25,
+            },
+            "headingStyle": "underlined",
+            "skillsStyle": "list",
+            "sidebarWidth": 0,
+            "sidebarSections": [],
+        },
     }
     return ResumeTemplateDesignTokens.model_validate(defaults[template_id])
 
@@ -691,7 +708,7 @@ def resume_section_titles(resume: FinalResume) -> dict[str, str]:
         return {
             "summary": "Profil",
             "experience": "Berufserfahrung",
-            "skills": "Kompetenzen",
+            "skills": "Technische Kenntnisse",
             "education": "Ausbildung",
             "projects": "Projekte",
             "certifications": "Zertifikate",
@@ -974,6 +991,10 @@ def validate_rendered_pdf(
         if resolved_template is not None
         else bundle.manifest.template_version
     )
+    is_swiss_local_template = bundle.manifest.template_id in {
+        "swiss_classic",
+        "swiss_local_german",
+    }
     return validate_resume_pdf(
         pdf,
         expected_text_fragments=expected_resume_text_fragments(
@@ -984,9 +1005,9 @@ def validate_rendered_pdf(
                 if resolved_template is not None
                 else None
             ),
-            display_link_labels=bundle.manifest.template_id == "swiss_classic",
-            identity_metadata_first=bundle.manifest.template_id == "swiss_classic",
-            suppress_summary_heading=bundle.manifest.template_id == "swiss_classic",
+            display_link_labels=is_swiss_local_template,
+            identity_metadata_first=is_swiss_local_template,
+            suppress_summary_heading=is_swiss_local_template,
         ),
         template_id=template_id,
         template_version=template_version,

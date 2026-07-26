@@ -1,0 +1,17 @@
+.template-swiss_local_german .identity {
+  border: 0;
+  padding: 0;
+}
+
+.template-swiss_local_german .resume-section h2 {
+  border-bottom-width: 0.75pt;
+  padding-bottom: 0.3mm;
+}
+
+.template-swiss_local_german .section-summary p {
+  text-align: left;
+}
+
+.template-swiss_local_german .separator {
+  color: inherit;
+}
