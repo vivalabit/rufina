@@ -1,0 +1,204 @@
+@page {
+  size: A4;
+  margin: 20mm 20mm 25mm 25mm;
+}
+
+:root {
+  color-scheme: light;
+  font-family: var(--resume-font-family, "Times New Roman", Times, serif);
+  font-size: calc(10pt * var(--resume-font-scale, 1));
+  line-height: calc(1.08 * var(--resume-density-scale, 1));
+  color: #000000;
+  background: #ffffff;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #ffffff;
+}
+
+body {
+  -webkit-print-color-adjust: exact;
+  print-color-adjust: exact;
+}
+
+.resume-shell {
+  width: 100%;
+}
+
+a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 1px;
+}
+
+.identity {
+  margin: 0 0 3.65mm;
+  padding-top: 0.7mm;
+  text-align: center;
+}
+
+.identity h1 {
+  margin: 0;
+  font-size: 14pt;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.headline {
+  margin: 1.2mm 0 0;
+  font-size: 12pt;
+  line-height: 1;
+}
+
+.identity-meta,
+.primary-contacts {
+  margin: 1mm 0 0;
+  font-size: 9pt;
+  line-height: 1.05;
+}
+
+.primary-contacts {
+  margin-top: 0.7mm;
+}
+
+.resume-main {
+  width: 100%;
+}
+
+.resume-section {
+  margin-top: calc(4.1mm * var(--resume-density-scale, 1));
+}
+
+.section-summary {
+  margin-top: 0;
+  margin-bottom: calc(4.2mm * var(--resume-density-scale, 1));
+}
+
+.section-summary p {
+  margin: 0;
+  font-size: 10pt;
+  line-height: 1.12;
+}
+
+.resume-section h2 {
+  margin: 0 0 1.3mm;
+  padding: 0 0 0.3mm;
+  border-bottom: 0.75pt solid var(--resume-accent, #000000);
+  color: #000000;
+  font-size: 13pt;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.resume-item {
+  margin-top: calc(4.6mm * var(--resume-density-scale, 1));
+  break-inside: avoid;
+}
+
+.resume-section h2 + .resume-item {
+  margin-top: 0;
+}
+
+.item-heading,
+.item-subheading-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: baseline;
+  column-gap: 5mm;
+}
+
+.item-heading h3,
+.item-heading p,
+.item-subheading-row p {
+  margin: 0;
+  font-size: 10pt;
+  line-height: 1.08;
+}
+
+.item-heading h3 {
+  font-weight: 700;
+}
+
+.item-period,
+.item-location {
+  white-space: nowrap;
+  text-align: right;
+}
+
+.item-subheading-row {
+  margin-top: 0.35mm;
+  font-style: italic;
+}
+
+.resume-item ul {
+  margin: 1.2mm 0 0;
+  padding: 0 0 0 10.7mm;
+}
+
+.resume-item li {
+  margin: 0.55mm 0 0;
+  padding-left: 2.1mm;
+  font-size: 10pt;
+  line-height: 1.08;
+}
+
+.resume-item li:first-child {
+  margin-top: 0;
+}
+
+.language-list {
+  display: grid;
+  grid-template-columns: 30mm minmax(0, 1fr);
+  row-gap: 0.7mm;
+}
+
+.language-list p {
+  margin: 0;
+  font-size: 10pt;
+  line-height: 1.08;
+}
+
+.skill-list {
+  display: block;
+}
+
+.skill-list p,
+.compact-item {
+  margin: 0.55mm 0 0;
+  font-size: 10pt;
+  line-height: 1.08;
+}
+
+.skill-list p:first-child,
+.compact-item:first-child {
+  margin-top: 0;
+}
+
+.section-certifications .compact-item {
+  font-size: 10pt;
+}
+
+.section-languages {
+  margin-top: calc(2.7mm * var(--resume-density-scale, 1));
+}
+
+.section-skills {
+  margin-top: calc(2.9mm * var(--resume-density-scale, 1));
+}
+
+.additional-item h3,
+.project-url {
+  margin: 0;
+}
+
+.project-url {
+  margin-top: 0.35mm;
+  font-style: italic;
+}

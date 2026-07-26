@@ -115,6 +115,7 @@ def test_lists_bundled_and_owner_custom_templates_through_both_routes(
         "bundled",
         "bundled",
         "bundled",
+        "bundled",
         "custom",
     ]
     assert primary.json()[-1]["id"] == custom["id"]

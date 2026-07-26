@@ -47,6 +47,7 @@ def build_master_resume_review_sections(
             master_resume.basics.email,
             master_resume.basics.phone,
             master_resume.basics.location,
+            master_resume.basics.work_authorization,
             master_resume.basics.linkedin,
             master_resume.basics.github,
             master_resume.basics.portfolio,

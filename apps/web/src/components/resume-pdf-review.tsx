@@ -119,6 +119,11 @@ const bundledTemplateTheme: Record<
     accentColor: "#243b53",
     previewClass: "border-[#b9c5d1] bg-[#f3f6f8]",
   },
+  swiss_classic: {
+    accentName: "Black",
+    accentColor: "#000000",
+    previewClass: "border-[#b8b8b8] bg-white",
+  },
 };
 
 function currentVersion(document: ResumePdfDocument | null | undefined) {

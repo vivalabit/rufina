@@ -872,7 +872,7 @@ def preflight_document_template(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=(
                 "Custom resume DOCX templates are not supported; choose "
-                "classic_single, modern_single, or modern_two_column"
+                "classic_single, modern_single, modern_two_column, or swiss_classic"
             ),
         )
     if not request.file_name.lower().endswith(".docx"):
@@ -1123,7 +1123,7 @@ def create_document_template(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail=(
                 "Custom resume DOCX templates are not supported; choose "
-                "classic_single, modern_single, or modern_two_column"
+                "classic_single, modern_single, modern_two_column, or swiss_classic"
             ),
         )
     if not request.file_name.lower().endswith(".docx"):

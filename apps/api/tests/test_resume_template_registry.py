@@ -14,16 +14,17 @@ from app.services.resume_template_registry import (
 )
 
 
-def test_registry_contains_only_the_three_bundled_resume_templates() -> None:
+def test_registry_contains_all_bundled_resume_templates() -> None:
     templates = list_bundled_resume_templates()
 
     assert [template.id for template in templates] == [
         "classic_single",
         "modern_single",
         "modern_two_column",
+        "swiss_classic",
     ]
-    assert [template.columns for template in templates] == [1, 1, 2]
-    assert len({template.id for template in templates}) == 3
+    assert [template.columns for template in templates] == [1, 1, 2, 1]
+    assert len({template.id for template in templates}) == 4
 
 
 def test_registry_is_metadata_only() -> None:
@@ -71,6 +72,7 @@ def test_resume_template_api_lists_registry_and_rejects_custom_uploads() -> None
             "classic_single",
             "modern_single",
             "modern_two_column",
+            "swiss_classic",
         ]
         assert uploaded.status_code == 422
         assert "Custom resume DOCX templates are not supported" in (

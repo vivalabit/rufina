@@ -271,6 +271,7 @@ def resolve_resume_template(
         "classic_single",
         "modern_single",
         "modern_two_column",
+        "swiss_classic",
     }:
         return resolve_bundled_resume_template(
             cast(ResumeTemplateId, template_id)
@@ -524,6 +525,17 @@ def default_bundled_design_tokens(
                 "additional",
             ],
         },
+        "swiss_classic": {
+            "accentColor": "#000000",
+            "fontFamily": "Times New Roman",
+            "fontScale": 1.0,
+            "density": "standard",
+            "pageMargins": {"top": 20, "right": 20, "bottom": 25, "left": 25},
+            "headingStyle": "underlined",
+            "skillsStyle": "list",
+            "sidebarWidth": 0,
+            "sidebarSections": [],
+        },
     }
     return ResumeTemplateDesignTokens.model_validate(defaults[template_id])
 
@@ -620,6 +632,7 @@ def resume_view_model(resume: FinalResume) -> dict[str, object]:
         contact_view("email", basics.email, f"mailto:{basics.email}" if basics.email else ""),
         contact_view("phone", basics.phone, f"tel:{basics.phone}" if basics.phone else ""),
         contact_view("location", basics.location),
+        contact_view("work_authorization", basics.work_authorization),
         contact_view("linkedin", basics.linkedin, safe_web_url(basics.linkedin)),
         contact_view("github", basics.github, safe_web_url(basics.github)),
         contact_view("portfolio", basics.portfolio, safe_web_url(basics.portfolio)),
@@ -631,6 +644,8 @@ def resume_view_model(resume: FinalResume) -> dict[str, object]:
         "basics": {
             "full_name": basics.full_name,
             "headline": basics.headline,
+            "location": basics.location,
+            "work_authorization": basics.work_authorization,
             "contacts": [contact for contact in contacts if contact["value"]],
         },
         "summary": resume.summary.model_dump() if resume.summary else None,
@@ -719,16 +734,40 @@ def expected_resume_text_fragments(
     *,
     reading_order: Literal["resumeSectionOrder", "primaryThenSidebar"],
     sidebar_sections: list[str] | None = None,
+    display_link_labels: bool = False,
+    identity_metadata_first: bool = False,
+    suppress_summary_heading: bool = False,
 ) -> list[str]:
+    link_fragments = [
+        (
+            "LinkedIn"
+            if display_link_labels and resume.basics.linkedin
+            else resume.basics.linkedin
+        ),
+        "GitHub" if display_link_labels and resume.basics.github else resume.basics.github,
+        (
+            "Portfolio"
+            if display_link_labels and resume.basics.portfolio
+            else resume.basics.portfolio
+        ),
+    ]
+    primary_contact_fragments = [
+        resume.basics.email,
+        resume.basics.phone,
+        *link_fragments,
+    ]
+    identity_fragments = [
+        resume.basics.location,
+        resume.basics.work_authorization,
+    ]
     fragments = [
         resume.basics.full_name,
         resume.basics.headline,
-        resume.basics.email,
-        resume.basics.phone,
-        resume.basics.location,
-        resume.basics.linkedin,
-        resume.basics.github,
-        resume.basics.portfolio,
+        *(
+            [*identity_fragments, *primary_contact_fragments]
+            if identity_metadata_first
+            else [*primary_contact_fragments[:2], *identity_fragments, *link_fragments]
+        ),
     ]
     sections = list(resume.section_order)
     if reading_order == "primaryThenSidebar":
@@ -750,7 +789,8 @@ def expected_resume_text_fragments(
         ]
     titles = resume_section_titles(resume)
     for section in sections:
-        fragments.append(titles[section])
+        if not (section == "summary" and suppress_summary_heading):
+            fragments.append(titles[section])
         if section == "summary" and resume.summary:
             fragments.append(resume.summary.text)
         elif section == "experience":
@@ -944,6 +984,9 @@ def validate_rendered_pdf(
                 if resolved_template is not None
                 else None
             ),
+            display_link_labels=bundle.manifest.template_id == "swiss_classic",
+            identity_metadata_first=bundle.manifest.template_id == "swiss_classic",
+            suppress_summary_heading=bundle.manifest.template_id == "swiss_classic",
         ),
         template_id=template_id,
         template_version=template_version,

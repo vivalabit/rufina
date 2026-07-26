@@ -909,6 +909,11 @@ class ResumeBasics(StrictResumeModel):
     email: OptionalText = Field(default="", max_length=320)
     phone: OptionalText = Field(default="", max_length=80)
     location: OptionalText = Field(default="", max_length=240)
+    work_authorization: OptionalText = Field(
+        default="",
+        alias="workAuthorization",
+        max_length=240,
+    )
     linkedin: OptionalText = Field(default="", max_length=500)
     github: OptionalText = Field(default="", max_length=500)
     portfolio: OptionalText = Field(default="", max_length=500)

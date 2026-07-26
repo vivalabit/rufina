@@ -1,0 +1,17 @@
+.template-swiss_classic .identity {
+  border: 0;
+  padding: 0;
+}
+
+.template-swiss_classic .resume-section h2 {
+  border-bottom-width: 0.75pt;
+  padding-bottom: 0.3mm;
+}
+
+.template-swiss_classic .section-summary p {
+  text-align: left;
+}
+
+.template-swiss_classic .separator {
+  color: inherit;
+}

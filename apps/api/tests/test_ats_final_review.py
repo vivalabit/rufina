@@ -947,7 +947,7 @@ def test_final_resume_json_is_the_renderers_only_input() -> None:
 
 @pytest.mark.parametrize(
     "template_id",
-    ["classic_single", "modern_single", "modern_two_column"],
+    ["classic_single", "modern_single", "modern_two_column", "swiss_classic"],
 )
 def test_pdf_template_manifests_are_valid_and_render_escaped_html(
     template_id: str,
@@ -1071,7 +1071,7 @@ def test_custom_template_resolver_only_uses_server_owned_markup(
 
 @pytest.mark.parametrize(
     "template_id",
-    ["classic_single", "modern_single", "modern_two_column"],
+    ["classic_single", "modern_single", "modern_two_column", "swiss_classic"],
 )
 def test_pdf_templates_group_skills_by_category(template_id: str) -> None:
     final_resume_json = final_review_payload("master-resume")["finalResume"]

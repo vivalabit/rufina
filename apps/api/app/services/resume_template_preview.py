@@ -25,7 +25,9 @@ DEMO_FINAL_RESUME = FinalResume.model_validate(
             "email": "jordan.lee@example.test",
             "phone": "+41 44 000 00 00",
             "location": "Zurich, Switzerland",
+            "workAuthorization": "Swiss Permit S",
             "linkedin": "https://example.test/jordan-lee",
+            "github": "https://github.com/example",
         },
         "summary": {
             "text": (

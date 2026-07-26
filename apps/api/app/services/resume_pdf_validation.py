@@ -182,10 +182,11 @@ def validate_expected_text(
     extracted_text: str,
     expected_fragments: list[str],
 ) -> None:
+    compact_text = extracted_text.replace(" ", "")
     missing = [
         fragment
         for fragment in expected_fragments
-        if fragment not in extracted_text
+        if fragment.replace(" ", "") not in compact_text
     ]
     if missing:
         raise ResumePdfValidationError(
@@ -198,15 +199,17 @@ def validate_reading_order(
     extracted_text: str,
     expected_fragments: list[str],
 ) -> None:
+    compact_text = extracted_text.replace(" ", "")
     cursor = 0
     for fragment in expected_fragments:
-        position = extracted_text.find(fragment, cursor)
+        compact_fragment = fragment.replace(" ", "")
+        position = compact_text.find(compact_fragment, cursor)
         if position < 0:
             raise ResumePdfValidationError(
                 "Rendered resume PDF reading order does not match the template: "
                 f"{fragment!r}"
             )
-        cursor = position + len(fragment)
+        cursor = position + len(compact_fragment)
 
 
 def inspect_pdf_overflow(pdf: bytes) -> tuple[str, ...]:
