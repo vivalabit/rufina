@@ -9,6 +9,7 @@ from pydantic import (
     Field,
     StringConstraints,
     field_validator,
+    model_validator,
 )
 from sqlalchemy import CheckConstraint, DateTime, Index, Integer, JSON, String
 from sqlalchemy.engine import Dialect
@@ -183,6 +184,32 @@ class ResumeTemplateDefinitionUpdateRequest(BaseModel):
             raise ValueError("name must not be empty")
         return normalized
 
+    @model_validator(mode="after")
+    def require_change(self) -> ResumeTemplateDefinitionUpdateRequest:
+        if (
+            self.name is None
+            and self.base_template_id is None
+            and self.design_json is None
+        ):
+            raise ValueError("At least one template field must be provided")
+        return self
+
+
+class ResumeTemplateDefinitionDuplicateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=240)
+
+    model_config = ConfigDict(extra="forbid")
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("name must not be empty")
+        return normalized
+
 
 class ResumeTemplateDefinitionResponse(BaseModel):
     id: str
@@ -198,11 +225,36 @@ class ResumeTemplateDefinitionResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 
 
+class ResumeTemplatePayload(BaseModel):
+    id: str
+    kind: Literal["bundled", "custom"]
+    name: str
+    description: str
+    layout: Literal["single_column", "two_column"]
+    columns: Literal[1, 2]
+    base_template_id: ResumeTemplateId = Field(alias="baseTemplateId")
+    design_json: ResumeTemplateDesignTokens | None = Field(
+        default=None,
+        alias="designJson",
+    )
+    version: int | None = Field(default=None, ge=1)
+    content_sha256: ContentSha256 | None = Field(
+        default=None,
+        alias="contentSha256",
+    )
+    created_at: datetime | None = Field(default=None, alias="createdAt")
+    updated_at: datetime | None = Field(default=None, alias="updatedAt")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
 __all__ = [
     "ResumeTemplateDefinitionCreateRequest",
+    "ResumeTemplateDefinitionDuplicateRequest",
     "ResumeTemplateDefinitionRecord",
     "ResumeTemplateDefinitionResponse",
     "ResumeTemplateDefinitionUpdateRequest",
     "ResumeTemplateDesignTokens",
     "ResumeTemplatePageMargins",
+    "ResumeTemplatePayload",
 ]

@@ -51,11 +51,13 @@ from app.models.resume import (
 )
 from app.models.resume_templates import (
     ResumeTemplateDefinitionCreateRequest,
+    ResumeTemplateDefinitionDuplicateRequest,
     ResumeTemplateDefinitionRecord,
     ResumeTemplateDefinitionResponse,
     ResumeTemplateDefinitionUpdateRequest,
     ResumeTemplateDesignTokens,
     ResumeTemplatePageMargins,
+    ResumeTemplatePayload,
 )
 
 __all__ = [
@@ -95,11 +97,13 @@ __all__ = [
     "ResumeSourceFragment",
     "ResumeSourceFileRecord",
     "ResumeTemplateDefinitionCreateRequest",
+    "ResumeTemplateDefinitionDuplicateRequest",
     "ResumeTemplateDefinitionRecord",
     "ResumeTemplateDefinitionResponse",
     "ResumeTemplateDefinitionUpdateRequest",
     "ResumeTemplateDesignTokens",
     "ResumeTemplatePageMargins",
+    "ResumeTemplatePayload",
     "SeniorRecruiterAnalysis",
     "SeniorRecruiterAnalysisMetrics",
     "SeniorRecruiterAnalysisRecord",

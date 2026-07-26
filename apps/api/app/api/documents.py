@@ -27,7 +27,6 @@ from app.models.assistant import (
     AssistantSourceDocument,
 )
 from app.models.documents import (
-    BundledResumeTemplatePayload,
     DocumentArtifactPayload,
     DocumentAttachRequest,
     DocumentAttachmentRecord,
@@ -58,6 +57,7 @@ from app.models.documents import (
     WorkspaceSourceDocumentRecord,
     utc_now,
 )
+from app.models.resume_templates import ResumeTemplatePayload
 from app.models.profile import ProfilePayload
 from app.services.assistant import (
     analyze_openclaw_assistant_context,
@@ -80,8 +80,8 @@ from app.services.document_validation import (
 from app.services.document_preflight import analyze_document_template
 from app.services.resume_template_registry import (
     is_bundled_resume_template_id,
-    list_bundled_resume_templates,
 )
+from app.api.resume_templates import list_resume_template_payloads
 
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
 
@@ -310,19 +310,15 @@ def get_document_pack_status(
 
 @router.get(
     "/resume-templates",
-    response_model=list[BundledResumeTemplatePayload],
+    response_model=list[ResumeTemplatePayload],
 )
-def list_resume_templates() -> list[BundledResumeTemplatePayload]:
-    return [
-        BundledResumeTemplatePayload(
-            id=template.id,
-            name=template.name,
-            description=template.description,
-            layout=template.layout,
-            columns=template.columns,
-        )
-        for template in list_bundled_resume_templates()
-    ]
+def list_resume_templates_alias(
+    db: Session = Depends(get_db),
+) -> list[ResumeTemplatePayload]:
+    try:
+        return list_resume_template_payloads(db)
+    except SQLAlchemyError as exc:
+        raise database_unavailable(exc) from exc
 
 
 @router.get("/{document_id}", response_model=DocumentPayload)
