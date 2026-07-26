@@ -5,7 +5,6 @@ import {
   Download,
   LayoutPanelLeft,
   LoaderCircle,
-  Save,
   Trash2,
 } from "lucide-react";
 
@@ -38,7 +37,6 @@ type ResumeTemplateEditorProps = {
   isDeleting: boolean;
   isExporting: boolean;
   onChange: (draft: ResumeTemplateDraft) => void;
-  onSave: () => void;
   onDuplicate?: () => void;
   onDelete?: () => void;
   onExport?: () => void;
@@ -93,7 +91,6 @@ export function ResumeTemplateEditor({
   isDeleting,
   isExporting,
   onChange,
-  onSave,
   onDuplicate,
   onDelete,
   onExport,
@@ -132,11 +129,11 @@ export function ResumeTemplateEditor({
 
   return (
     <div className="min-w-0">
-      <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-start sm:justify-between 2xl:px-5">
+      <div className="flex min-h-[142px] flex-col gap-3 border-b border-white/[0.12] px-5 py-5 sm:flex-row sm:items-start sm:justify-between 2xl:px-6">
         <div className="min-w-0 flex-1">
           <label
             htmlFor="resume-template-name"
-            className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted"
+            className="text-[10px] font-bold uppercase tracking-[0.14em] text-[#d0d4da]"
           >
             Template name
           </label>
@@ -145,9 +142,9 @@ export function ResumeTemplateEditor({
             value={draft.name}
             maxLength={240}
             onChange={(event) => updateDraft({ name: event.target.value })}
-            className="mt-1.5 h-10 w-full rounded-md border border-border bg-[#0c1118] px-3 text-sm font-semibold text-white outline-none transition focus:border-accent/70 focus:ring-2 focus:ring-accent/20"
+            className="mt-2 h-11 w-full rounded-md border border-white/[0.16] bg-[#0b1015] px-3 text-sm font-semibold text-white outline-none transition focus:border-[#ff6a00]/80 focus:ring-2 focus:ring-[#ff6a00]/15"
           />
-          <p className="mt-1.5 text-xs text-muted">
+          <p className="mt-2 text-xs text-[#aeb5c0]">
             {sourceKind === "bundled"
               ? "A personal copy will be created when you save."
               : isDirty
@@ -155,7 +152,7 @@ export function ResumeTemplateEditor({
                 : "All changes are saved."}
           </p>
         </div>
-        <div className="flex shrink-0 flex-wrap gap-2 sm:pt-5">
+        <div className="flex shrink-0 flex-wrap gap-2 sm:pt-[22px]">
           {sourceKind === "custom" && onExport ? (
             <Button
               type="button"
@@ -210,38 +207,20 @@ export function ResumeTemplateEditor({
               Delete
             </Button>
           ) : null}
-          <Button
-            type="button"
-            size="sm"
-            disabled={
-              isBusy ||
-              !draft.name.trim() ||
-              !hasValidAccentColor ||
-              (sourceKind === "custom" && !isDirty)
-            }
-            onClick={onSave}
-          >
-            {isSaving ? (
-              <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-            ) : (
-              <Save className="h-3.5 w-3.5" />
-            )}
-            {sourceKind === "bundled" ? "Create template" : "Save"}
-          </Button>
         </div>
       </div>
 
-      <div className="job-scroll max-h-[680px] space-y-5 overflow-y-auto p-4 2xl:p-5">
+      <div className="job-scroll max-h-[638px] space-y-6 overflow-y-auto px-5 py-5 xl:max-h-[794px] 2xl:px-6">
         <fieldset>
-          <legend className="text-xs font-bold uppercase tracking-[0.12em] text-white">
+          <legend className="text-[12px] font-bold uppercase tracking-[0.1em] text-white">
             Color & typography
           </legend>
-          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <div className="mt-4 grid gap-4 sm:grid-cols-2">
             <label className="block">
-              <span className="text-xs font-semibold text-muted">
+              <span className="text-xs font-semibold text-[#b5bbc5]">
                 Accent color
               </span>
-              <span className="mt-1.5 flex h-10 items-center gap-2 rounded-md border border-border bg-[#0c1118] px-2">
+              <span className="mt-2 flex h-11 items-center gap-2.5 rounded-md border border-white/[0.16] bg-[#0b1015] px-2.5">
                 <input
                   type="color"
                   aria-label="Accent color"
@@ -251,7 +230,7 @@ export function ResumeTemplateEditor({
                       designJson: { accentColor: event.target.value },
                     })
                   }
-                  className="h-7 w-9 cursor-pointer border-0 bg-transparent p-0"
+                  className="resume-color-input h-7 w-10 cursor-pointer border-0 bg-transparent p-0"
                 />
                 <input
                   aria-label="Accent color hex"
@@ -273,7 +252,7 @@ export function ResumeTemplateEditor({
               ) : null}
             </label>
             <label className="block">
-              <span className="text-xs font-semibold text-muted">
+              <span className="text-xs font-semibold text-[#b5bbc5]">
                 Font family
               </span>
               <select
@@ -284,7 +263,7 @@ export function ResumeTemplateEditor({
                     designJson: { fontFamily: event.target.value },
                   })
                 }
-                className="mt-1.5 h-10 w-full rounded-md border border-border bg-[#0c1118] px-3 text-sm text-white outline-none focus:border-accent/70"
+                className="mt-2 h-11 w-full rounded-md border border-white/[0.16] bg-[#0b1015] px-3 text-sm text-white outline-none focus:border-[#ff6a00]/80"
               >
                 {fontOptions.map((font) => (
                   <option key={font} value={font}>
@@ -297,10 +276,10 @@ export function ResumeTemplateEditor({
         </fieldset>
 
         <fieldset>
-          <legend className="text-xs font-bold uppercase tracking-[0.12em] text-white">
+          <legend className="text-[12px] font-bold uppercase tracking-[0.1em] text-white">
             Density
           </legend>
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="mt-4 grid grid-cols-3 gap-2.5">
             {densityOptions.map((option) => (
               <OptionButton
                 key={option.value}
@@ -317,10 +296,10 @@ export function ResumeTemplateEditor({
 
         <div className="grid gap-5 sm:grid-cols-2">
           <fieldset>
-            <legend className="text-xs font-bold uppercase tracking-[0.12em] text-white">
+            <legend className="text-[12px] font-bold uppercase tracking-[0.1em] text-white">
               Headings
             </legend>
-            <div className="mt-3 space-y-2">
+            <div className="mt-4 space-y-2">
               {headingOptions.map((option) => (
                 <OptionButton
                   key={option.value}
@@ -339,10 +318,10 @@ export function ResumeTemplateEditor({
           </fieldset>
 
           <fieldset>
-            <legend className="text-xs font-bold uppercase tracking-[0.12em] text-white">
+            <legend className="text-[12px] font-bold uppercase tracking-[0.1em] text-white">
               Skills
             </legend>
-            <div className="mt-3 space-y-2">
+            <div className="mt-4 space-y-2">
               {skillsOptions.map((option) => (
                 <OptionButton
                   key={option.value}
@@ -363,11 +342,11 @@ export function ResumeTemplateEditor({
 
         <fieldset
           className={cn(
-            "rounded-lg border border-border bg-white/[0.015] p-3.5",
-            !isTwoColumn && "opacity-60",
+            "rounded-lg border border-white/[0.14] bg-white/[0.01] p-3.5",
+            !isTwoColumn && "opacity-75",
           )}
         >
-          <legend className="px-1 text-xs font-bold uppercase tracking-[0.12em] text-white">
+          <legend className="px-1 text-xs font-bold uppercase tracking-[0.1em] text-white">
             <span className="inline-flex items-center gap-2">
               <LayoutPanelLeft className="h-4 w-4 text-accent" />
               Sidebar
@@ -389,9 +368,7 @@ export function ResumeTemplateEditor({
               max={42}
               step={1}
               value={
-                isTwoColumn
-                  ? Math.max(22, draft.designJson.sidebarWidth)
-                  : 22
+                isTwoColumn ? Math.max(22, draft.designJson.sidebarWidth) : 22
               }
               disabled={!isTwoColumn}
               onChange={(event) =>
@@ -401,13 +378,14 @@ export function ResumeTemplateEditor({
                   },
                 })
               }
-              className="mt-2 w-full accent-[#ff5a00]"
+              className="resume-sidebar-range mt-3 w-full accent-[#ff5a00]"
             />
           </label>
           <div className="mt-3 grid grid-cols-2 gap-2">
             {sidebarSectionOptions.map((section) => {
-              const checked =
-                draft.designJson.sidebarSections.includes(section.value);
+              const checked = draft.designJson.sidebarSections.includes(
+                section.value,
+              );
               return (
                 <label
                   key={section.value}
@@ -415,7 +393,7 @@ export function ResumeTemplateEditor({
                     "flex cursor-pointer items-center gap-2 rounded-md border px-2.5 py-2 text-xs font-semibold transition",
                     checked
                       ? "border-accent/45 bg-accent/[0.09] text-white"
-                      : "border-border bg-[#0c1118] text-muted",
+                      : "border-white/[0.14] bg-[#0b1015] text-[#aeb5c0]",
                     !isTwoColumn && "cursor-not-allowed",
                   )}
                 >
@@ -424,7 +402,7 @@ export function ResumeTemplateEditor({
                     checked={checked}
                     disabled={!isTwoColumn}
                     onChange={() => toggleSidebarSection(section.value)}
-                    className="accent-[#ff5a00]"
+                    className="h-4 w-4 accent-[#ff5a00]"
                   />
                   {section.label}
                 </label>
@@ -459,11 +437,11 @@ function OptionButton({
       aria-pressed={active}
       onClick={onClick}
       className={cn(
-        "h-9 rounded-md border px-2 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+        "h-10 rounded-md border px-3 text-xs font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
         fullWidth && "w-full text-left",
         active
-          ? "border-accent/55 bg-accent/[0.11] text-white"
-          : "border-border bg-[#0c1118] text-muted hover:bg-white/[0.045] hover:text-white",
+          ? "border-[#ff6a00] bg-[linear-gradient(110deg,rgba(255,90,0,0.14),rgba(255,90,0,0.06))] text-white shadow-[inset_0_0_0_1px_rgba(255,90,0,0.05)]"
+          : "border-white/[0.15] bg-[#0b1015] text-[#aeb5c0] hover:bg-white/[0.045] hover:text-white",
       )}
     >
       {children}

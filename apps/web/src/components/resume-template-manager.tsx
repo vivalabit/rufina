@@ -6,17 +6,17 @@ import {
   CheckCircle2,
   ChevronRight,
   Copy,
+  FileText,
   FilePlus2,
   LayoutTemplate,
   LoaderCircle,
-  Palette,
+  Plus,
   RefreshCw,
+  Save,
   Upload,
 } from "lucide-react";
 
-import {
-  ResumeTemplateEditor,
-} from "@/components/resume-template-editor";
+import { ResumeTemplateEditor } from "@/components/resume-template-editor";
 import { ResumeTemplatePreview } from "@/components/resume-template-preview";
 import { Button } from "@/components/ui/button";
 import { apiUnavailableMessage, fetchWithTimeout } from "@/lib/api-client";
@@ -28,20 +28,11 @@ import { cn } from "@/lib/utils";
 
 type ManagerStatus = "loading" | "ready" | "error";
 type MutationKind =
-  | "saving"
-  | "duplicating"
-  | "deleting"
-  | "exporting"
-  | "importing"
-  | null;
+  "saving" | "duplicating" | "deleting" | "exporting" | "importing" | null;
 type MessageKind = "success" | "error" | null;
 const MAX_TEMPLATE_BACKUP_BYTES = 32_000;
 
-export function ResumeTemplateManager({
-  apiBaseUrl,
-}: {
-  apiBaseUrl: string;
-}) {
+export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
   const [templates, setTemplates] = useState<ResumeTemplate[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ResumeTemplateDraft | null>(null);
@@ -65,10 +56,13 @@ export function ResumeTemplateManager({
   );
   const isDirty = Boolean(
     draft &&
-      selectedTemplate &&
-      (selectedTemplate.kind === "bundled" ||
-        draftSignature(draft) !==
-          draftSignature(draftFromTemplate(selectedTemplate))),
+    selectedTemplate &&
+    (selectedTemplate.kind === "bundled" ||
+      draftSignature(draft) !==
+        draftSignature(draftFromTemplate(selectedTemplate))),
+  );
+  const hasValidAccentColor = Boolean(
+    draft && /^#[0-9A-Fa-f]{6}$/.test(draft.designJson.accentColor),
   );
 
   useEffect(() => {
@@ -327,20 +321,23 @@ export function ResumeTemplateManager({
   }
 
   return (
-    <section className="panel overflow-hidden" aria-labelledby="resume-templates-title">
-      <header className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between 2xl:px-5">
+    <section
+      className="resume-template-manager overflow-hidden rounded-[10px] border border-white/[0.12] bg-[#090d11] shadow-[0_24px_80px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.025)]"
+      aria-labelledby="resume-templates-title"
+    >
+      <header className="flex min-h-[84px] flex-col gap-4 border-b border-white/[0.12] bg-[radial-gradient(circle_at_6%_0%,rgba(255,90,0,0.07),transparent_18rem)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between 2xl:px-[18px]">
         <div className="flex items-start gap-3">
-          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-accent/20 bg-accent/[0.08]">
-            <Palette className="h-4 w-4 text-accent" />
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#ff8a00] to-[#ff5400] shadow-[0_8px_24px_rgba(255,90,0,0.24),inset_0_1px_0_rgba(255,255,255,0.28)]">
+            <FileText className="h-5 w-5 text-white" />
           </span>
           <div>
             <h2
               id="resume-templates-title"
-              className="text-base font-bold text-white"
+              className="text-[17px] font-bold leading-6 text-white"
             >
               Resume templates
             </h2>
-            <p className="mt-0.5 text-xs leading-5 text-muted">
+            <p className="mt-0.5 text-xs leading-5 text-[#b0b7c2]">
               Create owner-only designs from trusted templates and preview them
               before saving.
             </p>
@@ -353,9 +350,7 @@ export function ResumeTemplateManager({
             accept="application/json,.json"
             aria-label="Import resume template backup"
             className="sr-only"
-            onChange={(event) =>
-              void importTemplate(event.target.files?.[0])
-            }
+            onChange={(event) => void importTemplate(event.target.files?.[0])}
           />
           {status === "ready" ? (
             <Button
@@ -364,7 +359,7 @@ export function ResumeTemplateManager({
               size="sm"
               disabled={mutation !== null}
               onClick={() => importInputRef.current?.click()}
-              className="border border-border bg-white/[0.025]"
+              className="h-10 rounded-md border border-white/[0.16] bg-white/[0.018] px-4 text-[13px] font-bold text-[#e8ebef] hover:bg-white/[0.06]"
             >
               {mutation === "importing" ? (
                 <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
@@ -374,13 +369,35 @@ export function ResumeTemplateManager({
               Import JSON
             </Button>
           ) : null}
+          {status === "ready" && selectedTemplate && draft ? (
+            <Button
+              type="button"
+              disabled={
+                mutation !== null ||
+                !draft.name.trim() ||
+                !hasValidAccentColor ||
+                (selectedTemplate.kind === "custom" && !isDirty)
+              }
+              onClick={() => void saveTemplate()}
+              className="h-10 rounded-md bg-gradient-to-r from-[#ff6a00] to-[#ff5200] px-4 text-[13px] font-bold shadow-[0_8px_24px_rgba(255,90,0,0.2)] hover:from-[#ff7a00] hover:to-[#ff6200]"
+            >
+              {mutation === "saving" ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : selectedTemplate.kind === "bundled" ? (
+                <Plus className="h-4 w-4" />
+              ) : (
+                <Save className="h-4 w-4" />
+              )}
+              {selectedTemplate.kind === "bundled" ? "Create template" : "Save"}
+            </Button>
+          ) : null}
           {status === "error" ? (
             <Button
               type="button"
               variant="ghost"
               size="sm"
               onClick={() => void loadTemplates()}
-              className="border border-border bg-white/[0.025]"
+              className="h-10 border border-border bg-white/[0.025]"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               Retry
@@ -400,7 +417,10 @@ export function ResumeTemplateManager({
           <p className="mt-3 text-sm font-semibold text-white">
             Resume templates are unavailable
           </p>
-          <p className="mt-1 max-w-md text-xs leading-5 text-red-300" role="alert">
+          <p
+            className="mt-1 max-w-md text-xs leading-5 text-red-300"
+            role="alert"
+          >
             {message}
           </p>
         </div>
@@ -416,9 +436,9 @@ export function ResumeTemplateManager({
         </div>
       ) : (
         <>
-          <div className="grid min-w-0 lg:grid-cols-[250px_minmax(0,1fr)] 2xl:grid-cols-[270px_minmax(0,1fr)]">
-            <aside className="border-b border-border bg-black/10 lg:border-b-0 lg:border-r">
-              <div className="job-scroll max-h-[720px] overflow-y-auto p-3">
+          <div className="grid min-w-0 lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[270px_minmax(0,1fr)] 2xl:grid-cols-[290px_minmax(0,1fr)]">
+            <aside className="border-b border-white/[0.12] bg-black/[0.08] lg:border-b-0 lg:border-r">
+              <div className="job-scroll max-h-[780px] overflow-y-auto px-4 py-5 xl:max-h-[936px]">
                 <TemplateGroup
                   title="My templates"
                   emptyText="No personal templates yet."
@@ -436,7 +456,7 @@ export function ResumeTemplateManager({
               </div>
             </aside>
 
-            <div className="grid min-w-0 xl:grid-cols-[minmax(360px,0.9fr)_minmax(420px,1.1fr)]">
+            <div className="grid min-w-0 xl:grid-cols-[minmax(410px,0.88fr)_minmax(500px,1.12fr)] 2xl:grid-cols-[minmax(460px,0.9fr)_minmax(560px,1.1fr)]">
               <ResumeTemplateEditor
                 draft={draft}
                 sourceKind={selectedTemplate.kind}
@@ -447,7 +467,6 @@ export function ResumeTemplateManager({
                 isDeleting={mutation === "deleting"}
                 isExporting={mutation === "exporting"}
                 onChange={setDraft}
-                onSave={() => void saveTemplate()}
                 onDuplicate={
                   selectedTemplate.kind === "custom"
                     ? () => void duplicateTemplate()
@@ -508,16 +527,16 @@ function TemplateGroup({
 }) {
   return (
     <div className={className}>
-      <div className="mb-2 flex items-center justify-between px-1">
-        <h3 className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted">
+      <div className="mb-3 flex items-center justify-between">
+        <h3 className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#c0c5cd]">
           {title}
         </h3>
-        <span className="text-[10px] font-semibold text-muted">
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white/[0.1] px-1 text-[10px] font-bold text-[#d8dde4]">
           {templates.length}
         </span>
       </div>
       {templates.length ? (
-        <div className="space-y-1.5">
+        <div className="space-y-1">
           {templates.map((template) => {
             const selected = template.id === selectedId;
             return (
@@ -527,22 +546,30 @@ function TemplateGroup({
                 onClick={() => onSelect(template)}
                 aria-pressed={selected}
                 className={cn(
-                  "group flex w-full items-center gap-2.5 rounded-md border px-2.5 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
+                  "group relative flex min-h-[64px] w-full items-center gap-3 rounded-md border px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
                   selected
-                    ? "border-accent/45 bg-accent/[0.09]"
-                    : "border-transparent hover:border-border hover:bg-white/[0.035]",
+                    ? "border-[#ff6a00]/70 bg-[linear-gradient(100deg,rgba(255,90,0,0.12),rgba(255,90,0,0.035))]"
+                    : "border-transparent hover:border-white/[0.12] hover:bg-white/[0.025]",
                 )}
               >
                 <span
-                  className="h-8 w-1 shrink-0 rounded-full"
-                  style={{ backgroundColor: template.designJson.accentColor }}
+                  className={cn(
+                    "h-9 w-1 shrink-0 rounded-full",
+                    selected && "shadow-[0_0_16px_rgba(255,90,0,0.3)]",
+                  )}
+                  style={{
+                    backgroundColor: selected
+                      ? "#ff6a00"
+                      : template.designJson.accentColor,
+                    opacity: selected ? 1 : 0.7,
+                  }}
                   aria-hidden="true"
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs font-bold text-white">
+                  <span className="block truncate text-[13px] font-bold text-white">
                     {template.name}
                   </span>
-                  <span className="mt-0.5 flex items-center gap-1 text-[10px] font-medium text-muted">
+                  <span className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[#aeb5c0]">
                     {template.kind === "bundled" ? (
                       <>
                         <FilePlus2 className="h-3 w-3" />
@@ -550,8 +577,7 @@ function TemplateGroup({
                       </>
                     ) : (
                       <>
-                        <Copy className="h-3 w-3" />
-                        v{template.version ?? 1}
+                        <Copy className="h-3 w-3" />v{template.version ?? 1}
                       </>
                     )}
                     <span aria-hidden="true">·</span>
@@ -563,7 +589,7 @@ function TemplateGroup({
                     "h-3.5 w-3.5 shrink-0 transition",
                     selected
                       ? "text-accent"
-                      : "text-muted/60 group-hover:text-muted",
+                      : "text-[#8b939f] group-hover:text-white",
                   )}
                 />
               </button>
@@ -571,7 +597,7 @@ function TemplateGroup({
           })}
         </div>
       ) : (
-        <p className="rounded-md border border-dashed border-border px-3 py-3 text-xs leading-5 text-muted">
+        <p className="rounded-md border border-white/[0.13] bg-white/[0.012] px-3 py-3.5 text-xs leading-5 text-[#aeb5c0]">
           {emptyText}
         </p>
       )}
@@ -604,15 +630,10 @@ function upsertCustomTemplate(
 ): ResumeTemplate[] {
   const bundled = templates.filter((template) => template.kind === "bundled");
   const custom = templates
-    .filter(
-      (template) =>
-        template.kind === "custom" && template.id !== next.id,
-    )
+    .filter((template) => template.kind === "custom" && template.id !== next.id)
     .concat(next)
     .sort((left, right) =>
-      String(right.updatedAt ?? "").localeCompare(
-        String(left.updatedAt ?? ""),
-      ),
+      String(right.updatedAt ?? "").localeCompare(String(left.updatedAt ?? "")),
     );
   return [...bundled, ...custom];
 }

@@ -65,7 +65,10 @@ it("debounces draft changes and keeps the PDF as a browser Blob URL", async () =
   );
 
   const frame = await screen.findByTitle("Resume template preview");
-  expect(frame).toHaveAttribute("src", "blob:latest-resume-preview");
+  expect(frame).toHaveAttribute(
+    "src",
+    "blob:latest-resume-preview#page=1&zoom=70",
+  );
   expect(previewBodies).toHaveLength(1);
   expect(previewBodies[0]).toMatchObject({
     baseTemplateId: "modern_single",
@@ -75,8 +78,6 @@ it("debounces draft changes and keeps the PDF as a browser Blob URL", async () =
 
   unmount();
   await waitFor(() =>
-    expect(revokeObjectUrl).toHaveBeenCalledWith(
-      "blob:latest-resume-preview",
-    ),
+    expect(revokeObjectUrl).toHaveBeenCalledWith("blob:latest-resume-preview"),
   );
 });
