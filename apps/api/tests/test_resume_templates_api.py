@@ -214,6 +214,108 @@ def test_custom_template_duplicate_requires_ownership(client: TestClient) -> Non
     assert duplicated.json()["contentSha256"] == created["contentSha256"]
 
 
+def test_custom_template_export_is_portable_and_import_revalidates(
+    client: TestClient,
+) -> None:
+    created = create_custom_template(
+        client,
+        headers=OWNER_A,
+        name="My Swiss CV",
+    )
+
+    exported = client.get(
+        f"/resume-templates/{created['id']}/export",
+        headers=OWNER_A,
+    )
+    foreign_export = client.get(
+        f"/resume-templates/{created['id']}/export",
+        headers=OWNER_B,
+    )
+
+    assert exported.status_code == 200
+    assert exported.headers["cache-control"] == "no-store"
+    assert exported.headers["x-content-type-options"] == "nosniff"
+    assert exported.headers["content-disposition"] == (
+        'attachment; filename="My-Swiss-CV.resume-template.local.json"'
+    )
+    backup = exported.json()
+    assert set(backup) == {
+        "format",
+        "schemaVersion",
+        "name",
+        "baseTemplateId",
+        "designJson",
+    }
+    assert backup["format"] == "rufina.resume-template"
+    assert backup["schemaVersion"] == 1
+    assert backup["name"] == "My Swiss CV"
+    assert backup["baseTemplateId"] == "modern_two_column"
+    assert "id" not in backup
+    assert "ownerId" not in backup
+    assert "contentSha256" not in backup
+    assert "createdAt" not in backup
+    assert "updatedAt" not in backup
+    assert foreign_export.status_code == 404
+
+    imported = client.post(
+        "/resume-templates/import",
+        headers=OWNER_B,
+        json=backup,
+    )
+
+    assert imported.status_code == 201
+    assert imported.json()["kind"] == "custom"
+    assert imported.json()["name"] == created["name"]
+    assert imported.json()["designJson"] == created["designJson"]
+    assert imported.json()["id"] != created["id"]
+    assert (
+        client.get(
+            f"/resume-templates/{imported.json()['id']}",
+            headers=OWNER_A,
+        ).status_code
+        == 404
+    )
+
+
+def test_import_rejects_internal_fields_and_invalid_design_tokens(
+    client: TestClient,
+) -> None:
+    created = create_custom_template(client)
+    backup = client.get(
+        f"/resume-templates/{created['id']}/export",
+        headers=OWNER_A,
+    ).json()
+
+    with_internal_fields = client.post(
+        "/resume-templates/import",
+        headers=OWNER_A,
+        json={
+            **backup,
+            "id": created["id"],
+            "ownerId": "owner-a",
+        },
+    )
+    invalid_design = client.post(
+        "/resume-templates/import",
+        headers=OWNER_A,
+        json={
+            **backup,
+            "designJson": {
+                **backup["designJson"],
+                "accentColor": "url(file:///private/template.css)",
+            },
+        },
+    )
+    bundled_export = client.get(
+        "/resume-templates/modern_single/export",
+        headers=OWNER_A,
+    )
+
+    assert with_internal_fields.status_code == 422
+    assert invalid_design.status_code == 422
+    assert bundled_export.status_code == 405
+
+
 def test_delete_is_blocked_after_template_was_used_for_pdf(
     client: TestClient,
     api_sessions: sessionmaker[Session],
@@ -263,10 +365,7 @@ def test_delete_is_blocked_after_template_was_used_for_pdf(
 
     assert response.status_code == 409
     assert "used to render a PDF" in response.json()["detail"]
-    assert (
-        client.get(f"/resume-templates/{template_id}", headers=OWNER_A).status_code
-        == 200
-    )
+    assert client.get(f"/resume-templates/{template_id}", headers=OWNER_A).status_code == 200
 
 
 def test_create_rejects_unknown_design_fields_and_empty_patch(
@@ -327,9 +426,7 @@ def test_draft_preview_uses_demo_resume_and_does_not_persist(
 
     with api_sessions() as db:
         assert db.scalar(select(func.count()).select_from(DocumentRecord)) == 0
-        assert db.scalar(
-            select(func.count()).select_from(DocumentFileRecord)
-        ) == 0
+        assert db.scalar(select(func.count()).select_from(DocumentFileRecord)) == 0
 
 
 def test_saved_preview_is_owner_scoped_and_does_not_create_artifacts(
@@ -359,9 +456,7 @@ def test_saved_preview_is_owner_scoped_and_does_not_create_artifacts(
     assert foreign.status_code == 404
     with api_sessions() as db:
         assert db.scalar(select(func.count()).select_from(DocumentRecord)) == 0
-        assert db.scalar(
-            select(func.count()).select_from(DocumentFileRecord)
-        ) == 0
+        assert db.scalar(select(func.count()).select_from(DocumentFileRecord)) == 0
 
 
 def test_preview_payload_limit_is_checked_before_render(
@@ -419,9 +514,7 @@ def test_preview_rate_limit_is_owner_scoped(
 def test_draft_preview_accepts_no_resume_content(client: TestClient) -> None:
     request = template_request()
     request.pop("name")
-    request["finalResume"] = {
-        "basics": {"fullName": "User-controlled preview content"}
-    }
+    request["finalResume"] = {"basics": {"fullName": "User-controlled preview content"}}
 
     response = client.post(
         "/resume-templates/preview",

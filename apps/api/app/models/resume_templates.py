@@ -186,11 +186,7 @@ class ResumeTemplateDefinitionUpdateRequest(BaseModel):
 
     @model_validator(mode="after")
     def require_change(self) -> ResumeTemplateDefinitionUpdateRequest:
-        if (
-            self.name is None
-            and self.base_template_id is None
-            and self.design_json is None
-        ):
+        if self.name is None and self.base_template_id is None and self.design_json is None:
             raise ValueError("At least one template field must be provided")
         return self
 
@@ -216,6 +212,26 @@ class ResumeTemplatePreviewRequest(BaseModel):
     design_json: ResumeTemplateDesignTokens = Field(alias="designJson")
 
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+
+class ResumeTemplateBackupPayload(BaseModel):
+    """Portable template data that is safe to store outside the application."""
+
+    format: Literal["rufina.resume-template"]
+    schema_version: Literal[1] = Field(alias="schemaVersion")
+    name: str = Field(min_length=1, max_length=240)
+    base_template_id: ResumeTemplateId = Field(alias="baseTemplateId")
+    design_json: ResumeTemplateDesignTokens = Field(alias="designJson")
+
+    model_config = ConfigDict(extra="forbid", populate_by_name=True)
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        normalized = value.strip()
+        if not normalized:
+            raise ValueError("name must not be empty")
+        return normalized
 
 
 class ResumeTemplateDefinitionResponse(BaseModel):
@@ -261,6 +277,7 @@ __all__ = [
     "ResumeTemplateDefinitionRecord",
     "ResumeTemplateDefinitionResponse",
     "ResumeTemplateDefinitionUpdateRequest",
+    "ResumeTemplateBackupPayload",
     "ResumeTemplateDesignTokens",
     "ResumeTemplatePageMargins",
     "ResumeTemplatePayload",

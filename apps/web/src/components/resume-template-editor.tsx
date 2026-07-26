@@ -2,6 +2,7 @@
 
 import {
   Copy,
+  Download,
   LayoutPanelLeft,
   LoaderCircle,
   Save,
@@ -35,10 +36,12 @@ type ResumeTemplateEditorProps = {
   isSaving: boolean;
   isDuplicating: boolean;
   isDeleting: boolean;
+  isExporting: boolean;
   onChange: (draft: ResumeTemplateDraft) => void;
   onSave: () => void;
   onDuplicate?: () => void;
   onDelete?: () => void;
+  onExport?: () => void;
 };
 
 const fontOptions = [
@@ -88,13 +91,15 @@ export function ResumeTemplateEditor({
   isSaving,
   isDuplicating,
   isDeleting,
+  isExporting,
   onChange,
   onSave,
   onDuplicate,
   onDelete,
+  onExport,
 }: ResumeTemplateEditorProps) {
   const isTwoColumn = layout === "two_column";
-  const isBusy = isSaving || isDuplicating || isDeleting;
+  const isBusy = isSaving || isDuplicating || isDeleting || isExporting;
   const hasValidAccentColor = /^#[0-9A-Fa-f]{6}$/.test(
     draft.designJson.accentColor,
   );
@@ -151,6 +156,24 @@ export function ResumeTemplateEditor({
           </p>
         </div>
         <div className="flex shrink-0 flex-wrap gap-2 sm:pt-5">
+          {sourceKind === "custom" && onExport ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={isBusy}
+              onClick={onExport}
+              aria-label="Export template"
+              className="border border-border bg-white/[0.025]"
+            >
+              {isExporting ? (
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Download className="h-3.5 w-3.5" />
+              )}
+              Export
+            </Button>
+          ) : null}
           {sourceKind === "custom" && onDuplicate ? (
             <Button
               type="button"

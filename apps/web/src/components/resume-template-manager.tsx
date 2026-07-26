@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -11,6 +11,7 @@ import {
   LoaderCircle,
   Palette,
   RefreshCw,
+  Upload,
 } from "lucide-react";
 
 import {
@@ -26,8 +27,15 @@ import type {
 import { cn } from "@/lib/utils";
 
 type ManagerStatus = "loading" | "ready" | "error";
-type MutationKind = "saving" | "duplicating" | "deleting" | null;
+type MutationKind =
+  | "saving"
+  | "duplicating"
+  | "deleting"
+  | "exporting"
+  | "importing"
+  | null;
 type MessageKind = "success" | "error" | null;
+const MAX_TEMPLATE_BACKUP_BYTES = 32_000;
 
 export function ResumeTemplateManager({
   apiBaseUrl,
@@ -41,6 +49,7 @@ export function ResumeTemplateManager({
   const [mutation, setMutation] = useState<MutationKind>(null);
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<MessageKind>(null);
+  const importInputRef = useRef<HTMLInputElement>(null);
 
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.id === selectedId) ?? null,
@@ -225,6 +234,98 @@ export function ResumeTemplateManager({
     }
   }
 
+  async function exportTemplate() {
+    if (!selectedTemplate || selectedTemplate.kind !== "custom") return;
+    if (
+      isDirty &&
+      !window.confirm(
+        "Export the last saved version? Unsaved editor changes are not included.",
+      )
+    ) {
+      return;
+    }
+    setMutation("exporting");
+    setMessage("");
+    setMessageKind(null);
+    let objectUrl = "";
+    try {
+      const response = await fetchWithTimeout(
+        `${apiBaseUrl}/resume-templates/${encodeURIComponent(selectedTemplate.id)}/export`,
+        { cache: "no-store" },
+      );
+      if (!response.ok) throw new Error(await readApiError(response));
+      const backup = await response.blob();
+      objectUrl = URL.createObjectURL(backup);
+      const download = document.createElement("a");
+      download.href = objectUrl;
+      download.download =
+        responseFileName(response) ??
+        `${safeBackupName(selectedTemplate.name)}.resume-template.local.json`;
+      document.body.append(download);
+      download.click();
+      download.remove();
+      setMessage(
+        "Template backup downloaded. Keep it outside the repository, for example in Downloads or personal backup storage.",
+      );
+      setMessageKind("success");
+    } catch (error) {
+      setMessage(
+        apiUnavailableMessage(error, "Could not export the template."),
+      );
+      setMessageKind("error");
+    } finally {
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+      setMutation(null);
+    }
+  }
+
+  async function importTemplate(file: File | undefined) {
+    if (!file) return;
+    if (
+      selectedTemplate?.kind === "custom" &&
+      isDirty &&
+      !window.confirm("Discard unsaved changes and import a template backup?")
+    ) {
+      if (importInputRef.current) importInputRef.current.value = "";
+      return;
+    }
+    setMutation("importing");
+    setMessage("");
+    setMessageKind(null);
+    try {
+      if (file.size > MAX_TEMPLATE_BACKUP_BYTES) {
+        throw new Error("Template backup must be 32 KB or smaller.");
+      }
+      const raw = await file.text();
+      const backup = JSON.parse(raw) as unknown;
+      const response = await fetchWithTimeout(
+        `${apiBaseUrl}/resume-templates/import`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(backup),
+        },
+      );
+      if (!response.ok) throw new Error(await readApiError(response));
+      const imported = (await response.json()) as ResumeTemplate;
+      setTemplates((current) => upsertCustomTemplate(current, imported));
+      setSelectedId(imported.id);
+      setDraft(draftFromTemplate(imported));
+      setMessage(`Imported “${imported.name}” as a new personal template.`);
+      setMessageKind("success");
+    } catch (error) {
+      const message =
+        error instanceof SyntaxError
+          ? "The selected file is not valid JSON."
+          : apiUnavailableMessage(error, "Could not import the template.");
+      setMessage(message);
+      setMessageKind("error");
+    } finally {
+      if (importInputRef.current) importInputRef.current.value = "";
+      setMutation(null);
+    }
+  }
+
   return (
     <section className="panel overflow-hidden" aria-labelledby="resume-templates-title">
       <header className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between 2xl:px-5">
@@ -245,18 +346,47 @@ export function ResumeTemplateManager({
             </p>
           </div>
         </div>
-        {status === "error" ? (
-          <Button
-            type="button"
-            variant="ghost"
-            size="sm"
-            onClick={() => void loadTemplates()}
-            className="border border-border bg-white/[0.025]"
-          >
-            <RefreshCw className="h-3.5 w-3.5" />
-            Retry
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <input
+            ref={importInputRef}
+            type="file"
+            accept="application/json,.json"
+            aria-label="Import resume template backup"
+            className="sr-only"
+            onChange={(event) =>
+              void importTemplate(event.target.files?.[0])
+            }
+          />
+          {status === "ready" ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={mutation !== null}
+              onClick={() => importInputRef.current?.click()}
+              className="border border-border bg-white/[0.025]"
+            >
+              {mutation === "importing" ? (
+                <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+              ) : (
+                <Upload className="h-3.5 w-3.5" />
+              )}
+              Import JSON
+            </Button>
+          ) : null}
+          {status === "error" ? (
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => void loadTemplates()}
+              className="border border-border bg-white/[0.025]"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              Retry
+            </Button>
+          ) : null}
+        </div>
       </header>
 
       {status === "loading" ? (
@@ -315,6 +445,7 @@ export function ResumeTemplateManager({
                 isSaving={mutation === "saving"}
                 isDuplicating={mutation === "duplicating"}
                 isDeleting={mutation === "deleting"}
+                isExporting={mutation === "exporting"}
                 onChange={setDraft}
                 onSave={() => void saveTemplate()}
                 onDuplicate={
@@ -325,6 +456,11 @@ export function ResumeTemplateManager({
                 onDelete={
                   selectedTemplate.kind === "custom"
                     ? () => void deleteTemplate()
+                    : undefined
+                }
+                onExport={
+                  selectedTemplate.kind === "custom"
+                    ? () => void exportTemplate()
                     : undefined
                 }
               />
@@ -491,4 +627,19 @@ async function readApiError(response: Response): Promise<string> {
     // Fall through to a status-based message.
   }
   return `Resume template request failed (${response.status}).`;
+}
+
+function responseFileName(response: Response): string | null {
+  const disposition = response.headers.get("Content-Disposition");
+  const match = disposition?.match(/filename="?([^";]+)"?/i);
+  return match?.[1] ?? null;
+}
+
+function safeBackupName(name: string): string {
+  return (
+    name
+      .trim()
+      .replace(/[^A-Za-z0-9._-]+/g, "-")
+      .replace(/^[-._]+|[-._]+$/g, "") || "resume-template"
+  );
 }

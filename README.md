@@ -7,6 +7,19 @@ Personal AI assistant for job search workflows: profile setup, vacancy search, m
 The API applies all pending Alembic migrations before it starts accepting
 requests. A migration or database connection failure aborts startup.
 
+### Docker volumes and personal resume templates
+
+Personal resume templates are stored in PostgreSQL and are intentionally not
+kept in Git. **Running `docker compose down -v` deletes the `postgres-data`
+volume, including all personal resume templates and other database data.**
+Use `docker compose down` without `-v` when the data should be preserved.
+
+The Resume templates manager can export a personal template as one portable
+JSON file and import it later. The export contains only the template name,
+bundled base-template ID, and validated design tokens—never an owner ID or an
+internal database ID. Keep exports outside the repository, for example in
+Downloads or personal backup storage.
+
 ### Request identity and ownership
 
 Application data is scoped by the authenticated owner identity supplied in the

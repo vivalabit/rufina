@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from datetime import UTC, datetime
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -19,6 +21,7 @@ from app.models.resume_templates import (
     ResumeTemplateDefinitionDuplicateRequest,
     ResumeTemplateDefinitionRecord,
     ResumeTemplateDefinitionUpdateRequest,
+    ResumeTemplateBackupPayload,
     ResumeTemplateDesignTokens,
     ResumeTemplatePayload,
     ResumeTemplatePreviewRequest,
@@ -86,9 +89,7 @@ async def enforce_preview_limits(
         preview_rate_limiter.consume(
             get_bound_owner_id(),
             limit=settings.resume_template_preview_rate_limit,
-            window_seconds=(
-                settings.resume_template_preview_rate_window_seconds
-            ),
+            window_seconds=(settings.resume_template_preview_rate_window_seconds),
         )
     except PreviewRateLimitExceeded as exc:
         raise HTTPException(
@@ -162,6 +163,57 @@ def create_resume_template(
         raise database_unavailable(exc) from exc
 
 
+@router.post(
+    "/import",
+    response_model=ResumeTemplatePayload,
+    status_code=status.HTTP_201_CREATED,
+)
+def import_resume_template(
+    backup: ResumeTemplateBackupPayload,
+    db: Session = Depends(get_db),
+) -> ResumeTemplatePayload:
+    try:
+        record = build_custom_record(
+            name=backup.name,
+            base_template_id=backup.base_template_id,
+            design=backup.design_json,
+        )
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+        return custom_template_payload(record)
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise database_unavailable(exc) from exc
+
+
+@router.get("/{template_id}/export")
+def export_resume_template(
+    template_id: str,
+    db: Session = Depends(get_db),
+) -> Response:
+    reject_bundled_mutation(template_id, action="exported")
+    try:
+        record = require_custom_template(db, template_id)
+        backup = ResumeTemplateBackupPayload(
+            format="rufina.resume-template",
+            schema_version=1,
+            name=record.name,
+            base_template_id=record.base_template_id,
+            design_json=ResumeTemplateDesignTokens.model_validate(record.design_json),
+        )
+        return JSONResponse(
+            content=backup.model_dump(mode="json", by_alias=True),
+            headers={
+                "Cache-Control": "no-store",
+                "Content-Disposition": (f'attachment; filename="{backup_file_name(record.name)}"'),
+                "X-Content-Type-Options": "nosniff",
+            },
+        )
+    except SQLAlchemyError as exc:
+        raise database_unavailable(exc) from exc
+
+
 @router.get("/{template_id}", response_model=ResumeTemplatePayload)
 def get_resume_template(
     template_id: str,
@@ -223,10 +275,7 @@ def delete_resume_template(
         if used_artifact_id is not None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
-                detail=(
-                    "Resume template cannot be deleted because it was used "
-                    "to render a PDF"
-                ),
+                detail=("Resume template cannot be deleted because it was used to render a PDF"),
             )
         db.delete(record)
         db.commit()
@@ -255,9 +304,7 @@ def duplicate_resume_template(
         else:
             source_record = require_custom_template(db, template_id)
             source = custom_template_payload(source_record)
-            design = ResumeTemplateDesignTokens.model_validate(
-                source_record.design_json
-            )
+            design = ResumeTemplateDesignTokens.model_validate(source_record.design_json)
         duplicate = build_custom_record(
             name=(request.name if request and request.name else f"{source.name} copy"),
             base_template_id=source.base_template_id,
@@ -277,14 +324,11 @@ def duplicate_resume_template(
 
 def list_resume_template_payloads(db: Session) -> list[ResumeTemplatePayload]:
     bundled = [
-        bundled_template_payload(template.id)
-        for template in list_bundled_resume_templates()
+        bundled_template_payload(template.id) for template in list_bundled_resume_templates()
     ]
     custom_records = db.scalars(
         select(ResumeTemplateDefinitionRecord)
-        .where(
-            ResumeTemplateDefinitionRecord.owner_id == get_bound_owner_id()
-        )
+        .where(ResumeTemplateDefinitionRecord.owner_id == get_bound_owner_id())
         .order_by(
             ResumeTemplateDefinitionRecord.updated_at.desc(),
             ResumeTemplateDefinitionRecord.name,
@@ -355,15 +399,18 @@ def definition_content_sha256(
     return hashlib.sha256(canonical).hexdigest()
 
 
+def backup_file_name(name: str) -> str:
+    slug = re.sub(r"[^A-Za-z0-9._-]+", "-", name).strip("-._")
+    return f"{slug or 'resume-template'}.resume-template.local.json"
+
+
 def render_preview_response(template: ResolvedResumeTemplate) -> Response:
     try:
         pdf = render_resume_template_preview(template)
     except ResumePdfRenderError as exc:
         message = str(exc)
         service_failure = (
-            "Chromium" in message
-            or "Playwright" in message
-            or "unavailable" in message
+            "Chromium" in message or "Playwright" in message or "unavailable" in message
         )
         raise HTTPException(
             status_code=(
@@ -378,9 +425,7 @@ def render_preview_response(template: ResolvedResumeTemplate) -> Response:
         media_type="application/pdf",
         headers={
             "Cache-Control": "no-store",
-            "Content-Disposition": (
-                'inline; filename="resume-template-preview.pdf"'
-            ),
+            "Content-Disposition": ('inline; filename="resume-template-preview.pdf"'),
             "X-Rufina-Template-Id": template.id,
             "X-Rufina-Template-Version": template.version,
             "X-Rufina-Design-Sha256": template.design_sha256,
