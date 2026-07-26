@@ -84,6 +84,28 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             column["name"] for column in inspect(engine).get_columns("ai_privacy_settings")
         }
         assert "consent_backend" in privacy_columns
+        resume_template_columns = {
+            column["name"]
+            for column in inspect(engine).get_columns(
+                "resume_template_definitions"
+            )
+        }
+        assert resume_template_columns == {
+            "id",
+            "owner_id",
+            "name",
+            "base_template_id",
+            "design_json",
+            "version",
+            "content_sha256",
+            "created_at",
+            "updated_at",
+        }
+        with engine.connect() as connection:
+            definition_count = connection.execute(
+                text("SELECT COUNT(*) FROM resume_template_definitions")
+            ).scalar_one()
+        assert definition_count == 0
         owner_tables = {
             "stored_applications",
             "stored_application_events",
@@ -111,6 +133,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "ats_final_reviews",
             "resume_tailoring_runs",
             "resume_tailoring_stages",
+            "resume_template_definitions",
         }
         for table_name in owner_tables:
             owner_column = next(
@@ -128,7 +151,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260725_0026"
+            assert revision == "20260726_0027"
         assert inspect(engine).get_pk_constraint("stored_jobs")["constrained_columns"] == [
             "owner_id",
             "id",
@@ -793,7 +816,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260725_0026"
+            assert revision == "20260726_0027"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))

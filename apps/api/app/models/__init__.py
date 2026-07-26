@@ -49,6 +49,14 @@ from app.models.resume import (
     SeniorRecruiterKeyword,
     SeniorRecruiterRedFlag,
 )
+from app.models.resume_templates import (
+    ResumeTemplateDefinitionCreateRequest,
+    ResumeTemplateDefinitionRecord,
+    ResumeTemplateDefinitionResponse,
+    ResumeTemplateDefinitionUpdateRequest,
+    ResumeTemplateDesignTokens,
+    ResumeTemplatePageMargins,
+)
 
 __all__ = [
     "AtsFinalReview",
@@ -86,6 +94,12 @@ __all__ = [
     "ResumeSourceExtraction",
     "ResumeSourceFragment",
     "ResumeSourceFileRecord",
+    "ResumeTemplateDefinitionCreateRequest",
+    "ResumeTemplateDefinitionRecord",
+    "ResumeTemplateDefinitionResponse",
+    "ResumeTemplateDefinitionUpdateRequest",
+    "ResumeTemplateDesignTokens",
+    "ResumeTemplatePageMargins",
     "SeniorRecruiterAnalysis",
     "SeniorRecruiterAnalysisMetrics",
     "SeniorRecruiterAnalysisRecord",

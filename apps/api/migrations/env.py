@@ -13,6 +13,7 @@ import app.models.job_search  # noqa: F401
 import app.models.jobs  # noqa: F401
 import app.models.profile  # noqa: F401
 import app.models.resume  # noqa: F401
+import app.models.resume_templates  # noqa: F401
 from app.core.database import Base
 from app.core.settings import get_settings
 

@@ -33,6 +33,12 @@ apps/web/public/parser-search-configs.local.json
 profile-page-full.png
 .profile-screenshot-parts/
 
+# Personal resume-template data
+.local/resume-templates/
+var/resume-templates/
+*.resume-template.local.json
+*.resume-template.preview.pdf
+
 # Caches
 .turbo/
 .cache/
