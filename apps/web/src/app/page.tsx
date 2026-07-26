@@ -72,6 +72,7 @@ import {
   type BulkAnalysisScope,
 } from "@/components/jobs-toolbar";
 import { MasterResumeEditor } from "@/components/master-resume-editor";
+import { ResumeTemplateManager } from "@/components/resume-template-manager";
 import { getAiMatchAnalysisStatus, legacyAiMatchVersion } from "@/lib/ai-match";
 import { getAiSourceLabel, type AiBackend, type AiSource } from "@/lib/ai-source";
 import { findWorkspaceApplication, getHashForView, getRouteFromHash, type View } from "@/lib/app-route";
@@ -9851,6 +9852,7 @@ function ProfileView({
               : null
           }
         />
+        <ResumeTemplateManager apiBaseUrl={apiBaseUrl} />
         <div className="grid gap-4 xl:grid-cols-2 2xl:gap-5">
           <ActivityPanel profile={profile} onEditProfile={onEditProfile} />
           <AiMatchProfilePanel profile={profile} onEditProfile={onEditProfile} />
