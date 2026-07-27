@@ -562,6 +562,12 @@ export function ResumePdfReview({
     ? `${apiBaseUrl}/documents/${encodeURIComponent(activeDocument.id)}/download`
     : "";
   const downloadName = artifact?.fileName ?? "resume.pdf";
+  const docxHref = artifact?.sourceAtsFinalReviewId
+    ? `${apiBaseUrl}/resume-tailoring/ats-final-review/${encodeURIComponent(artifact.sourceAtsFinalReviewId)}/docx?templateId=${encodeURIComponent(artifact.templateId ?? selectedTemplateId)}`
+    : "";
+  const docxName = downloadName.toLowerCase().endsWith(".pdf")
+    ? `${downloadName.slice(0, -4)}.docx`
+    : "resume.docx";
 
   return (
     <section
@@ -610,6 +616,16 @@ export function ResumePdfReview({
             >
               <Download className="h-3.5 w-3.5" />
               Download PDF
+            </a>
+          ) : null}
+          {docxHref ? (
+            <a
+              href={docxHref}
+              download={docxName}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.09] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Download DOCX
             </a>
           ) : null}
         </div>

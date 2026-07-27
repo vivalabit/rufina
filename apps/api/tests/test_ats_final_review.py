@@ -5,6 +5,7 @@ from inspect import signature
 from io import BytesIO
 import json
 
+from docx import Document
 from fastapi.testclient import TestClient
 from pypdf import PdfReader, PdfWriter
 import pytest
@@ -686,6 +687,27 @@ def test_ats_final_review_endpoint_loads_stage_two_and_persists_render_input(
         'attachment; filename="Ada-Lovelace-resume.pdf"'
     )
     assert downloaded.content == b"%PDF-1.7\nserver-rendered"
+    docx_download = client.get(
+        f"/resume-tailoring/ats-final-review/{body['id']}/docx",
+        params={"templateId": "modern_two_column"},
+    )
+    assert docx_download.status_code == 200
+    assert docx_download.headers["content-type"] == (
+        "application/vnd.openxmlformats-officedocument."
+        "wordprocessingml.document"
+    )
+    assert docx_download.headers["content-disposition"] == (
+        'attachment; filename="Ada-Lovelace-resume.docx"'
+    )
+    assert docx_download.content.startswith(b"PK")
+    rendered_docx = Document(BytesIO(docx_download.content))
+    rendered_docx_text = "\n".join(
+        paragraph.text for paragraph in rendered_docx.paragraphs
+    )
+    assert "Ada Lovelace" in rendered_docx_text
+    assert "Platform engineer who increased Kubernetes" in rendered_docx_text
+    assert "Increased deployment throughput by 40%" in rendered_docx_text
+    assert "profile:acme:scale" not in rendered_docx_text
     document_id = downloaded.headers["x-rufina-document-id"]
     assert downloaded.headers["x-rufina-template-id"] == (
         "modern_two_column"

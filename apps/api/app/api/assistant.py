@@ -234,10 +234,14 @@ def complete_generation_artifact(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="AI returned an empty generated document",
         )
+    if backend != artifact.generation_backend:
+        raise HTTPException(
+            status_code=status.HTTP_502_BAD_GATEWAY,
+            detail="AI generation backend did not match the requested backend",
+        )
     artifact.status = "completed"
     artifact.result_content = content
     artifact.generation_model = model.strip() or "unknown"
-    artifact.generation_backend = backend
     artifact.completed_at = utc_now()
     try:
         db.commit()

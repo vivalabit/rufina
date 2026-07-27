@@ -106,6 +106,53 @@ def test_assistant_config_exposes_provider_and_consent_version() -> None:
     }
 
 
+def test_complete_generation_artifact_keeps_backend_immutable_after_commit() -> None:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    testing_session_local = sessionmaker(bind=engine)
+    now = datetime.now(UTC)
+
+    with testing_session_local() as db:
+        artifact = DocumentGenerationArtifactRecord(
+            id="artifact-completion",
+            application_id="application-completion",
+            job_id="job-completion",
+            document_type="cover_letter",
+            template_id="template-completion",
+            template_content=b"template",
+            input_snapshot={"prompt": "Generate cover letter"},
+            generation_fingerprint="f" * 64,
+            input_versions={},
+            validation_evidence={},
+            status="generating",
+            result_content=None,
+            generation_model=None,
+            generation_backend="openclaw_codex",
+            consumed_at=None,
+            expires_at=now,
+            created_at=now,
+            completed_at=None,
+        )
+        db.add(artifact)
+        db.commit()
+
+        assistant_api.complete_generation_artifact(
+            db,
+            artifact,
+            content="Generated cover letter",
+            model="gpt-5.6-terra",
+            backend="openclaw_codex",
+        )
+
+        assert artifact.status == "completed"
+        assert artifact.result_content == "Generated cover letter"
+        assert artifact.generation_backend == "openclaw_codex"
+
+
 def test_assistant_routes_openai_api_mode_through_neutral_backend(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:

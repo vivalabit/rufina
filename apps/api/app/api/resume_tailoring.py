@@ -60,6 +60,11 @@ from app.services.resume_pdf_renderer import (
     render_resolved_final_resume_pdf,
     resolve_resume_template,
 )
+from app.services.resume_docx_renderer import (
+    DOCX_CONTENT_TYPE,
+    ResumeDocxRenderError,
+    render_final_resume_docx,
+)
 from app.services.resume_pdf_artifacts import (
     StoredResumePdfArtifact,
     find_resume_pdf_artifact,
@@ -568,6 +573,71 @@ def download_ats_final_resume_pdf(
         ) from exc
 
 
+@router.get("/ats-final-review/{review_id}/docx")
+def download_ats_final_resume_docx(
+    review_id: str,
+    template_id: str = Query(
+        default="classic_single",
+        alias="templateId",
+        min_length=1,
+        max_length=80,
+    ),
+    db: Session = Depends(get_db),
+) -> Response:
+    try:
+        record = db.scalar(
+            select(AtsFinalReviewRecord).where(
+                AtsFinalReviewRecord.id == review_id,
+                AtsFinalReviewRecord.owner_id == get_bound_owner_id(),
+            )
+        )
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="ATS final review not found",
+            )
+        try:
+            resume = FinalResume.model_validate(record.render_input)
+        except ValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Stored FinalResume render input is invalid",
+            ) from exc
+        resolved_template = resolve_resume_template(db, template_id)
+        docx = render_final_resume_docx(
+            resume.model_dump(by_alias=True, exclude_none=True),
+            design=resolved_template.design,
+        )
+        return Response(
+            content=docx,
+            media_type=DOCX_CONTENT_TYPE,
+            headers={
+                "Content-Disposition": (
+                    f'attachment; filename="{safe_resume_docx_filename(resume.basics.full_name)}"'
+                ),
+                "X-Rufina-Template-Id": resolved_template.id,
+                "X-Rufina-Template-Version": resolved_template.version,
+            },
+        )
+    except HTTPException:
+        raise
+    except ResumeTemplateNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except (ResumeDocxRenderError, ResumePdfRenderError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=str(exc),
+        ) from exc
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Final resume DOCX is temporarily unavailable",
+        ) from exc
+
+
 def resume_pdf_artifact_response(
     artifact: StoredResumePdfArtifact,
 ) -> Response:
@@ -591,6 +661,14 @@ def resume_pdf_artifact_response(
 
 
 def safe_resume_pdf_filename(full_name: str) -> str:
+    return safe_resume_filename(full_name, extension="pdf")
+
+
+def safe_resume_docx_filename(full_name: str) -> str:
+    return safe_resume_filename(full_name, extension="docx")
+
+
+def safe_resume_filename(full_name: str, *, extension: str) -> str:
     safe_name = "".join(
         character
         for character in full_name.strip()
@@ -598,7 +676,11 @@ def safe_resume_pdf_filename(full_name: str) -> str:
         and (character.isalnum() or character in {" ", "-", "_"})
     )
     safe_name = "-".join(safe_name.split()).strip("-_")
-    return f"{safe_name}-resume.pdf" if safe_name else "resume.pdf"
+    return (
+        f"{safe_name}-resume.{extension}"
+        if safe_name
+        else f"resume.{extension}"
+    )
 
 
 def ensure_analysis_stage(

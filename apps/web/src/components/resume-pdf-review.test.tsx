@@ -238,6 +238,14 @@ describe("ResumePdfReview", () => {
       "href",
       "http://localhost:8000/documents/pdf-document-classic/download",
     );
+    expect(screen.getByRole("link", { name: "Download DOCX" })).toHaveAttribute(
+      "href",
+      "http://localhost:8000/resume-tailoring/ats-final-review/ats-review-1/docx?templateId=classic_single",
+    );
+    expect(screen.getByRole("link", { name: "Download DOCX" })).toHaveAttribute(
+      "download",
+      "Ada-Lovelace-resume.docx",
+    );
 
     fireEvent.click(screen.getByRole("tab", { name: "Diff · 1" }));
     expect(screen.getByText("Wrote technical notes.")).toBeInTheDocument();
