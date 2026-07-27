@@ -3,6 +3,121 @@ import { expect, it, vi } from "vitest";
 
 import { AssistantView } from "@/components/assistant-view";
 
+it("auto-sends a launched match explanation with the selected job context", async () => {
+  const streamBodies: Array<Record<string, unknown>> = [];
+  const onLaunchHandled = vi.fn();
+  const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+    const url = new URL(requestUrl);
+    const method = init?.method ?? "GET";
+
+    if (url.pathname === "/assistant/conversations" && method === "GET") {
+      return Response.json([]);
+    }
+    if (url.pathname === "/documents" && method === "GET") {
+      return Response.json([]);
+    }
+    if (url.pathname === "/privacy/ai-consent" && method === "GET") {
+      return Response.json({
+        providerName: "OpenAI via OpenClaw/Codex",
+        currentBackend: "openclaw_codex",
+        consentBackend: "openclaw_codex",
+        currentConsentVersion: "privacy-v1",
+        hasCurrentConsent: true,
+        retentionDays: 30,
+      });
+    }
+    if (url.pathname === "/assistant/chat/stream" && method === "POST") {
+      streamBodies.push(
+        JSON.parse(String(init?.body)) as Record<string, unknown>,
+      );
+      return new Response(
+        [
+          "event: connected\ndata: {}",
+          "event: delta\ndata: {\"text\":\"Match explanation\",\"offset\":17}",
+          "event: done\ndata: {\"metadata\":{\"backend\":\"openclaw_codex\"}}",
+          "",
+        ].join("\n\n"),
+        { headers: { "Content-Type": "text/event-stream" } },
+      );
+    }
+    throw new Error(`Unhandled request: ${method} ${url.pathname}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: vi.fn(),
+  });
+
+  render(
+    <AssistantView
+      profile={{
+        name: "Alex Morgan",
+        current_role: "Designer",
+        desired_role: "Senior Designer",
+        location: "Zurich",
+        headline: "Product designer",
+        skills: "Research",
+        experience: "Six years",
+        education: "BA Design",
+        resume_file_name: "resume.docx",
+      }}
+      jobs={[
+        {
+          id: "job-73",
+          title: "Product Designer",
+          company: "Example AG",
+          location: "Zurich",
+          type: "Full-time",
+          match: 73,
+          overview: "Design enterprise workflows.",
+          responsibilities: ["Lead product discovery"],
+          requirements: ["Five years of product design experience"],
+          skills: ["Research", "Prototyping"],
+          aiMatch: {
+            reasons: ["Verified research experience"],
+            gaps: ["Enterprise portfolio evidence is missing"],
+          },
+        },
+      ]}
+      applications={[]}
+      launch={{
+        id: "launch-job-73",
+        prompt:
+          'Why 73%? Explain the rating and end with "How to improve the match".',
+        contextKind: "job",
+        contextId: "job-73",
+        autoSubmit: true,
+      }}
+      onLaunchHandled={onLaunchHandled}
+      onDocumentAttached={vi.fn()}
+      onActionApplied={vi.fn()}
+    />,
+  );
+
+  expect(await screen.findByText("Match explanation")).toBeInTheDocument();
+  expect(onLaunchHandled).toHaveBeenCalledOnce();
+  expect(streamBodies).toHaveLength(1);
+  expect(streamBodies[0]).toMatchObject({
+    message:
+      'Why 73%? Explain the rating and end with "How to improve the match".',
+    contextKind: "job",
+    contextId: "job-73",
+    job: {
+      id: "job-73",
+      title: "Product Designer",
+      company: "Example AG",
+      match: 73,
+      requirements: ["Five years of product design experience"],
+    },
+  });
+});
+
 it("grants versioned server consent with a user TTL before streaming", async () => {
   const requests: Array<{ path: string; method: string; body?: unknown }> = [];
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {

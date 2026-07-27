@@ -528,6 +528,27 @@ function documentArtifactLabel(document: GeneratedDocument, version = document.c
   return contentType === "application/pdf" ? "PDF" : "DOCX";
 }
 
+function resumeDocxDownload(document: GeneratedDocument) {
+  const version = document.versions.find(
+    (item) => item.version === document.currentVersion,
+  );
+  const artifact = version?.artifact;
+  if (
+    artifact?.contentType !== "application/pdf"
+    || !artifact.sourceAtsFinalReviewId
+  ) {
+    return null;
+  }
+  const templateId = artifact.templateId ?? "classic_single";
+  const fileName = artifact.fileName.toLowerCase().endsWith(".pdf")
+    ? `${artifact.fileName.slice(0, -4)}.docx`
+    : "resume.docx";
+  return {
+    href: `${apiBaseUrl}/resume-tailoring/ats-final-review/${encodeURIComponent(artifact.sourceAtsFinalReviewId)}/docx?templateId=${encodeURIComponent(templateId)}`,
+    fileName,
+  };
+}
+
 function confirmDocumentDownload(
   event: React.MouseEvent<HTMLAnchorElement>,
   warnings: string[],
@@ -2177,7 +2198,7 @@ export function ApplicationWorkspace({
             <section className={cn("workspace-card overflow-hidden", !confirmationsReady && "border-amber-300/20")}>
               <div className="flex items-start gap-3 border-b border-white/[0.07] px-5 py-5 sm:px-6">
                 <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", !confirmationsReady ? "bg-amber-400/10 text-amber-200" : "bg-success/10 text-success")}><MessageSquareText className="h-[18px] w-[18px]" /></span>
-                <div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">02 · Confirm your evidence</p>{!hasCurrentAnalysis ? <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-[9px] font-black text-amber-200">Analysis required</span> : hasOversizedConfirmation ? <span className="rounded-full border border-red-400/25 bg-red-500/10 px-2 py-0.5 text-[9px] font-black text-red-200">Shorten long answer</span> : unansweredBlockingQuestions.length ? <span className="rounded-full border border-amber-400/25 bg-amber-400/10 px-2 py-0.5 text-[9px] font-black text-amber-200">{unansweredBlockingQuestions.length} required</span> : <span className="rounded-full border border-success/25 bg-success/10 px-2 py-0.5 text-[9px] font-black text-success">Complete</span>}<span className={cn("rounded-full border px-2 py-0.5 text-[9px] font-black", confirmationSyncStatus === "saved" ? "border-success/20 bg-success/[0.06] text-success" : confirmationSyncStatus === "error" ? "border-red-400/25 bg-red-500/10 text-red-200" : "border-white/10 bg-white/[0.035] text-muted")}>{confirmationSyncStatus === "loading" ? "Loading answers" : confirmationSyncStatus === "saving" ? "Saving…" : confirmationSyncStatus === "saved" ? "Saved" : confirmationSyncStatus === "error" ? apiHealth === "unavailable" ? "API unavailable" : "Sync failed" : "Not saved"}</span></div><h2 className="mt-1 text-lg font-bold text-white">Keep every claim accurate</h2><p className="mt-1 text-xs leading-5 text-muted">Choose yes, no, or partial and support positive answers with a concrete example.</p></div>
+                <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">02 · Confirm your evidence</p><h2 className="mt-1 text-lg font-bold text-white">Keep every claim accurate</h2><p className="mt-1 text-xs leading-5 text-muted">Choose yes, no, or partial and support positive answers with a concrete example.</p></div>
               </div>
               <div className="p-5 sm:p-6">
                 {confirmationSyncMessage ? <div className={cn("mb-4 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-[10px] leading-4", confirmationSyncStatus === "error" ? "border-red-400/25 bg-red-500/[0.07] text-red-200" : "border-amber-400/20 bg-amber-400/[0.05] text-amber-100/80")}><span>{confirmationSyncMessage}</span>{confirmationSyncStatus === "error" ? <button type="button" onClick={retryApiRequests} className="inline-flex shrink-0 items-center gap-1 font-bold text-red-100 hover:text-white"><RefreshCw className="h-3 w-3" /> Retry</button> : null}</div> : null}
@@ -2213,7 +2234,7 @@ export function ApplicationWorkspace({
                       <h3 className="mt-1 text-sm font-bold text-white">Personalize cover letter</h3>
                       <p className="mt-1 max-w-3xl text-[11px] leading-5 text-muted">The letter is grounded in the resume and vacancy. Add only details that are true and useful.</p>
                     </div>
-                    <span className="flex items-center gap-3"><span className={cn("rounded-full border px-2 py-1 text-[9px] font-black", confirmationsDirty ? "border-amber-400/20 bg-amber-400/[0.06] text-amber-200" : "border-success/20 bg-success/[0.06] text-success")}>{confirmationsDirty ? "Saving…" : "Saved"}</span><ChevronRight className="h-4 w-4 text-muted transition group-open:rotate-90" /></span>
+                    <span className="flex items-center gap-3">{confirmationsDirty ? <span className="text-[9px] text-muted">Saving…</span> : null}<ChevronRight className="h-4 w-4 text-muted transition group-open:rotate-90" /></span>
                   </div>
                   </summary>
                   <div className="grid gap-4 border-t border-white/[0.07] p-4 lg:grid-cols-2 sm:p-5">
@@ -2256,7 +2277,7 @@ export function ApplicationWorkspace({
                   </div>
                 </details>
                 <div className="space-y-10">
-                  <DocumentCard sectionLabel="Resume document" documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Three server-side AI stages produce finalResume once; built-in or personal templates can render it repeatedly without rerunning AI." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><div className="mt-3 rounded-xl border border-success/20 bg-success/[0.045] px-3 py-2.5"><p className="text-[9px] font-black uppercase tracking-wide text-success">Confirmed Master Resume</p><p className="mt-1 text-[9px] leading-4 text-muted">{currentMasterResume ? `Version ${currentMasterResume.version} · canonical structured source` : "Required before tailoring"}</p></div><ResumeTemplatePicker templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} />
+                  <DocumentCard sectionLabel="Resume document" documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Create and download a tailored CV for this role." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><p className="mt-3 text-[9px] text-muted">Master Resume · {currentMasterResume ? `v${currentMasterResume.version} confirmed` : "required"}</p><ResumeTemplatePicker templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} />
                   <DocumentCard sectionLabel="Cover letter document" documentType="cover_letter" icon={Mail} label="Cover letter" description="A restrained Swiss-style motivation letter: why this role, relevant proof, and the value you can deliver." document={latestCoverLetter} isOutdated={isCoverLetterOutdated} isGenerating={generationType === "cover_letter"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("cover_letter")} onRestore={(version) => latestCoverLetter && restoreDocumentVersion(latestCoverLetter, version)} onLoadMoreVersions={() => latestCoverLetter && void loadMoreDocumentVersions(latestCoverLetter)} onDelete={() => latestCoverLetter && void deleteGeneratedDocument(latestCoverLetter)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && selectedCoverSourceId && coverPreflightReady && coverLetterNamesComplete && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded ? documentError ? "Retry loading history" : "Loading history…" : !selectedCoverSourceId ? "Select source first" : coverPreflight.status === "checking" ? "Checking template…" : coverPreflight.status === "error" ? "Preflight failed" : !coverPreflight.report?.supported ? "Template unsupported" : !coverLetterNamesComplete ? "Complete contact names" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<SourcePicker label="Source cover letter" sources={coverSources} selectedId={selectedCoverSourceId} preflight={coverPreflight} deletingSourceId={deletingSourceId} onChange={(sourceId) => { setSelectedCoverSourceId(sourceId); setIsCoverSourceManual(Boolean(sourceId)); }} onAttach={(file) => void attachWorkspaceSource(file, "Cover Letter")} onDelete={(source) => void deleteWorkspaceSource(source)} />} />
                 </div>
                 <details className="group mt-4 overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.018]">
@@ -2328,6 +2349,9 @@ export function ApplicationWorkspace({
                     { label: "Cover letter", document: latestCoverLetter, ready: coverLetterReady, icon: Mail },
                   ].map((item) => {
                     const ItemIcon = item.icon;
+                    const itemDocxDownload = item.label === "Tailored CV" && item.document
+                      ? resumeDocxDownload(item.document)
+                      : null;
                     return (
                       <article key={item.label} className="rounded-2xl border border-white/[0.08] bg-black/15 p-4">
                         <div className="flex items-start gap-3">
@@ -2337,6 +2361,7 @@ export function ApplicationWorkspace({
                         <div className="mt-4 flex gap-2">
                           <Button type="button" variant="ghost" onClick={() => setActiveWorkspaceStep("create")} className="h-9 flex-1 rounded-xl border border-white/[0.08] text-[10px] font-bold text-[#dfe5ec] hover:bg-white/[0.05]">{item.document ? "Review & edit" : "Prepare document"}</Button>
                           {item.document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(item.document.id)}/download`} download={documentFileName(item.document)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(item.document)}</a> : null}
+                          {itemDocxDownload ? <a href={itemDocxDownload.href} download={itemDocxDownload.fileName} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> DOCX</a> : null}
                         </div>
                       </article>
                     );
@@ -2467,6 +2492,9 @@ function DocumentCard({
     : currentVersion?.visualValidation.tableOverflow === false ? "No overflow detected" : currentVersion?.visualValidation.tableOverflow === true ? "Overflow detected" : "Not reported";
   const geometryIssueCount = visualValidation?.issues?.length ?? (structuralChecksStatus === "passed" ? 0 : undefined);
   const isResume = documentType === "tailored_resume";
+  const docxDownload = document && isResume
+    ? resumeDocxDownload(document)
+    : null;
   const showsChangeList = isResume || hasStructuredReplacements(document);
   const isRestoringDocument = Boolean(document && restoringVersionKey.startsWith(`${document.id}:`));
   return (
@@ -2477,7 +2505,7 @@ function DocumentCard({
       </div>
       <div className="flex items-start gap-3">
         <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.07] bg-white/[0.035] text-accent"><Icon className="h-[18px] w-[18px]" /></span>
-        <div className="min-w-0 flex-1"><div className="flex flex-wrap items-center justify-between gap-2"><h3 className="text-sm font-bold text-white">{label}</h3>{document ? readiness.ready ? <span className="inline-flex items-center gap-1 rounded-full border border-success/25 bg-success/10 px-2 py-1 text-[8px] font-black uppercase tracking-wide text-success"><FileCheck2 className="h-3 w-3" /> Ready · v{document.currentVersion}</span> : <span className="inline-flex items-center gap-1 rounded-full border border-amber-400/30 bg-amber-400/10 px-2 py-1 text-[8px] font-black uppercase tracking-wide text-amber-200"><AlertTriangle className="h-3 w-3" /> {readiness.label} · v{document.currentVersion}</span> : <span className="rounded-full border border-white/[0.08] bg-white/[0.025] px-2 py-1 text-[8px] font-black uppercase tracking-wide text-muted">Not generated</span>}</div><p className="mt-1 text-[10px] leading-4 text-muted">{description}</p></div>
+        <div className="min-w-0 flex-1"><div className="flex flex-wrap items-baseline justify-between gap-2"><h3 className="text-sm font-bold text-white">{label}</h3>{document ? <span className={cn("text-[9px]", readiness.ready ? "text-success" : "text-amber-200")}>v{document.currentVersion} · {readiness.ready ? "Ready" : readiness.label}</span> : null}</div><p className="mt-1 text-[10px] leading-4 text-muted">{description}</p></div>
       </div>
       {sourceControl}
       <details className="group mt-3 overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.015]">
@@ -2514,9 +2542,10 @@ function DocumentCard({
       <div className="mt-3 flex gap-2">
         <Button type="button" disabled={isGenerating || isRestoringDocument || !canGenerate} onClick={onGenerate} className="h-10 flex-1 rounded-xl bg-accent px-3 text-[11px] font-bold text-white hover:bg-[#ff6a14] disabled:opacity-40">{isGenerating ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : document ? <RefreshCw className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}{isGenerating ? "Generating…" : !canGenerate ? disabledLabel : document ? "Regenerate" : `Generate ${label}`}</Button>
         {document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`} download={documentFileName(document)} onClick={(event) => confirmDocumentDownload(event, readiness.warnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(document)}</a> : null}
+        {docxDownload ? <a href={docxDownload.href} download={docxDownload.fileName} onClick={(event) => confirmDocumentDownload(event, readiness.warnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> DOCX</a> : null}
         {document && !isResume ? <Button type="button" variant="ghost" aria-label={`Delete ${label}`} disabled={deletingDocumentId === document.id || isGenerating} onClick={onDelete} className="h-10 rounded-xl border border-red-400/20 px-3 text-red-200 hover:bg-red-500/10"><Trash2 className="h-3.5 w-3.5" /></Button> : null}
       </div>
-      {document && isResume ? <p className="mt-2 text-[9px] leading-4 text-muted">Resume artifacts are immutable. Historical DOCX versions remain available for download only; regeneration creates a validated PDF from the latest finalResume.</p> : null}
+      {document && isResume ? <p className="mt-2 text-[9px] leading-4 text-muted">Download the current resume as PDF or editable DOCX.</p> : null}
       {document ? (
         <details className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.018]">
           <summary className="cursor-pointer px-3 py-2.5 text-[10px] font-bold text-[#cbd3df] marker:text-muted">

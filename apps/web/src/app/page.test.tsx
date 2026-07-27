@@ -981,3 +981,88 @@ it("keeps preparation drafts out of Applications until they are marked as applie
   expect(await screen.findByText("Applications (1)")).toBeInTheDocument();
   await waitFor(() => expect(savedApplicationStatuses).toContain("applied"));
 });
+
+it("offers decision-focused assistant questions on the Jobs page", async () => {
+  window.history.replaceState(null, "", "#jobs");
+  const assistantRequests: Array<Record<string, unknown>> = [];
+  Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+    configurable: true,
+    value: vi.fn(),
+  });
+  installApplicationWorkspaceApiMock({
+    aiPrivacySettings: {
+      consentVersion: "2026-07-18.v2",
+      consentBackend: "openclaw_codex",
+      hasCurrentConsent: true,
+    },
+    requestHandler: async (url, method, init) => {
+      if (url.pathname === "/job-search/configs" && method === "GET") return Response.json([]);
+      if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
+      if (url.pathname === "/applications" && method === "GET") return Response.json([]);
+      if (url.pathname === "/applications/events" && method === "GET") return Response.json([]);
+      if (url.pathname === "/profile" && method === "GET") return Response.json({});
+      if (url.pathname === "/assistant/conversations" && method === "GET") {
+        return Response.json([]);
+      }
+      if (url.pathname === "/assistant/chat/stream" && method === "POST") {
+        assistantRequests.push(
+          JSON.parse(String(init?.body)) as Record<string, unknown>,
+        );
+        return new Response(
+          [
+            "event: connected\ndata: {}",
+            "event: delta\ndata: {\"text\":\"Why 92% explanation\",\"offset\":19}",
+            "event: done\ndata: {\"metadata\":{\"backend\":\"openclaw_codex\"}}",
+            "",
+          ].join("\n\n"),
+          { headers: { "Content-Type": "text/event-stream" } },
+        );
+      }
+      if (url.pathname === "/settings" && method === "GET") {
+        return Response.json({
+          has_brightdata_api_key: false,
+          brightdata_api_key_preview: "",
+        });
+      }
+      return undefined;
+    },
+  });
+
+  render(<HomePage />);
+
+  expect(
+    await screen.findByRole("button", { name: "Why 92%?" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "What to know before applying" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Analyze" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Write cover letter" }),
+  ).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Why 92%?" }));
+  expect(await screen.findByText("Why 92% explanation")).toBeInTheDocument();
+  expect(assistantRequests).toHaveLength(1);
+  expect(assistantRequests[0]).toMatchObject({
+    contextKind: "job",
+    contextId: "stripe-senior-product-designer",
+    job: {
+      id: "stripe-senior-product-designer",
+      title: "Senior Product Designer",
+      match: 92,
+      requirements: [
+        "5+ years of product design experience",
+        "Strong portfolio demonstrating design thinking",
+        "Experience with design systems",
+        "Excellent communication skills",
+      ],
+    },
+  });
+  expect(String(assistantRequests[0].message)).toContain("Why 92%?");
+  expect(String(assistantRequests[0].message)).toContain(
+    "How to improve the match",
+  );
+});

@@ -171,12 +171,11 @@ describe("ResumeTemplatePicker", () => {
         name: "Use My Swiss CV resume template",
       }),
     ).toBeInTheDocument();
-    expect(screen.getByText("Navy")).toBeInTheDocument();
-    expect(screen.getByText("A4")).toBeInTheDocument();
-    expect(screen.getByText("Two column")).toBeInTheDocument();
+    expect(screen.queryByText("Allowed theme")).not.toBeInTheDocument();
+    expect(screen.queryByText("A4")).not.toBeInTheDocument();
     expect(
-      screen.getByText(/User HTML, CSS, and DOCX templates are never accepted/),
-    ).toBeInTheDocument();
+      screen.queryByText(/User HTML, CSS, and DOCX templates are never accepted/),
+    ).not.toBeInTheDocument();
 
     fireEvent.click(
       screen.getByRole("button", {

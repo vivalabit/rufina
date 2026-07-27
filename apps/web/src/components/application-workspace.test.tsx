@@ -165,7 +165,7 @@ describe("ApplicationWorkspace", () => {
       ),
     ).toBeInTheDocument();
     expect(
-      await screen.findByText("Confirmed Master Resume"),
+      await screen.findByText("Master Resume · v1 confirmed"),
     ).toBeInTheDocument();
   });
 
@@ -378,6 +378,27 @@ describe("ApplicationWorkspace", () => {
     expect(
       await screen.findByText("PDF rendered, validated, and saved"),
     ).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: /Final review/ }),
+    );
+    const finalReviewHeading = await screen.findByRole("heading", {
+      name: "Review, download and apply",
+    });
+    const finalReviewSection = finalReviewHeading.closest("section");
+    expect(finalReviewSection).not.toBeNull();
+    expect(
+      within(finalReviewSection as HTMLElement).getByRole("link", {
+        name: "DOCX",
+      }),
+    ).toHaveAttribute(
+      "href",
+      "http://localhost:8000/resume-tailoring/ats-final-review/ats-review-1/docx?templateId=classic_single",
+    );
+    expect(
+      within(finalReviewSection as HTMLElement).getByRole("link", {
+        name: "DOCX",
+      }),
+    ).toHaveAttribute("download", "Alex-Morgan-resume.docx");
   });
 
   it("re-renders a ready FinalResume with a custom UUID without rerunning AI", async () => {

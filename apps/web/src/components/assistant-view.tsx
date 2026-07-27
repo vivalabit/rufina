@@ -38,6 +38,7 @@ export type AssistantLaunch = {
   prompt: string;
   contextKind: "profile" | "job" | "application";
   contextId?: string;
+  autoSubmit?: boolean;
 };
 
 type AssistantProfile = {
@@ -685,6 +686,8 @@ export function AssistantView({
   const [aiPrivacy, setAiPrivacy] = useState(defaultAiPrivacySettings);
   const [aiConsentConfirmed, setAiConsentConfirmed] = useState(false);
   const [pendingConsentPrompt, setPendingConsentPrompt] = useState<string | null>(null);
+  const [pendingAutoSubmitLaunch, setPendingAutoSubmitLaunch] =
+    useState<AssistantLaunch | null>(null);
   const [isSavingAiConsent, setIsSavingAiConsent] = useState(false);
   const launchedIdRef = useRef("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
@@ -806,9 +809,33 @@ export function AssistantView({
     setActiveThreadId("");
     setContextKind(launch.contextKind);
     setContextId(launch.contextId ?? "");
-    setDraft(launch.prompt);
+    if (launch.autoSubmit) {
+      setDraft("");
+      setPendingAutoSubmitLaunch(launch);
+    } else {
+      setDraft(launch.prompt);
+    }
     onLaunchHandled();
   }, [isLoaded, launch, onLaunchHandled]);
+
+  useEffect(() => {
+    if (
+      !pendingAutoSubmitLaunch ||
+      isGenerating ||
+      contextKind !== pendingAutoSubmitLaunch.contextKind ||
+      contextId !== (pendingAutoSubmitLaunch.contextId ?? "")
+    ) {
+      return;
+    }
+    const prompt = pendingAutoSubmitLaunch.prompt;
+    setPendingAutoSubmitLaunch(null);
+    void submitMessage(prompt);
+  }, [
+    contextId,
+    contextKind,
+    isGenerating,
+    pendingAutoSubmitLaunch,
+  ]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });

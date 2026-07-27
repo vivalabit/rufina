@@ -672,8 +672,12 @@ const legacyMovedFromJobsNote = "Moved from Jobs after applying.";
 const maxStoredAppLogs = 300;
 
 const assistantPrompts = {
-  analyzeJob: "Analyze this vacancy against my profile. Summarize the strongest evidence, gaps, risks, and whether I should apply.",
-  writeCoverLetter: "Write a concise, evidence-based cover letter for this job using only verified information from my profile.",
+  whyMatch: (score: number) =>
+    `Why ${score}%? Explain this rating using the selected vacancy and my verified profile: show what raises the score, what lowers it, and which requirements are missing or only partially supported. End with a prioritized "How to improve the match" section containing concrete actions I can take before applying. Separate resume/presentation improvements from genuinely missing experience or skills, and do not invent evidence.`,
+  whyNoMatch:
+    "Explain why this vacancy does not have a match score yet and what information or analysis is needed to assess it against my profile.",
+  beforeApplying:
+    "Tell me what I need to know before applying to this vacancy. Prioritize must-have requirements, hard constraints, missing or transferable evidence, likely recruiter concerns, facts I should verify, and a clear recommendation on whether and how to apply. Use only the vacancy and verified profile evidence.",
   followUpApplication: "Write a concise recruiter follow-up for this application based on its current status, next step, and notes.",
   prepareInterview: "Prepare me for an interview for this role with likely questions, answer guidance, verified evidence to use, and questions to ask.",
   improveProfile: "Review my candidate profile and give me a prioritized, evidence-based improvement plan. Identify missing or weak sections and rewrite my headline and summary without inventing facts.",
@@ -3553,12 +3557,18 @@ export default function HomePage() {
     changeView("Applications");
   }
 
-  function openAssistant(prompt = "", contextKind: AssistantLaunch["contextKind"] = "profile", contextId = "") {
+  function openAssistant(
+    prompt = "",
+    contextKind: AssistantLaunch["contextKind"] = "profile",
+    contextId = "",
+    autoSubmit = false,
+  ) {
     setAssistantLaunch(prompt ? {
       id: createClientId("assistant-launch"),
       prompt,
       contextKind,
       contextId,
+      autoSubmit,
     } : null);
     changeView("Assistant");
   }
@@ -5892,8 +5902,22 @@ export default function HomePage() {
                 <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-muted 2xl:mb-3 2xl:text-xs">Ask Assistant</p>
                 <div className="grid gap-2 sm:grid-cols-2 2xl:gap-3">
                   {[
-                    { label: "Analyze", prompt: assistantPrompts.analyzeJob, icon: Sparkles },
-                    { label: "Write cover letter", prompt: assistantPrompts.writeCoverLetter, icon: Mail },
+                    {
+                      label: hasDisplayableMatch(selectedJob)
+                        ? `Why ${selectedJob.match}%?`
+                        : "Why no match score?",
+                      prompt: hasDisplayableMatch(selectedJob)
+                        ? assistantPrompts.whyMatch(selectedJob.match)
+                        : assistantPrompts.whyNoMatch,
+                      icon: BarChart3,
+                      autoSubmit: true,
+                    },
+                    {
+                      label: "What to know before applying",
+                      prompt: assistantPrompts.beforeApplying,
+                      icon: Info,
+                      autoSubmit: false,
+                    },
                   ].map((action) => {
                     const Icon = action.icon;
                     return (
@@ -5902,7 +5926,14 @@ export default function HomePage() {
                         type="button"
                         variant="ghost"
                         className="h-10 justify-start rounded-md border border-accent/35 bg-accent/[0.045] px-3 text-xs font-bold text-[#f2f4f8] hover:border-accent/60 hover:bg-accent/[0.10] 2xl:h-11 2xl:text-sm"
-                        onClick={() => openAssistant(action.prompt, "job", selectedJob.id)}
+                        onClick={() =>
+                          openAssistant(
+                            action.prompt,
+                            "job",
+                            selectedJob.id,
+                            action.autoSubmit,
+                          )
+                        }
                       >
                         <Icon className="h-4 w-4 text-accent 2xl:h-[18px] 2xl:w-[18px]" />
                         {action.label}

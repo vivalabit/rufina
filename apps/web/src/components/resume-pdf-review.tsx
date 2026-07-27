@@ -9,7 +9,6 @@ import {
   FileDiff,
   FileText,
   LoaderCircle,
-  Palette,
   RefreshCw,
   ScanSearch,
 } from "lucide-react";
@@ -201,8 +200,6 @@ export function ResumeTemplatePicker({
   onChange: (templateId: ResumeTemplateId) => void;
   notice?: string;
 }) {
-  const selected = templates.find((template) => template.id === selectedId);
-  const selectedTheme = selected ? visualTheme(selected) : null;
   const customTemplates = templates.filter(
     (template) => template.kind === "custom",
   );
@@ -216,18 +213,12 @@ export function ResumeTemplatePicker({
       className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3"
     >
       <div className="flex items-center justify-between gap-3">
-        <div>
-          <p
-            id="resume-template-picker-title"
-            className="text-[9px] font-black uppercase tracking-[0.1em] text-muted"
-          >
-            Resume template
-          </p>
-          <p className="mt-1 text-[9px] leading-4 text-muted">
-            Trusted layouts with verified design tokens. User HTML, CSS, and
-            DOCX templates are never accepted.
-          </p>
-        </div>
+        <p
+          id="resume-template-picker-title"
+          className="text-[9px] font-black uppercase tracking-[0.1em] text-muted"
+        >
+          Resume template
+        </p>
         <Columns2 className="h-4 w-4 shrink-0 text-accent" />
       </div>
       <select
@@ -274,38 +265,6 @@ export function ResumeTemplatePicker({
         >
           {notice}
         </p>
-      ) : null}
-      {selected && selectedTheme ? (
-        <div className="mt-3 rounded-lg border border-white/[0.07] bg-black/15 p-2.5">
-          <div className="flex items-center gap-1.5 text-[9px] font-black uppercase tracking-wide text-[#cbd3df]">
-            <Palette className="h-3.5 w-3.5 text-accent" />
-            Allowed theme
-          </div>
-          <div className="mt-2 grid grid-cols-2 gap-1.5 text-[8px] sm:grid-cols-4">
-            <span className="rounded-md border border-white/[0.07] bg-white/[0.025] px-2 py-1.5 text-muted">
-              <strong className="block text-[#e5e9ef]">Accent</strong>
-              {selectedTheme.accentName}
-            </span>
-            <span className="rounded-md border border-white/[0.07] bg-white/[0.025] px-2 py-1.5 text-muted">
-              <strong className="block text-[#e5e9ef]">Mode</strong>
-              Light
-            </span>
-            <span className="rounded-md border border-white/[0.07] bg-white/[0.025] px-2 py-1.5 text-muted">
-              <strong className="block text-[#e5e9ef]">Page</strong>
-              A4
-            </span>
-            <span className="rounded-md border border-white/[0.07] bg-white/[0.025] px-2 py-1.5 text-muted">
-              <strong className="block text-[#e5e9ef]">Layout</strong>
-              {selected.columns === 2 ? "Two column" : "Single column"}
-            </span>
-          </div>
-          <p className="mt-2 text-[9px] font-bold text-[#cbd3df]">
-            {selected.kind === "custom"
-              ? `Personal template · v${selected.version ?? 1}`
-              : "Built-in template"}
-          </p>
-          <p className="mt-2 text-[9px] leading-4 text-muted">{selected.description}</p>
-        </div>
       ) : null}
     </section>
   );
