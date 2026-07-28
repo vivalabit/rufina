@@ -474,6 +474,27 @@ function resumeDocxDownload(document: GeneratedDocument) {
   };
 }
 
+function coverLetterPdfDownload(
+  document: GeneratedDocument,
+  version = document.currentVersion,
+) {
+  const artifact = document.versions.find(
+    (item) => item.version === version,
+  )?.artifact;
+  if (artifact?.contentType === "application/pdf") return null;
+  const sourceFileName = documentFileName(document, version);
+  const fileName = sourceFileName.toLowerCase().endsWith(".docx")
+    ? `${sourceFileName.slice(0, -5)}.pdf`
+    : `${sourceFileName}.pdf`;
+  const versionQuery = version === document.currentVersion
+    ? ""
+    : `?version=${version}`;
+  return {
+    href: `${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/pdf${versionQuery}`,
+    fileName,
+  };
+}
+
 function confirmDocumentDownload(
   event: React.MouseEvent<HTMLAnchorElement>,
   warnings: string[],
@@ -2089,6 +2110,9 @@ export function ApplicationWorkspace({
                     const itemDocxDownload = item.label === "Tailored CV" && item.document
                       ? resumeDocxDownload(item.document)
                       : null;
+                    const itemPdfDownload = item.label === "Cover letter" && item.document
+                      ? coverLetterPdfDownload(item.document)
+                      : null;
                     return (
                       <article key={item.label} className="rounded-2xl border border-white/[0.08] bg-black/15 p-4">
                         <div className="flex items-start gap-3">
@@ -2097,6 +2121,7 @@ export function ApplicationWorkspace({
                         </div>
                         <div className="mt-4 flex gap-2">
                           <Button type="button" variant="ghost" onClick={() => setActiveWorkspaceStep("create")} className="h-9 flex-1 rounded-xl border border-white/[0.08] text-[10px] font-bold text-[#dfe5ec] hover:bg-white/[0.05]">{item.document ? "Review & edit" : "Prepare document"}</Button>
+                          {itemPdfDownload ? <a href={itemPdfDownload.href} download={itemPdfDownload.fileName} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> PDF</a> : null}
                           {item.document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(item.document.id)}/download`} download={documentFileName(item.document)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(item.document)}</a> : null}
                           {itemDocxDownload ? <a href={itemDocxDownload.href} download={itemDocxDownload.fileName} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> DOCX</a> : null}
                         </div>
@@ -2234,6 +2259,9 @@ function DocumentCard({
   const docxDownload = document && isResume
     ? resumeDocxDownload(document)
     : null;
+  const pdfDownload = document && !isResume
+    ? coverLetterPdfDownload(document)
+    : null;
   const showsChangeList = isResume || hasStructuredReplacements(document);
   const isRestoringDocument = Boolean(document && restoringVersionKey.startsWith(`${document.id}:`));
   return (
@@ -2279,13 +2307,14 @@ function DocumentCard({
       </div>
       </details>
       {generationControl}
-      <div className="mt-3 flex gap-2">
+      <div className="mt-3 flex flex-wrap gap-2">
         <Button type="button" disabled={isGenerating || isRestoringDocument || !canGenerate} onClick={onGenerate} className="h-10 flex-1 rounded-xl bg-accent px-3 text-[11px] font-bold text-white hover:bg-[#ff6a14] disabled:opacity-40">{isGenerating ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : document ? <RefreshCw className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}{isGenerating ? "Generating…" : !canGenerate ? disabledLabel : document ? "Regenerate" : `Generate ${label}`}</Button>
+        {pdfDownload ? <a href={pdfDownload.href} download={pdfDownload.fileName} onClick={(event) => confirmDocumentDownload(event, readiness.warnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> PDF</a> : null}
         {document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`} download={documentFileName(document)} onClick={(event) => confirmDocumentDownload(event, readiness.warnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(document)}</a> : null}
         {docxDownload ? <a href={docxDownload.href} download={docxDownload.fileName} onClick={(event) => confirmDocumentDownload(event, readiness.warnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> DOCX</a> : null}
         {document && !isResume ? <Button type="button" variant="ghost" aria-label={`Delete ${label}`} disabled={deletingDocumentId === document.id || isGenerating} onClick={onDelete} className="h-10 rounded-xl border border-red-400/20 px-3 text-red-200 hover:bg-red-500/10"><Trash2 className="h-3.5 w-3.5" /></Button> : null}
       </div>
-      {document && isResume ? <p className="mt-2 text-[9px] leading-4 text-muted">Download the current resume as PDF or editable DOCX.</p> : null}
+      {document ? <p className="mt-2 text-[9px] leading-4 text-muted">Download the current {isResume ? "resume" : "cover letter"} as PDF or editable DOCX.</p> : null}
       {document ? (
         <details className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.018]">
           <summary className="cursor-pointer px-3 py-2.5 text-[10px] font-bold text-[#cbd3df] marker:text-muted">
@@ -2297,12 +2326,16 @@ function DocumentCard({
               const restoreKey = `${document.id}:${version.version}`;
               const isRestoring = restoringVersionKey === restoreKey;
               const downloadWarnings = getDocumentVersionDownloadWarnings(version, isCurrent && isOutdated);
+              const versionPdfDownload = !isResume
+                ? coverLetterPdfDownload(document, version.version)
+                : null;
               return (
                 <div key={version.id} className="flex items-center gap-2 border-b border-white/[0.05] py-2 last:border-0">
                   <div className="min-w-0 flex-1">
                     <p className="text-[10px] font-bold text-white">v{version.version}{isCurrent ? <span className="ml-1.5 text-[8px] uppercase tracking-wide text-success">Current</span> : null}</p>
                     <p className="mt-0.5 text-[9px] text-muted">{formatVersionTimestamp(version.createdAt)}</p>
                   </div>
+                  {versionPdfDownload ? <a href={versionPdfDownload.href} download={versionPdfDownload.fileName} onClick={(event) => confirmDocumentDownload(event, downloadWarnings)} className="inline-flex h-7 items-center gap-1 rounded-md border border-white/[0.08] px-2 text-[9px] font-bold text-[#dbe2eb] hover:bg-white/[0.05]"><Download className="h-3 w-3" /> PDF</a> : null}
                   <a href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download?version=${version.version}`} download={documentFileName(document, version.version)} onClick={(event) => confirmDocumentDownload(event, downloadWarnings)} className="inline-flex h-7 items-center gap-1 rounded-md border border-white/[0.08] px-2 text-[9px] font-bold text-[#dbe2eb] hover:bg-white/[0.05]"><Download className="h-3 w-3" /> {documentArtifactLabel(document, version.version)}</a>
                   {!isCurrent && !isResume ? <button type="button" disabled={Boolean(restoringVersionKey) || isGenerating} onClick={() => onRestore(version.version)} className="inline-flex h-7 items-center gap-1 rounded-md border border-white/[0.08] px-2 text-[9px] font-bold text-[#dbe2eb] transition hover:border-accent/30 hover:text-white disabled:opacity-40">{isRestoring ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Restore</button> : null}
                 </div>

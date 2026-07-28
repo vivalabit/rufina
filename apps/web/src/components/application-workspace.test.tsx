@@ -660,6 +660,86 @@ describe("ApplicationWorkspace", () => {
     });
   });
 
+  it("offers PDF and DOCX downloads for a generated cover letter", async () => {
+    const coverLetterDocument = {
+      ...generatedPdfDocument("classic_single"),
+      id: "cover-letter-downloads",
+      type: "cover_letter",
+      title: "Cover letter · Senior Product Designer · Acme Labs",
+      versions: [
+        {
+          id: "cover-letter-version",
+          version: 1,
+          content: JSON.stringify({
+            replacements: [
+              {
+                paragraphId: "paragraph-0002",
+                spanId: "paragraph-0002-span-0001",
+                original: "Original",
+                replacement: "Tailored opening",
+                reason: "Role fit",
+                evidenceIds: ["vacancy:title"],
+              },
+            ],
+          }),
+          createdAt: "2026-07-28T10:00:00.000Z",
+          hasRenderedDocx: true,
+          hasRenderedArtifact: true,
+          artifact: {
+            fileName: "Acme-cover-letter.docx",
+            contentType:
+              "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            templateId: "standard-cover-letter",
+            templateVersion: null,
+          },
+          factualValidation: { status: "passed" },
+          visualValidation: { status: "passed" },
+          diff: [],
+        },
+      ],
+    };
+    installApplicationWorkspaceApiMock({
+      documents: [coverLetterDocument],
+    });
+    renderApplicationWorkspace(createV3WorkspaceApplication());
+
+    const deleteButton = await screen.findByRole("button", {
+      name: "Delete Cover letter",
+    });
+    const coverLetterCard = deleteButton.closest("article");
+    expect(coverLetterCard).not.toBeNull();
+    const pdfDownloads = within(coverLetterCard as HTMLElement).getAllByRole(
+      "link",
+      { name: "PDF" },
+    );
+    const docxDownloads = within(coverLetterCard as HTMLElement).getAllByRole(
+      "link",
+      { name: "DOCX" },
+    );
+
+    expect(pdfDownloads[0]).toHaveAttribute(
+      "href",
+      "http://localhost:8000/documents/cover-letter-downloads/pdf",
+    );
+    expect(pdfDownloads[0]).toHaveAttribute(
+      "download",
+      "Acme-cover-letter.pdf",
+    );
+    expect(docxDownloads[0]).toHaveAttribute(
+      "href",
+      "http://localhost:8000/documents/cover-letter-downloads/download",
+    );
+    expect(
+      pdfDownloads[0].compareDocumentPosition(docxDownloads[0])
+      & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      within(coverLetterCard as HTMLElement).getByText(
+        "Download the current cover letter as PDF or editable DOCX.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("does not loop when the application guide is missing", async () => {
     const fetchMock = installApplicationWorkspaceApiMock();
     renderApplicationWorkspace(createWorkspaceApplicationWithoutGuide());

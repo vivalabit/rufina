@@ -382,6 +382,84 @@ def test_document_download_preserves_unicode_filename_for_rendered_docx() -> Non
     )
 
 
+def test_cover_letter_pdf_download_converts_the_saved_docx(monkeypatch) -> None:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+    testing_session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+    rendered_document = Document()
+    rendered_document.add_paragraph("Rendered cover letter")
+    rendered_output = BytesIO()
+    rendered_document.save(rendered_output)
+    rendered_content = rendered_output.getvalue()
+
+    with testing_session_local() as db:
+        record = DocumentRecord(
+            id="cover-letter-pdf",
+            type="cover_letter",
+            title="Bewerbungsschreiben Zürich",
+            current_version=1,
+        )
+        record.versions.append(
+            DocumentVersionRecord(
+                id="cover-letter-pdf-version",
+                document_id=record.id,
+                version=1,
+                content=json.dumps({"replacements": []}),
+            )
+        )
+        record.files.append(
+            DocumentFileRecord(
+                id="cover-letter-pdf-file",
+                document_id=record.id,
+                version=1,
+                template_id="standard-cover-letter",
+                file_name="Bewerbungsschreiben-Zürich.docx",
+                content_type=(
+                    "application/vnd.openxmlformats-officedocument."
+                    "wordprocessingml.document"
+                ),
+                content=rendered_content,
+            )
+        )
+        db.add(record)
+        db.commit()
+
+    converted_content = b"%PDF-1.7\nconverted-cover-letter"
+
+    def fake_render_docx_to_pdf(content: bytes) -> bytes:
+        assert content == rendered_content
+        return converted_content
+
+    monkeypatch.setattr(
+        "app.api.documents.render_docx_to_pdf",
+        fake_render_docx_to_pdf,
+    )
+
+    def override_get_db() -> Generator[Session, None, None]:
+        with testing_session_local() as db:
+            yield db
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+    try:
+        downloaded = client.get("/documents/cover-letter-pdf/pdf")
+    finally:
+        app.dependency_overrides.clear()
+
+    assert downloaded.status_code == 200
+    assert downloaded.content == converted_content
+    assert downloaded.headers["content-type"] == "application/pdf"
+    assert downloaded.headers["content-disposition"] == (
+        'attachment; filename="Bewerbungsschreiben-Z-rich.pdf"; '
+        "filename*=UTF-8''Bewerbungsschreiben-Z%C3%BCrich.pdf"
+    )
+
+
 def test_pdf_artifact_is_downloadable_but_immutable() -> None:
     engine = create_engine(
         "sqlite://",

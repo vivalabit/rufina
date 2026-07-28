@@ -980,6 +980,22 @@ def render_and_count_pages(source: bytes, rendered: bytes) -> tuple[int, int]:
     return source_geometry["pageCount"], rendered_geometry["pageCount"]
 
 
+def render_docx_to_pdf(content: bytes) -> bytes:
+    """Render a saved DOCX artifact to a downloadable PDF."""
+    executable = shutil.which("soffice") or shutil.which("libreoffice")
+    if not executable:
+        raise DocumentValidationError(
+            "PDF export failed: LibreOffice is required for DOCX conversion"
+        )
+    try:
+        return source_render_future(content, executable=executable).result().pdf_content
+    except DocumentValidationError as exc:
+        message = str(exc).replace("Document validation failed", "PDF export failed", 1)
+        raise DocumentValidationError(message) from exc
+    except Exception as exc:
+        raise DocumentValidationError("PDF export failed: DOCX conversion failed") from exc
+
+
 def render_and_inspect_documents(
     source: bytes,
     rendered: bytes,

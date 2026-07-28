@@ -75,6 +75,7 @@ from app.services.generation_context import (
 from app.services.document_security import DocumentSecurityError
 from app.services.document_validation import (
     DocumentValidationError,
+    render_docx_to_pdf,
     validate_generated_document,
 )
 from app.services.document_preflight import analyze_document_template
@@ -842,6 +843,69 @@ def download_document(
             content=rendered_file.content,
             media_type=content_type,
             headers={"Content-Disposition": content_disposition(filename)},
+        )
+    except HTTPException:
+        raise
+    except SQLAlchemyError as exc:
+        raise database_unavailable(exc) from exc
+
+
+@router.get("/{document_id}/pdf")
+def download_document_pdf(
+    document_id: str,
+    version: int | None = Query(default=None, ge=1),
+    db: Session = Depends(get_db),
+) -> Response:
+    try:
+        record = require_document(db, document_id)
+        selected_version = (
+            next((item for item in record.versions if item.version == version), None)
+            if version is not None
+            else current_version_record(record)
+        )
+        if not selected_version:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Document version not found",
+            )
+        rendered_file = document_file_record(db, record.id, selected_version.version)
+        if not rendered_file:
+            raise HTTPException(
+                status_code=status.HTTP_410_GONE,
+                detail="Rendered document artifact is no longer available for recovery",
+            )
+        content_type = rendered_file.content_type or DOCX_CONTENT_TYPE
+        if content_type == PDF_CONTENT_TYPE:
+            pdf_content = rendered_file.content
+        elif content_type == DOCX_CONTENT_TYPE:
+            try:
+                pdf_content = render_docx_to_pdf(rendered_file.content)
+            except DocumentValidationError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                    detail=str(exc),
+                ) from exc
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Only DOCX and PDF document artifacts support PDF download",
+            )
+        source_filename = rendered_file.file_name.strip() or (
+            f"{safe_filename(record.title)}-v{selected_version.version}.docx"
+        )
+        pdf_filename = (
+            f"{source_filename[:-5]}.pdf"
+            if source_filename.lower().endswith(".docx")
+            else (
+                source_filename
+                if source_filename.lower().endswith(".pdf")
+                else f"{source_filename}.pdf"
+            )
+        )
+        return Response(
+            content=pdf_content,
+            media_type=PDF_CONTENT_TYPE,
+            headers={"Content-Disposition": content_disposition(pdf_filename)},
         )
     except HTTPException:
         raise
