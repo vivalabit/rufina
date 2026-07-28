@@ -63,6 +63,7 @@ from app.services.resume_tailoring import (
     ATS_FINAL_REVIEW_PROMPT_VERSION,
     AtsFinalReviewOutcome,
     ResumeTailoringError,
+    build_ats_final_review_prompt,
     build_resume_after_stage_two,
     final_resume_id,
     review_final_resume_for_ats,
@@ -302,6 +303,31 @@ def final_review_payload(master_resume_id: str) -> dict[str, object]:
         },
         "finalResume": final_resume,
     }
+
+
+def test_selected_language_becomes_the_final_resume_language() -> None:
+    master_resume_id = "master-resume-language"
+    stage_two = build_resume_after_stage_two(
+        master_resume=MasterResume.model_validate(
+            master_resume_payload(master_resume_id)
+        ),
+        target_job_id="job-platform",
+        experience_rewrite=ExperienceRewrite.model_validate(
+            experience_rewrite_payload(master_resume_id)
+        ),
+        target_language="German",
+    )
+
+    assert stage_two.language == "German"
+    prompt = build_ats_final_review_prompt(
+        resume_after_stage_two=stage_two,
+        recruiter_analysis=SeniorRecruiterAnalysis.model_validate(
+            recruiter_analysis_payload()
+        ),
+        target_language="German",
+    )
+    assert "TARGET DOCUMENT LANGUAGE: German" in prompt
+    assert "Write every editable, user-facing sentence in German" in prompt
 
 
 def complete_final_resume_payload(master_resume_id: str) -> dict[str, object]:

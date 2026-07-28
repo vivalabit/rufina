@@ -4,7 +4,7 @@ import json
 import re
 import unicodedata
 from collections import defaultdict
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Mapping
 from urllib.parse import quote
@@ -1922,7 +1922,19 @@ def batch_current_generation_fingerprints(
             or source_document["type"] != record.type
         ):
             continue
-        fingerprints[record.id] = context.provenance_for_source_document(
+        document_language = (
+            relations_by_document[record.id].provenance.input_versions.get(
+                "documentLanguage"
+            )
+            if relations_by_document[record.id].provenance is not None
+            else None
+        )
+        document_context = (
+            replace(context, language=document_language)
+            if document_language in {"English", "German"}
+            else context
+        )
+        fingerprints[record.id] = document_context.provenance_for_source_document(
             {key: value for key, value in source_document.items() if key != "type"}
         ).generation_fingerprint
     return fingerprints
@@ -1959,7 +1971,15 @@ def authoritative_current_generation_fingerprint(
         )
     except GenerationContextError:
         return None
-    return context.provenance().generation_fingerprint
+    document_language = record.generation_provenance.input_versions.get(
+        "documentLanguage"
+    )
+    document_context = (
+        replace(context, language=document_language)
+        if document_language in {"English", "German"}
+        else context
+    )
+    return document_context.provenance().generation_fingerprint
 
 
 def document_payload(

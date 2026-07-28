@@ -9,9 +9,13 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base
-from app.api.assistant import assistant_inputs_from_generation_context
+from app.api.assistant import (
+    assistant_inputs_from_generation_context,
+    load_authoritative_assistant_inputs,
+)
 from app.api.resume_tailoring import resume_tailoring_master_resume
 from app.models.applications import CandidateConfirmationRecord, StoredApplicationRecord
+from app.models.assistant import AssistantChatRequest
 from app.models.documents import DocumentTemplateRecord
 from app.models.jobs import JobMatchRecord, StoredJobRecord
 from app.models.profile import ProfilePayload, ProfileRecord
@@ -337,8 +341,39 @@ def test_computes_stable_provenance_from_authoritative_context() -> None:
         assert first.input_versions["analysisFingerprint"] == context.analysis_fingerprint
         assert first.input_versions["sourceDocument"]["id"] == "template-context"
         assert len(first.input_versions["sourceDocument"]["contentSha256"]) == 64
+        assert first.input_versions["documentLanguage"] == "German"
         assert replace(context, generation_backend="openai_api").provenance().generation_fingerprint != (
             first.generation_fingerprint
+        )
+
+
+def test_document_generation_accepts_a_validated_language_override() -> None:
+    with generation_context_session() as db:
+        inputs = load_authoritative_assistant_inputs(
+            db,
+            AssistantChatRequest.model_validate(
+                {
+                    "threadId": "thread-language",
+                    "message": "Generate the cover letter",
+                    "contextKind": "application",
+                    "contextId": "application-context",
+                    "generationContext": {
+                        "applicationId": "application-context",
+                        "templateId": "template-context",
+                        "documentType": "cover_letter",
+                        "targetLanguage": "English",
+                    },
+                }
+            ),
+        )
+
+        assert inputs.generation_context is not None
+        assert inputs.generation_context.language == "English"
+        assert (
+            inputs.generation_context.provenance().input_versions[
+                "documentLanguage"
+            ]
+            == "English"
         )
 
 

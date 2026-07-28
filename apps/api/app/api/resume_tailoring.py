@@ -183,6 +183,11 @@ def run_senior_recruiter_analysis(
                     "vacancy": job.data,
                     "applicationId": payload.application_id,
                     **(
+                        {"targetLanguage": payload.target_language}
+                        if payload.target_language
+                        else {}
+                    ),
+                    **(
                         {"revisionInstruction": payload.revision_instruction}
                         if payload.revision_instruction
                         else {}
@@ -193,19 +198,17 @@ def run_senior_recruiter_analysis(
             backend=settings.ai_backend_mode,
         )
         facade = create_resume_tailoring_ai_facade(settings)
+        analysis_options: dict[str, str] = {}
+        if payload.target_language:
+            analysis_options["target_language"] = payload.target_language
         if payload.revision_instruction:
-            outcome = facade.analyze_as_senior_recruiter(
-                master_resume=master_resume,
-                target_job_id=job.id,
-                vacancy=job.data,
-                revision_instruction=payload.revision_instruction,
-            )
-        else:
-            outcome = facade.analyze_as_senior_recruiter(
-                master_resume=master_resume,
-                target_job_id=job.id,
-                vacancy=job.data,
-            )
+            analysis_options["revision_instruction"] = payload.revision_instruction
+        outcome = facade.analyze_as_senior_recruiter(
+            master_resume=master_resume,
+            target_job_id=job.id,
+            vacancy=job.data,
+            **analysis_options,
+        )
         outcome = replace(
             outcome,
             analysis=recruiter_analysis_with_supplemental_evidence(
@@ -325,17 +328,24 @@ def run_xyz_experience_rewrite(
                     "targetJobId": recruiter_analysis.target_job_id,
                     "recruiterAnalysisId": recruiter_analysis.id,
                     "recruiterAnalysis": recruiter_analysis.result,
+                    **(
+                        {"targetLanguage": payload.target_language}
+                        if payload.target_language
+                        else {}
+                    ),
                 },
             ),
             model=configured_tailoring_model(settings),
             backend=settings.ai_backend_mode,
         )
-        outcome = create_resume_tailoring_ai_facade(
-            settings
-        ).rewrite_experience_with_xyz(
+        rewrite_options: dict[str, str] = {}
+        if payload.target_language:
+            rewrite_options["target_language"] = payload.target_language
+        outcome = create_resume_tailoring_ai_facade(settings).rewrite_experience_with_xyz(
             master_resume=master_resume,
             target_job_id=recruiter_analysis.target_job_id,
             recruiter_analysis=saved_analysis,
+            **rewrite_options,
         )
         response = persist_experience_rewrite(
             db,
@@ -461,18 +471,25 @@ def run_ats_final_review(
                     "recruiterAnalysis": recruiter_analysis.result,
                     "experienceRewriteId": experience_rewrite.id,
                     "experienceRewrite": experience_rewrite.result,
+                    **(
+                        {"targetLanguage": payload.target_language}
+                        if payload.target_language
+                        else {}
+                    ),
                 },
             ),
             model=configured_tailoring_model(settings),
             backend=settings.ai_backend_mode,
         )
-        outcome = create_resume_tailoring_ai_facade(
-            settings
-        ).review_final_resume_for_ats(
+        review_options: dict[str, str] = {}
+        if payload.target_language:
+            review_options["target_language"] = payload.target_language
+        outcome = create_resume_tailoring_ai_facade(settings).review_final_resume_for_ats(
             master_resume=master_resume,
             target_job_id=experience_rewrite.target_job_id,
             recruiter_analysis=saved_analysis,
             experience_rewrite=saved_rewrite,
+            **review_options,
         )
         response = persist_ats_final_review(
             db,

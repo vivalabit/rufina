@@ -1368,6 +1368,10 @@ class SeniorRecruiterAnalysisRequest(StrictResumeModel):
     master_resume_id: ResumeId = Field(alias="masterResumeId")
     target_job_id: TailoringTargetJobId = Field(alias="targetJobId")
     application_id: CanonicalId | None = Field(default=None, alias="applicationId")
+    target_language: Literal["English", "German"] | None = Field(
+        default=None,
+        alias="targetLanguage",
+    )
     revision_instruction: OptionalText | None = Field(
         default=None,
         alias="revisionInstruction",
@@ -1405,6 +1409,10 @@ class ExperienceRewriteRequest(StrictResumeModel):
     senior_recruiter_analysis_id: CanonicalId = Field(
         alias="seniorRecruiterAnalysisId",
     )
+    target_language: Literal["English", "German"] | None = Field(
+        default=None,
+        alias="targetLanguage",
+    )
 
 
 class ExperienceRewriteMetrics(StrictResumeModel):
@@ -1438,6 +1446,10 @@ class ExperienceRewriteResponse(StrictResumeModel):
 
 class AtsFinalReviewRequest(StrictResumeModel):
     experience_rewrite_id: CanonicalId = Field(alias="experienceRewriteId")
+    target_language: Literal["English", "German"] | None = Field(
+        default=None,
+        alias="targetLanguage",
+    )
 
 
 class AtsFinalReviewMetrics(StrictResumeModel):

@@ -312,6 +312,7 @@ def test_xyz_rewrite_uses_one_typed_experience_only_ai_request() -> None:
         recruiter_analysis=SeniorRecruiterAnalysis.model_validate(
             recruiter_analysis_payload()
         ),
+        target_language="German",
         backend=FakeBackend(),
         model="gpt-5.6-terra",
         agent_id="rufina-assistant",
@@ -325,6 +326,8 @@ def test_xyz_rewrite_uses_one_typed_experience_only_ai_request() -> None:
     assert "MANDATORY RESUME TAILORING REQUEST 2" in requests[0].prompt
     assert "Use the Google XYZ formula" in requests[0].prompt
     assert "Rewrite Experience only" in requests[0].prompt
+    assert "TARGET DOCUMENT LANGUAGE: German" in requests[0].prompt
+    assert "Write every rewritten accomplishment bullet in German" in requests[0].prompt
     assert "Do not render a document" in requests[0].prompt
     schema_text = (
         requests[0]

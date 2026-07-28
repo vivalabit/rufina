@@ -147,7 +147,7 @@ function generatedPdfDocument(templateId = "classic_single") {
     currentGenerationFingerprint: "pdf-fingerprint",
     generationModel: "gpt-5",
     generationBackend: "openclaw_codex",
-    inputVersions: {},
+    inputVersions: { documentLanguage: "English" },
     versionsTotal: 1,
     versionsHasMore: false,
     versions: [
@@ -164,7 +164,7 @@ function generatedPdfDocument(templateId = "classic_single") {
           templateId,
           templateVersion: "1.0.0",
           sourceAtsFinalReviewId: "ats-review-1",
-          finalResumeJson: {},
+          finalResumeJson: { language: "English" },
           stageResults: {
             experienceRewrite: { experiences: [] },
             atsFinalReview: {
@@ -318,6 +318,7 @@ describe("ApplicationWorkspace", () => {
             masterResumeId: "master-resume-1",
             targetJobId: "job-product-designer",
             applicationId: "application-v3",
+            targetLanguage: "English",
           });
           return Response.json({ id: "recruiter-analysis-1" });
         }
@@ -328,6 +329,7 @@ describe("ApplicationWorkspace", () => {
           requestOrder.push("rewrite");
           expect(JSON.parse(String(init?.body))).toEqual({
             seniorRecruiterAnalysisId: "recruiter-analysis-1",
+            targetLanguage: "English",
           });
           return Response.json({ id: "experience-rewrite-1" });
         }
@@ -338,6 +340,7 @@ describe("ApplicationWorkspace", () => {
           requestOrder.push("ats");
           expect(JSON.parse(String(init?.body))).toEqual({
             experienceRewriteId: "experience-rewrite-1",
+            targetLanguage: "English",
           });
           return Response.json({ id: "ats-review-1" });
         }
@@ -444,6 +447,47 @@ describe("ApplicationWorkspace", () => {
         name: "DOCX",
       }),
     ).toHaveAttribute("download", "Alex-Morgan-resume.docx");
+  });
+
+  it("passes the selected document language into CV generation", async () => {
+    const fetchMock = installApplicationWorkspaceApiMock({
+      aiPrivacySettings: consent,
+      requestHandler: async (url, method) => {
+        if (
+          url.pathname === "/resume-tailoring/senior-recruiter-analysis"
+          && method === "POST"
+        ) {
+          return Response.json(
+            { detail: "Stop after request inspection" },
+            { status: 500 },
+          );
+        }
+        return undefined;
+      },
+    });
+    renderApplicationWorkspace(createV3WorkspaceApplication());
+
+    fireEvent.change(
+      await screen.findByRole("combobox", { name: "Document language" }),
+      { target: { value: "German" } },
+    );
+    const generate = screen.getByRole("button", {
+      name: "Generate Tailored CV",
+    });
+    await waitFor(() => expect(generate).toBeEnabled());
+    fireEvent.click(generate);
+
+    await waitFor(() => {
+      const request = fetchMock.mock.calls.find(([input, init]) => (
+        new URL(String(input)).pathname
+          === "/resume-tailoring/senior-recruiter-analysis"
+        && init?.method === "POST"
+      ));
+      expect(request).toBeDefined();
+      expect(JSON.parse(String(request?.[1]?.body))).toEqual(
+        expect.objectContaining({ targetLanguage: "German" }),
+      );
+    });
   });
 
   it("re-renders a ready FinalResume with a custom UUID without rerunning AI", async () => {
@@ -600,6 +644,11 @@ describe("ApplicationWorkspace", () => {
     expect(
       await screen.findByText("Standard cover letter"),
     ).toBeInTheDocument();
+    const documentLanguage = screen.getByRole("combobox", {
+      name: "Document language",
+    });
+    expect(documentLanguage).toHaveValue("auto");
+    expect(screen.getByText(/Applied to both the tailored CV and cover letter/)).toBeInTheDocument();
     const coverLetterThumbnail = screen.getByTestId(
       "cover-letter-template-thumbnail",
     );
@@ -651,6 +700,10 @@ describe("ApplicationWorkspace", () => {
     const applicationChat = screen.getByRole("heading", {
       name: "Ask questions or improve either document",
     });
+    expect(
+      documentLanguage.compareDocumentPosition(generateResume)
+      & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
     expect(
       generateResume.compareDocumentPosition(resumePreview)
       & Node.DOCUMENT_POSITION_FOLLOWING,

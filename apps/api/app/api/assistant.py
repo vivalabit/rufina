@@ -4,7 +4,7 @@ import hashlib
 import json
 import re
 import time
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta
 from typing import Literal
 from uuid import uuid4
@@ -1084,6 +1084,11 @@ def load_authoritative_assistant_inputs(
                 document_type=reference.document_type,
                 generation_backend=generation_backend,
             )
+            if reference.target_language is not None:
+                context = replace(
+                    context,
+                    language=reference.target_language,
+                )
         except GenerationContextError as exc:
             raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
         return assistant_inputs_from_generation_context(context)

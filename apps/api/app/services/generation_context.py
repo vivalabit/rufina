@@ -191,6 +191,7 @@ class AuthoritativeApplicationGenerationContext:
                 "fingerprint": canonical_hash(source_document),
             },
             "language": canonical_hash(self.language),
+            "documentLanguage": self.language,
             "confirmations": canonical_hash(confirmations),
         }
         return AuthoritativeGenerationProvenance(

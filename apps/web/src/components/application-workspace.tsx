@@ -773,6 +773,22 @@ function reusableFinalResumeReviewId(
     : null;
 }
 
+function generatedDocumentLanguage(
+  document: GeneratedDocument | undefined,
+): "English" | "German" | null {
+  const inputLanguage = document?.inputVersions.documentLanguage;
+  if (inputLanguage === "English" || inputLanguage === "German") {
+    return inputLanguage;
+  }
+  const version = document?.versions.find(
+    (candidate) => candidate.version === document.currentVersion,
+  );
+  const resumeLanguage = version?.artifact?.finalResumeJson?.language;
+  return resumeLanguage === "English" || resumeLanguage === "German"
+    ? resumeLanguage
+    : null;
+}
+
 function evidenceStatusMeta(status: NonNullable<ApplicationGuide["evidenceMatrix"]>[number]["status"]) {
   if (status === "verified") return { label: "Verified", className: "border-success/35 bg-success/10 text-success" };
   if (status === "transferable") return { label: "Transferable", className: "border-[#2f80ed]/35 bg-[#2f80ed]/10 text-[#8cc7ff]" };
@@ -1066,6 +1082,7 @@ export function ApplicationWorkspace({
   );
   const vacancyLanguage = applicationGuide?.language || (application ? detectLegacyJobLanguage(application.job) : "");
   const effectiveLanguage = languageMode === "auto" ? vacancyLanguage : languageMode;
+  const documentLanguage = effectiveLanguage || "English";
   useEffect(() => {
     setLanguageMode("auto");
     setAnalysisTab("overview");
@@ -1262,12 +1279,25 @@ export function ApplicationWorkspace({
         latestResume.currentGenerationFingerprint,
       )
       || hasNewerResumeConfirmation
+      || (
+        generatedDocumentLanguage(latestResume) !== null
+        && generatedDocumentLanguage(latestResume) !== documentLanguage
+      )
     ),
   );
-  const isCoverLetterOutdated = Boolean(latestCoverLetter && isGeneratedDocumentOutdated(
-    latestCoverLetter.generationFingerprint,
-    latestCoverLetter.currentGenerationFingerprint,
-  ));
+  const isCoverLetterOutdated = Boolean(
+    latestCoverLetter
+    && (
+      isGeneratedDocumentOutdated(
+        latestCoverLetter.generationFingerprint,
+        latestCoverLetter.currentGenerationFingerprint,
+      )
+      || (
+        generatedDocumentLanguage(latestCoverLetter) !== null
+        && generatedDocumentLanguage(latestCoverLetter) !== documentLanguage
+      )
+    ),
+  );
   const resumeReady = getGeneratedDocumentReadiness(latestResume, isResumeOutdated).ready;
   const coverLetterReady = getGeneratedDocumentReadiness(latestCoverLetter, isCoverLetterOutdated).ready;
   const checklist = [
@@ -1314,6 +1344,7 @@ export function ApplicationWorkspace({
       applicationId: string;
       templateId: string;
       documentType: GeneratedDocument["type"];
+      targetLanguage: "English" | "German";
     },
   ) {
     if (!message.trim()) return { message: "", generationArtifactId: "" };
@@ -1372,11 +1403,11 @@ export function ApplicationWorkspace({
     if (oversizedConfirmation) {
       throw new Error(`Shorten the highlighted confirmation to ${confirmationAnswerMaxChars.toLocaleString()} characters before generating`);
     }
-    const targetLanguage = effectiveLanguage || "English";
     const generationContext = {
       applicationId: activeApplication.id,
       templateId: coverLetterTemplate.id,
       documentType: "cover_letter" as const,
+      targetLanguage: documentLanguage,
     };
     const invokeAssistant = async (prompt: string) => {
       const generate = () => askAssistant(ensureGenerationPromptFits(prompt), generationContext);
@@ -1387,7 +1418,7 @@ export function ApplicationWorkspace({
         : await generate();
     };
 
-    const basePrompt = buildDocumentGenerationPrompt(targetLanguage);
+    const basePrompt = buildDocumentGenerationPrompt(documentLanguage);
     const requestedPrompt = userInstruction.trim()
       ? buildDocumentRevisionPrompt(basePrompt, userInstruction.trim())
       : basePrompt;
@@ -1563,6 +1594,7 @@ export function ApplicationWorkspace({
           masterResumeId: currentMasterResume.masterResumeId,
           targetJobId: activeApplication.job.id,
           applicationId: activeApplication.id,
+          targetLanguage: documentLanguage,
           ...(revisionInstruction.trim()
             ? { revisionInstruction: revisionInstruction.trim() }
             : {}),
@@ -1578,7 +1610,10 @@ export function ApplicationWorkspace({
       });
       const rewrite = await postStage<{ id: string }>(
         "/resume-tailoring/experience-rewrite",
-        { seniorRecruiterAnalysisId: recruiter.id },
+        {
+          seniorRecruiterAnalysisId: recruiter.id,
+          targetLanguage: documentLanguage,
+        },
         "Experience rewrite failed",
       );
 
@@ -1590,7 +1625,10 @@ export function ApplicationWorkspace({
       });
       const review = await postStage<{ id: string }>(
         "/resume-tailoring/ats-final-review",
-        { experienceRewriteId: rewrite.id },
+        {
+          experienceRewriteId: rewrite.id,
+          targetLanguage: documentLanguage,
+        },
         "ATS final review failed",
       );
       return await renderAndAttachFinalResume(review.id, false);
@@ -2050,12 +2088,6 @@ export function ApplicationWorkspace({
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
                   <Button type="button" variant="ghost" disabled={isAnalysisRefreshing} onClick={() => onRefreshAnalysis(activeApplication.id)} className={cn("h-11 rounded-xl border px-3 text-[11px] font-bold", isAnalysisOutdated ? "border-amber-400/30 bg-amber-400/[0.07] text-amber-100 hover:bg-amber-400/10" : "border-white/[0.08] bg-white/[0.025] text-[#dfe5ec] hover:bg-white/[0.06]")}>{isAnalysisRefreshing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{isAnalysisRefreshing ? "Updating…" : isAnalysisOutdated ? "Update analysis" : "Refresh analysis"}</Button>
-                  <label className="flex shrink-0 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] p-1.5 pl-3">
-                    <span className="text-[10px] font-bold text-muted">Language</span>
-                    <select value={languageMode} onChange={(event) => setLanguageMode(event.target.value as "auto" | "English" | "German")} className="h-8 rounded-lg border border-white/[0.08] bg-[#151c24] px-2.5 text-[11px] font-bold text-white outline-none focus:border-accent/60">
-                      <option value="auto">Auto · {vacancyLanguage || "Detect"}</option><option value="English">English</option><option value="German">German</option>
-                    </select>
-                  </label>
                 </div>
               </div>
 
@@ -2165,6 +2197,22 @@ export function ApplicationWorkspace({
               <div className="flex flex-col gap-4 border-b border-white/[0.07] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent/12 text-accent"><Sparkles className="h-[18px] w-[18px]" /></span><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">03 · Create documents</p><h2 className="mt-1 text-lg font-bold text-white">Application package</h2><p className="mt-1 text-xs leading-5 text-muted">Prepare the resume and cover letter here, then generate the complete pack from the readiness panel.</p></div></div>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] text-muted"><span>AI provider: <strong className="text-white">{aiConfiguration.providerName}</strong></span>{aiDisclosureAccepted ? <button type="button" onClick={revokeAiConsent} className="font-bold text-amber-200 hover:text-white">Revoke consent</button> : <span className="font-bold text-amber-200">Consent required</span>}</div>
+              </div>
+              <div className="border-b border-white/[0.07] bg-black/15 px-5 py-4 sm:px-6">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white">Document language</p>
+                    <p className="mt-1 text-[10px] leading-4 text-muted">Applied to both the tailored CV and cover letter before generation.</p>
+                  </div>
+                  <label className="flex shrink-0 items-center gap-2 rounded-xl border border-white/[0.09] bg-[#0b1118] p-1.5 pl-3">
+                    <span className="text-[10px] font-bold text-muted">Language</span>
+                    <select aria-label="Document language" value={languageMode} onChange={(event) => setLanguageMode(event.target.value as "auto" | "English" | "German")} className="h-9 min-w-40 rounded-lg border border-white/[0.09] bg-[#151c24] px-3 text-[11px] font-bold text-white outline-none focus:border-accent/60">
+                      <option value="auto">Auto · {vacancyLanguage || "English"}</option>
+                      <option value="English">English</option>
+                      <option value="German">German</option>
+                    </select>
+                  </label>
+                </div>
               </div>
               <div className="p-5 sm:p-6">
                 {documentError ? <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-400/25 bg-red-500/[0.07] px-3 py-2.5 text-xs leading-5 text-red-200"><span>{documentError}</span><button type="button" onClick={retryApiRequests} className="inline-flex shrink-0 items-center gap-1.5 font-bold text-red-100 hover:text-white"><RefreshCw className="h-3.5 w-3.5" /> Retry</button></div> : null}

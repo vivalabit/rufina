@@ -73,6 +73,10 @@ class AssistantGenerationContextReference(BaseModel):
     application_id: str = Field(min_length=1, max_length=160, alias="applicationId")
     template_id: str = Field(min_length=1, max_length=160, alias="templateId")
     document_type: Literal["cover_letter", "tailored_resume"] = Field(alias="documentType")
+    target_language: Literal["English", "German"] | None = Field(
+        default=None,
+        alias="targetLanguage",
+    )
 
     model_config = {"populate_by_name": True}
 

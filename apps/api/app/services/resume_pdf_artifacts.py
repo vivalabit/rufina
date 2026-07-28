@@ -104,6 +104,7 @@ def store_resume_pdf_artifact(
         "resumeMasterId": ats_review.resume_master_id,
         "resumeMasterVersionId": ats_review.resume_master_version_id,
         "targetJobId": ats_review.target_job_id,
+        "documentLanguage": final_resume.language,
         "seniorRecruiterAnalysisId": recruiter_analysis.id,
         "experienceRewriteId": experience_rewrite.id,
         "atsFinalReviewId": ats_review.id,
