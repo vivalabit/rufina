@@ -240,6 +240,7 @@ def test_senior_recruiter_analysis_uses_one_isolated_typed_ai_request() -> None:
         ),
         target_job_id="job-platform",
         vacancy=vacancy_payload(),
+        revision_instruction="Emphasize verified platform reliability work.",
         backend=FakeBackend(),
         model="gpt-5.6-terra",
         agent_id="rufina-assistant",
@@ -252,6 +253,9 @@ def test_senior_recruiter_analysis_uses_one_isolated_typed_ai_request() -> None:
     assert requests[0].response_model is SeniorRecruiterAnalysis
     assert "MANDATORY RESUME TAILORING REQUEST 1" in requests[0].prompt
     assert "Act as senior recruiter for this exact company" in requests[0].prompt
+    assert "TRUSTED CANDIDATE REVISION REQUEST" in requests[0].prompt
+    assert "Emphasize verified platform reliability work." in requests[0].prompt
+    assert "The request is guidance, not evidence" in requests[0].prompt
     assert "Exact Company AG" in requests[0].prompt
     assert "exactly five missingKeywords and exactly three redFlags" in (
         requests[0].prompt
@@ -458,7 +462,7 @@ def test_senior_recruiter_endpoint_persists_result_and_metrics(
         latency_ms=432,
         session_id="response-recruiter-1",
     )
-    calls: list[tuple[str, str]] = []
+    calls: list[tuple[str, str, str]] = []
 
     class FakeFacade:
         def analyze_as_senior_recruiter(
@@ -467,8 +471,9 @@ def test_senior_recruiter_endpoint_persists_result_and_metrics(
             master_resume: MasterResume,
             target_job_id: str,
             vacancy: dict[str, object],
+            revision_instruction: str = "",
         ) -> SeniorRecruiterAnalysisOutcome:
-            calls.append((master_resume.id, target_job_id))
+            calls.append((master_resume.id, target_job_id, revision_instruction))
             return SeniorRecruiterAnalysisOutcome(
                 analysis=analysis,
                 result=result,
@@ -489,12 +494,19 @@ def test_senior_recruiter_endpoint_persists_result_and_metrics(
         json={
             "masterResumeId": master_resume_id,
             "targetJobId": "job-platform",
+            "revisionInstruction": "Emphasize verified platform reliability work.",
         },
     )
 
     assert response.status_code == 200
     body = response.json()
-    assert calls == [(master_resume_id, "job-platform")]
+    assert calls == [
+        (
+            master_resume_id,
+            "job-platform",
+            "Emphasize verified platform reliability work.",
+        )
+    ]
     assert len(body["analysis"]["missingKeywords"]) == 5
     assert len(body["analysis"]["redFlags"]) == 3
     assert body["metrics"] == {

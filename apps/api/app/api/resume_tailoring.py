@@ -182,18 +182,30 @@ def run_senior_recruiter_analysis(
                     "targetJobId": job.id,
                     "vacancy": job.data,
                     "applicationId": payload.application_id,
+                    **(
+                        {"revisionInstruction": payload.revision_instruction}
+                        if payload.revision_instruction
+                        else {}
+                    ),
                 },
             ),
             model=configured_tailoring_model(settings),
             backend=settings.ai_backend_mode,
         )
-        outcome = create_resume_tailoring_ai_facade(
-            settings
-        ).analyze_as_senior_recruiter(
-            master_resume=master_resume,
-            target_job_id=job.id,
-            vacancy=job.data,
-        )
+        facade = create_resume_tailoring_ai_facade(settings)
+        if payload.revision_instruction:
+            outcome = facade.analyze_as_senior_recruiter(
+                master_resume=master_resume,
+                target_job_id=job.id,
+                vacancy=job.data,
+                revision_instruction=payload.revision_instruction,
+            )
+        else:
+            outcome = facade.analyze_as_senior_recruiter(
+                master_resume=master_resume,
+                target_job_id=job.id,
+                vacancy=job.data,
+            )
         outcome = replace(
             outcome,
             analysis=recruiter_analysis_with_supplemental_evidence(

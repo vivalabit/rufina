@@ -624,9 +624,39 @@ describe("ApplicationWorkspace", () => {
     const companyContactName = screen.getByRole("textbox", {
       name: "Company contact name",
     });
+    const generateResume = screen.getByRole("button", {
+      name: "Generate Tailored CV",
+    });
     const generateCoverLetter = screen.getByRole("button", {
       name: "Generate Cover letter",
     });
+    const resumePreview = screen.getByText("Resume preview");
+    const coverLetterPreview = screen.getByText("Cover letter preview");
+    const applicationChat = screen.getByRole("heading", {
+      name: "Ask questions or improve either document",
+    });
+    expect(
+      generateResume.compareDocumentPosition(resumePreview)
+      & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      resumePreview.compareDocumentPosition(generateCoverLetter)
+      & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      generateCoverLetter.compareDocumentPosition(coverLetterPreview)
+      & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      coverLetterPreview.compareDocumentPosition(applicationChat)
+      & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      screen.queryByText("Advanced settings & document tools"),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Ask a question" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Revise CV" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Revise cover letter" })).toBeInTheDocument();
     expect(
       recruiterName.compareDocumentPosition(generateCoverLetter)
       & Node.DOCUMENT_POSITION_FOLLOWING,
@@ -658,6 +688,85 @@ describe("ApplicationWorkspace", () => {
         )),
       ).toBe(true);
     });
+  });
+
+  it("answers application questions in the bottom AI chat", async () => {
+    installApplicationWorkspaceApiMock({
+      aiPrivacySettings: consent,
+      requestHandler: async (url, method) => {
+        if (url.pathname === "/assistant/chat" && method === "POST") {
+          return Response.json({
+            message: "Lead with the verified B2B workflow experience.",
+            metadata: {},
+          });
+        }
+        return undefined;
+      },
+    });
+    renderApplicationWorkspace(createV3WorkspaceApplication());
+
+    const input = screen.getByRole("textbox", { name: "AI chat message" });
+    fireEvent.change(input, {
+      target: { value: "What should I emphasize?" },
+    });
+    const send = screen.getByRole("button", { name: "Send" });
+    await waitFor(() => expect(send).toBeEnabled());
+    fireEvent.click(send);
+
+    expect(
+      await screen.findByText(
+        "Lead with the verified B2B workflow experience.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("passes a CV revision request into a fresh resume-tailoring run", async () => {
+    const fetchMock = installApplicationWorkspaceApiMock({
+      aiPrivacySettings: consent,
+      documents: [generatedPdfDocument()],
+      requestHandler: async (url, method) => {
+        if (
+          url.pathname === "/resume-tailoring/senior-recruiter-analysis"
+          && method === "POST"
+        ) {
+          return Response.json(
+            { detail: "Stop after request inspection" },
+            { status: 500 },
+          );
+        }
+        return undefined;
+      },
+    });
+    renderApplicationWorkspace(createV3WorkspaceApplication());
+
+    fireEvent.click(screen.getByRole("button", { name: "Revise CV" }));
+    const input = screen.getByRole("textbox", { name: "AI chat message" });
+    fireEvent.change(input, {
+      target: { value: "Emphasize verified platform reliability work." },
+    });
+    const applyRevision = screen.getByRole("button", {
+      name: "Apply revision",
+    });
+    await waitFor(() => expect(applyRevision).toBeEnabled());
+    fireEvent.click(applyRevision);
+
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([inputUrl, init]) => (
+          new URL(String(inputUrl)).pathname
+            === "/resume-tailoring/senior-recruiter-analysis"
+          && init?.method === "POST"
+          && String(init.body).includes(
+            '"revisionInstruction":"Emphasize verified platform reliability work."',
+          )
+        )),
+      ).toBe(true);
+    });
+    expect(
+      fetchMock.mock.calls.some(([inputUrl]) => (
+        String(inputUrl).includes("/ats-final-review/ats-review-1/pdf")
+      )),
+    ).toBe(false);
   });
 
   it("offers PDF and DOCX downloads for a generated cover letter", async () => {

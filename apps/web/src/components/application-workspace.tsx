@@ -64,6 +64,7 @@ import {
   ResumeTemplatePicker,
   type ResumePdfArtifact,
 } from "@/components/resume-pdf-review";
+import { DocumentPdfPreview } from "@/components/document-pdf-preview";
 import type {
   ResumeTemplate,
   ResumeTemplateId,
@@ -326,10 +327,12 @@ type DocumentTemplate = {
 };
 
 type PendingAiGeneration = {
-  action: GeneratedDocument["type"] | "pack";
+  action: GeneratedDocument["type"] | "pack" | "question";
   instruction?: string;
   fromDocumentChat?: boolean;
 } | null;
+
+type DocumentChatTarget = GeneratedDocument["type"] | "question";
 
 type DocumentChatMessage = {
   id: string;
@@ -510,6 +513,48 @@ function formatVersionTimestamp(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
   return `${date.toISOString().slice(0, 16).replace("T", " ")} UTC`;
+}
+
+function CollapsibleDocumentPreview({
+  title,
+  description,
+  available,
+  children,
+}: {
+  title: string;
+  description: string;
+  available: boolean;
+  children: React.ReactNode;
+}) {
+  const [isOpen, setIsOpen] = useState(false);
+  return (
+    <details
+      open={isOpen}
+      onToggle={(event) => setIsOpen(event.currentTarget.open)}
+      className="group overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.018]"
+    >
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 text-xs font-bold text-[#dbe2eb] sm:px-5">
+        <span>
+          <span className="block text-sm text-white">{title}</span>
+          <span className="mt-1 block text-[10px] font-normal leading-4 text-muted">
+            {available ? description : "Available after document generation"}
+          </span>
+        </span>
+        <ChevronRight className="h-4 w-4 shrink-0 text-muted transition group-open:rotate-90" />
+      </summary>
+      {isOpen ? (
+        <div className="border-t border-white/[0.07] p-4 sm:p-5">
+          {available ? children : (
+            <div className="grid min-h-32 place-items-center rounded-xl border border-dashed border-white/[0.1] bg-black/15 px-4 text-center">
+              <p className="text-[10px] font-bold text-muted">
+                Generate the document to open its exact PDF preview.
+              </p>
+            </div>
+          )}
+        </div>
+      ) : null}
+    </details>
+  );
 }
 
 function inferSourceLanguage(fileName: string, title = "") {
@@ -706,9 +751,11 @@ export function ApplicationWorkspace({
   const [advice, setAdvice] = useState("");
   const [advicePrompt, setAdvicePrompt] = useState("");
   const [isLoadingAdvice, setIsLoadingAdvice] = useState(false);
-  const documentChatTarget: GeneratedDocument["type"] = "cover_letter";
+  const [documentChatTarget, setDocumentChatTarget] =
+    useState<DocumentChatTarget>("question");
   const [documentChatInput, setDocumentChatInput] = useState("");
   const [documentChatMessages, setDocumentChatMessages] = useState<DocumentChatMessage[]>([]);
+  const [isDocumentChatResponding, setIsDocumentChatResponding] = useState(false);
   const [analysisTab, setAnalysisTab] = useState<"overview" | "evidence" | "strategy">("overview");
   const [activeWorkspaceStep, setActiveWorkspaceStep] = useState<WorkspaceStep>(
     () => hasCurrentApplicationGuide(application?.job.aiMatch) ? "create" : "review",
@@ -873,6 +920,9 @@ export function ApplicationWorkspace({
     () => documents.find((document) => document.type === "cover_letter"),
     [documents],
   );
+  const latestResumeIsPdf = latestResume?.versions.find(
+    (version) => version.version === latestResume.currentVersion,
+  )?.artifact?.contentType === "application/pdf";
   const coverLetterTemplate = useMemo(
     () => templates.find((template) => template.builtIn) ?? null,
     [templates],
@@ -933,8 +983,10 @@ export function ApplicationWorkspace({
     setActiveWorkspaceStep(
       hasCurrentApplicationGuide(application?.job.aiMatch) ? "create" : "review",
     );
+    setDocumentChatTarget("question");
     setDocumentChatInput("");
     setDocumentChatMessages([]);
+    setIsDocumentChatResponding(false);
     if (!application) {
       setCandidateConfirmations({});
       setConfirmationsDirty(false);
@@ -1073,10 +1125,25 @@ export function ApplicationWorkspace({
   }
 
   const activeApplication = application;
-  const documentChatTargetReady = Boolean(
-    coverLetterTemplate
-    && coverLetterNamesComplete,
-  );
+  const documentChatTargetReady = documentChatTarget === "question"
+    ? documentsLoaded
+    : documentChatTarget === "tailored_resume"
+      ? Boolean(latestResume && currentMasterResume && resumeTemplates.length)
+      : Boolean(
+        latestCoverLetter
+        && coverLetterTemplate
+        && coverLetterNamesComplete,
+      );
+  const documentChatPlaceholder = documentChatTarget === "question"
+    ? "Ask anything about this application, CV, or cover letter…"
+    : documentChatTarget === "tailored_resume"
+      ? "What should AI change or emphasize in the CV?"
+      : "What should AI change in the cover letter?";
+  const documentChatUnavailableMessage = documentChatTarget === "tailored_resume"
+    ? "Generate the CV before requesting a revision."
+    : documentChatTarget === "cover_letter"
+      ? "Generate the cover letter and complete the contact names before requesting a revision."
+      : "Application context is still loading.";
   const jobUrl = activeApplication.job.applyUrl || activeApplication.job.sourceUrl || "";
   const profileReady = Boolean(profile.name && (profile.experience || profile.resume_file_name));
   const confirmationsReady = hasCurrentAnalysis
@@ -1084,6 +1151,9 @@ export function ApplicationWorkspace({
     && !hasOversizedConfirmation
     && !confirmationsDirty
     && confirmationSyncStatus === "saved";
+  const documentChatCanSubmit = documentChatTarget === "question"
+    ? documentChatTargetReady
+    : documentChatTargetReady && Boolean(applicationReview) && confirmationsReady;
   const analysisRequiredLabel = isAnalysisOutdated ? "Refresh analysis first" : "AI Match required";
   const hasNewerResumeConfirmation = Boolean(
     latestResume
@@ -1267,7 +1337,10 @@ export function ApplicationWorkspace({
     throw new Error(noSafeDocumentChangesMessage("cover letter"));
   }
 
-  async function generateResumePdf(allowDuringPack = false) {
+  async function generateResumePdf(
+    allowDuringPack = false,
+    revisionInstruction = "",
+  ) {
     if (isGeneratingPack && !allowDuringPack) return false;
     if (!masterResumeLoaded) {
       setDocumentError("Master Resume is still loading");
@@ -1383,7 +1456,7 @@ export function ApplicationWorkspace({
     };
 
     try {
-      if (savedFinalResumeReviewId) {
+      if (savedFinalResumeReviewId && !revisionInstruction.trim()) {
         return await renderAndAttachFinalResume(
           savedFinalResumeReviewId,
           true,
@@ -1401,6 +1474,9 @@ export function ApplicationWorkspace({
           masterResumeId: currentMasterResume.masterResumeId,
           targetJobId: activeApplication.job.id,
           applicationId: activeApplication.id,
+          ...(revisionInstruction.trim()
+            ? { revisionInstruction: revisionInstruction.trim() }
+            : {}),
         },
         "Senior recruiter analysis failed",
       );
@@ -1452,7 +1528,7 @@ export function ApplicationWorkspace({
     allowDuringPack = false,
   ) {
     if (type === "tailored_resume") {
-      return await generateResumePdf(allowDuringPack);
+      return await generateResumePdf(allowDuringPack, userInstruction);
     }
     if (isGeneratingPack && !allowDuringPack) return false;
     if (!coverLetterNamesComplete) {
@@ -1544,9 +1620,45 @@ export function ApplicationWorkspace({
     ]);
   }
 
+  async function runDocumentChatQuestion(question: string) {
+    setIsDocumentChatResponding(true);
+    try {
+      const result = await askAssistant(
+        `Answer this application question using the current vacancy, candidate profile, confirmations, and generated-document context. Do not claim that a document was changed. If the user is asking for a document change, explain that they should select Revise CV or Revise cover letter in this chat. USER QUESTION: ${question}`,
+      );
+      setDocumentChatMessages((current) => [
+        ...current,
+        {
+          id: createId("document-chat-assistant"),
+          role: "assistant",
+          text: result.message || "I could not produce an answer from the available application context.",
+        },
+      ]);
+    } catch (error) {
+      setDocumentChatMessages((current) => [
+        ...current,
+        {
+          id: createId("document-chat-assistant"),
+          role: "assistant",
+          text: error instanceof Error
+            ? error.message
+            : "I could not answer that question. Please try again.",
+        },
+      ]);
+    } finally {
+      setIsDocumentChatResponding(false);
+    }
+  }
+
   function applyDocumentChatInstruction() {
     const instruction = documentChatInput.trim();
-    if (!instruction || generationType || isGeneratingPack) return;
+    if (
+      !instruction
+      || generationType
+      || isGeneratingPack
+      || isDocumentChatResponding
+      || !documentChatTargetReady
+    ) return;
     setDocumentChatMessages((current) => [
       ...current,
       { id: createId("document-chat-user"), role: "user", text: instruction },
@@ -1561,7 +1673,11 @@ export function ApplicationWorkspace({
       });
       return;
     }
-    void runDocumentChatRevision(documentChatTarget, instruction);
+    if (documentChatTarget === "question") {
+      void runDocumentChatQuestion(instruction);
+    } else {
+      void runDocumentChatRevision(documentChatTarget, instruction);
+    }
   }
 
   async function acceptAiDisclosure() {
@@ -1583,7 +1699,11 @@ export function ApplicationWorkspace({
       setAiDisclosureAccepted(privacy.hasCurrentConsent);
       setAiRetentionDays(privacy.retentionDays);
       setPendingAiGeneration(null);
-      if (pending.action === "pack") void generatePack();
+      if (pending.action === "question") {
+        if (pending.instruction) {
+          void runDocumentChatQuestion(pending.instruction);
+        }
+      } else if (pending.action === "pack") void generatePack();
       else if (pending.fromDocumentChat && pending.instruction) {
         void runDocumentChatRevision(pending.action, pending.instruction);
       } else {
@@ -1964,6 +2084,34 @@ export function ApplicationWorkspace({
                 {masterResumeLoaded && !currentMasterResume ? <div className="mb-4 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2.5 text-xs leading-5 text-amber-200">Confirm your Master Resume in My Profile before tailoring a vacancy.</div> : null}
                 <div className="space-y-10">
                   <DocumentCard sectionLabel="Resume document" documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Create and download a tailored CV for this role." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><p className="mt-3 text-[9px] text-muted">Master Resume · {currentMasterResume ? `v${currentMasterResume.version} confirmed` : "required"}</p><ResumeTemplatePicker templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} />
+                  <CollapsibleDocumentPreview
+                    title="Resume preview"
+                    description="Open the exact generated PDF, ATS scan and document changes"
+                    available={Boolean(latestResume)}
+                  >
+                    {latestResumeIsPdf ? (
+                      <ResumePdfReview
+                        apiBaseUrl={apiBaseUrl}
+                        applicationId={activeApplication.id}
+                        document={latestResume}
+                        templates={resumeTemplates}
+                        selectedTemplateId={selectedResumeTemplateId}
+                        onDocumentReady={(renderedDocument) => {
+                          setDocuments((current) => [
+                            renderedDocument as GeneratedDocument,
+                            ...current.filter((item) => item.id !== renderedDocument.id),
+                          ]);
+                        }}
+                        onTemplateUnavailable={handleResumeTemplateUnavailable}
+                      />
+                    ) : latestResume ? (
+                      <DocumentPdfPreview
+                        apiBaseUrl={apiBaseUrl}
+                        document={latestResume}
+                        label="Resume"
+                      />
+                    ) : null}
+                  </CollapsibleDocumentPreview>
                   <DocumentCard
                     sectionLabel="Cover letter document"
                     documentType="cover_letter"
@@ -2037,59 +2185,73 @@ export function ApplicationWorkspace({
                       </div>
                     )}
                   />
+                  <CollapsibleDocumentPreview
+                    title="Cover letter preview"
+                    description="Open the exact generated cover letter PDF"
+                    available={Boolean(latestCoverLetter)}
+                  >
+                    {latestCoverLetter ? (
+                      <DocumentPdfPreview
+                        apiBaseUrl={apiBaseUrl}
+                        document={latestCoverLetter}
+                        label="Cover letter"
+                      />
+                    ) : null}
+                  </CollapsibleDocumentPreview>
                 </div>
-                <details className="group mt-4 overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.018]">
-                  <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 text-xs font-bold text-[#dbe2eb] sm:px-5">
-                    <span><span className="block text-sm text-white">Advanced settings &amp; document tools</span><span className="mt-1 block text-[10px] font-normal leading-4 text-muted">PDF review, document revision chat and technical controls.</span></span>
-                    <ChevronRight className="h-4 w-4 shrink-0 text-muted transition group-open:rotate-90" />
-                  </summary>
-                  <div className="border-t border-white/[0.07] p-4 sm:p-5">
-                <ResumePdfReview
-                  apiBaseUrl={apiBaseUrl}
-                  applicationId={activeApplication.id}
-                  document={latestResume}
-                  templates={resumeTemplates}
-                  selectedTemplateId={selectedResumeTemplateId}
-                  onDocumentReady={(renderedDocument) => {
-                    setDocuments((current) => [
-                      renderedDocument as GeneratedDocument,
-                      ...current.filter((item) => item.id !== renderedDocument.id),
-                    ]);
-                  }}
-                  onTemplateUnavailable={handleResumeTemplateUnavailable}
-                />
-                <div className="mt-5 rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/[0.055] to-white/[0.015] p-4 sm:p-5">
+                <div className="mt-10 rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/[0.055] to-white/[0.015] p-4 sm:p-5">
                   <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-accent">Document revision chat</p>
-                      <h3 className="mt-1 text-sm font-bold text-white">Tell AI exactly what to change</h3>
-                      <p className="mt-1 text-[10px] leading-4 text-muted">Your instruction creates and validates a new document version. Unsupported facts are still rejected.</p>
+                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-accent">Application AI chat</p>
+                      <h3 className="mt-1 text-sm font-bold text-white">Ask questions or improve either document</h3>
+                      <p className="mt-1 text-[10px] leading-4 text-muted">Choose a mode, then ask about the application or request an evidence-backed CV or cover-letter revision.</p>
                     </div>
-                    <span className="rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-muted">Cover letter only</span>
+                    <span className="rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-muted">CV · Cover letter · Questions</span>
+                  </div>
+                  <div role="group" aria-label="AI chat mode" className="mt-4 grid gap-2 sm:grid-cols-3">
+                    {([
+                      ["question", "Ask a question"],
+                      ["tailored_resume", "Revise CV"],
+                      ["cover_letter", "Revise cover letter"],
+                    ] as Array<[DocumentChatTarget, string]>).map(([target, targetLabel]) => (
+                      <button
+                        key={target}
+                        type="button"
+                        aria-pressed={documentChatTarget === target}
+                        onClick={() => setDocumentChatTarget(target)}
+                        className={cn(
+                          "h-10 rounded-xl border text-[10px] font-black transition",
+                          documentChatTarget === target
+                            ? "border-accent/45 bg-accent/12 text-white"
+                            : "border-white/[0.08] bg-black/15 text-muted hover:bg-white/[0.05] hover:text-white",
+                        )}
+                      >
+                        {targetLabel}
+                      </button>
+                    ))}
                   </div>
                   <div className="mt-4 max-h-56 space-y-2 overflow-y-auto rounded-xl border border-white/[0.07] bg-black/20 p-3">
-                    {documentChatMessages.length ? documentChatMessages.map((message) => <div key={message.id} className={cn("max-w-[88%] rounded-xl px-3 py-2 text-[11px] leading-5", message.role === "user" ? "ml-auto bg-accent/15 text-white" : "border border-white/[0.07] bg-white/[0.04] text-[#d9e0e8]")}>{message.text}</div>) : <p className="py-3 text-center text-[10px] leading-5 text-muted">Example: “Make the opening less generic” or “Emphasize my Python automation experience.”</p>}
+                    {documentChatMessages.length ? documentChatMessages.map((message) => <div key={message.id} className={cn("max-w-[88%] rounded-xl px-3 py-2 text-[11px] leading-5", message.role === "user" ? "ml-auto bg-accent/15 text-white" : "border border-white/[0.07] bg-white/[0.04] text-[#d9e0e8]")}>{message.text}</div>) : <p className="py-3 text-center text-[10px] leading-5 text-muted">Ask why the role fits, request stronger CV emphasis, or make the cover-letter opening less generic.</p>}
+                    {isDocumentChatResponding ? <div className="flex max-w-[88%] items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.04] px-3 py-2 text-[11px] text-muted"><LoaderCircle className="h-3.5 w-3.5 animate-spin text-accent" /> Thinking…</div> : null}
                   </div>
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
                     <label className="min-w-0 flex-1">
-                      <span className="sr-only">Document revision instruction</span>
+                      <span className="sr-only">AI chat message</span>
                       <textarea
-                        aria-label="Document revision instruction"
+                        aria-label="AI chat message"
                         value={documentChatInput}
                         onChange={(event) => setDocumentChatInput(event.target.value)}
                         onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); applyDocumentChatInstruction(); } }}
                         rows={2}
                         maxLength={2_000}
-                        placeholder="What should AI change in the cover letter?"
+                        placeholder={documentChatPlaceholder}
                         className="w-full resize-y rounded-xl border border-white/[0.08] bg-[#0b1118] px-3 py-2.5 text-xs leading-5 text-white outline-none placeholder:text-muted/55 focus:border-accent/40"
                       />
                     </label>
-                    <Button type="button" onClick={applyDocumentChatInstruction} disabled={!documentChatInput.trim() || Boolean(generationType) || isGeneratingPack || !documentsLoaded || !documentChatTargetReady || !applicationReview || !confirmationsReady} className="h-11 shrink-0 rounded-xl bg-accent px-4 text-xs font-bold text-white disabled:opacity-40">{generationType === documentChatTarget ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}Apply instruction</Button>
+                    <Button type="button" onClick={applyDocumentChatInstruction} disabled={!documentChatInput.trim() || Boolean(generationType) || isGeneratingPack || isDocumentChatResponding || !documentChatCanSubmit} className="h-11 shrink-0 rounded-xl bg-accent px-4 text-xs font-bold text-white disabled:opacity-40">{isDocumentChatResponding || generationType === documentChatTarget ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{documentChatTarget === "question" ? "Send" : "Apply revision"}</Button>
                   </div>
-                  {!documentChatTargetReady ? <p className="mt-2 text-[9px] font-bold text-amber-200">Wait for the built-in cover letter template and complete the contact names first.</p> : null}
+                  {!documentChatTargetReady ? <p className="mt-2 text-[9px] font-bold text-amber-200">{documentChatUnavailableMessage}</p> : null}
                 </div>
-                  </div>
-                </details>
               </div>
             </section>
             </div>

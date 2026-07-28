@@ -1368,6 +1368,11 @@ class SeniorRecruiterAnalysisRequest(StrictResumeModel):
     master_resume_id: ResumeId = Field(alias="masterResumeId")
     target_job_id: TailoringTargetJobId = Field(alias="targetJobId")
     application_id: CanonicalId | None = Field(default=None, alias="applicationId")
+    revision_instruction: OptionalText | None = Field(
+        default=None,
+        alias="revisionInstruction",
+        max_length=2_000,
+    )
 
 
 class SeniorRecruiterAnalysisMetrics(StrictResumeModel):
