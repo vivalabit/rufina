@@ -63,7 +63,7 @@ function importedJobData({
   };
 }
 
-it("deletes a legacy supporting document that has no stored ID", async () => {
+it("deletes a legacy supporting document and hides stored cover letters", async () => {
   window.history.replaceState(null, "", "#profile");
   vi.spyOn(window, "confirm").mockReturnValue(true);
   const profileUpdates: Array<Record<string, unknown>> = [];
@@ -123,7 +123,7 @@ it("deletes a legacy supporting document that has no stored ID", async () => {
   fireEvent.click(within(legacyCvCard!).getByRole("button", { name: "Delete document" }));
 
   await waitFor(() => expect(screen.queryByText("Legacy CV")).not.toBeInTheDocument());
-  expect(screen.getByText("Legacy Cover Letter")).toBeInTheDocument();
+  expect(screen.queryByText("Legacy Cover Letter")).not.toBeInTheDocument();
   expect(profileUpdates).toHaveLength(1);
   const savedDocuments = JSON.parse(String(profileUpdates[0].documents)) as Array<{ id: string; title: string }>;
   expect(savedDocuments).toEqual([
@@ -174,6 +174,9 @@ it("offers CV / Resume as a supporting document type", async () => {
   expect(
     within(typeSelect).getByRole("option", { name: "CV / Resume" }),
   ).toBeInTheDocument();
+  expect(
+    within(typeSelect).queryByRole("option", { name: "Cover Letter" }),
+  ).not.toBeInTheDocument();
 
   fireEvent.change(typeSelect, { target: { value: "CV / Resume" } });
   const languageLabel = screen

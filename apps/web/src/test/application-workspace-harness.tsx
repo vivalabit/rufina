@@ -21,7 +21,6 @@ type WorkspaceApiOptions = {
   documents?: unknown[];
   resumeTemplates?: unknown[];
   templates?: unknown[];
-  workspaceSources?: unknown[];
   aiPrivacySettings?: Partial<{
     currentBackend: "openclaw_codex" | "openai_api";
     consentBackend: "openclaw_codex" | "openai_api" | null;
@@ -273,8 +272,17 @@ export function installApplicationWorkspaceApiMock({
       },
     },
   ],
-  templates = [],
-  workspaceSources = [],
+  templates = [
+    {
+      id: "4a9260bb-dc6a-5b9d-8a3a-1caa1e1433e8",
+      type: "cover_letter",
+      name: "Standard cover letter",
+      fileName: "standard-cover-letter.docx",
+      builtIn: true,
+      createdAt: "2026-07-28T10:00:00.000Z",
+      updatedAt: "2026-07-28T10:00:00.000Z",
+    },
+  ],
   aiPrivacySettings = {},
   requestHandler,
 }: WorkspaceApiOptions = {}) {
@@ -301,9 +309,6 @@ export function installApplicationWorkspaceApiMock({
     }
     if (url.pathname === "/resume-templates" && method === "GET") {
       return Response.json(resumeTemplates);
-    }
-    if (url.pathname === "/documents/workspace-sources/library" && method === "GET") {
-      return Response.json(workspaceSources);
     }
     if (url.pathname === "/documents/templates/preflight" && method === "POST") {
       const request = JSON.parse(String(init?.body)) as {

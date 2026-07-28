@@ -65,6 +65,7 @@ def generation_context_session(*, include_confirmation: bool = True) -> Session:
         "id": "job-context",
         "title": "Platform Engineer",
         "company": "Acme",
+        "location": "Zurich, Switzerland",
     }
     profile = ProfilePayload.model_validate(profile_data)
     profile_hash = get_candidate_match_snapshot(db, profile=profile).profile_hash
@@ -179,9 +180,11 @@ def test_loads_complete_authoritative_generation_context() -> None:
             "confirmation:production-python",
             "vacancy:title",
             "vacancy:company",
+            "vacancy:location",
             "generation:date",
         }
         assert evidence_by_id["vacancy:title"]["text"] == "Platform Engineer"
+        assert evidence_by_id["vacancy:location"]["text"] == "Zurich, Switzerland"
         assert evidence_by_id["generation:date"] == {
             "id": "generation:date",
             "type": "generation",

@@ -842,7 +842,6 @@ const defaultManualJobDraft: ManualJobDraft = {
 
 const documentCategories = [
   "CV / Resume",
-  "Cover Letter",
   "Diploma",
   "Certificate",
   "Recommendation",
@@ -4612,13 +4611,19 @@ export default function HomePage() {
       return;
     }
 
-    if (["CV / Resume", "Cover Letter"].includes(normalizedDocument.category) && !normalizedDocument.file_name.toLowerCase().endsWith(".docx")) {
+    if (normalizedDocument.category === "Cover Letter") {
       setProfileSaveStatus("error");
-      setProfileSaveMessage("CV and cover letter sources must be DOCX files");
+      setProfileSaveMessage("Cover letters use the built-in template and cannot be added here");
       return;
     }
 
-    if (["CV / Resume", "Cover Letter"].includes(normalizedDocument.category) && !normalizedDocument.language) {
+    if (normalizedDocument.category === "CV / Resume" && !normalizedDocument.file_name.toLowerCase().endsWith(".docx")) {
+      setProfileSaveStatus("error");
+      setProfileSaveMessage("CV sources must be DOCX files");
+      return;
+    }
+
+    if (normalizedDocument.category === "CV / Resume" && !normalizedDocument.language) {
       setProfileSaveStatus("error");
       setProfileSaveMessage("Select the document language");
       return;
@@ -5153,9 +5158,9 @@ export default function HomePage() {
   }
 
   function attachDocumentFile(file: File) {
-    const isGeneratedDocumentSource = ["CV / Resume", "Cover Letter"].includes(documentDraft.category);
+    const isGeneratedDocumentSource = documentDraft.category === "CV / Resume";
     if (isGeneratedDocumentSource && !file.name.toLowerCase().endsWith(".docx")) {
-      window.alert("CV and cover letter sources must be DOCX files so their design can be preserved.");
+      window.alert("CV sources must be DOCX files so their design can be preserved.");
       return;
     }
     const allowedTypes = new Set([
@@ -10364,14 +10369,16 @@ function DocumentsPanel({
   onEditDocument: (document: DocumentEntry) => void;
   onDeleteDocument: (documentId: string) => void;
 }) {
-  const documentItems = parseDocumentEntries(profile.documents);
+  const documentItems = parseDocumentEntries(profile.documents).filter(
+    (item) => item.category !== "Cover Letter",
+  );
 
   return (
     <section className="panel p-4 2xl:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-base font-bold 2xl:text-lg">Supporting Documents</h2>
-          <p className="mt-1 text-xs font-medium text-muted 2xl:text-[13px]">Store separate English and German CVs, language-specific cover letters and other reusable files.</p>
+          <p className="mt-1 text-xs font-medium text-muted 2xl:text-[13px]">Store separate English and German CVs, certificates and other reusable files.</p>
         </div>
         {documentItems.length > 0 && (
           <button
@@ -10396,7 +10403,7 @@ function DocumentsPanel({
                 <div className="flex flex-wrap items-center gap-2">
                   <h3 className="min-w-0 text-sm font-bold text-white 2xl:text-base">{item.title || item.file_name}</h3>
                   <span className="rounded bg-white/[0.06] px-2 py-0.5 text-[11px] font-bold text-muted">{item.category}</span>
-                  {["CV / Resume", "Cover Letter"].includes(item.category) && item.language ? <span className="rounded bg-[#2f80ed]/15 px-2 py-0.5 text-[11px] font-bold text-[#8cc7ff]">{item.language}</span> : null}
+                  {item.category === "CV / Resume" && item.language ? <span className="rounded bg-[#2f80ed]/15 px-2 py-0.5 text-[11px] font-bold text-[#8cc7ff]">{item.language}</span> : null}
                 </div>
                 {item.issuer && (
                   <p className="mt-0.5 text-[13px] font-semibold text-[#d8dee8] 2xl:text-sm">{item.issuer}</p>
@@ -10443,7 +10450,7 @@ function DocumentsPanel({
         <EmptyProfileState
           className="mt-4"
           title="No application documents yet"
-          description="Add language-specific cover letters, certificates and other reusable documents. Import and confirm your canonical CV in Master Resume."
+          description="Add CV versions, certificates and other reusable documents. Cover letters are generated from the built-in template."
           action="Add document"
           onAction={onAddDocument}
         />
@@ -11482,7 +11489,7 @@ function DocumentEditorDialog({
   onClose: () => void;
   onSave: () => void;
 }) {
-  const isGeneratedDocumentSource = ["CV / Resume", "Cover Letter"].includes(document.category);
+  const isGeneratedDocumentSource = document.category === "CV / Resume";
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-3 py-4 backdrop-blur-sm">
       <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[720px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
@@ -11510,7 +11517,7 @@ function DocumentEditorDialog({
               <input
                 value={document.title}
                 onChange={(event) => onChange("title", event.target.value)}
-                placeholder="Main CV, English cover letter, Swiss work permit..."
+                placeholder="Main CV, Swiss work permit, diploma..."
                 className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
               />
             </label>

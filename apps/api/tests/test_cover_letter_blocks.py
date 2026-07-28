@@ -292,6 +292,136 @@ def test_cover_letter_generation_injects_missing_current_date_replacement() -> N
     }
 
 
+def test_cover_letter_generation_fills_recipient_header_placeholders() -> None:
+    document = Document()
+    for line in (
+        "Company Name",
+        "Recruiter Name",
+        "Street, Number",
+        "Index, City",
+        "Switzerland",
+        "City of living, Date",
+        "Application for Placeholder Role",
+        "Dear Hiring Team,",
+        "Reusable body paragraph.",
+        "Kind regards,",
+        "Eduard Ishchenko",
+    ):
+        document.add_paragraph(line)
+    template = document_bytes(document)
+
+    paragraphs = extract_cover_letter_blocks_from_docx(template)
+    assert [
+        (paragraph["type"], paragraph["editable"]) for paragraph in paragraphs[:7]
+    ] == [
+        ("recipientCompany", True),
+        ("recipientName", True),
+        ("recipientStreet", True),
+        ("recipientCity", True),
+        ("recipientCountry", True),
+        ("letterDate", True),
+        ("subject", True),
+    ]
+
+    enriched = ensure_cover_letter_date_replacement(
+        template_content=template,
+        content='{"replacements":[]}',
+        generation_date="2026-07-28",
+        language="English",
+        vacancy={
+            "title": "Python Developer (m/f/d)",
+            "company": "Acme AG",
+            "location": "Winterthur, Switzerland",
+        },
+        profile={"location": "Zurich, Switzerland"},
+        recipient_name="Taylor Smith",
+        official_company_name="Acme Holding AG",
+        recipient_address_line="Industriestrasse 4, 8400 Winterthur, Switzerland",
+    )
+    rendered = build_document_from_template(
+        template_content=template,
+        content=enriched,
+        document_type="cover_letter",
+    )
+
+    assert [paragraph.text for paragraph in Document(BytesIO(rendered)).paragraphs[:5]] == [
+        "Acme Holding AG",
+        "Taylor Smith",
+        "Industriestrasse 4",
+        "8400 Winterthur, Switzerland",
+        "Zurich, July 28, 2026",
+    ]
+
+
+def test_cover_letter_generation_fills_header_placeholders_split_by_line_breaks() -> None:
+    document = Document()
+    header = document.add_paragraph()
+    for index, line in enumerate(
+        ("Company Name", "Recruiter Name", "Street, Number", "Index, City", "Switzerland")
+    ):
+        if index:
+            header.add_run().add_break()
+        header.add_run(line)
+    document.add_paragraph("Männedorf, Date")
+    document.add_paragraph("Application for the Software Engineer Position")
+    document.add_paragraph("Dear Hiring Team,")
+    document.add_paragraph("Reusable body paragraph.")
+    document.add_paragraph("Kind regards,")
+    document.add_paragraph("Eduard Ishchenko")
+    template = document_bytes(document)
+
+    paragraphs = extract_cover_letter_blocks_from_docx(template)
+    assert paragraphs[0]["type"] == "protected"
+    assert [
+        (span["original"], span["editable"])
+        for span in paragraphs[0]["spans"]
+        if span["type"] == "text"
+    ] == [
+        ("Company Name", True),
+        ("Recruiter Name", True),
+        ("Street, Number", True),
+        ("Index, City", True),
+        ("Switzerland", True),
+    ]
+    assert (paragraphs[1]["type"], paragraphs[1]["editable"]) == (
+        "letterDate",
+        True,
+    )
+
+    enriched = ensure_cover_letter_date_replacement(
+        template_content=template,
+        content='{"replacements":[]}',
+        generation_date="2026-07-28",
+        language="English",
+        vacancy={
+            "title": (
+                "Practical Trainee - Python Developer (m/f/d)"
+                "Practical Trainee - Python Developer (m/f/d)"
+            ),
+            "company": "Sonova",
+            "location": "Stäfa, Switzerland",
+        },
+        profile={"location": "Männedorf, Zürich, Switzerland"},
+        recipient_name="Anna Baus",
+        official_company_name="Sonova AG",
+        recipient_address_line="Laubisrütistrasse 28, 8712 Stäfa, Switzerland",
+    )
+    rendered = build_document_from_template(
+        template_content=template,
+        content=enriched,
+        document_type="cover_letter",
+    )
+    rendered_paragraphs = Document(BytesIO(rendered)).paragraphs
+
+    assert rendered_paragraphs[0].text == (
+        "Sonova AG\nAnna Baus\nLaubisrütistrasse 28\n8712 Stäfa, Switzerland"
+    )
+    assert rendered_paragraphs[1].text == "Männedorf, July 28, 2026"
+    assert rendered_paragraphs[2].text == (
+        "Application for Practical Trainee - Python Developer (m/f/d)"
+    )
+
+
 def test_cover_letter_renderer_preserves_distinct_paragraph_and_run_styles() -> None:
     document = Document()
     greeting = document.add_paragraph("Sehr geehrte Damen und Herren,")

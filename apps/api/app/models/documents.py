@@ -647,6 +647,7 @@ class DocumentTemplatePayload(BaseModel):
     type: DocumentType
     name: str
     file_name: str = Field(alias="fileName")
+    built_in: bool = Field(default=False, alias="builtIn")
     created_at: datetime = Field(alias="createdAt")
     updated_at: datetime = Field(alias="updatedAt")
 

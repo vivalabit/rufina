@@ -644,7 +644,12 @@ def test_cover_letter_template_preserves_visual_structure() -> None:
 
     assert uploaded.status_code == 201
     assert listed.status_code == 200
-    assert listed.json()[0]["fileName"] == "cover-letter.docx"
+    assert listed.json()[0]["fileName"] == "standard-cover-letter.docx"
+    assert listed.json()[0]["builtIn"] is True
+    assert any(
+        item["fileName"] == "cover-letter.docx" and item["builtIn"] is False
+        for item in listed.json()
+    )
     assert created.status_code == 201
     assert created.json()["generationFingerprint"] is None
     assert downloaded.status_code == 200

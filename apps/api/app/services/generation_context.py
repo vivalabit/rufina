@@ -12,6 +12,10 @@ from app.core.identity import get_bound_owner_id
 from app.core.settings import get_settings
 from app.models.applications import CandidateConfirmationRecord, StoredApplicationRecord
 from app.models.documents import DocumentTemplateRecord
+from app.services.cover_letter_template_registry import (
+    ensure_bundled_cover_letter_template,
+    is_bundled_cover_letter_template_id,
+)
 from app.services.resume_template_registry import (
     is_bundled_resume_template_id,
 )
@@ -51,6 +55,7 @@ DIRECT_PROFILE_EVIDENCE_FIELDS = tuple(
 VACANCY_EVIDENCE_FIELDS = (
     "title",
     "company",
+    "location",
     "overview",
     "responsibilities",
     "requirements",
@@ -469,6 +474,8 @@ def load_authoritative_generation_context(
             "Bundled resume templates can only render tailored resumes",
             status_code=422,
         )
+    elif is_bundled_cover_letter_template_id(template_id):
+        template = ensure_bundled_cover_letter_template(db)
     else:
         template = db.get(DocumentTemplateRecord, template_id)
     if not template:

@@ -78,6 +78,10 @@ from app.services.document_validation import (
     validate_generated_document,
 )
 from app.services.document_preflight import analyze_document_template
+from app.services.cover_letter_template_registry import (
+    ensure_bundled_cover_letter_template,
+    is_bundled_cover_letter_template_id,
+)
 from app.services.resume_template_registry import (
     is_bundled_resume_template_id,
 )
@@ -848,12 +852,17 @@ def download_document(
 @router.get("/templates/library", response_model=list[DocumentTemplatePayload])
 def list_document_templates(db: Session = Depends(get_db)) -> list[DocumentTemplatePayload]:
     try:
+        bundled_template = ensure_bundled_cover_letter_template(db)
         records = db.scalars(
             select(DocumentTemplateRecord)
             .where(DocumentTemplateRecord.type == "cover_letter")
             .order_by(DocumentTemplateRecord.updated_at.desc())
         ).all()
-        return [document_template_payload(record) for record in records]
+        ordered_records = [
+            bundled_template,
+            *(record for record in records if record.id != bundled_template.id),
+        ]
+        return [document_template_payload(record) for record in ordered_records]
     except SQLAlchemyError as exc:
         raise database_unavailable(exc) from exc
 
@@ -1201,10 +1210,13 @@ def create_document_template(
 
 @router.delete("/templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_document_template(template_id: str, db: Session = Depends(get_db)) -> None:
-    if is_bundled_resume_template_id(template_id):
+    if (
+        is_bundled_resume_template_id(template_id)
+        or is_bundled_cover_letter_template_id(template_id)
+    ):
         raise HTTPException(
             status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-            detail="Bundled resume templates cannot be deleted",
+            detail="Bundled document templates cannot be deleted",
         )
     try:
         template = require_template(db, template_id)
@@ -2034,6 +2046,7 @@ def document_template_payload(record: DocumentTemplateRecord) -> DocumentTemplat
         type=record.type,
         name=record.name,
         file_name=record.file_name,
+        built_in=is_bundled_cover_letter_template_id(record.id),
         created_at=record.created_at,
         updated_at=record.updated_at,
     )

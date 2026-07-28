@@ -151,6 +151,17 @@ DATE_LINE_PATTERN = re.compile(
     r"|(?:\b\d{4}-(?:0[1-9]|1[0-2])-(?:0[1-9]|[12]\d|3[01])\b)",
     re.IGNORECASE,
 )
+HEADER_PLACEHOLDER_TYPES = {
+    "company name": "recipientCompany",
+    "recruiter name": "recipientName",
+    "street number": "recipientStreet",
+    "index city": "recipientCity",
+    "index city country": "recipientCity",
+    "postal code city country": "recipientCity",
+    "switzerland": "recipientCountry",
+    "city of living date": "letterDate",
+    "candidate name": "candidateName",
+}
 
 
 class UnsupportedCoverLetterStructureError(ValueError):
@@ -322,6 +333,9 @@ def classify_paragraph(
         return "subject", True
     if index == greeting_index:
         return "greeting", True
+    placeholder_type = header_placeholder_type(original)
+    if placeholder_type is not None:
+        return placeholder_type, True
     if index == closing_index:
         return "closing", False
     if closing_index is not None and index > closing_index:
@@ -447,7 +461,11 @@ def build_spans(
             paragraph_id=paragraph_id,
             span_type="text",
             tokens=group,
-            editable=(paragraph_editable or is_date_line(original))
+            editable=(
+                paragraph_editable
+                or is_date_line(original)
+                or header_placeholder_type(original) is not None
+            )
             and bool(original.strip()),
         )
         cursor = end
@@ -456,6 +474,13 @@ def build_spans(
 
 def is_date_line(text: str) -> bool:
     return DATE_LINE_PATTERN.search(text) is not None
+
+
+def header_placeholder_type(text: str) -> str | None:
+    if re.search(r",\s*date\s*$", text.strip(), re.IGNORECASE):
+        return "letterDate"
+    normalized = re.sub(r"[^a-z]+", " ", text.casefold()).strip()
+    return HEADER_PLACEHOLDER_TYPES.get(normalized)
 
 
 def replace_date_in_line(text: str, replacement: str) -> str:
@@ -538,7 +563,7 @@ def inline_tokens(paragraph: Any) -> list[InlineToken]:
 def replace_cover_letter_text_span(span: CoverLetterSpan, replacement: str) -> None:
     if not span.editable or span.span_type != "text":
         raise ValueError(f"Protected cover-letter span cannot be changed: {span.span_id}")
-    if not replacement.strip():
+    if not replacement.strip() and header_placeholder_type(span.original) is None:
         raise ValueError(f"Cover-letter span replacement cannot be empty: {span.span_id}")
     if any(control in replacement for control in ("\t", "\n", "\r")):
         raise ValueError(

@@ -4,6 +4,7 @@ import zipfile
 from copy import deepcopy
 from datetime import date
 from io import BytesIO
+from typing import Any
 
 from docx import Document
 from docx.enum.section import WD_SECTION
@@ -15,6 +16,7 @@ from lxml import etree
 
 from app.services.cover_letter_blocks import (
     extract_cover_letter_blocks_from_docx,
+    header_placeholder_type,
     is_date_line,
     parse_cover_letter_blocks,
     replace_date_in_line,
@@ -110,8 +112,13 @@ def ensure_cover_letter_date_replacement(
     content: str,
     generation_date: str,
     language: str,
+    vacancy: dict[str, Any] | None = None,
+    profile: dict[str, Any] | None = None,
+    recipient_name: str = "",
+    official_company_name: str = "",
+    recipient_address_line: str = "",
 ) -> str:
-    """Make the source letter date deterministic while leaving contact data untouched."""
+    """Fill known cover-letter metadata placeholders from authoritative context."""
     generated_date = date.fromisoformat(generation_date)
     localized_date = format_cover_letter_date(generated_date, language)
     paragraphs = extract_cover_letter_blocks_from_docx(template_content)
@@ -120,9 +127,65 @@ def ensure_cover_letter_date_replacement(
         str(replacement["spanId"]): replacement for replacement in replacements
     }
     changed = False
+
+    def upsert_replacement(
+        *,
+        paragraph_id: str,
+        span_id: str,
+        original: str,
+        replacement: str,
+        reason: str,
+        evidence_ids: list[str],
+    ) -> None:
+        nonlocal changed
+        payload = {
+            "paragraphId": paragraph_id,
+            "spanId": span_id,
+            "original": original,
+            "replacement": replacement,
+            "reason": reason,
+            "evidenceIds": [f"source:{span_id}", *evidence_ids],
+        }
+        existing = replacements_by_span.get(span_id)
+        if existing is None:
+            replacements.append(payload)
+        else:
+            existing.update(payload)
+        replacements_by_span[span_id] = payload
+        changed = True
+
+    vacancy_data = vacancy or {}
+    profile_data = profile or {}
+    company = (
+        official_company_name.strip()
+        or str(vacancy_data.get("company") or "").strip()
+    )
+    vacancy_title = collapse_repeated_text(
+        str(vacancy_data.get("title") or "").strip()
+    )
+    vacancy_location = str(vacancy_data.get("location") or "").strip()
+    candidate_location = str(profile_data.get("location") or "").strip()
+    recipient = recipient_name.strip()
+    company_location = location_without_country(vacancy_location)
+    recipient_street, recipient_postal_line = split_recipient_address(
+        recipient_address_line
+    )
+    if not recipient_postal_line:
+        recipient_postal_line = company_location
+    candidate_city = city_from_location(candidate_location)
+    candidate_name = str(profile_data.get("name") or "").strip()
+    company_evidence = (
+        ["confirmation:company-header-research"]
+        if official_company_name.strip()
+        else ["vacancy:company"]
+    )
+    address_evidence = (
+        ["confirmation:company-header-research"]
+        if recipient_address_line.strip()
+        else (["vacancy:location"] if company_location else [])
+    )
+
     for paragraph in paragraphs:
-        if paragraph["type"] == "greeting":
-            break
         for span in paragraph["spans"]:
             original = span.get("original")
             span_id = span.get("spanId")
@@ -130,24 +193,127 @@ def ensure_cover_letter_date_replacement(
                 not span.get("editable")
                 or not isinstance(original, str)
                 or not isinstance(span_id, str)
-                or not is_date_line(original)
             ):
                 continue
-            replacement = {
-                "paragraphId": paragraph["paragraphId"],
-                "spanId": span_id,
-                "original": original,
-                "replacement": replace_date_in_line(original, localized_date),
-                "reason": "Updates the letter date to the generation date",
-                "evidenceIds": [f"source:{span_id}", "generation:date"],
-            }
-            existing = replacements_by_span.get(span_id)
-            if existing is None:
-                replacements.append(replacement)
-            else:
-                existing.update(replacement)
-            replacements_by_span[span_id] = replacement
-            changed = True
+            placeholder_type = header_placeholder_type(original)
+            if placeholder_type == "recipientCompany":
+                upsert_replacement(
+                    paragraph_id=paragraph["paragraphId"],
+                    span_id=span_id,
+                    original=original,
+                    replacement=company,
+                    reason="Fills the recipient's official company name",
+                    evidence_ids=company_evidence,
+                )
+            elif placeholder_type == "recipientName":
+                upsert_replacement(
+                    paragraph_id=paragraph["paragraphId"],
+                    span_id=span_id,
+                    original=original,
+                    replacement=recipient or "Hiring Team",
+                    reason="Fills the recruiter or hiring-team recipient",
+                    evidence_ids=(
+                        ["confirmation:cover-letter-recipient-name"]
+                        if recipient
+                        else []
+                    ),
+                )
+            elif placeholder_type == "recipientStreet":
+                upsert_replacement(
+                    paragraph_id=paragraph["paragraphId"],
+                    span_id=span_id,
+                    original=original,
+                    replacement=recipient_street,
+                    reason="Fills the recipient's verified street and building number",
+                    evidence_ids=address_evidence,
+                )
+            elif placeholder_type == "recipientCity":
+                upsert_replacement(
+                    paragraph_id=paragraph["paragraphId"],
+                    span_id=span_id,
+                    original=original,
+                    replacement=recipient_postal_line,
+                    reason="Fills the verified postal code, city, and country",
+                    evidence_ids=address_evidence,
+                )
+            elif placeholder_type == "recipientCountry":
+                upsert_replacement(
+                    paragraph_id=paragraph["paragraphId"],
+                    span_id=span_id,
+                    original=original,
+                    replacement="",
+                    reason="Moves the country into the postal-address line",
+                    evidence_ids=address_evidence,
+                )
+            elif placeholder_type == "letterDate":
+                upsert_replacement(
+                    paragraph_id=paragraph["paragraphId"],
+                    span_id=span_id,
+                    original=original,
+                    replacement=(
+                        f"{candidate_city}, {localized_date}"
+                        if candidate_city
+                        else localized_date
+                    ),
+                    reason="Fills the candidate city and current letter date",
+                    evidence_ids=(
+                        (["profile:location"] if candidate_city else [])
+                        + ["generation:date"]
+                    ),
+                )
+            elif placeholder_type == "candidateName":
+                upsert_replacement(
+                    paragraph_id=paragraph["paragraphId"],
+                    span_id=span_id,
+                    original=original,
+                    replacement=candidate_name,
+                    reason="Fills the signature with the candidate's verified name",
+                    evidence_ids=["profile:name"] if candidate_name else [],
+                )
+            elif paragraph["type"] == "subject" and vacancy_title:
+                upsert_replacement(
+                    paragraph_id=paragraph["paragraphId"],
+                    span_id=span_id,
+                    original=original,
+                    replacement=(
+                        f"Bewerbung als {vacancy_title}"
+                        if language == "German"
+                        else f"Application for {vacancy_title}"
+                    ),
+                    reason="Fills the subject with the exact vacancy title",
+                    evidence_ids=["vacancy:title"],
+                )
+            elif paragraph["type"] == "greeting" and (recipient or company):
+                team_name = company_team_name(company)
+                upsert_replacement(
+                    paragraph_id=paragraph["paragraphId"],
+                    span_id=span_id,
+                    original=original,
+                    replacement=(
+                        f"Dear {recipient},"
+                        if recipient
+                        else (
+                            f"Dear {team_name} Hiring Team,"
+                            if team_name
+                            else "Dear Hiring Team,"
+                        )
+                    ),
+                    reason="Addresses the verified recruiter or the company hiring team",
+                    evidence_ids=(
+                        ["confirmation:cover-letter-recipient-name"]
+                        if recipient
+                        else company_evidence
+                    ),
+                )
+            elif is_date_line(original):
+                upsert_replacement(
+                    paragraph_id=paragraph["paragraphId"],
+                    span_id=span_id,
+                    original=original,
+                    replacement=replace_date_in_line(original, localized_date),
+                    reason="Updates the letter date to the generation date",
+                    evidence_ids=["generation:date"],
+                )
     if not changed:
         return content
     return json.dumps(
@@ -155,6 +321,54 @@ def ensure_cover_letter_date_replacement(
         ensure_ascii=False,
         separators=(",", ":"),
     )
+
+
+def split_recipient_address(value: str) -> tuple[str, str]:
+    normalized = " ".join(value.split()).strip()
+    if not normalized:
+        return "", ""
+    parts = [part.strip() for part in normalized.split(",") if part.strip()]
+    if len(parts) >= 2:
+        return parts[0], ", ".join(parts[1:])
+    postal_match = re.search(r"(?<!\d)\d{4,6}\s+", normalized)
+    if postal_match and postal_match.start() > 0:
+        return (
+            normalized[: postal_match.start()].rstrip(" ,"),
+            normalized[postal_match.start() :],
+        )
+    return normalized, ""
+
+
+def location_without_country(value: str) -> str:
+    parts = [part.strip() for part in value.split(",") if part.strip()]
+    if len(parts) > 1 and parts[-1].casefold() in {
+        "switzerland",
+        "schweiz",
+        "suisse",
+        "svizzera",
+    }:
+        parts.pop()
+    return ", ".join(parts)
+
+
+def city_from_location(value: str) -> str:
+    return location_without_country(value).split(",", maxsplit=1)[0].strip()
+
+
+def collapse_repeated_text(value: str) -> str:
+    midpoint = len(value) // 2
+    if len(value) % 2 == 0 and value[:midpoint] == value[midpoint:]:
+        return value[:midpoint].strip()
+    return value
+
+
+def company_team_name(value: str) -> str:
+    return re.sub(
+        r"\s+(?:AG|GmbH|SA|S\.A\.|Ltd\.?|Limited|Inc\.?|LLC|SE)$",
+        "",
+        value.strip(),
+        flags=re.IGNORECASE,
+    ).strip()
 
 
 def format_cover_letter_date(value: date, language: str) -> str:
@@ -194,8 +408,20 @@ def format_cover_letter_date(value: date, language: str) -> str:
 def replace_cover_letter_spans(body, content: str) -> None:
     paragraphs = parse_cover_letter_blocks(body)
     paragraphs_by_id = {paragraph.paragraph_id: paragraph for paragraph in paragraphs}
+    paragraph_elements = {
+        paragraph.paragraph_id: element
+        for paragraph, element in zip(
+            paragraphs,
+            list(body.iter(qn("w:p"))),
+            strict=True,
+        )
+    }
+    replacements = parse_cover_letter_replacements(content)
+    replacements_by_span_id = {
+        str(replacement["spanId"]): replacement for replacement in replacements
+    }
     seen_span_ids: set[str] = set()
-    for replacement in parse_cover_letter_replacements(content):
+    for replacement in replacements:
         paragraph_id = replacement["paragraphId"]
         paragraph = paragraphs_by_id.get(paragraph_id)
         if paragraph is None:
@@ -215,6 +441,76 @@ def replace_cover_letter_spans(body, content: str) -> None:
                 f"Cover-letter original text does not match {span_id}"
             )
         replace_cover_letter_text_span(span, replacement["replacement"])
+
+    for paragraph in paragraphs:
+        placeholder_spans = {
+            placeholder_type: span
+            for span in paragraph.spans
+            if (placeholder_type := header_placeholder_type(span.original)) is not None
+        }
+        if {
+            "recipientCompany",
+            "recipientName",
+            "recipientStreet",
+            "recipientCity",
+        }.issubset(placeholder_spans):
+            lines = []
+            for placeholder_type in (
+                "recipientCompany",
+                "recipientName",
+                "recipientStreet",
+                "recipientCity",
+                "recipientCountry",
+            ):
+                if placeholder_type not in placeholder_spans:
+                    continue
+                span = placeholder_spans[placeholder_type]
+                replacement = replacements_by_span_id.get(span.span_id)
+                value = (
+                    str(replacement["replacement"])
+                    if replacement is not None
+                    else span.original
+                )
+                if value.strip():
+                    lines.append(value.strip())
+            set_paragraph_element_lines(
+                paragraph_elements[paragraph.paragraph_id],
+                lines,
+            )
+            continue
+
+        if paragraph.paragraph_type not in {"recipientCity", "recipientCountry"}:
+            continue
+        text_spans = [span for span in paragraph.spans if span.span_type == "text"]
+        if len(text_spans) != 1:
+            continue
+        replacement = replacements_by_span_id.get(text_spans[0].span_id)
+        if replacement is None or str(replacement["replacement"]).strip():
+            continue
+        element = paragraph_elements[paragraph.paragraph_id]
+        parent = element.getparent()
+        if parent is not None:
+            parent.remove(element)
+
+
+def set_paragraph_element_lines(element, lines: list[str]) -> None:
+    """Replace a header paragraph while retaining its paragraph and run formatting."""
+    run_properties = element.find(".//" + qn("w:rPr"))
+    for child in list(element):
+        if child.tag != qn("w:pPr"):
+            element.remove(child)
+    if not lines:
+        return
+    run = OxmlElement("w:r")
+    if run_properties is not None:
+        run.append(deepcopy(run_properties))
+    for index, line in enumerate(lines):
+        if index:
+            run.append(OxmlElement("w:br"))
+        node = OxmlElement("w:t")
+        set_text_node_value(node, line)
+        run.append(node)
+    element.append(run)
 
 
 def replace_cover_letter_text(document: Document, content: str) -> None:

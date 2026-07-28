@@ -1,6 +1,7 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { buildDocumentGenerationPrompt } from "@/components/application-workspace";
 import { AI_GENERATION_REQUEST_TIMEOUT_MS } from "@/lib/api-client";
 import {
   createLegacyWorkspaceApplication,
@@ -10,6 +11,40 @@ import {
   installApplicationWorkspaceApiMock,
   renderApplicationWorkspace,
 } from "@/test/application-workspace-harness";
+
+describe("cover letter generation prompt", () => {
+  it("requires a recruiter-friendly second paragraph instead of copied CV metrics", () => {
+    const prompt = buildDocumentGenerationPrompt("English");
+
+    expect(prompt).toContain(
+      "The second substantive body paragraph must give a concise, recruiter-friendly synthesis",
+    );
+    expect(prompt).toContain(
+      "Do not copy, closely paraphrase, enumerate, or compress achievement bullets from the resume in this paragraph.",
+    );
+    expect(prompt).toContain(
+      "Do not include metrics, percentages, counts, revenue, time savings, or other numbers in this paragraph.",
+    );
+    expect(prompt).toContain(
+      "Include at most one concise, verified example elsewhere in the letter",
+    );
+    expect(prompt).toContain(
+      "Fill every editable field in the bundled cover-letter template instead of leaving placeholder text unchanged.",
+    );
+    expect(prompt).toContain(
+      "Keep the recipient block in exactly four lines",
+    );
+    expect(prompt).toContain(
+      "street and building number; postal code, city, and country",
+    );
+    expect(prompt).toContain(
+      "confirmation:company-header-research",
+    );
+    expect(prompt).not.toContain(
+      "a paragraph with the strongest matching evidence",
+    );
+  });
+});
 
 const consent = {
   consentVersion: "2026-07-18.v2",
@@ -549,39 +584,46 @@ describe("ApplicationWorkspace", () => {
     ).not.toBeInTheDocument();
   });
 
-  it("keeps cover-letter DOCX upload and preflight independent", async () => {
-    const source = {
-      id: "cover-source",
-      category: "Cover Letter",
-      title: "Main cover",
-      language: "English",
-      file_name: "cover.docx",
-      file_size: "16 KB",
-      file_type:
-        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-      uploaded_at: "2026-07-25T10:00:00.000Z",
-      data_url:
-        "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,cover",
-    };
+  it("uses the built-in cover-letter template without upload or preflight", async () => {
     const fetchMock = installApplicationWorkspaceApiMock();
-    renderApplicationWorkspace(createV3WorkspaceApplication(), {
-      profile: createWorkspaceProfile({
-        documents: JSON.stringify([source]),
-      }),
-    });
+    renderApplicationWorkspace(createV3WorkspaceApplication());
 
     expect(
-      await screen.findByRole("combobox", { name: "Source cover letter" }),
+      await screen.findByText("Standard cover letter"),
     ).toBeInTheDocument();
-    await waitFor(() => {
-      expect(
-        fetchMock.mock.calls.some(([input, init]) =>
-          String(input).includes("/documents/templates/preflight")
-          && init?.method === "POST"
-          && String(init.body).includes("cover_letter"),
-        ),
-      ).toBe(true);
+    expect(screen.getByText(/no DOCX upload required/)).toBeInTheDocument();
+    expect(
+      screen.queryByRole("combobox", { name: "Source cover letter" }),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Upload DOCX")).not.toBeInTheDocument();
+    expect(
+      fetchMock.mock.calls.some(([input]) =>
+        String(input).includes("/documents/templates/preflight"),
+      ),
+    ).toBe(false);
+    expect(
+      screen.queryByText("Is a recruiter or hiring contact named?"),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Personalize your documents"),
+    ).not.toBeInTheDocument();
+    expect(screen.queryByText("Document context")).not.toBeInTheDocument();
+
+    const recruiterName = screen.getByRole("textbox", {
+      name: "Recruiter name",
     });
+    const generateCoverLetter = screen.getByRole("button", {
+      name: "Generate Cover letter",
+    });
+    expect(
+      recruiterName.compareDocumentPosition(generateCoverLetter)
+      & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+
+    fireEvent.change(recruiterName, {
+      target: { value: "Taylor Smith" },
+    });
+    expect(recruiterName).toHaveValue("Taylor Smith");
   });
 
   it("does not loop when the application guide is missing", async () => {
@@ -593,8 +635,8 @@ describe("ApplicationWorkspace", () => {
     ).toBeInTheDocument();
     await waitFor(() => {
       expect(
-        screen.getByRole("button", { name: "Refresh analysis first" }),
-      ).toBeDisabled();
+        screen.getAllByRole("button", { name: "Refresh analysis first" }),
+      ).toHaveLength(2);
     });
     expect(fetchMock.mock.calls.length).toBeLessThan(12);
   });

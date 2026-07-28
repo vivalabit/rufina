@@ -22,7 +22,6 @@ import {
   Sparkles,
   Target,
   Trash2,
-  Upload,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -175,32 +174,6 @@ type WorkspaceProfile = {
   resume_data_url: string;
 };
 
-type ProfileSourceDocument = {
-  id: string;
-  title: string;
-  category: string;
-  language: string;
-  file_name: string;
-  file_size: string;
-  file_type: string;
-  uploaded_at: string;
-  data_url: string;
-  workspace_upload?: boolean;
-};
-
-type WorkspaceSourceDocumentPayload = {
-  id: string;
-  applicationId: string;
-  category: "CV / Resume" | "Cover Letter";
-  title: string;
-  language: string;
-  fileName: string;
-  fileSize: string;
-  fileType: string;
-  uploadedAt: string;
-  dataUrl: string;
-};
-
 type GeneratedDocumentVersion = {
   id: string;
   version: number;
@@ -347,48 +320,9 @@ type DocumentTemplate = {
   type: "cover_letter" | "tailored_resume";
   name: string;
   fileName: string;
+  builtIn: boolean;
   createdAt: string;
   updatedAt: string;
-};
-
-type DocumentTemplatePreflight = {
-  supported: boolean;
-  template: DocumentTemplate | null;
-  editableCount: number;
-  immutableCount: number;
-  immutableElements: Array<{
-    id: string;
-    type: string;
-    text: string;
-    reason: string;
-  }>;
-  rejectedElements: Array<{
-    element: string;
-    description: string;
-  }>;
-  aiContext: null | {
-    maxCharacters: number;
-    contextBudgetCharacters: number;
-    estimatedCharacters: number;
-    includedCharacters: number;
-    truncated: boolean;
-    source?: {
-      totalElements: number;
-      includedElements: number;
-      omittedElements: number;
-      estimatedCharacters: number;
-      includedCharacters: number;
-      truncated: boolean;
-    };
-  };
-  warnings: string[];
-};
-
-type SourcePreflightState = {
-  sourceId: string;
-  status: "idle" | "checking" | "ready" | "error";
-  report?: DocumentTemplatePreflight;
-  error?: string;
 };
 
 type PendingAiGeneration = {
@@ -445,26 +379,8 @@ const coverLetterRecipientQuestion = {
   claimIfConfirmed: "The named person is the recruiter or intended hiring contact for this application.",
   blocking: false,
 } satisfies NonNullable<ApplicationGuide["clarificationQuestions"]>[number];
-const coverLetterContactQuestion = {
-  id: "cover-letter-company-contact",
-  requirement: "Known employee at the hiring company",
-  question: "Do you know or have you spoken with an employee at this company?",
-  why: "A genuine personal contact can make the motivation more specific when mentioned accurately and without implying an endorsement.",
-  claimIfConfirmed: "The candidate knows or has spoken with the named employee at the company.",
-  blocking: false,
-} satisfies NonNullable<ApplicationGuide["clarificationQuestions"]>[number];
-const coverLetterAdditionalContextQuestion = {
-  id: "cover-letter-additional-context",
-  requirement: "Optional application-document context",
-  question: "Is there anything else the CV or cover letter should emphasize or avoid?",
-  why: "Optional context can improve both documents without changing verified facts.",
-  claimIfConfirmed: "The candidate supplied additional instructions for the application documents.",
-  blocking: false,
-} satisfies NonNullable<ApplicationGuide["clarificationQuestions"]>[number];
 const coverLetterContextQuestions = [
   coverLetterRecipientQuestion,
-  coverLetterContactQuestion,
-  coverLetterAdditionalContextQuestion,
 ];
 const coverLetterContextQuestionIds = new Set<string>(
   coverLetterContextQuestions.map((question) => question.id),
@@ -612,10 +528,11 @@ function buildSavedApplicationReview(job: WorkspaceJob) {
   return sections.filter(Boolean).join("\n\n");
 }
 
-function buildDocumentGenerationPrompt(
+export function buildDocumentGenerationPrompt(
   targetLanguage: string,
 ) {
-  return `Act as an experienced career consultant and recruiter who writes personalized cover letters for strong candidates. Using the complete candidate resume/profile and vacancy in CONTEXT_JSON, write a compelling cover letter tailored specifically to this role in ${targetLanguage}. Before writing, silently analyze the vacancy: identify its key responsibilities, must-have and preferred requirements, most important competencies, the employer problems the new hire should solve, and the company's own professional vocabulary. Silently analyze the resume: identify the most relevant experience, measurable achievements, projects and responsibilities that prove fit, transferable skills where experience is not an exact match, and the candidate's strongest competitive advantages. Build the letter around the mapping “employer need → verified candidate evidence → benefit the candidate can deliver”. Use confirmation:cover-letter-additional-context when present for motivation, proud achievements, reasons for changing roles, details to emphasize, and details to avoid. Never invent facts, achievements, numbers, tools, experience, feelings, names, praise, or endorsement. When evidence is insufficient, use a neutral formulation instead of asking questions during document generation. Write approximately 250–350 words when the editable template capacity allows it. Use a confident, professional, natural tone and language clear to a recruiter. Personalize the letter to the company and role. The first two or three sentences should immediately show why the candidate is relevant. Select the two or three strongest matches between the vacancy and resume, support them with concise concrete evidence, and do not retell the whole CV. Explain the specific attraction of the role and company using only available evidence, and focus equally on the benefit to the employer. If the candidate is changing profession or industry, explain transferable value without defensiveness. Do not emphasize unmet requirements. Avoid bureaucracy, overly complex sentences, generic AI phrasing, flattery, overconfidence, and unsupported clichés such as “ideal candidate”, “team player”, “stress-resistant”, or “fast learner”. Do not mention language proficiency. Recommended narrative: a short opening naming the position and main relevance argument; a paragraph with the strongest matching evidence; a paragraph explaining how the candidate can help solve the company's tasks; specific motivation for the role or company; and a short, confident invitation to continue the conversation. Do not print analysis, arguments, questions, numbered answers, improvement notes, or section headings in the letter. Update an editable subject with the exact vacancy title. Greet the person from confirmation:cover-letter-recipient-name when a verified full name is available; otherwise greet the company's hiring team. If confirmation:cover-letter-company-contact says YES and contains a full employee name, mention that genuine contact naturally once in the letter, but never claim or imply that the employee recommended, endorsed, or recruited the candidate. The selected DOCX source uses format cover-letter-blocks-v1 and exposes editable paragraphs and spans with stable paragraphId, spanId, original, and evidenceId values. Preserve the layout, candidate contact details, closing, signature, hyperlinks, and every non-editable element. Return only valid JSON with this exact shape: {"replacements":[{"paragraphId":"paragraph-0002","spanId":"paragraph-0002-span-0001","original":"exact original editable span text","replacement":"new text","reason":"short reason","evidenceIds":["source:paragraph-0002-span-0001","vacancy:title"]}]}. Use only editable text spans, copy paragraphId, spanId, and original exactly, and cite every profile, vacancy, confirmation, and source evidence ID supporting each replacement. Do not insert or remove paragraphs or spans and do not use Markdown.`;
+  const headerInstructions = "Fill every editable field in the bundled cover-letter template instead of leaving placeholder text unchanged. Use confirmation:company-header-research for the official recipientCompany and verified address, confirmation:cover-letter-recipient-name for recipientName when present, the candidate profile location plus generation date for letterDate, the exact vacancy title for the subject, and profile:name for candidateName. Keep the recipient block in exactly four lines: official company name; recruiter or Hiring Team; street and building number; postal code, city, and country. Split the researched full address between recipientStreet and recipientCity at the boundary after the street and building number. Do not invent, shorten, or omit any part of the researched company address.";
+  return `${headerInstructions} Act as an experienced career consultant and recruiter who writes personalized cover letters for strong candidates. Using the complete candidate resume/profile and vacancy in CONTEXT_JSON, write a compelling cover letter tailored specifically to this role in ${targetLanguage}. Before writing, silently analyze the vacancy: identify its key responsibilities, must-have and preferred requirements, most important competencies, the employer problems the new hire should solve, and the company's own professional vocabulary. Silently analyze the resume: identify the most relevant experience, projects, responsibilities, recurring areas of work, and transferable skills that prove fit, as well as the candidate's strongest competitive advantages. Build the letter around the mapping “employer need → verified candidate capability → benefit the candidate can deliver”. Use confirmation:cover-letter-additional-context when present for motivation, proud achievements, reasons for changing roles, details to emphasize, and details to avoid. Never invent facts, achievements, numbers, tools, experience, feelings, names, praise, or endorsement. When evidence is insufficient, use a neutral formulation instead of asking questions during document generation. Write approximately 250–350 words when the editable template capacity allows it. Use a confident, professional, natural tone and language clear to a non-technical recruiter. Personalize the letter to the company and role. The first two or three sentences should immediately show why the candidate is relevant. The second substantive body paragraph must give a concise, recruiter-friendly synthesis of what the candidate has done across their experience: the kinds of systems, products, workflows, or business problems they worked on; their recurring responsibilities; and the broader operational value of that work. Generalize only from verified resume evidence. Describe two to four coherent capability areas rather than walking through employers or roles. Do not copy, closely paraphrase, enumerate, or compress achievement bullets from the resume in this paragraph. Do not include metrics, percentages, counts, revenue, time savings, or other numbers in this paragraph. It should read as a natural professional overview, similar in abstraction and flow to: “Throughout my experience, I have built [types of systems] for [types of real-world use cases]. I have focused on [recurring responsibilities and operational outcomes]. I also have experience with [another verified capability area].” Use the pattern, not these facts or exact wording. In the following paragraph, connect the most relevant capabilities to the employer's needs and explain how the candidate can help solve the company's tasks. Include at most one concise, verified example elsewhere in the letter when it materially improves credibility; do not turn that paragraph into a list of CV metrics or retell the whole CV. Explain the specific attraction of the role and company using only available evidence, and focus equally on the benefit to the employer. If the candidate is changing profession or industry, explain transferable value without defensiveness. Do not emphasize unmet requirements. Avoid bureaucracy, overly complex sentences, generic AI phrasing, flattery, overconfidence, and unsupported clichés such as “ideal candidate”, “team player”, “stress-resistant”, or “fast learner”. Do not mention language proficiency. Recommended narrative: a short opening naming the position and main relevance argument; the high-level professional overview defined above; a paragraph connecting those capabilities to the company's tasks, optionally with one concise verified example; specific motivation for the role or company; and a short, confident invitation to continue the conversation. Do not print analysis, arguments, questions, numbered answers, improvement notes, or section headings in the letter. Update the subject with the exact vacancy title. Greet the person from confirmation:cover-letter-recipient-name when a verified full name is available; otherwise greet the company's hiring team. If confirmation:cover-letter-company-contact says YES and contains a full employee name, mention that genuine contact naturally once in the letter, but never claim or imply that the employee recommended, endorsed, or recruited the candidate. The bundled DOCX uses format cover-letter-blocks-v1 and exposes editable paragraphs and spans with stable paragraphId, spanId, original, and evidenceId values. Preserve its fixed layout, closing, hyperlinks, and every non-editable element. Return only valid JSON with this exact shape: {"replacements":[{"paragraphId":"paragraph-0002","spanId":"paragraph-0002-span-0001","original":"exact original editable span text","replacement":"new text","reason":"short reason","evidenceIds":["source:paragraph-0002-span-0001","vacancy:title"]}]}. Use only editable text spans, copy paragraphId, spanId, and original exactly, and cite every profile, vacancy, confirmation, and source evidence ID supporting each replacement. Do not insert or remove paragraphs or spans and do not use Markdown.`;
 }
 
 function ensureGenerationPromptFits(prompt: string) {
@@ -692,51 +609,6 @@ function reusableFinalResumeReviewId(
     : null;
 }
 
-function parseProfileSourceDocuments(profile: WorkspaceProfile): ProfileSourceDocument[] {
-  const sources: ProfileSourceDocument[] = [];
-  if (!profile.documents.trim()) return sources;
-  try {
-    const parsed = JSON.parse(profile.documents) as unknown;
-    if (!Array.isArray(parsed)) return sources;
-    for (const value of parsed) {
-      if (!value || typeof value !== "object") continue;
-      const candidate = value as Partial<ProfileSourceDocument>;
-      if (typeof candidate.id !== "string" || typeof candidate.data_url !== "string" || !candidate.data_url || typeof candidate.file_name !== "string" || !candidate.file_name) continue;
-      sources.push({
-        id: candidate.id,
-        title: candidate.title?.trim() || candidate.file_name,
-        category: candidate.category?.trim() || "Other",
-        language: candidate.language?.trim() || inferSourceLanguage(candidate.file_name, candidate.title ?? ""),
-        file_name: candidate.file_name,
-        file_size: candidate.file_size?.trim() || "",
-        file_type: candidate.file_type?.trim() || "application/octet-stream",
-        uploaded_at: candidate.uploaded_at?.trim() || "",
-        data_url: candidate.data_url,
-      });
-    }
-  } catch {
-    return sources;
-  }
-  return sources;
-}
-
-function parseWorkspaceSourceDocument(
-  source: WorkspaceSourceDocumentPayload,
-): ProfileSourceDocument {
-  return {
-    id: source.id,
-    title: source.title,
-    category: source.category,
-    language: source.language,
-    file_name: source.fileName,
-    file_size: source.fileSize,
-    file_type: source.fileType,
-    uploaded_at: source.uploadedAt,
-    data_url: source.dataUrl,
-    workspace_upload: true,
-  };
-}
-
 function evidenceStatusMeta(status: NonNullable<ApplicationGuide["evidenceMatrix"]>[number]["status"]) {
   if (status === "verified") return { label: "Verified", className: "border-success/35 bg-success/10 text-success" };
   if (status === "transferable") return { label: "Transferable", className: "border-[#2f80ed]/35 bg-[#2f80ed]/10 text-[#8cc7ff]" };
@@ -787,14 +659,7 @@ export function ApplicationWorkspace({
   const [currentMasterResume, setCurrentMasterResume] =
     useState<CurrentMasterResume | null>(null);
   const [masterResumeLoaded, setMasterResumeLoaded] = useState(false);
-  const [selectedCoverSourceId, setSelectedCoverSourceId] = useState("");
-  const [coverPreflight, setCoverPreflight] = useState<SourcePreflightState>({
-    sourceId: "",
-    status: "idle",
-  });
   const [languageMode, setLanguageMode] = useState<"auto" | "English" | "German">("auto");
-  const [isCoverSourceManual, setIsCoverSourceManual] = useState(false);
-  const [workspaceSources, setWorkspaceSources] = useState<ProfileSourceDocument[]>([]);
   const [generationType, setGenerationType] = useState<GeneratedDocument["type"] | "">("");
   const [isGeneratingPack, setIsGeneratingPack] = useState(false);
   const [packProgress, setPackProgress] = useState<PackProgress | null>(null);
@@ -803,14 +668,11 @@ export function ApplicationWorkspace({
   const [restoringVersionKey, setRestoringVersionKey] = useState("");
   const [loadingVersionHistoryId, setLoadingVersionHistoryId] = useState("");
   const [deletingDocumentId, setDeletingDocumentId] = useState("");
-  const [deletingTemplateId, setDeletingTemplateId] = useState("");
-  const [deletingSourceId, setDeletingSourceId] = useState("");
   const [documentError, setDocumentError] = useState("");
   const [candidateConfirmations, setCandidateConfirmations] = useState<Record<string, CandidateConfirmation>>({});
   const [confirmationsDirty, setConfirmationsDirty] = useState(false);
   const [confirmationSyncStatus, setConfirmationSyncStatus] = useState<"loading" | "saving" | "saved" | "unsaved" | "error">("loading");
   const [confirmationSyncMessage, setConfirmationSyncMessage] = useState("");
-  const [preflightContextRevision, setPreflightContextRevision] = useState(0);
   const [advice, setAdvice] = useState("");
   const [advicePrompt, setAdvicePrompt] = useState("");
   const [isLoadingAdvice, setIsLoadingAdvice] = useState(false);
@@ -902,7 +764,6 @@ export function ApplicationWorkspace({
     setMasterResumeLoaded(false);
     setCurrentMasterResume(null);
     setDocuments([]);
-    setWorkspaceSources([]);
     setDocumentError("");
     setResumeTailoringProgress(null);
     const controller = new AbortController();
@@ -910,17 +771,15 @@ export function ApplicationWorkspace({
       fetchWithTimeout(`${apiBaseUrl}/documents?applicationId=${encodeURIComponent(application.id)}`, { signal: controller.signal }),
       fetchWithTimeout(`${apiBaseUrl}/documents/templates/library`, { signal: controller.signal }),
       fetchWithTimeout(`${apiBaseUrl}/resume-templates`, { cache: "no-store", signal: controller.signal }),
-      fetchWithTimeout(`${apiBaseUrl}/documents/workspace-sources/library?applicationId=${encodeURIComponent(application.id)}`, { cache: "no-store", signal: controller.signal }),
       fetchWithTimeout(`${apiBaseUrl}/assistant/config`, { signal: controller.signal }),
       fetchWithTimeout(`${apiBaseUrl}/privacy/ai-consent`, { cache: "no-store", signal: controller.signal }),
       fetchWithTimeout(`${apiBaseUrl}/profile/master-resume`, { cache: "no-store", signal: controller.signal }),
     ])
-      .then(async ([documentsResponse, templatesResponse, resumeTemplatesResponse, sourcesResponse, aiConfigurationResponse, aiPrivacyResponse, masterResumeResponse]) => {
-        if (!documentsResponse.ok || !templatesResponse.ok || !resumeTemplatesResponse.ok || !sourcesResponse.ok || !aiConfigurationResponse.ok || !aiPrivacyResponse.ok || (!masterResumeResponse.ok && masterResumeResponse.status !== 404)) throw new Error("Application documents are temporarily unavailable");
+      .then(async ([documentsResponse, templatesResponse, resumeTemplatesResponse, aiConfigurationResponse, aiPrivacyResponse, masterResumeResponse]) => {
+        if (!documentsResponse.ok || !templatesResponse.ok || !resumeTemplatesResponse.ok || !aiConfigurationResponse.ok || !aiPrivacyResponse.ok || (!masterResumeResponse.ok && masterResumeResponse.status !== 404)) throw new Error("Application documents are temporarily unavailable");
         const loadedDocuments = await documentsResponse.json() as GeneratedDocument[];
         const loadedTemplates = await templatesResponse.json() as DocumentTemplate[];
         const loadedResumeTemplates = await resumeTemplatesResponse.json() as ResumeTemplate[];
-        const loadedSources = await sourcesResponse.json() as WorkspaceSourceDocumentPayload[];
         const loadedAiConfiguration = await aiConfigurationResponse.json() as AiConfiguration;
         const loadedAiPrivacy = await aiPrivacyResponse.json() as AiPrivacySettings;
         const loadedMasterResume = masterResumeResponse.ok
@@ -958,7 +817,6 @@ export function ApplicationWorkspace({
             );
           }
         }
-        setWorkspaceSources(loadedSources.map(parseWorkspaceSourceDocument));
         setAiConfiguration(loadedAiConfiguration);
         setAiRetentionDays(loadedAiPrivacy.retentionDays);
         setCurrentMasterResume(loadedMasterResume);
@@ -985,13 +843,9 @@ export function ApplicationWorkspace({
     () => documents.find((document) => document.type === "cover_letter"),
     [documents],
   );
-  const profileSources = useMemo(
-    () => [...workspaceSources, ...parseProfileSourceDocuments(profile)],
-    [profile, workspaceSources],
-  );
-  const coverSources = useMemo(
-    () => profileSources.filter((source) => source.category === "Cover Letter" && source.file_name.toLowerCase().endsWith(".docx")),
-    [profileSources],
+  const coverLetterTemplate = useMemo(
+    () => templates.find((template) => template.builtIn) ?? null,
+    [templates],
   );
   const analysisStatus = getAiMatchAnalysisStatus(application?.job.aiMatch);
   const hasCurrentAnalysis = analysisStatus === "current";
@@ -1013,10 +867,9 @@ export function ApplicationWorkspace({
     [applicationClarificationQuestions],
   );
   const resumeRelevantConfirmationIds = useMemo(
-    () => new Set([
-      ...applicationClarificationQuestions.map((question) => question.id),
-      coverLetterAdditionalContextQuestion.id,
-    ]),
+    () => new Set(
+      applicationClarificationQuestions.map((question) => question.id),
+    ),
     [applicationClarificationQuestions],
   );
   const unansweredBlockingQuestions = clarificationQuestions.filter(
@@ -1027,23 +880,15 @@ export function ApplicationWorkspace({
     (question) => (candidateConfirmations[question.id]?.exampleText.trim().length ?? 0) > confirmationAnswerMaxChars,
   );
   const coverLetterRecipient = candidateConfirmations[coverLetterRecipientQuestion.id];
-  const coverLetterRecipientName = coverLetterRecipient?.exampleText.trim() ?? "";
-  const coverLetterContact = candidateConfirmations[coverLetterContactQuestion.id];
-  const coverLetterContactName = coverLetterContact?.exampleText.trim() ?? "";
-  const coverLetterAdditionalContext = candidateConfirmations[coverLetterAdditionalContextQuestion.id];
+  const coverLetterRecipientName = coverLetterRecipient?.exampleText ?? "";
   const coverLetterNamesComplete = (
     coverLetterRecipient?.response !== "yes"
-    || coverLetterRecipientName.split(/\s+/).filter(Boolean).length >= 2
-  ) && (
-    coverLetterContact?.response !== "yes"
-    || coverLetterContactName.split(/\s+/).filter(Boolean).length >= 2
+    || coverLetterRecipientName.trim().split(/\s+/).filter(Boolean).length >= 2
   );
   const vacancyLanguage = applicationGuide?.language || (application ? detectLegacyJobLanguage(application.job) : "");
   const effectiveLanguage = languageMode === "auto" ? vacancyLanguage : languageMode;
   useEffect(() => {
     setLanguageMode("auto");
-    setIsCoverSourceManual(false);
-    setSelectedCoverSourceId("");
     setAnalysisTab("overview");
     setActiveWorkspaceStep(
       hasCurrentApplicationGuide(application?.job.aiMatch) ? "create" : "review",
@@ -1060,7 +905,6 @@ export function ApplicationWorkspace({
     const legacyStorageKey = `tasko.application-confirmations.${applicationId}`;
     setCandidateConfirmations({});
     setConfirmationsDirty(false);
-    setPreflightContextRevision(0);
     setConfirmationSyncStatus("loading");
     setConfirmationSyncMessage("");
 
@@ -1161,7 +1005,6 @@ export function ApplicationWorkspace({
         setConfirmationsDirty(false);
         setConfirmationSyncStatus("saved");
         setConfirmationSyncMessage("");
-        setPreflightContextRevision((current) => current + 1);
         window.localStorage.removeItem(`tasko.application-confirmations.${application.id}`);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
@@ -1177,54 +1020,6 @@ export function ApplicationWorkspace({
     };
   }, [application, candidateConfirmations, clarificationQuestions, confirmationsDirty, hasOversizedConfirmation]);
 
-  useEffect(() => {
-    if (!effectiveLanguage) return;
-    if (!isCoverSourceManual) {
-      const matchingCover = coverSources.find((source) => source.language === effectiveLanguage);
-      setSelectedCoverSourceId(matchingCover?.id ?? "");
-    }
-  }, [coverSources, effectiveLanguage, isCoverSourceManual]);
-
-  useEffect(() => {
-    const source = profileSources.find((item) => item.id === selectedCoverSourceId);
-    if (!application || !source) {
-      setCoverPreflight({ sourceId: "", status: "idle" });
-      return;
-    }
-    const controller = new AbortController();
-    setCoverPreflight({ sourceId: source.id, status: "checking" });
-    const prompt = buildDocumentGenerationPrompt(
-      effectiveLanguage || source.language || "English",
-    );
-    fetchWithTimeout(`${apiBaseUrl}/documents/templates/preflight`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      signal: controller.signal,
-      body: JSON.stringify({
-        type: "cover_letter",
-        name: `${source.title} · ${source.uploaded_at || source.id}`.slice(0, 240),
-        fileName: source.file_name,
-        dataUrl: source.data_url,
-        applicationId: application.id,
-        promptCharacters: prompt.length,
-      }),
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(await readApiError(response, "Template preflight failed"));
-        const report = await response.json() as DocumentTemplatePreflight;
-        setCoverPreflight({ sourceId: source.id, status: "ready", report });
-      })
-      .catch((error) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        setCoverPreflight({
-          sourceId: source.id,
-          status: "error",
-          error: apiUnavailableMessage(error, "Template preflight failed"),
-        });
-      });
-    return () => controller.abort();
-  }, [application?.id, application?.job.aiMatch?.updatedAt, effectiveLanguage, preflightContextRevision, profileSources, selectedCoverSourceId]);
-
   if (!application) {
     return (
       <section className="grid min-w-0 flex-1 place-items-center p-6">
@@ -1238,12 +1033,8 @@ export function ApplicationWorkspace({
   }
 
   const activeApplication = application;
-  const coverPreflightReady = coverPreflight.sourceId === selectedCoverSourceId
-    && coverPreflight.status === "ready"
-    && coverPreflight.report?.supported === true;
   const documentChatTargetReady = Boolean(
-    selectedCoverSourceId
-    && coverPreflightReady
+    coverLetterTemplate
     && coverLetterNamesComplete,
   );
   const jobUrl = activeApplication.job.applyUrl || activeApplication.job.sourceUrl || "";
@@ -1364,11 +1155,8 @@ export function ApplicationWorkspace({
     userInstruction = "",
   ): Promise<CoverLetterDraftResult> {
     if (!documentsLoaded) throw new Error("Document history is still loading");
-    const selectedSource = profileSources.find(
-      (source) => source.id === selectedCoverSourceId,
-    );
-    if (!selectedSource || !selectedSource.file_name.toLowerCase().endsWith(".docx")) {
-      throw new Error("Select a DOCX cover letter before generating");
+    if (!coverLetterTemplate) {
+      throw new Error("The built-in cover letter template is unavailable");
     }
     if (!applicationReview) {
       throw new Error(isAnalysisOutdated ? "Refresh the outdated analysis before generating documents" : "Run AI Match before generating documents");
@@ -1385,18 +1173,10 @@ export function ApplicationWorkspace({
     if (oversizedConfirmation) {
       throw new Error(`Shorten the highlighted confirmation to ${confirmationAnswerMaxChars.toLocaleString()} characters before generating`);
     }
-    const preflight = coverPreflight;
-    if (preflight.sourceId !== selectedSource.id || preflight.status !== "ready") {
-      throw new Error("Wait for template preflight to finish before generating");
-    }
-    if (!preflight.report?.supported) {
-      throw new Error("Selected DOCX is not supported for safe AI generation");
-    }
-    const targetLanguage = effectiveLanguage || selectedSource.language || "English";
-    const templateId = await ensureSourceTemplate(selectedSource, "cover_letter");
+    const targetLanguage = effectiveLanguage || "English";
     const generationContext = {
       applicationId: activeApplication.id,
-      templateId,
+      templateId: coverLetterTemplate.id,
       documentType: "cover_letter" as const,
     };
     const invokeAssistant = async (prompt: string) => {
@@ -1947,113 +1727,6 @@ export function ApplicationWorkspace({
     }
   }
 
-  async function deleteStoredTemplate(template: DocumentTemplate) {
-    if (!window.confirm(`Delete stored template ${template.name}? Generated DOCX files will remain available.`)) return;
-    setDeletingTemplateId(template.id);
-    setDocumentError("");
-    try {
-      const response = await fetch(`${apiBaseUrl}/documents/templates/${encodeURIComponent(template.id)}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error(await readApiError(response, "Template could not be deleted"));
-      setTemplates((current) => current.filter((item) => item.id !== template.id));
-    } catch (error) {
-      setDocumentError(error instanceof Error ? error.message : "Template could not be deleted");
-    } finally {
-      setDeletingTemplateId("");
-    }
-  }
-
-  async function ensureSourceTemplate(
-    source: ProfileSourceDocument,
-    type: "cover_letter",
-  ) {
-    const templateName = `${source.title} · ${source.uploaded_at || source.id}`.slice(0, 240);
-    const existing = templates.find((template) => template.type === type && template.fileName === source.file_name && template.name === templateName);
-    if (existing) return existing.id;
-    const response = await fetch(`${apiBaseUrl}/documents/templates`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        type,
-        name: templateName,
-        fileName: source.file_name,
-        dataUrl: source.data_url,
-      }),
-    });
-    if (!response.ok) throw new Error(await readApiError(response, "Selected DOCX could not be stored as a Word template"));
-    const uploaded = await response.json() as DocumentTemplate;
-    setTemplates((current) => [uploaded, ...current]);
-    return uploaded.id;
-  }
-
-  async function attachWorkspaceSource(
-    file: File | undefined,
-    category: "Cover Letter",
-  ) {
-    if (!file || !application) return;
-    const lowerName = file.name.toLowerCase();
-    if (!lowerName.endsWith(".docx")) {
-      setDocumentError("CV and cover letter sources must be DOCX files so their design can be preserved");
-      return;
-    }
-    if (file.size > 10_000_000) {
-      setDocumentError("Source document must be under 10 MB");
-      return;
-    }
-    setDocumentError("");
-    try {
-      const dataUrl = await new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Source document reading failed"));
-        reader.onerror = () => reject(new Error("Source document reading failed"));
-        reader.readAsDataURL(file);
-      });
-      const response = await fetch(`${apiBaseUrl}/documents/workspace-sources`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          applicationId: application.id,
-          title: file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " "),
-          category,
-          language: effectiveLanguage || inferSourceLanguage(file.name) || "English",
-          fileName: file.name,
-          dataUrl,
-        }),
-      });
-      if (!response.ok) throw new Error(await readApiError(response, "Source document could not be uploaded"));
-      const source = parseWorkspaceSourceDocument(await response.json() as WorkspaceSourceDocumentPayload);
-      setWorkspaceSources((current) => [source, ...current.filter((item) => item.id !== source.id)]);
-      setSelectedCoverSourceId(source.id);
-      setIsCoverSourceManual(true);
-    } catch (error) {
-      setDocumentError(error instanceof Error ? error.message : "Source document reading failed");
-    }
-  }
-
-  async function deleteWorkspaceSource(source: ProfileSourceDocument) {
-    if (!application || !source.workspace_upload) return;
-    if (!window.confirm(`Delete uploaded source ${source.file_name}?`)) return;
-    setDeletingSourceId(source.id);
-    setDocumentError("");
-    try {
-      const response = await fetch(
-        `${apiBaseUrl}/documents/workspace-sources/${encodeURIComponent(source.id)}?applicationId=${encodeURIComponent(application.id)}`,
-        { method: "DELETE" },
-      );
-      if (!response.ok) throw new Error(await readApiError(response, "Source document could not be deleted"));
-      setWorkspaceSources((current) => current.filter((item) => item.id !== source.id));
-      if (source.id === selectedCoverSourceId) {
-        setSelectedCoverSourceId("");
-        setIsCoverSourceManual(false);
-      }
-    } catch (error) {
-      setDocumentError(error instanceof Error ? error.message : "Source document could not be deleted");
-    } finally {
-      setDeletingSourceId("");
-    }
-  }
-
   function requestAdvice(prompt: string) {
     setAdvicePrompt(prompt);
     setIsLoadingAdvice(false);
@@ -2130,7 +1803,7 @@ export function ApplicationWorkspace({
                   <Button type="button" variant="ghost" disabled={isAnalysisRefreshing} onClick={() => onRefreshAnalysis(activeApplication.id)} className={cn("h-11 rounded-xl border px-3 text-[11px] font-bold", isAnalysisOutdated ? "border-amber-400/30 bg-amber-400/[0.07] text-amber-100 hover:bg-amber-400/10" : "border-white/[0.08] bg-white/[0.025] text-[#dfe5ec] hover:bg-white/[0.06]")}>{isAnalysisRefreshing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{isAnalysisRefreshing ? "Updating…" : isAnalysisOutdated ? "Update analysis" : "Refresh analysis"}</Button>
                   <label className="flex shrink-0 items-center gap-2 rounded-xl border border-white/[0.08] bg-white/[0.025] p-1.5 pl-3">
                     <span className="text-[10px] font-bold text-muted">Language</span>
-                    <select value={languageMode} onChange={(event) => { setLanguageMode(event.target.value as "auto" | "English" | "German"); setIsCoverSourceManual(false); setSelectedCoverSourceId(""); }} className="h-8 rounded-lg border border-white/[0.08] bg-[#151c24] px-2.5 text-[11px] font-bold text-white outline-none focus:border-accent/60">
+                    <select value={languageMode} onChange={(event) => setLanguageMode(event.target.value as "auto" | "English" | "German")} className="h-8 rounded-lg border border-white/[0.08] bg-[#151c24] px-2.5 text-[11px] font-bold text-white outline-none focus:border-accent/60">
                       <option value="auto">Auto · {vacancyLanguage || "Detect"}</option><option value="English">English</option><option value="German">German</option>
                     </select>
                   </label>
@@ -2249,60 +1922,60 @@ export function ApplicationWorkspace({
                 {resumeTailoringProgress ? <ResumeTailoringProgressPanel progress={resumeTailoringProgress} /> : null}
                 {packProgress ? <div className={cn("mb-4 rounded-xl border p-3", packProgress.status === "failed" ? "border-red-400/25 bg-red-500/[0.045]" : packProgress.status === "partial" ? "border-amber-400/25 bg-amber-400/[0.045]" : "border-white/[0.08] bg-black/15")}><div className="grid gap-2 sm:grid-cols-4">{packStageDefinitions.map((stage, index) => { const currentIndex = packStageDefinitions.findIndex((candidate) => candidate.id === packProgress.stage); const stageStatus = index < currentIndex ? "completed" : index === currentIndex ? packProgress.status : "pending"; return <div key={stage.id} className={cn("rounded-lg border px-2.5 py-2", stageStatus === "completed" ? "border-success/20 bg-success/[0.05]" : stageStatus === "failed" ? "border-red-400/25 bg-red-500/[0.06]" : stageStatus === "partial" ? "border-amber-400/25 bg-amber-400/[0.06]" : stageStatus === "active" || stageStatus === "retrying" ? "border-accent/30 bg-accent/[0.07]" : "border-white/[0.06] bg-white/[0.015]")}><div className="flex items-center gap-2">{stageStatus === "completed" ? <Check className="h-3.5 w-3.5 text-success" /> : stageStatus === "active" || stageStatus === "retrying" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin text-accent" /> : stageStatus === "failed" ? <AlertTriangle className="h-3.5 w-3.5 text-red-200" /> : <CircleDot className="h-3.5 w-3.5 text-muted" />}<span className={cn("text-[9px] font-black uppercase tracking-wide", stageStatus === "completed" ? "text-success" : stageStatus === "failed" ? "text-red-200" : stageStatus === "partial" ? "text-amber-200" : stageStatus === "active" || stageStatus === "retrying" ? "text-white" : "text-muted")}>{stage.label}</span></div></div>; })}</div><div className="mt-2 flex items-center justify-between gap-3 px-1 text-[9px]"><span className={cn(packProgress.status === "failed" ? "text-red-200" : packProgress.status === "partial" ? "text-amber-200" : "text-muted")}>{packProgress.message}</span><span className="shrink-0 font-mono text-muted">{packProgress.attempt > 1 ? `attempt ${packProgress.attempt}/3 · ` : ""}{packProgress.jobId.slice(-8)}</span></div></div> : null}
                 {masterResumeLoaded && !currentMasterResume ? <div className="mb-4 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2.5 text-xs leading-5 text-amber-200">Confirm your Master Resume in My Profile before tailoring a vacancy.</div> : null}
-                {templates.length ? <details className="mb-4 rounded-xl border border-white/[0.07] bg-black/15"><summary className="cursor-pointer px-3 py-2.5 text-[10px] font-bold text-[#cbd3df] marker:text-muted">Stored cover-letter templates · {templates.length}</summary><div className="divide-y divide-white/[0.06] border-t border-white/[0.07] px-3">{templates.map((template) => <div key={template.id} className="flex items-center gap-3 py-2"><div className="min-w-0 flex-1"><p className="truncate text-[10px] font-bold text-white">{template.name}</p><p className="truncate text-[9px] text-muted">Cover letter · {template.fileName}</p></div><Button type="button" variant="ghost" aria-label={`Delete template ${template.name}`} disabled={deletingTemplateId === template.id} onClick={() => void deleteStoredTemplate(template)} className="h-8 rounded-lg border border-red-400/20 px-2 text-red-200 hover:bg-red-500/10">{deletingTemplateId === template.id ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <Trash2 className="h-3 w-3" />}</Button></div>)}</div></details> : null}
-                <details className="group mb-4 overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.02]">
-                  <summary className="cursor-pointer list-none px-4 py-4 sm:px-5">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-accent">Document context</p>
-                      <h3 className="mt-1 text-sm font-bold text-white">Personalize your documents</h3>
-                      <p className="mt-1 max-w-3xl text-[11px] leading-5 text-muted">The CV and letter are grounded in verified evidence. Add only details that are true and useful.</p>
-                    </div>
-                    <span className="flex items-center gap-3">{confirmationsDirty ? <span className="text-[9px] text-muted">Saving…</span> : null}<ChevronRight className="h-4 w-4 text-muted transition group-open:rotate-90" /></span>
-                  </div>
-                  </summary>
-                  <div className="grid gap-4 border-t border-white/[0.07] p-4 lg:grid-cols-2 sm:p-5">
-                    <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4">
-                      <p className="text-xs font-bold text-white">Is a recruiter or hiring contact named?</p>
-                      <p className="mt-1 text-[10px] leading-4 text-muted">If yes, provide the full name and the letter will greet that person. Otherwise it will greet the company&apos;s hiring team.</p>
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <button type="button" onClick={() => updateCandidateConfirmation(coverLetterRecipientQuestion, { response: "yes" })} className={cn("h-9 rounded-lg border text-[10px] font-black transition", coverLetterRecipient?.response === "yes" ? "border-success/35 bg-success/10 text-success" : "border-white/[0.08] bg-white/[0.025] text-muted hover:text-white")}>Yes, use their name</button>
-                        <button type="button" onClick={() => updateCandidateConfirmation(coverLetterRecipientQuestion, { response: "no", exampleText: "" })} className={cn("h-9 rounded-lg border text-[10px] font-black transition", coverLetterRecipient?.response === "no" ? "border-white/25 bg-white/[0.08] text-white" : "border-white/[0.08] bg-white/[0.025] text-muted hover:text-white")}>No, greet the team</button>
-                      </div>
-                      {coverLetterRecipient?.response === "yes" ? (
-                        <label className="mt-3 block">
-                          <span className="text-[10px] font-bold text-[#d9e0e8]">Recipient full name</span>
-                          <input
-                            aria-label="Recruiter or hiring contact full name"
-                            value={coverLetterRecipientName}
-                            maxLength={160}
-                            onChange={(event) => updateCandidateConfirmation(coverLetterRecipientQuestion, { response: "yes", exampleText: event.target.value })}
-                            placeholder="First name and last name"
-                            className={cn("mt-1.5 h-10 w-full rounded-xl border bg-[#0b1118] px-3 text-xs text-white outline-none placeholder:text-muted/55", coverLetterNamesComplete ? "border-white/[0.08] focus:border-accent/40" : "border-amber-400/40 focus:border-amber-300")}
-                          />
-                          {!coverLetterNamesComplete ? <span className="mt-1.5 block text-[9px] font-bold text-amber-200">Enter first and last name before generating.</span> : null}
-                        </label>
-                      ) : null}
-                    </div>
-                    <div className="rounded-xl border border-white/[0.07] bg-black/15 p-4">
-                      <p className="text-xs font-bold text-white">Do you know someone at the company?</p>
-                      <p className="mt-1 text-[10px] leading-4 text-muted">If yes, provide the employee&apos;s full name. The letter may mention the genuine contact once without implying a recommendation.</p>
-                      <div className="mt-3 grid grid-cols-2 gap-2">
-                        <button type="button" onClick={() => updateCandidateConfirmation(coverLetterContactQuestion, { response: "yes" })} className={cn("h-9 rounded-lg border text-[10px] font-black transition", coverLetterContact?.response === "yes" ? "border-success/35 bg-success/10 text-success" : "border-white/[0.08] bg-white/[0.025] text-muted hover:text-white")}>Yes, I know someone</button>
-                        <button type="button" onClick={() => updateCandidateConfirmation(coverLetterContactQuestion, { response: "no", exampleText: "" })} className={cn("h-9 rounded-lg border text-[10px] font-black transition", coverLetterContact?.response === "no" ? "border-white/25 bg-white/[0.08] text-white" : "border-white/[0.08] bg-white/[0.025] text-muted hover:text-white")}>No company contact</button>
-                      </div>
-                      {coverLetterContact?.response === "yes" ? <label className="mt-3 block"><span className="text-[10px] font-bold text-[#d9e0e8]">Employee full name</span><input aria-label="Known employee full name" value={coverLetterContactName} maxLength={160} onChange={(event) => updateCandidateConfirmation(coverLetterContactQuestion, { response: "yes", exampleText: event.target.value })} placeholder="First name and last name" className={cn("mt-1.5 h-10 w-full rounded-xl border bg-[#0b1118] px-3 text-xs text-white outline-none placeholder:text-muted/55", coverLetterNamesComplete ? "border-white/[0.08] focus:border-accent/40" : "border-amber-400/40 focus:border-amber-300")} /></label> : null}
-                    </div>
-                    <label className="block rounded-xl border border-white/[0.07] bg-black/15 p-4 lg:col-span-2">
-                      <span className="text-xs font-bold text-white">Anything else to emphasize or avoid?</span>
-                      <span className="mt-1 block text-[10px] leading-4 text-muted">Optional context for both documents: motivation, a proud achievement, reason for changing roles, what to emphasize, or what not to mention.</span>
-                      <textarea aria-label="Additional document context" value={coverLetterAdditionalContext?.exampleText ?? ""} maxLength={confirmationAnswerMaxChars} onChange={(event) => updateCandidateConfirmation(coverLetterAdditionalContextQuestion, { response: event.target.value.trim() ? "yes" : "no", exampleText: event.target.value })} rows={3} placeholder="Example: I am particularly interested in the company’s product; emphasize stakeholder work; do not mention relocation." className="mt-3 w-full resize-y rounded-xl border border-white/[0.08] bg-[#0b1118] px-3 py-2.5 text-xs leading-5 text-white outline-none placeholder:text-muted/55 focus:border-accent/40" />
-                    </label>
-                  </div>
-                </details>
                 <div className="space-y-10">
                   <DocumentCard sectionLabel="Resume document" documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Create and download a tailored CV for this role." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><p className="mt-3 text-[9px] text-muted">Master Resume · {currentMasterResume ? `v${currentMasterResume.version} confirmed` : "required"}</p><ResumeTemplatePicker templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} />
-                  <DocumentCard sectionLabel="Cover letter document" documentType="cover_letter" icon={Mail} label="Cover letter" description="A restrained Swiss-style motivation letter: why this role, relevant proof, and the value you can deliver." document={latestCoverLetter} isOutdated={isCoverLetterOutdated} isGenerating={generationType === "cover_letter"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("cover_letter")} onRestore={(version) => latestCoverLetter && restoreDocumentVersion(latestCoverLetter, version)} onLoadMoreVersions={() => latestCoverLetter && void loadMoreDocumentVersions(latestCoverLetter)} onDelete={() => latestCoverLetter && void deleteGeneratedDocument(latestCoverLetter)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && selectedCoverSourceId && coverPreflightReady && coverLetterNamesComplete && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded ? documentError ? "Retry loading history" : "Loading history…" : !selectedCoverSourceId ? "Select source first" : coverPreflight.status === "checking" ? "Checking template…" : coverPreflight.status === "error" ? "Preflight failed" : !coverPreflight.report?.supported ? "Template unsupported" : !coverLetterNamesComplete ? "Complete contact names" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<SourcePicker label="Source cover letter" sources={coverSources} selectedId={selectedCoverSourceId} preflight={coverPreflight} deletingSourceId={deletingSourceId} onChange={(sourceId) => { setSelectedCoverSourceId(sourceId); setIsCoverSourceManual(Boolean(sourceId)); }} onAttach={(file) => void attachWorkspaceSource(file, "Cover Letter")} onDelete={(source) => void deleteWorkspaceSource(source)} />} />
+                  <DocumentCard
+                    sectionLabel="Cover letter document"
+                    documentType="cover_letter"
+                    icon={Mail}
+                    label="Cover letter"
+                    description="A restrained Swiss-style motivation letter: why this role, relevant proof, and the value you can deliver."
+                    document={latestCoverLetter}
+                    isOutdated={isCoverLetterOutdated}
+                    isGenerating={generationType === "cover_letter"}
+                    restoringVersionKey={restoringVersionKey}
+                    loadingVersionHistoryId={loadingVersionHistoryId}
+                    deletingDocumentId={deletingDocumentId}
+                    onGenerate={() => requestAiGeneration("cover_letter")}
+                    onRestore={(version) => latestCoverLetter && restoreDocumentVersion(latestCoverLetter, version)}
+                    onLoadMoreVersions={() => latestCoverLetter && void loadMoreDocumentVersions(latestCoverLetter)}
+                    onDelete={() => latestCoverLetter && void deleteGeneratedDocument(latestCoverLetter)}
+                    canGenerate={Boolean(!isGeneratingPack && documentsLoaded && coverLetterTemplate && coverLetterNamesComplete && applicationReview && confirmationsReady)}
+                    disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded ? documentError ? "Retry loading history" : "Loading history…" : !coverLetterTemplate ? "Loading template…" : !coverLetterNamesComplete ? "Complete contact names" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"}
+                    sourceControl={(
+                      <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
+                        <p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">Built-in template</p>
+                        <div className="mt-2 flex items-center gap-3 rounded-lg border border-white/[0.08] bg-black/15 px-3 py-3">
+                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-accent/20 bg-accent/10 text-accent"><Mail className="h-4 w-4" /></span>
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-bold text-white">{coverLetterTemplate?.name ?? "Standard cover letter"}</p>
+                            <p className="mt-0.5 text-[9px] leading-4 text-muted">Fixed Swiss-style structure · company details researched automatically · no DOCX upload required</p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    generationControl={(
+                      <label className="mt-3 block rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
+                        <span className="text-[10px] font-bold text-[#d9e0e8]">Recruiter name <span className="font-normal text-muted">(optional)</span></span>
+                        <span className="mt-1 block text-[9px] leading-4 text-muted">Used in the greeting. Leave empty to address the company&apos;s hiring team.</span>
+                        <input
+                          aria-label="Recruiter name"
+                          value={coverLetterRecipientName}
+                          maxLength={160}
+                          onChange={(event) => {
+                            const name = event.target.value;
+                            updateCandidateConfirmation(coverLetterRecipientQuestion, {
+                              response: name.trim() ? "yes" : "no",
+                              exampleText: name,
+                            });
+                          }}
+                          placeholder="First name and last name"
+                          className={cn("mt-2 h-10 w-full rounded-xl border bg-[#0b1118] px-3 text-xs text-white outline-none placeholder:text-muted/55", coverLetterNamesComplete ? "border-white/[0.08] focus:border-accent/40" : "border-amber-400/40 focus:border-amber-300")}
+                        />
+                        {!coverLetterNamesComplete ? <span className="mt-1.5 block text-[9px] font-bold text-amber-200">Enter first and last name or leave the field empty.</span> : null}
+                      </label>
+                    )}
+                  />
                 </div>
                 <details className="group mt-4 overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.018]">
                   <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 text-xs font-bold text-[#dbe2eb] sm:px-5">
@@ -2352,7 +2025,7 @@ export function ApplicationWorkspace({
                     </label>
                     <Button type="button" onClick={applyDocumentChatInstruction} disabled={!documentChatInput.trim() || Boolean(generationType) || isGeneratingPack || !documentsLoaded || !documentChatTargetReady || !applicationReview || !confirmationsReady} className="h-11 shrink-0 rounded-xl bg-accent px-4 text-xs font-bold text-white disabled:opacity-40">{generationType === documentChatTarget ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}Apply instruction</Button>
                   </div>
-                  {!documentChatTargetReady ? <p className="mt-2 text-[9px] font-bold text-amber-200">Select a supported cover letter source and complete the contact names first.</p> : null}
+                  {!documentChatTargetReady ? <p className="mt-2 text-[9px] font-bold text-amber-200">Wait for the built-in cover letter template and complete the contact names first.</p> : null}
                 </div>
                   </div>
                 </details>
@@ -2407,7 +2080,7 @@ export function ApplicationWorkspace({
               <div className="border-b border-white/[0.07] p-5"><div className="flex items-end justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.13em] text-accent">Readiness</p><h2 className="mt-1 text-base font-bold text-white">Before you apply</h2></div><span className="text-2xl font-black text-white">{progress}<span className="text-sm text-muted">%</span></span></div><div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-gradient-to-r from-accent to-[#ff9b55] transition-all" style={{ width: `${progress}%` }} /></div></div>
               <div className="p-4"><div className="space-y-1">{checklist.map((item) => <div key={item.label} className="flex items-center gap-2.5 rounded-lg px-2 py-2"><span className={cn("grid h-5 w-5 place-items-center rounded-full border", item.ready ? "border-success/25 bg-success/10 text-success" : "border-white/10 text-[#687383]")}>{item.ready ? <Check className="h-3 w-3" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}</span><span className={cn("text-[11px] font-semibold", item.ready ? "text-[#e0e5ec]" : "text-muted")}>{item.label}</span><span className="ml-auto text-[8px] font-black uppercase tracking-wide text-[#687383]">{item.ready ? "Ready" : "Missing"}</span></div>)}</div>
                 {activeWorkspaceStep === "create" ? (
-                  <Button onClick={() => requestAiGeneration("pack")} disabled={isGeneratingPack || Boolean(generationType) || !documentsLoaded || !currentMasterResume || !selectedCoverSourceId || !coverPreflightReady || !coverLetterNamesComplete || !applicationReview || !confirmationsReady} className="mt-4 min-h-12 w-full rounded-xl bg-accent px-4 text-xs font-black text-white shadow-[0_12px_28px_rgba(255,90,0,0.18)] hover:bg-[#ff6a14] disabled:opacity-40">{isGeneratingPack ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}{isGeneratingPack ? packStageDefinitions.find((stage) => stage.id === packProgress?.stage)?.label ?? "Generating pack…" : "Generate application pack"}</Button>
+                  <Button onClick={() => requestAiGeneration("pack")} disabled={isGeneratingPack || Boolean(generationType) || !documentsLoaded || !currentMasterResume || !coverLetterTemplate || !coverLetterNamesComplete || !applicationReview || !confirmationsReady} className="mt-4 min-h-12 w-full rounded-xl bg-accent px-4 text-xs font-black text-white shadow-[0_12px_28px_rgba(255,90,0,0.18)] hover:bg-[#ff6a14] disabled:opacity-40">{isGeneratingPack ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}{isGeneratingPack ? packStageDefinitions.find((stage) => stage.id === packProgress?.stage)?.label ?? "Generating pack…" : "Generate application pack"}</Button>
                 ) : activeWorkspaceStep === "final" ? (
                   <Button type="button" onClick={() => setActiveWorkspaceStep("create")} className="mt-4 h-11 w-full rounded-xl bg-accent text-xs font-bold text-white"><FileText className="h-4 w-4" /> Back to documents</Button>
                 ) : (
@@ -2435,10 +2108,10 @@ export function ApplicationWorkspace({
             <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-accent"><ShieldCheck className="h-5 w-5" /></span>
             <div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">AI data disclosure · {aiConfiguration.consentVersion}</p><h2 id="ai-disclosure-title" className="mt-1 text-lg font-bold text-white">Your application context will be sent to {aiConfiguration.providerName}</h2></div>
           </div>
-          <p className="mt-4 text-xs leading-5 text-[#cbd3df]">To tailor your application, Rufina sends the selected source document together with relevant profile details, vacancy text, and your confirmations using {aiConfiguration.providerName}.</p>
+          <p className="mt-4 text-xs leading-5 text-[#cbd3df]">To tailor your application, Rufina sends the built-in document template together with relevant profile details, vacancy text, verified company-header research, and your confirmations using {aiConfiguration.providerName}.</p>
           <div className="mt-4 space-y-2 rounded-xl border border-white/[0.08] bg-black/20 p-4 text-[11px] leading-5 text-muted">
             <p><span className="font-bold text-white">Purpose:</span> provide the AI assistance or generate the application documents you requested.</p>
-            <p><span className="font-bold text-white">Rufina storage:</span> source templates remain until you delete them; AI results are deleted after your selected retention period.</p>
+            <p><span className="font-bold text-white">Rufina storage:</span> the built-in template is maintained by Rufina; AI results are deleted after your selected retention period.</p>
             <p><span className="font-bold text-white">AI provider:</span> {aiConfiguration.providerName}.</p>
             <p><span className="font-bold text-white">Provider retention:</span> processing and retention follow {aiConfiguration.providerName}&apos;s policy.</p>
           </div>
@@ -2473,6 +2146,7 @@ function DocumentCard({
   canGenerate,
   disabledLabel,
   sourceControl,
+  generationControl,
 }: {
   sectionLabel: string;
   documentType: GeneratedDocument["type"];
@@ -2492,6 +2166,7 @@ function DocumentCard({
   canGenerate: boolean;
   disabledLabel: string;
   sourceControl?: React.ReactNode;
+  generationControl?: React.ReactNode;
 }) {
   const content = currentContent(document);
   const currentVersion = document?.versions.find((version) => version.version === document.currentVersion);
@@ -2563,6 +2238,7 @@ function DocumentCard({
       ) : null}
       </div>
       </details>
+      {generationControl}
       <div className="mt-3 flex gap-2">
         <Button type="button" disabled={isGenerating || isRestoringDocument || !canGenerate} onClick={onGenerate} className="h-10 flex-1 rounded-xl bg-accent px-3 text-[11px] font-bold text-white hover:bg-[#ff6a14] disabled:opacity-40">{isGenerating ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : document ? <RefreshCw className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}{isGenerating ? "Generating…" : !canGenerate ? disabledLabel : document ? "Regenerate" : `Generate ${label}`}</Button>
         {document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`} download={documentFileName(document)} onClick={(event) => confirmDocumentDownload(event, readiness.warnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(document)}</a> : null}
@@ -2597,99 +2273,5 @@ function DocumentCard({
         </details>
       ) : null}
     </article>
-  );
-}
-
-function SourcePicker({
-  label,
-  description = "Layout, styles, images, header and footer stay intact.",
-  sources,
-  selectedId,
-  preflight,
-  deletingSourceId,
-  onChange,
-  onAttach,
-  onDelete,
-}: {
-  label: string;
-  description?: string;
-  sources: ProfileSourceDocument[];
-  selectedId: string;
-  preflight: SourcePreflightState;
-  deletingSourceId: string;
-  onChange: (sourceId: string) => void;
-  onAttach: (file: File | undefined) => void;
-  onDelete: (source: ProfileSourceDocument) => void;
-}) {
-  const activePreflight = preflight.sourceId === selectedId ? preflight : undefined;
-  const selectedSource = sources.find((source) => source.id === selectedId);
-  const report = activePreflight?.report;
-  const immutableTypes = report
-    ? [...new Set(report.immutableElements.map((item) => item.type))]
-    : [];
-  return (
-    <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">{label}</p>
-        <label className="inline-flex cursor-pointer items-center gap-1 text-[9px] font-bold text-accent hover:text-white">
-          <Upload className="h-3.5 w-3.5" /> Upload DOCX
-          <input
-            type="file"
-            accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-            className="hidden"
-            onChange={(event) => {
-              onAttach(event.target.files?.[0]);
-              event.currentTarget.value = "";
-            }}
-          />
-        </label>
-      </div>
-      <div className="mt-2 flex items-center gap-2">
-        <select aria-label={label} value={selectedId} onChange={(event) => onChange(event.target.value)} className="h-9 min-w-0 flex-1 rounded-lg border border-white/[0.08] bg-[#111821] px-2.5 text-[10px] font-semibold text-white outline-none focus:border-accent/60">
-          <option value="">Select DOCX source</option>
-          {sources.map((source) => <option key={source.id} value={source.id}>{source.language ? `${source.language} · ` : ""}{source.title} · {source.file_name}</option>)}
-        </select>
-        {selectedSource?.workspace_upload ? (
-          <button type="button" aria-label={`Delete uploaded source ${selectedSource.file_name}`} disabled={Boolean(deletingSourceId)} onClick={() => onDelete(selectedSource)} className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-red-400/20 text-red-200 transition hover:bg-red-500/10 disabled:opacity-40">
-            {deletingSourceId === selectedSource.id ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />}
-          </button>
-        ) : null}
-      </div>
-      <p className="mt-2 text-[9px] leading-4 text-muted">{sources.length ? description : "No DOCX found. Upload one here or add it to Profile."}</p>
-      {activePreflight?.status === "checking" ? (
-        <p className="mt-2 flex items-center gap-1.5 rounded-lg border border-white/[0.08] bg-white/[0.025] px-2.5 py-2 text-[9px] font-bold text-[#cbd3df]" role="status">
-          <LoaderCircle className="h-3 w-3 animate-spin text-accent" /> Checking template capabilities…
-        </p>
-      ) : null}
-      {activePreflight?.status === "error" ? (
-        <p className="mt-2 rounded-lg border border-red-400/25 bg-red-500/[0.06] px-2.5 py-2 text-[9px] leading-4 text-red-200" role="alert">{activePreflight.error}</p>
-      ) : null}
-      {report ? (
-        <details className={cn("mt-2 rounded-lg border", report.supported ? "border-success/20 bg-success/[0.035]" : "border-red-400/25 bg-red-500/[0.045]")}>
-          <summary className={cn("cursor-pointer px-2.5 py-2 text-[9px] font-black uppercase tracking-wide", report.supported ? "text-success" : "text-red-200")}>
-            {report.supported ? `Supported · ${report.editableCount} editable` : "Template unsupported"}
-          </summary>
-          <div className="space-y-2 border-t border-white/[0.07] px-2.5 py-2 text-[9px] leading-4 text-[#b7c0cc]">
-            <p><strong className="text-white">Immutable:</strong> {report.immutableCount ? `${report.immutableCount} element${report.immutableCount === 1 ? "" : "s"}${immutableTypes.length ? ` (${immutableTypes.join(", ")})` : ""}. AI edits targeting them are rejected.` : "none detected"}</p>
-            {report.immutableElements.length ? (
-              <ul className="list-disc space-y-0.5 pl-4 text-muted">
-                {report.immutableElements.slice(0, 4).map((item) => <li key={item.id}><span className="font-bold text-[#dce2ea]">{item.id} · {item.type}</span>{item.text ? ` — ${item.text}` : ""}</li>)}
-              </ul>
-            ) : null}
-            {report.rejectedElements.length ? (
-              <div><p className="font-bold text-red-200">Rejected constructions:</p><ul className="mt-0.5 list-disc space-y-0.5 pl-4 text-red-200/85">{report.rejectedElements.map((item) => <li key={`${item.element}-${item.description}`}>{item.description} ({item.element})</li>)}</ul></div>
-            ) : <p><strong className="text-white">Rejected constructions:</strong> none detected</p>}
-            {report.aiContext ? (
-              <p className={cn("rounded-md border px-2 py-1.5", report.aiContext.truncated ? "border-amber-400/25 bg-amber-400/[0.06] text-amber-100" : "border-white/[0.07] bg-black/15 text-muted")}>
-                <strong className="text-white">AI context:</strong> {report.aiContext.includedCharacters.toLocaleString()} of {report.aiContext.estimatedCharacters.toLocaleString()} characters included
-                {report.aiContext.source ? ` · ${report.aiContext.source.includedElements} of ${report.aiContext.source.totalElements} template elements` : ""}
-                {report.aiContext.truncated ? " · context will be truncated" : " · no truncation"}
-              </p>
-            ) : null}
-            {report.warnings.map((warning) => <p key={warning} className="text-amber-200">{warning}</p>)}
-          </div>
-        </details>
-      ) : null}
-    </div>
   );
 }

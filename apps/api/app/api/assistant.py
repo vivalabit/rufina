@@ -73,6 +73,10 @@ from app.services.generation_context import (
     load_authoritative_generation_context,
 )
 from app.services.document_export import ensure_cover_letter_date_replacement
+from app.services.cover_letter_header_research import (
+    CoverLetterHeaderResearch,
+    research_cover_letter_header,
+)
 from app.services.job_match_store import (
     latest_job_match_record,
     match_record_to_ai_match,
@@ -149,11 +153,14 @@ def begin_generation_artifact(
     prompt: str,
     history: dict[str, object],
     settings: Settings,
+    header_research: CoverLetterHeaderResearch | None = None,
 ) -> DocumentGenerationArtifactRecord:
     provenance = context.provenance()
     now = utc_now()
     artifact_id = str(uuid4())
     snapshot = context.input_snapshot(prompt=prompt)
+    if header_research is not None:
+        snapshot["companyHeaderResearch"] = header_research.as_dict()
     snapshot["assistant"] = {
         "model": (
             settings.openai_api_model
@@ -188,6 +195,23 @@ def begin_generation_artifact(
             "providerName": ai_backend_provider_name(provenance.generation_backend),
         },
     }
+    validation_evidence = context.validation_evidence()
+    if header_research is not None:
+        evidence_catalog = validation_evidence.get("evidenceCatalog")
+        if isinstance(evidence_catalog, list):
+            evidence_catalog.append(
+                {
+                    "id": "confirmation:company-header-research",
+                    "type": "web_research",
+                    "text": "\n".join(
+                        (
+                            header_research.official_name,
+                            header_research.address_line,
+                            header_research.source_url,
+                        )
+                    ),
+                }
+            )
     artifact = DocumentGenerationArtifactRecord(
         id=artifact_id,
         application_id=context.application_id,
@@ -198,7 +222,7 @@ def begin_generation_artifact(
         input_snapshot=snapshot,
         generation_fingerprint=provenance.generation_fingerprint,
         input_versions=input_versions,
-        validation_evidence=context.validation_evidence(),
+        validation_evidence=validation_evidence,
         status="generating",
         result_content=None,
         generation_model=None,
@@ -314,16 +338,41 @@ async def chat_with_assistant(
     )
     history = load_compact_conversation_history(db, request.thread_id, settings)
     generation_artifact = None
+    header_research = None
     if inputs.generation_context is not None:
+        if inputs.generation_context.template.type == "cover_letter":
+            header_research = await asyncio.to_thread(
+                research_cover_letter_header,
+                inputs.generation_context.vacancy,
+            )
         generation_artifact = begin_generation_artifact(
             db,
             context=inputs.generation_context,
             prompt=request.message,
             history=history,
             settings=settings,
+            header_research=header_research,
         )
 
     try:
+        assistant_confirmations = list(inputs.confirmations)
+        if header_research is not None:
+            assistant_confirmations.append(
+                AssistantCandidateConfirmation(
+                    questionId="company-header-research",
+                    requirement="Verified recipient company header",
+                    question="Use these verified official recipient details in the header.",
+                    why="The bundled cover-letter header must contain authoritative company data.",
+                    claimIfConfirmed="The official recipient header was verified online.",
+                    answer="\n".join(
+                        (
+                            f"Official company name: {header_research.official_name}",
+                            f"Full address: {header_research.address_line}",
+                            f"Official source: {header_research.source_url}",
+                        )
+                    ),
+                )
+            )
         run = await generate_assistant_with_facade(
             facade=create_assistant_ai_facade(settings),
             thread_id=request.thread_id,
@@ -334,7 +383,7 @@ async def chat_with_assistant(
             application=inputs.application,
             history=history,
             source_documents=list(inputs.source_documents),
-            candidate_confirmations=list(inputs.confirmations),
+            candidate_confirmations=assistant_confirmations,
             session_scope=uuid4().hex,
         )
         message, session_id, metrics, backend_name = unpack_assistant_run(
@@ -367,11 +416,29 @@ async def chat_with_assistant(
             inputs.generation_context is not None
             and inputs.generation_context.template.type == "cover_letter"
         ):
+            recipient_name = next(
+                (
+                    confirmation.example_text
+                    for confirmation in inputs.generation_context.confirmations
+                    if confirmation.question_id == "cover-letter-recipient-name"
+                    and confirmation.response != "no"
+                ),
+                "",
+            )
             visible_message = ensure_cover_letter_date_replacement(
                 template_content=inputs.generation_context.template.content,
                 content=visible_message,
                 generation_date=inputs.generation_context.generation_date,
                 language=inputs.generation_context.language,
+                vacancy=inputs.generation_context.vacancy,
+                profile=inputs.generation_context.profile,
+                recipient_name=recipient_name,
+                official_company_name=(
+                    header_research.official_name if header_research is not None else ""
+                ),
+                recipient_address_line=(
+                    header_research.address_line if header_research is not None else ""
+                ),
             )
         if generation_artifact is not None:
             complete_generation_artifact(
