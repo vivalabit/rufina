@@ -1331,6 +1331,11 @@ class SeniorRecruiterRedFlag(StrictResumeModel):
 class SeniorRecruiterAnalysis(StrictResumeModel):
     """Strict output of mandatory resume-tailoring request number one."""
 
+    supplemental_evidence: list[ResumeEvidence] = Field(
+        default_factory=list,
+        alias="supplementalEvidence",
+        max_length=20,
+    )
     missing_keywords: list[SeniorRecruiterKeyword] = Field(
         alias="missingKeywords",
         min_length=5,
@@ -1362,6 +1367,7 @@ TailoringTargetJobId = Annotated[
 class SeniorRecruiterAnalysisRequest(StrictResumeModel):
     master_resume_id: ResumeId = Field(alias="masterResumeId")
     target_job_id: TailoringTargetJobId = Field(alias="targetJobId")
+    application_id: CanonicalId | None = Field(default=None, alias="applicationId")
 
 
 class SeniorRecruiterAnalysisMetrics(StrictResumeModel):

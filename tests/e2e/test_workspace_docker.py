@@ -347,9 +347,18 @@ class WorkspaceDockerE2E(unittest.TestCase):
             expect(page.get_by_text("API online")).to_be_visible(timeout=30_000)
             expect(page.get_by_text("Which production workflow did you lead?")).to_be_visible()
 
-            page.get_by_role("button", name="yes", exact=True).click()
-            page.get_by_placeholder("Add a true, concrete example").fill(
+            yes_buttons = page.get_by_role("button", name="yes", exact=True)
+            for index in range(3):
+                yes_buttons.nth(index).click()
+            examples = page.get_by_placeholder("Add a true, concrete example")
+            examples.nth(0).fill(
                 "Led research and delivery for the verified enterprise workflow redesign."
+            )
+            examples.nth(1).fill(
+                "Reduced the number of steps enterprise users needed to finish the workflow."
+            )
+            examples.nth(2).fill(
+                "The role combines complex product discovery with measurable workflow improvement."
             )
             expect(page.get_by_text("Saved", exact=True)).to_be_visible(timeout=30_000)
 
@@ -391,7 +400,10 @@ class WorkspaceDockerE2E(unittest.TestCase):
             confirmations = self.api_request(
                 "GET", f"/applications/{APPLICATION_ID}/confirmations"
             )
-            self.assertEqual(confirmations[0]["questionId"], "production-workflow")
+            self.assertEqual(
+                {item["questionId"] for item in confirmations},
+                {"production-workflow", "workflow-outcome", "product-motivation"},
+            )
 
             documents = self.api_request("GET", f"/documents?applicationId={APPLICATION_ID}")
             self.assertEqual(len(documents), 2)

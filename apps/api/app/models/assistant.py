@@ -58,6 +58,12 @@ class AssistantCandidateConfirmation(BaseModel):
     question_id: str = Field(default="", max_length=160, alias="questionId")
     requirement: str = Field(default="", max_length=500)
     question: str = Field(default="", max_length=1_200)
+    why: str = Field(default="", max_length=500)
+    claim_if_confirmed: str = Field(
+        default="",
+        max_length=500,
+        alias="claimIfConfirmed",
+    )
     answer: str = Field(min_length=1, max_length=1_500)
 
     model_config = {"populate_by_name": True}

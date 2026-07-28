@@ -10,10 +10,12 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base
 from app.api.assistant import assistant_inputs_from_generation_context
+from app.api.resume_tailoring import resume_tailoring_master_resume
 from app.models.applications import CandidateConfirmationRecord, StoredApplicationRecord
 from app.models.documents import DocumentTemplateRecord
 from app.models.jobs import JobMatchRecord, StoredJobRecord
 from app.models.profile import ProfilePayload, ProfileRecord
+from app.models.resume import MasterResume
 from app.services.ai_match import (
     DEFAULT_AI_MATCH_MODEL,
     MATCHER_VERSION,
@@ -204,6 +206,41 @@ def test_loads_complete_authoritative_generation_context() -> None:
             "achievement",
         }
         assert "profile:experience" not in evidence_by_id
+
+
+def test_resume_recruiter_stage_loads_application_confirmation_evidence() -> None:
+    master_resume = MasterResume.model_validate(
+        {
+            "schemaVersion": "1.0",
+            "id": "master-context",
+            "language": "English",
+            "basics": {"fullName": "Alex"},
+            "experiences": [],
+            "skills": [],
+            "education": [],
+            "projects": [],
+            "certifications": [],
+            "languages": [],
+            "additionalSections": [],
+            "evidence": [],
+            "sectionOrder": [],
+        }
+    )
+    with generation_context_session() as db:
+        enriched = resume_tailoring_master_resume(
+            db,
+            master_resume=master_resume,
+            application_id="application-context",
+            target_job_id="job-context",
+        )
+
+    evidence = {
+        item.id: item.text for item in enriched.evidence
+    }
+    assert "confirmation:production-python" in evidence
+    assert "Built two production Python services." in (
+        evidence["confirmation:production-python"]
+    )
 
 
 def test_cover_letter_context_questions_are_always_authoritative() -> None:

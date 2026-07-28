@@ -24,11 +24,13 @@ from app.models.resume import (
 )
 from app.services.ai_backend import AIRequest, AIResult, AIUsage
 from app.services.ai_privacy import require_current_ai_consent
+from app.services.generation_context import AuthoritativeConfirmation
 from app.services.resume_tailoring import (
     SENIOR_RECRUITER_PROMPT_VERSION,
     ResumeTailoringError,
     SeniorRecruiterAnalysisOutcome,
     analyze_resume_as_senior_recruiter,
+    master_resume_with_candidate_confirmations,
 )
 
 
@@ -300,6 +302,106 @@ def test_senior_recruiter_analysis_rejects_unknown_evidence_ids() -> None:
             thinking="high",
             timeout_seconds=120,
         )
+
+
+def test_candidate_confirmations_enter_resume_pipeline_in_recruiter_analysis() -> None:
+    requests: list[AIRequest] = []
+    confirmation = AuthoritativeConfirmation(
+        question_id="production-kubernetes",
+        requirement="Production Kubernetes",
+        question="What Kubernetes workload did you operate in production?",
+        why="This detail can strengthen the CV and cover letter.",
+        claim_if_confirmed="Operated Kubernetes workloads in production.",
+        response="partial",
+        example_text="Maintained deployment manifests and reviewed production incidents.",
+        blocking=True,
+    )
+    master_resume = master_resume_with_candidate_confirmations(
+        MasterResume.model_validate(master_resume_payload("master-resume")),
+        (confirmation,),
+    )
+
+    class FakeBackend:
+        name = "openai_api"
+
+        def generate(self, request: AIRequest) -> AIResult:
+            requests.append(request)
+            return AIResult(
+                text="",
+                structured_data=recruiter_analysis_payload(),
+                model="gpt-5.6-terra",
+                backend="openai_api",
+                usage=AIUsage(),
+                latency_ms=1,
+                session_id="response-confirmation-evidence",
+            )
+
+    outcome = analyze_resume_as_senior_recruiter(
+        master_resume=master_resume,
+        target_job_id="job-platform",
+        vacancy=vacancy_payload(),
+        backend=FakeBackend(),
+        model="gpt-5.6-terra",
+        agent_id="rufina-assistant",
+        thinking="high",
+        timeout_seconds=120,
+    )
+
+    assert "confirmation:production-kubernetes" in requests[0].prompt
+    assert confirmation.example_text in requests[0].prompt
+    assert [
+        evidence.id for evidence in outcome.analysis.supplemental_evidence
+    ] == ["confirmation:production-kubernetes"]
+
+
+def test_resume_confirmation_evidence_excludes_negative_and_contact_answers() -> None:
+    master_resume = MasterResume.model_validate(
+        master_resume_payload("master-resume")
+    )
+    confirmations = (
+        AuthoritativeConfirmation(
+            question_id="missing-skill",
+            requirement="Missing skill",
+            question="Do you have this skill?",
+            why="It affects positioning.",
+            claim_if_confirmed="Has the missing skill.",
+            response="no",
+            example_text="",
+            blocking=True,
+        ),
+        AuthoritativeConfirmation(
+            question_id="cover-letter-recipient-name",
+            requirement="Recipient",
+            question="Who is the recipient?",
+            why="It changes the greeting.",
+            claim_if_confirmed="Has a named recipient.",
+            response="yes",
+            example_text="Grace Hopper",
+            blocking=False,
+        ),
+        AuthoritativeConfirmation(
+            question_id="cover-letter-additional-context",
+            requirement="Additional context",
+            question="What should the documents emphasize?",
+            why="It guides both documents.",
+            claim_if_confirmed="Supplied additional document context.",
+            response="yes",
+            example_text="Emphasize the production migration achievement.",
+            blocking=False,
+        ),
+    )
+
+    enriched = master_resume_with_candidate_confirmations(
+        master_resume,
+        confirmations,
+    )
+
+    assert {
+        evidence.id for evidence in enriched.evidence
+    } == {
+        "profile:python",
+        "confirmation:cover-letter-additional-context",
+    }
 
 
 def test_senior_recruiter_endpoint_persists_result_and_metrics(

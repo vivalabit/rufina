@@ -443,6 +443,17 @@ def test_experience_rewrite_endpoint_loads_stage_one_and_persists_links(
     master_resume = MasterResume.model_validate(
         master_resume_payload(master_resume_id)
     )
+    saved_recruiter_analysis = recruiter_analysis_payload()
+    saved_recruiter_analysis["supplementalEvidence"] = [
+        {
+            "id": "confirmation:production-kubernetes",
+            "type": "confirmation",
+            "text": (
+                "Response: PARTIAL\n"
+                "Candidate detail: Maintained deployment manifests in production."
+            ),
+        }
+    ]
     with api_sessions() as db:
         db.add(
             ResumeMasterRecord(
@@ -470,7 +481,7 @@ def test_experience_rewrite_endpoint_loads_stage_one_and_persists_links(
                 target_job_id="job-platform",
                 vacancy_hash="e" * 64,
                 prompt_version="senior-recruiter-analysis-v1",
-                result=recruiter_analysis_payload(),
+                result=saved_recruiter_analysis,
                 model="gpt-5.6-terra",
                 backend="openai_api",
                 provider_session_id="response-recruiter-1",
@@ -486,7 +497,7 @@ def test_experience_rewrite_endpoint_loads_stage_one_and_persists_links(
     rewrite = ExperienceRewrite.model_validate(
         experience_rewrite_payload(master_resume_id)
     )
-    calls: list[tuple[str, str, str]] = []
+    calls: list[tuple[str, str, str, bool]] = []
 
     class FakeFacade:
         def rewrite_experience_with_xyz(
@@ -501,6 +512,10 @@ def test_experience_rewrite_endpoint_loads_stage_one_and_persists_links(
                     master_resume.id,
                     target_job_id,
                     recruiter_analysis.missing_keywords[0].keyword,
+                    any(
+                        evidence.id == "confirmation:production-kubernetes"
+                        for evidence in master_resume.evidence
+                    ),
                 )
             )
             return ExperienceRewriteOutcome(
@@ -524,7 +539,9 @@ def test_experience_rewrite_endpoint_loads_stage_one_and_persists_links(
 
     assert response.status_code == 200
     body = response.json()
-    assert calls == [(master_resume_id, "job-platform", "Kubernetes")]
+    assert calls == [
+        (master_resume_id, "job-platform", "Kubernetes", True)
+    ]
     assert body["seniorRecruiterAnalysisId"] == recruiter_analysis_id
     assert body["masterResumeId"] == master_resume_id
     assert body["masterResumeVersion"] == 1

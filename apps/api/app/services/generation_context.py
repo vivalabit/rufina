@@ -69,6 +69,8 @@ class ClarificationQuestion:
     question_id: str
     requirement: str
     question: str
+    why: str
+    claim_if_confirmed: str
     blocking: bool
 
 
@@ -77,18 +79,24 @@ SYSTEM_DOCUMENT_QUESTIONS = (
         question_id="cover-letter-recipient-name",
         requirement="Named recruiter or intended hiring contact",
         question="Is a recruiter or intended hiring contact named for this application? If yes, provide their full name.",
+        why="A verified name allows the cover letter to use a specific greeting.",
+        claim_if_confirmed="The application has a named recruiter or hiring contact.",
         blocking=False,
     ),
     ClarificationQuestion(
         question_id="cover-letter-company-contact",
         requirement="Known employee at the hiring company",
         question="Do you know or have you spoken with an employee at this company? If yes, provide their full name.",
+        why="A genuine company contact may add relevant context to the cover letter.",
+        claim_if_confirmed="The candidate knows or has spoken with an employee at the company.",
         blocking=False,
     ),
     ClarificationQuestion(
         question_id="cover-letter-additional-context",
-        requirement="Optional cover-letter context",
-        question="Is there anything else the letter should emphasize or avoid?",
+        requirement="Optional application-document context",
+        question="Is there anything else the CV or cover letter should emphasize or avoid?",
+        why="Additional candidate context can guide both application documents.",
+        claim_if_confirmed="The candidate supplied additional instructions for the application documents.",
         blocking=False,
     ),
 )
@@ -99,6 +107,8 @@ class AuthoritativeConfirmation:
     question_id: str
     requirement: str
     question: str
+    why: str
+    claim_if_confirmed: str
     response: str
     example_text: str
     blocking: bool
@@ -263,6 +273,8 @@ class AuthoritativeGenerationContext(AuthoritativeApplicationGenerationContext):
                     for value in (
                         confirmation.requirement,
                         confirmation.question,
+                        f"Response: {confirmation.response.upper()}",
+                        confirmation.claim_if_confirmed,
                         confirmation.example_text,
                     )
                     if value.strip()
@@ -391,6 +403,8 @@ def load_authoritative_application_generation_context(
                 question_id=question.question_id,
                 requirement=question.requirement,
                 question=question.question,
+                why=question.why,
+                claim_if_confirmed=question.claim_if_confirmed,
                 response=record.response,
                 example_text=record.example_text.strip(),
                 blocking=question.blocking,
@@ -520,6 +534,10 @@ def clarification_questions(
         question_id = str(raw_question.get("id") or "").strip()
         question_text = str(raw_question.get("question") or "").strip()
         requirement = str(raw_question.get("requirement") or question_text).strip()[:500]
+        why = str(raw_question.get("why") or "").strip()[:500]
+        claim_if_confirmed = str(
+            raw_question.get("claimIfConfirmed") or ""
+        ).strip()[:500]
         if not question_id or not requirement:
             continue
         if question_id in system_question_ids:
@@ -534,6 +552,8 @@ def clarification_questions(
                 question_id=question_id,
                 requirement=requirement,
                 question=question_text,
+                why=why,
+                claim_if_confirmed=claim_if_confirmed,
                 blocking=bool(raw_question.get("blocking")),
             )
         )

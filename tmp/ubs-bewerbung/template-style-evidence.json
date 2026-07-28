@@ -1,0 +1,69 @@
+{
+  "input": "/Users/eduardishchenko/Main/Swiss Career/Intership/DE/Motivationschreiben_Ishchenko.docx",
+  "fonts_by_char_count": {
+    "Times New Roman": 149
+  },
+  "direct_run_formatting_runs": 38,
+  "direct_paragraph_formatting_paragraphs": 9,
+  "heading_like_paragraphs_not_heading_style": [],
+  "examples": {
+    "direct_paragraph_formatting": [
+      {
+        "para_index": 1,
+        "text": "Unternehmen Name\nRecruiter Name \nStrasse, Nummmer\nPostzahl, Stadt\nSchweiz",
+        "style": "Normal"
+      },
+      {
+        "para_index": 2,
+        "text": "M\u00e4nnedorf, Datum",
+        "style": "Normal"
+      },
+      {
+        "para_index": 8,
+        "text": "Eduard Ishchenko",
+        "style": "Normal"
+      },
+      {
+        "para_index": 9,
+        "text": "+41 79 516 84 31",
+        "style": "Normal"
+      },
+      {
+        "para_index": 10,
+        "text": "eduard.ishchenko.m@gmail.com",
+        "style": "Normal"
+      }
+    ],
+    "direct_run_formatting": [
+      {
+        "para_index": 1,
+        "run_text": "Unternehmen",
+        "style": "Normal"
+      },
+      {
+        "para_index": 1,
+        "run_text": " Name",
+        "style": "Normal"
+      },
+      {
+        "para_index": 1,
+        "run_text": "\nRecruiter Name ",
+        "style": "Normal"
+      },
+      {
+        "para_index": 1,
+        "run_text": "\nStr",
+        "style": "Normal"
+      },
+      {
+        "para_index": 1,
+        "run_text": "asse",
+        "style": "Normal"
+      }
+    ]
+  },
+  "notes": [
+    "Direct formatting is not always wrong, but it often causes inconsistent output when templates change.",
+    "Heading-like paragraphs not using Heading styles can break TOC and accessibility."
+  ]
+}

@@ -62,7 +62,32 @@ def valid_application_guide() -> dict[str, object]:
                 "sourceIds": ["profile:skills"],
             }
         ],
-        "clarificationQuestions": [],
+        "clarificationQuestions": [
+            {
+                "id": "strongest-outcome",
+                "requirement": "Role-relevant outcome",
+                "question": "Which role-relevant outcome should the application emphasize?",
+                "why": "A concrete outcome can strengthen both application documents.",
+                "claimIfConfirmed": "Delivered a role-relevant outcome.",
+                "blocking": True,
+            },
+            {
+                "id": "technical-scope",
+                "requirement": "Technical scope",
+                "question": "What technical scope best demonstrates your fit for this role?",
+                "why": "Specific scope can improve resume evidence and cover-letter proof.",
+                "claimIfConfirmed": "Owned relevant technical scope.",
+                "blocking": True,
+            },
+            {
+                "id": "role-motivation",
+                "requirement": "Role motivation",
+                "question": "What specific aspect of this role motivates you?",
+                "why": "Specific motivation improves the cover letter and resume positioning.",
+                "claimIfConfirmed": "Has a specific motivation for the target role.",
+                "blocking": True,
+            },
+        ],
         "resumePlan": {
             "targetHeadline": "Python Engineer",
             "summaryFocus": "Verified production delivery.",
@@ -191,7 +216,23 @@ def install_openclaw_fakes(monkeypatch: pytest.MonkeyPatch) -> None:
                                 "why": "This is a core responsibility.",
                                 "claimIfConfirmed": "Deployed an ML model to production.",
                                 "blocking": True,
-                            }
+                            },
+                            {
+                                "id": "ml-outcome",
+                                "requirement": "Machine learning outcome",
+                                "question": "What measurable outcome came from your strongest ML project?",
+                                "why": "A concrete outcome strengthens both application documents.",
+                                "claimIfConfirmed": "Delivered a measurable machine learning outcome.",
+                                "blocking": True,
+                            },
+                            {
+                                "id": "ml-motivation",
+                                "requirement": "Role motivation",
+                                "question": "What specifically motivates you about this ML role?",
+                                "why": "Specific motivation improves the cover letter.",
+                                "claimIfConfirmed": "Has a specific motivation for the target ML role.",
+                                "blocking": True,
+                            },
                         ],
                         "resumePlan": {
                             "targetHeadline": "Machine Learning Engineer",
@@ -510,6 +551,36 @@ def test_strict_ai_match_schema_forbids_extra_fields_and_inconsistent_ready_stat
     with pytest.raises(OpenClawAiMatchError, match="ready analysis cannot contain unresolved"):
         ai_match_service.validate_openclaw_result(
             inconsistent_result,
+            {"id": "job-strict"},
+        )
+
+
+def test_ai_match_requires_three_blocking_document_improvement_questions() -> None:
+    too_few = valid_match_result()
+    guide = too_few["applicationGuide"]
+    assert isinstance(guide, dict)
+    questions = guide["clarificationQuestions"]
+    assert isinstance(questions, list)
+    questions.pop()
+    with pytest.raises(OpenClawAiMatchError, match="at least 3 items"):
+        ai_match_service.validate_openclaw_result(
+            too_few,
+            {"id": "job-strict"},
+        )
+
+    optional_question = valid_match_result()
+    optional_guide = optional_question["applicationGuide"]
+    assert isinstance(optional_guide, dict)
+    optional_questions = optional_guide["clarificationQuestions"]
+    assert isinstance(optional_questions, list)
+    assert isinstance(optional_questions[0], dict)
+    optional_questions[0]["blocking"] = False
+    with pytest.raises(
+        OpenClawAiMatchError,
+        match="all document improvement questions must be blocking",
+    ):
+        ai_match_service.validate_openclaw_result(
+            optional_question,
             {"id": "job-strict"},
         )
 

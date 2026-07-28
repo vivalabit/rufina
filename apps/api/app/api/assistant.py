@@ -1188,6 +1188,8 @@ def load_saved_assistant_confirmations(
                 questionId=question.question_id,
                 requirement=question.requirement,
                 question=question.question,
+                why=question.why,
+                claimIfConfirmed=question.claim_if_confirmed,
                 answer=(
                     record.response.upper()
                     + (f": {record.example_text.strip()}" if record.example_text.strip() else "")

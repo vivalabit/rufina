@@ -1,3 +1,4 @@
+from dataclasses import replace
 from datetime import UTC, datetime
 
 from sqlalchemy import select
@@ -29,15 +30,23 @@ from app.models.resume import (
     SeniorRecruiterAnalysisResponse,
 )
 from app.services.ai_privacy import require_current_ai_consent
+from app.services.generation_context import (
+    GenerationContextError,
+    load_authoritative_application_generation_context,
+)
 from app.services.resume_tailoring import (
     ATS_FINAL_REVIEW_PROMPT_VERSION,
     EXPERIENCE_REWRITE_PROMPT_VERSION,
     SENIOR_RECRUITER_PROMPT_VERSION,
     ResumeTailoringError,
     create_resume_tailoring_ai_facade,
+    master_resume_with_candidate_confirmations,
+    master_resume_with_supplemental_evidence,
     persist_ats_final_review,
     persist_experience_rewrite,
     persist_senior_recruiter_analysis,
+    recruiter_analysis_with_supplemental_evidence,
+    senior_recruiter_analysis_payload,
 )
 from app.services.resume_tailoring_runs import (
     ATS_FINAL_REVIEW_REQUEST_TYPE,
@@ -72,6 +81,36 @@ from app.services.resume_pdf_artifacts import (
 )
 from app.services.resume_template_registry import is_bundled_resume_template_id
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
+
+
+def resume_tailoring_master_resume(
+    db: Session,
+    *,
+    master_resume: MasterResume,
+    application_id: str | None,
+    target_job_id: str,
+) -> MasterResume:
+    if application_id is None:
+        return master_resume
+    try:
+        context = load_authoritative_application_generation_context(
+            db,
+            application_id=application_id,
+        )
+    except GenerationContextError as exc:
+        raise HTTPException(
+            status_code=exc.status_code,
+            detail=str(exc),
+        ) from exc
+    if context.job_id != target_job_id:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Resume tailoring application does not match the target vacancy",
+        )
+    return master_resume_with_candidate_confirmations(
+        master_resume,
+        context.confirmations,
+    )
 
 
 @router.post(
@@ -120,7 +159,12 @@ def run_senior_recruiter_analysis(
                 detail="Target job not found",
             )
 
-        master_resume = MasterResume.model_validate(master_version.data)
+        master_resume = resume_tailoring_master_resume(
+            db,
+            master_resume=MasterResume.model_validate(master_version.data),
+            application_id=payload.application_id,
+            target_job_id=job.id,
+        )
         stage_attempt = begin_first_stage(
             db,
             resume_master_id=master.id,
@@ -131,9 +175,13 @@ def run_senior_recruiter_analysis(
                 {
                     "promptVersion": SENIOR_RECRUITER_PROMPT_VERSION,
                     "masterResumeVersionId": master_version.id,
-                    "masterResume": master_version.data,
+                    "masterResume": master_resume.model_dump(
+                        by_alias=True,
+                        exclude_none=True,
+                    ),
                     "targetJobId": job.id,
                     "vacancy": job.data,
+                    "applicationId": payload.application_id,
                 },
             ),
             model=configured_tailoring_model(settings),
@@ -146,6 +194,13 @@ def run_senior_recruiter_analysis(
             target_job_id=job.id,
             vacancy=job.data,
         )
+        outcome = replace(
+            outcome,
+            analysis=recruiter_analysis_with_supplemental_evidence(
+                outcome.analysis,
+                master_resume,
+            ),
+        )
         response = persist_senior_recruiter_analysis(
             db,
             master_version=master_version,
@@ -155,9 +210,8 @@ def run_senior_recruiter_analysis(
         complete_stage_attempt(
             db,
             attempt=stage_attempt,
-            structured_output=outcome.analysis.model_dump(
-                by_alias=True,
-                exclude_none=True,
+            structured_output=senior_recruiter_analysis_payload(
+                outcome.analysis,
             ),
             result=outcome.result,
             output_record_id=response.id,
@@ -238,6 +292,10 @@ def run_xyz_experience_rewrite(
         saved_analysis = SeniorRecruiterAnalysis.model_validate(
             recruiter_analysis.result
         )
+        master_resume = master_resume_with_supplemental_evidence(
+            master_resume,
+            saved_analysis.supplemental_evidence,
+        )
         stage_attempt = begin_next_stage(
             db,
             previous_output_record_id=recruiter_analysis.id,
@@ -248,7 +306,10 @@ def run_xyz_experience_rewrite(
                 {
                     "promptVersion": EXPERIENCE_REWRITE_PROMPT_VERSION,
                     "masterResumeVersionId": master_version.id,
-                    "masterResume": master_version.data,
+                    "masterResume": master_resume.model_dump(
+                        by_alias=True,
+                        exclude_none=True,
+                    ),
                     "targetJobId": recruiter_analysis.target_job_id,
                     "recruiterAnalysisId": recruiter_analysis.id,
                     "recruiterAnalysis": recruiter_analysis.result,
@@ -365,6 +426,10 @@ def run_ats_final_review(
         saved_analysis = SeniorRecruiterAnalysis.model_validate(
             recruiter_analysis.result
         )
+        master_resume = master_resume_with_supplemental_evidence(
+            master_resume,
+            saved_analysis.supplemental_evidence,
+        )
         stage_attempt = begin_next_stage(
             db,
             previous_output_record_id=experience_rewrite.id,
@@ -375,7 +440,10 @@ def run_ats_final_review(
                 {
                     "promptVersion": ATS_FINAL_REVIEW_PROMPT_VERSION,
                     "masterResumeVersionId": master_version.id,
-                    "masterResume": master_version.data,
+                    "masterResume": master_resume.model_dump(
+                        by_alias=True,
+                        exclude_none=True,
+                    ),
                     "targetJobId": experience_rewrite.target_job_id,
                     "recruiterAnalysisId": recruiter_analysis.id,
                     "recruiterAnalysis": recruiter_analysis.result,

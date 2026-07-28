@@ -455,10 +455,10 @@ const coverLetterContactQuestion = {
 } satisfies NonNullable<ApplicationGuide["clarificationQuestions"]>[number];
 const coverLetterAdditionalContextQuestion = {
   id: "cover-letter-additional-context",
-  requirement: "Optional cover-letter context",
-  question: "Is there anything else the letter should emphasize or avoid?",
-  why: "Optional context can make the letter more personal without changing the verified resume facts.",
-  claimIfConfirmed: "The candidate supplied additional instructions for the cover letter.",
+  requirement: "Optional application-document context",
+  question: "Is there anything else the CV or cover letter should emphasize or avoid?",
+  why: "Optional context can improve both documents without changing verified facts.",
+  claimIfConfirmed: "The candidate supplied additional instructions for the application documents.",
   blocking: false,
 } satisfies NonNullable<ApplicationGuide["clarificationQuestions"]>[number];
 const coverLetterContextQuestions = [
@@ -1012,6 +1012,13 @@ export function ApplicationWorkspace({
     () => [...applicationClarificationQuestions, ...coverLetterContextQuestions],
     [applicationClarificationQuestions],
   );
+  const resumeRelevantConfirmationIds = useMemo(
+    () => new Set([
+      ...applicationClarificationQuestions.map((question) => question.id),
+      coverLetterAdditionalContextQuestion.id,
+    ]),
+    [applicationClarificationQuestions],
+  );
   const unansweredBlockingQuestions = clarificationQuestions.filter(
     (question) => question.blocking && !isCandidateConfirmationComplete(question, candidateConfirmations[question.id]),
   );
@@ -1247,10 +1254,26 @@ export function ApplicationWorkspace({
     && !confirmationsDirty
     && confirmationSyncStatus === "saved";
   const analysisRequiredLabel = isAnalysisOutdated ? "Refresh analysis first" : "AI Match required";
-  const isResumeOutdated = Boolean(latestResume && isGeneratedDocumentOutdated(
-    latestResume.generationFingerprint,
-    latestResume.currentGenerationFingerprint,
-  ));
+  const hasNewerResumeConfirmation = Boolean(
+    latestResume
+    && Object.values(candidateConfirmations).some((confirmation) => (
+      resumeRelevantConfirmationIds.has(confirmation.questionId)
+      &&
+      confirmation.updatedAt
+      && new Date(confirmation.updatedAt).getTime()
+        > new Date(latestResume.updatedAt).getTime()
+    )),
+  );
+  const isResumeOutdated = Boolean(
+    latestResume
+    && (
+      isGeneratedDocumentOutdated(
+        latestResume.generationFingerprint,
+        latestResume.currentGenerationFingerprint,
+      )
+      || hasNewerResumeConfirmation
+    ),
+  );
   const isCoverLetterOutdated = Boolean(latestCoverLetter && isGeneratedDocumentOutdated(
     latestCoverLetter.generationFingerprint,
     latestCoverLetter.currentGenerationFingerprint,
@@ -1557,6 +1580,7 @@ export function ApplicationWorkspace({
         {
           masterResumeId: currentMasterResume.masterResumeId,
           targetJobId: activeApplication.job.id,
+          applicationId: activeApplication.id,
         },
         "Senior recruiter analysis failed",
       );
@@ -2198,7 +2222,7 @@ export function ApplicationWorkspace({
             <section className={cn("workspace-card overflow-hidden", !confirmationsReady && "border-amber-300/20")}>
               <div className="flex items-start gap-3 border-b border-white/[0.07] px-5 py-5 sm:px-6">
                 <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", !confirmationsReady ? "bg-amber-400/10 text-amber-200" : "bg-success/10 text-success")}><MessageSquareText className="h-[18px] w-[18px]" /></span>
-                <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">02 · Confirm your evidence</p><h2 className="mt-1 text-lg font-bold text-white">Keep every claim accurate</h2><p className="mt-1 text-xs leading-5 text-muted">Choose yes, no, or partial and support positive answers with a concrete example.</p></div>
+                <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">02 · Improve your documents</p><h2 className="mt-1 text-lg font-bold text-white">Add your top three missing details</h2><p className="mt-1 text-xs leading-5 text-muted">These answers are used in both the tailored CV and cover letter. Choose yes, no, or partial and support positive answers with a concrete example.</p></div>
               </div>
               <div className="p-5 sm:p-6">
                 {confirmationSyncMessage ? <div className={cn("mb-4 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-[10px] leading-4", confirmationSyncStatus === "error" ? "border-red-400/25 bg-red-500/[0.07] text-red-200" : "border-amber-400/20 bg-amber-400/[0.05] text-amber-100/80")}><span>{confirmationSyncMessage}</span>{confirmationSyncStatus === "error" ? <button type="button" onClick={retryApiRequests} className="inline-flex shrink-0 items-center gap-1 font-bold text-red-100 hover:text-white"><RefreshCw className="h-3 w-3" /> Retry</button> : null}</div> : null}
@@ -2230,9 +2254,9 @@ export function ApplicationWorkspace({
                   <summary className="cursor-pointer list-none px-4 py-4 sm:px-5">
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <div>
-                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-accent">Cover letter context</p>
-                      <h3 className="mt-1 text-sm font-bold text-white">Personalize cover letter</h3>
-                      <p className="mt-1 max-w-3xl text-[11px] leading-5 text-muted">The letter is grounded in the resume and vacancy. Add only details that are true and useful.</p>
+                      <p className="text-[10px] font-black uppercase tracking-[0.12em] text-accent">Document context</p>
+                      <h3 className="mt-1 text-sm font-bold text-white">Personalize your documents</h3>
+                      <p className="mt-1 max-w-3xl text-[11px] leading-5 text-muted">The CV and letter are grounded in verified evidence. Add only details that are true and useful.</p>
                     </div>
                     <span className="flex items-center gap-3">{confirmationsDirty ? <span className="text-[9px] text-muted">Saving…</span> : null}<ChevronRight className="h-4 w-4 text-muted transition group-open:rotate-90" /></span>
                   </div>
@@ -2271,8 +2295,8 @@ export function ApplicationWorkspace({
                     </div>
                     <label className="block rounded-xl border border-white/[0.07] bg-black/15 p-4 lg:col-span-2">
                       <span className="text-xs font-bold text-white">Anything else to emphasize or avoid?</span>
-                      <span className="mt-1 block text-[10px] leading-4 text-muted">Optional: motivation, a proud achievement, reason for changing roles, what to emphasize, or what not to mention.</span>
-                      <textarea aria-label="Additional cover letter context" value={coverLetterAdditionalContext?.exampleText ?? ""} maxLength={confirmationAnswerMaxChars} onChange={(event) => updateCandidateConfirmation(coverLetterAdditionalContextQuestion, { response: event.target.value.trim() ? "yes" : "no", exampleText: event.target.value })} rows={3} placeholder="Example: I am particularly interested in the company’s product; emphasize stakeholder work; do not mention relocation." className="mt-3 w-full resize-y rounded-xl border border-white/[0.08] bg-[#0b1118] px-3 py-2.5 text-xs leading-5 text-white outline-none placeholder:text-muted/55 focus:border-accent/40" />
+                      <span className="mt-1 block text-[10px] leading-4 text-muted">Optional context for both documents: motivation, a proud achievement, reason for changing roles, what to emphasize, or what not to mention.</span>
+                      <textarea aria-label="Additional document context" value={coverLetterAdditionalContext?.exampleText ?? ""} maxLength={confirmationAnswerMaxChars} onChange={(event) => updateCandidateConfirmation(coverLetterAdditionalContextQuestion, { response: event.target.value.trim() ? "yes" : "no", exampleText: event.target.value })} rows={3} placeholder="Example: I am particularly interested in the company’s product; emphasize stakeholder work; do not mention relocation." className="mt-3 w-full resize-y rounded-xl border border-white/[0.08] bg-[#0b1118] px-3 py-2.5 text-xs leading-5 text-white outline-none placeholder:text-muted/55 focus:border-accent/40" />
                     </label>
                   </div>
                 </details>

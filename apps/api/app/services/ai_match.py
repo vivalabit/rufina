@@ -29,7 +29,7 @@ from app.services.resume_import import (
 )
 
 MATCHER_VERSION = "ai-match-v3"
-MATCH_PROMPT_VERSION = "ai-match-prompt-v5"
+MATCH_PROMPT_VERSION = "ai-match-prompt-v6"
 DEFAULT_AI_MATCH_MODEL = "openai/gpt-5.6-terra"
 DEFAULT_AI_MATCH_MAX_ATTEMPTS = 2
 MAX_AI_MATCH_TEXT_LENGTH = 500
@@ -212,6 +212,7 @@ class AiMatchApplicationGuide(StrictAiMatchModel):
     evidence_matrix: list[AiMatchEvidence] = Field(alias="evidenceMatrix", min_length=1, max_length=MAX_EVIDENCE_MATRIX_COUNT)
     clarification_questions: list[AiMatchClarificationQuestion] = Field(
         alias="clarificationQuestions",
+        min_length=MAX_CLARIFICATION_QUESTION_COUNT,
         max_length=MAX_CLARIFICATION_QUESTION_COUNT,
     )
     resume_plan: AiMatchResumePlan = Field(alias="resumePlan")
@@ -233,15 +234,14 @@ class AiMatchApplicationGuide(StrictAiMatchModel):
             evidence.status in {"needs_confirmation", "missing"}
             for evidence in self.evidence_matrix
         )
-        has_questions = bool(self.clarification_questions)
-        if self.readiness == "ready" and (unresolved or has_questions):
-            raise ValueError("ready analysis cannot contain unresolved evidence or questions")
-        if self.readiness == "needs_confirmation" and not (unresolved and has_questions):
+        if not all(question.blocking for question in self.clarification_questions):
+            raise ValueError("all document improvement questions must be blocking")
+        if self.readiness == "ready" and unresolved:
+            raise ValueError("ready analysis cannot contain unresolved evidence")
+        if self.readiness == "needs_confirmation" and not unresolved:
             raise ValueError(
-                "needs_confirmation requires unresolved evidence and a clarification question"
+                "needs_confirmation requires unresolved evidence"
             )
-        if self.readiness == "weak_fit" and has_questions:
-            raise ValueError("weak_fit analysis cannot contain clarification questions")
         return self
 
 
@@ -722,7 +722,7 @@ def build_openclaw_ai_match_prompt(
         '"evidence":"exact source excerpt or empty string","action":"honest application action",'
         '"sourceIds":["exact candidateEvidenceSources id"]}],'
         '"clarificationQuestions":[{"id":"stable short id","requirement":"skill or requirement",'
-        '"question":"specific question asking for a real example","why":"why the answer changes the application",'
+        '"question":"one focused question asking for useful missing detail","why":"how the answer improves the CV and/or cover letter",'
         '"claimIfConfirmed":"exact claim that may be used only after confirmation","blocking":true}],'
         '"resumePlan":{"targetHeadline":"truthful target headline","summaryFocus":"one sentence",'
         '"evidenceToLead":["max 4 verified proof points"],"bulletStrategy":["max 4 concrete rewrites"]},'
@@ -738,7 +738,14 @@ def build_openclaw_ai_match_prompt(
         "Use needs_confirmation only when the requirement matters and the candidate plausibly may have "
         "the skill, but the provided evidence is insufficient. For example, if a data role requires Excel "
         "and the profile mentions reporting but not Excel, ask which concrete Excel features were used. "
-        "Ask at most three high-impact clarification questions; never ask for facts already present. "
+        "Always return exactly three ranked, blocking clarificationQuestions whose truthful answers would "
+        "most improve the tailored CV, the cover letter, or both. Questions may close an important evidence "
+        "gap or strengthen existing evidence with a concrete project, scope, outcome, metric, technology, "
+        "responsibility, motivation, or transferable example. Prefer details that can become strong, "
+        "specific document content. Ask one thing per question; never combine eligibility, availability, "
+        "skills, or examples in a multi-part question. Never ask for a fact already present, generic "
+        "self-assessment, or information that cannot improve either document. Set blocking=true for all "
+        "three questions. Rank the highest-impact question first. "
         "Detect whether each vacancy is written primarily in English or German. Write every applicationGuide "
         "value in that vacancy language. Make all advice specific enough to reuse directly when tailoring the candidate's CV and "
         "cover letter. Creativity is allowed in positioning and wording, never in facts. Never suggest an "
@@ -747,10 +754,11 @@ def build_openclaw_ai_match_prompt(
         "For verified or transferable evidence, copy an exact excerpt from candidateEvidenceSources "
         "into evidence and cite its exact id in sourceIds. Use an empty sourceIds list for "
         "needs_confirmation and missing. Never mark evidence verified from the vacancy text alone.\n"
-        "Set readiness=ready only when every evidenceMatrix item is verified or transferable and "
-        "clarificationQuestions is empty. Set readiness=needs_confirmation only when unresolved "
-        "evidence and at least one clarification question are both present. Set readiness=weak_fit "
-        "without clarification questions.\n"
+        "Set readiness=ready only when every evidenceMatrix item is verified or transferable. "
+        "Set readiness=needs_confirmation when important evidence remains unresolved. Set "
+        "readiness=weak_fit when the verified fit is too weak to recommend normal tailoring. "
+        "The three document-improvement questions are required for every readiness value and do not by "
+        "themselves determine readiness.\n"
         f"Input JSON:\n{payload}"
     )
 

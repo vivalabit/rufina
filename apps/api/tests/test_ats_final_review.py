@@ -505,6 +505,17 @@ def test_ats_final_review_endpoint_loads_stage_two_and_persists_render_input(
         master_resume_payload(master_resume_id)
     )
     rewrite_payload = experience_rewrite_payload(master_resume_id)
+    saved_recruiter_analysis = recruiter_analysis_payload()
+    saved_recruiter_analysis["supplementalEvidence"] = [
+        {
+            "id": "confirmation:production-kubernetes",
+            "type": "confirmation",
+            "text": (
+                "Response: PARTIAL\n"
+                "Candidate detail: Maintained deployment manifests in production."
+            ),
+        }
+    ]
     with api_sessions() as db:
         db.add(
             ResumeMasterRecord(
@@ -532,7 +543,7 @@ def test_ats_final_review_endpoint_loads_stage_two_and_persists_render_input(
                 target_job_id="job-platform",
                 vacancy_hash="f" * 64,
                 prompt_version="senior-recruiter-analysis-v1",
-                result=recruiter_analysis_payload(),
+                result=saved_recruiter_analysis,
                 model="gpt-5.6-terra",
                 backend="openai_api",
                 provider_session_id="response-recruiter-1",
@@ -572,7 +583,7 @@ def test_ats_final_review_endpoint_loads_stage_two_and_persists_render_input(
     review = AtsFinalReview.model_validate(
         final_review_payload(master_resume_id)
     )
-    calls: list[tuple[str, str, str]] = []
+    calls: list[tuple[str, str, str, bool]] = []
 
     class FakeFacade:
         def review_final_resume_for_ats(
@@ -588,6 +599,10 @@ def test_ats_final_review_endpoint_loads_stage_two_and_persists_render_input(
                     master_resume.id,
                     target_job_id,
                     experience_rewrite.experiences[0].bullets[0].text,
+                    any(
+                        evidence.id == "confirmation:production-kubernetes"
+                        for evidence in master_resume.evidence
+                    ),
                 )
             )
             return AtsFinalReviewOutcome(
@@ -614,6 +629,7 @@ def test_ats_final_review_endpoint_loads_stage_two_and_persists_render_input(
     body = response.json()
     assert calls[0][:2] == (master_resume_id, "job-platform")
     assert calls[0][2].startswith("Increased deployment throughput by 40%")
+    assert calls[0][3] is True
     assert body["experienceRewriteId"] == rewrite_id
     assert body["atsScan"]["skippedSections"][0]["section"] == "summary"
     assert body["finalResume"] == final_review_payload(master_resume_id)[

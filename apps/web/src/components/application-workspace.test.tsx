@@ -273,6 +273,7 @@ describe("ApplicationWorkspace", () => {
           expect(JSON.parse(String(init?.body))).toEqual({
             masterResumeId: "master-resume-1",
             targetJobId: "job-product-designer",
+            applicationId: "application-v3",
           });
           return Response.json({ id: "recruiter-analysis-1" });
         }

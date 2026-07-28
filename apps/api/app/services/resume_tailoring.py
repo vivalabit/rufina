@@ -23,6 +23,7 @@ from app.models.resume import (
     FinalResume,
     MasterExperience,
     MasterResume,
+    ResumeEvidence,
     ResumeMasterVersionRecord,
     SeniorRecruiterAnalysis,
     SeniorRecruiterAnalysisMetrics,
@@ -36,18 +37,129 @@ from app.services.ai_backend import (
     AIResult,
     create_configured_ai_backend,
 )
+from app.services.generation_context import AuthoritativeConfirmation
 
 
-SENIOR_RECRUITER_PROMPT_VERSION = "senior-recruiter-analysis-v1"
-EXPERIENCE_REWRITE_PROMPT_VERSION = "xyz-experience-rewrite-v1"
-ATS_FINAL_REVIEW_PROMPT_VERSION = "ats-final-review-v1"
+SENIOR_RECRUITER_PROMPT_VERSION = "senior-recruiter-analysis-v2"
+EXPERIENCE_REWRITE_PROMPT_VERSION = "xyz-experience-rewrite-v2"
+ATS_FINAL_REVIEW_PROMPT_VERSION = "ats-final-review-v2"
 MAX_RECRUITER_CONTEXT_CHARACTERS = 160_000
+RESUME_CONFIRMATION_EXCLUDED_IDS = {
+    "cover-letter-recipient-name",
+    "cover-letter-company-contact",
+}
 
 
 class ResumeTailoringError(RuntimeError):
     def __init__(self, message: str, *, code: str = "ai_error") -> None:
         super().__init__(message)
         self.code = code
+
+
+def master_resume_with_candidate_confirmations(
+    master_resume: MasterResume,
+    confirmations: tuple[AuthoritativeConfirmation, ...],
+) -> MasterResume:
+    """Add positive candidate answers as vacancy-specific resume evidence."""
+    existing_ids = {evidence.id for evidence in master_resume.evidence}
+    confirmation_evidence: list[dict[str, object]] = []
+    for confirmation in confirmations:
+        if (
+            confirmation.question_id in RESUME_CONFIRMATION_EXCLUDED_IDS
+            or confirmation.response not in {"yes", "partial"}
+            or not confirmation.example_text.strip()
+        ):
+            continue
+        evidence_id = f"confirmation:{confirmation.question_id}"
+        if evidence_id in existing_ids:
+            raise ResumeTailoringError(
+                "Master Resume already contains candidate confirmation evidence",
+                code="invalid_input",
+            )
+        text_parts = [
+            f"Requirement: {confirmation.requirement}",
+            f"Question: {confirmation.question}",
+            f"Response: {confirmation.response.upper()}",
+        ]
+        if confirmation.claim_if_confirmed:
+            text_parts.append(
+                "Claim proposed by the vacancy analysis: "
+                f"{confirmation.claim_if_confirmed}"
+            )
+        text_parts.append(f"Candidate detail: {confirmation.example_text.strip()}")
+        confirmation_evidence.append(
+            {
+                "id": evidence_id,
+                "type": "confirmation",
+                "text": "\n".join(text_parts),
+            }
+        )
+        existing_ids.add(evidence_id)
+
+    return master_resume_with_supplemental_evidence(
+        master_resume,
+        [
+            ResumeEvidence.model_validate(evidence)
+            for evidence in confirmation_evidence
+        ],
+    )
+
+
+def master_resume_with_supplemental_evidence(
+    master_resume: MasterResume,
+    supplemental_evidence: list[ResumeEvidence],
+) -> MasterResume:
+    if not supplemental_evidence:
+        return master_resume
+    if any(evidence.type != "confirmation" for evidence in supplemental_evidence):
+        raise ResumeTailoringError(
+            "Resume tailoring supplemental evidence must be candidate confirmation evidence",
+            code="invalid_input",
+        )
+    existing_ids = {evidence.id for evidence in master_resume.evidence}
+    duplicate_ids = {
+        evidence.id
+        for evidence in supplemental_evidence
+        if evidence.id in existing_ids
+    }
+    if duplicate_ids:
+        raise ResumeTailoringError(
+            "Master Resume already contains candidate confirmation evidence",
+            code="invalid_input",
+        )
+    payload = master_resume.model_dump(by_alias=True, exclude_none=True)
+    payload["evidence"] = [
+        *payload.get("evidence", []),
+        *[
+            evidence.model_dump(by_alias=True, exclude_none=True)
+            for evidence in supplemental_evidence
+        ],
+    ]
+    return MasterResume.model_validate(payload)
+
+
+def recruiter_analysis_with_supplemental_evidence(
+    analysis: SeniorRecruiterAnalysis,
+    master_resume: MasterResume,
+) -> SeniorRecruiterAnalysis:
+    return analysis.model_copy(
+        update={
+            "supplemental_evidence": [
+                evidence
+                for evidence in master_resume.evidence
+                if evidence.type == "confirmation"
+            ]
+        }
+    )
+
+
+def senior_recruiter_analysis_payload(
+    analysis: SeniorRecruiterAnalysis,
+) -> dict[str, Any]:
+    payload = analysis.model_dump(by_alias=True, exclude_none=True)
+    if not analysis.supplemental_evidence:
+        payload.pop("supplementalEvidence", None)
+    return payload
 
 
 def compact_json_schema(model: type[BaseModel]) -> str:
@@ -220,6 +332,10 @@ def analyze_resume_as_senior_recruiter(
             "Senior recruiter analysis returned invalid structured data"
         ) from exc
 
+    analysis = recruiter_analysis_with_supplemental_evidence(
+        analysis,
+        master_resume,
+    )
     validate_recruiter_evidence(analysis, master_resume=master_resume)
     return SeniorRecruiterAnalysisOutcome(
         analysis=analysis,
@@ -261,6 +377,8 @@ def build_senior_recruiter_prompt(
         "Return only a JSON object matching the provided SeniorRecruiterAnalysis "
         "schema, with exactly five missingKeywords and exactly three redFlags.\n"
         "Rules:\n"
+        "- Return supplementalEvidence as an empty array; the server attaches the exact "
+        "candidate confirmation evidence after validating your response.\n"
         "- Rank missing or materially underrepresented role-specific keywords by "
         "importance to this exact vacancy and company.\n"
         "- Mark a keyword verified or transferable only when the master resume "
@@ -268,6 +386,10 @@ def build_senior_recruiter_prompt(
         "- verified and transferable keywords must cite exact IDs from "
         "MASTER_RESUME.evidence; unsupported keywords must use an empty evidenceIds "
         "array.\n"
+        "- Evidence IDs beginning with confirmation: contain vacancy-specific details "
+        "explicitly supplied by the candidate. Use YES details as verified evidence and "
+        "PARTIAL details only within the exact scope described by the candidate. Never "
+        "broaden a partial answer or a proposed claim beyond the candidate detail.\n"
         "- Describe only red flags visible in a hiring manager's first ten-second "
         "scan of this resume for this vacancy.\n"
         "- Do not rewrite the resume and never invent facts, experience, metrics, "
@@ -398,6 +520,10 @@ def build_xyz_experience_rewrite_prompt(
         "- Include verified or transferable recruiter keywords only when "
         "experienceEvidence supports them for that same experience. Never insert "
         "unsupported keywords as candidate claims.\n"
+        "- Candidate confirmation evidence may support a rewritten experience only "
+        "when the candidate detail clearly describes work performed in that experience. "
+        "Respect PARTIAL scope exactly and never invent the employer, project, metric, "
+        "or date to which a detail belongs.\n"
         "- Address recruiter red flags only through truthful Experience wording. "
         "Do not claim to fix a red flag that requires changing another section.\n"
         "- Every rewritten bullet must cite exact IDs from experienceEvidence.\n"
@@ -467,7 +593,8 @@ def experience_evidence_catalog(
     return [
         evidence.model_dump(by_alias=True, exclude_none=True)
         for evidence in master_resume.evidence
-        if evidence.id in directly_cited_ids
+        if evidence.type == "confirmation"
+        or evidence.id in directly_cited_ids
         or evidence.experience_id in experience_ids
     ]
 
@@ -569,6 +696,7 @@ def validate_xyz_experience_rewrite(
             for evidence_id, evidence in allowed_evidence.items()
             if evidence_id in directly_cited_ids
             or evidence.experience_id == original.id
+            or evidence.type == "confirmation"
         }
         cited_ids = {
             evidence_id
@@ -741,6 +869,10 @@ def build_ats_final_review_prompt(
         "counts, item IDs, and evidence IDs. Preserve the stage-two Experience "
         "structure and supported XYZ achievements; refine wording only when the "
         "same-experience evidence supports it.\n"
+        "- Candidate confirmation evidence is authoritative only within the exact scope "
+        "of the candidate's YES or PARTIAL detail. It may improve the summary, skills, "
+        "projects, additional sections, or a clearly related experience, but must not be "
+        "broadened or assigned to an unsupported employer, date, or metric.\n"
         "- Prefer concise, naturally keyword-aware, ATS-parseable language over "
         "keyword stuffing. Never invent facts, metrics, tools, responsibilities, "
         "seniority, qualifications, or evidence IDs.\n"
@@ -806,6 +938,7 @@ def validate_ats_final_review(
             for evidence_id, evidence in evidence_by_id.items()
             if evidence_id in source_citations
             or evidence.experience_id == source_experience.master_experience_id
+            or evidence.type == "confirmation"
         }
         final_citations = {
             evidence_id
@@ -1055,10 +1188,7 @@ def persist_senior_recruiter_analysis(
         target_job_id=target_job_id,
         vacancy_hash=outcome.vacancy_hash,
         prompt_version=SENIOR_RECRUITER_PROMPT_VERSION,
-        result=outcome.analysis.model_dump(
-            by_alias=True,
-            exclude_none=True,
-        ),
+        result=senior_recruiter_analysis_payload(outcome.analysis),
         model=outcome.result.model,
         backend=outcome.result.backend,
         provider_session_id=outcome.result.session_id,

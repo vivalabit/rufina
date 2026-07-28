@@ -80,7 +80,23 @@ def match_response(prompt: str) -> None:
                             "why": "The role requires end-to-end ownership.",
                             "claimIfConfirmed": "Led a production workflow redesign.",
                             "blocking": True,
-                        }
+                        },
+                        {
+                            "id": "workflow-outcome",
+                            "requirement": "Workflow redesign outcome",
+                            "question": "What concrete outcome followed your strongest workflow redesign?",
+                            "why": "A concrete outcome strengthens the CV and cover letter.",
+                            "claimIfConfirmed": "Delivered a concrete workflow redesign outcome.",
+                            "blocking": True,
+                        },
+                        {
+                            "id": "product-motivation",
+                            "requirement": "Role motivation",
+                            "question": "What specifically motivates you about this product-design role?",
+                            "why": "Specific motivation improves the cover letter and positioning.",
+                            "claimIfConfirmed": "Has a specific motivation for the target role.",
+                            "blocking": True,
+                        },
                     ],
                     "resumePlan": {
                         "targetHeadline": "Senior Product Designer",

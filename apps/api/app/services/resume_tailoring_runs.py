@@ -409,7 +409,14 @@ def validate_stage_schema(
         raise ResumeTailoringTransitionError(
             f"Stage {stage_number} structured output failed schema validation"
         ) from exc
-    return validated.model_dump(by_alias=True, exclude_none=True)
+    payload = validated.model_dump(by_alias=True, exclude_none=True)
+    if (
+        stage_number == 1
+        and isinstance(validated, SeniorRecruiterAnalysis)
+        and not validated.supplemental_evidence
+    ):
+        payload.pop("supplementalEvidence", None)
+    return payload
 
 
 def retryable_first_stage_run(

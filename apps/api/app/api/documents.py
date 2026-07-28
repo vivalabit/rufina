@@ -2078,6 +2078,8 @@ def assistant_preflight_inputs(
             questionId=confirmation.question_id,
             requirement=confirmation.requirement,
             question=confirmation.question,
+            why=confirmation.why,
+            claimIfConfirmed=confirmation.claim_if_confirmed,
             answer=(
                 confirmation.response.upper()
                 + (
