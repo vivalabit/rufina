@@ -1,12 +1,16 @@
+from collections.abc import Generator
 from io import BytesIO
+import struct
 
 from docx import Document
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 import app.models.applications  # noqa: F401
-from app.core.database import Base
+from app.core.database import Base, get_db
+from app.main import app
 from app.services.cover_letter_blocks import extract_cover_letter_blocks_from_docx
 from app.services.cover_letter_template_registry import (
     bundled_cover_letter_template_id,
@@ -71,6 +75,44 @@ def test_bundled_cover_letter_template_has_fixed_editable_structure() -> None:
         "Street, Number",
         "Postal code, City, Country",
     ]
+
+
+def test_bundled_cover_letter_template_has_real_png_thumbnail() -> None:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+    testing_session_local = sessionmaker(bind=engine)
+
+    def override_get_db() -> Generator[Session, None, None]:
+        with testing_session_local() as db:
+            yield db
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+    try:
+        templates = client.get("/documents/templates/library")
+        template_id = templates.json()[0]["id"]
+        response = client.get(
+            f"/documents/templates/{template_id}/thumbnail",
+        )
+    finally:
+        app.dependency_overrides.clear()
+        engine.dispose()
+
+    assert templates.status_code == 200
+    assert response.status_code == 200
+    assert response.content.startswith(b"\x89PNG\r\n\x1a\n")
+    assert response.headers["content-type"] == "image/png"
+    assert response.headers["cache-control"] == "private, max-age=300"
+    assert response.headers["content-disposition"] == (
+        'inline; filename="cover-letter-template-thumbnail.png"'
+    )
+    assert response.headers["x-rufina-template-id"] == template_id
+    width, height = struct.unpack(">II", response.content[16:24])
+    assert (width, height) == (360, 640)
 
 
 def test_bundled_cover_letter_id_is_owner_specific() -> None:

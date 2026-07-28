@@ -111,6 +111,16 @@ class Settings(BaseSettings):
         ge=1,
         le=3_600,
     )
+    resume_template_thumbnail_rate_limit: int = Field(
+        default=60,
+        ge=1,
+        le=500,
+    )
+    resume_template_thumbnail_rate_window_seconds: int = Field(
+        default=60,
+        ge=1,
+        le=3_600,
+    )
     cors_origins: list[str] = ["http://localhost:3000", "http://localhost:3001"]
     cors_origin_regex: str = (
         r"^http://(localhost|127\.0\.0\.1|0\.0\.0\.0|10\.\d{1,3}\.\d{1,3}\.\d{1,3}|"

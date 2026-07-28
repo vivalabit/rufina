@@ -83,6 +83,10 @@ from app.services.cover_letter_template_registry import (
     ensure_bundled_cover_letter_template,
     is_bundled_cover_letter_template_id,
 )
+from app.services.cover_letter_template_preview import (
+    CoverLetterTemplatePreviewError,
+    render_cover_letter_template_thumbnail,
+)
 from app.services.resume_template_registry import (
     is_bundled_resume_template_id,
 )
@@ -927,6 +931,43 @@ def list_document_templates(db: Session = Depends(get_db)) -> list[DocumentTempl
             *(record for record in records if record.id != bundled_template.id),
         ]
         return [document_template_payload(record) for record in ordered_records]
+    except SQLAlchemyError as exc:
+        raise database_unavailable(exc) from exc
+
+
+@router.get("/templates/{template_id}/thumbnail")
+def download_document_template_thumbnail(
+    template_id: str,
+    db: Session = Depends(get_db),
+) -> Response:
+    try:
+        template = require_template(db, template_id)
+        if template.type != "cover_letter":
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Only cover-letter templates support document thumbnails",
+            )
+        try:
+            thumbnail = render_cover_letter_template_thumbnail(template.content)
+        except CoverLetterTemplatePreviewError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail=str(exc),
+            ) from exc
+        return Response(
+            content=thumbnail,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "private, max-age=300",
+                "Content-Disposition": (
+                    'inline; filename="cover-letter-template-thumbnail.png"'
+                ),
+                "Vary": "X-Rufina-Owner-Id, X-Tasko-Owner-Id",
+                "X-Rufina-Template-Id": template.id,
+            },
+        )
+    except HTTPException:
+        raise
     except SQLAlchemyError as exc:
         raise database_unavailable(exc) from exc
 

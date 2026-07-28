@@ -38,6 +38,8 @@ from app.services.resume_template_preview import (
     PreviewRateLimitExceeded,
     preview_rate_limiter,
     render_resume_template_preview,
+    render_resume_template_thumbnail,
+    thumbnail_rate_limiter,
 )
 from app.services.resume_template_registry import (
     ResumeTemplateId,
@@ -99,6 +101,23 @@ async def enforce_preview_limits(
         ) from exc
 
 
+def enforce_thumbnail_limit(
+    settings: Settings = Depends(get_settings),
+) -> None:
+    try:
+        thumbnail_rate_limiter.consume(
+            get_bound_owner_id(),
+            limit=settings.resume_template_thumbnail_rate_limit,
+            window_seconds=settings.resume_template_thumbnail_rate_window_seconds,
+        )
+    except PreviewRateLimitExceeded as exc:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail="Resume template thumbnail rate limit exceeded",
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+
+
 @router.post("/preview")
 def preview_draft_resume_template(
     payload: ResumeTemplatePreviewRequest,
@@ -120,6 +139,24 @@ def preview_saved_resume_template(
     try:
         template = resolve_resume_template(db, template_id)
         return render_preview_response(template)
+    except ResumeTemplateNotFoundError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=str(exc),
+        ) from exc
+    except SQLAlchemyError as exc:
+        raise database_unavailable(exc) from exc
+
+
+@router.get("/{template_id}/thumbnail")
+def thumbnail_saved_resume_template(
+    template_id: str,
+    _limits: None = Depends(enforce_thumbnail_limit),
+    db: Session = Depends(get_db),
+) -> Response:
+    try:
+        template = resolve_resume_template(db, template_id)
+        return render_thumbnail_response(template)
     except ResumeTemplateNotFoundError as exc:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
@@ -426,6 +463,39 @@ def render_preview_response(template: ResolvedResumeTemplate) -> Response:
         headers={
             "Cache-Control": "no-store",
             "Content-Disposition": ('inline; filename="resume-template-preview.pdf"'),
+            "X-Rufina-Template-Id": template.id,
+            "X-Rufina-Template-Version": template.version,
+            "X-Rufina-Design-Sha256": template.design_sha256,
+        },
+    )
+
+
+def render_thumbnail_response(template: ResolvedResumeTemplate) -> Response:
+    try:
+        thumbnail = render_resume_template_thumbnail(template)
+    except ResumePdfRenderError as exc:
+        message = str(exc)
+        service_failure = (
+            "Chromium" in message
+            or "Playwright" in message
+            or "unavailable" in message
+            or "pdftoppm" in message
+        )
+        raise HTTPException(
+            status_code=(
+                status.HTTP_503_SERVICE_UNAVAILABLE
+                if service_failure
+                else status.HTTP_422_UNPROCESSABLE_CONTENT
+            ),
+            detail=message,
+        ) from exc
+    return Response(
+        content=thumbnail,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "private, max-age=300",
+            "Content-Disposition": ('inline; filename="resume-template-thumbnail.png"'),
+            "Vary": "X-Rufina-Owner-Id, X-Tasko-Owner-Id",
             "X-Rufina-Template-Id": template.id,
             "X-Rufina-Template-Version": template.version,
             "X-Rufina-Design-Sha256": template.design_sha256,

@@ -557,6 +557,95 @@ function CollapsibleDocumentPreview({
   );
 }
 
+function CoverLetterTemplateCard({
+  apiBaseUrl,
+  template,
+}: {
+  apiBaseUrl: string;
+  template: DocumentTemplate | null;
+}) {
+  const thumbnailUrl = template
+    ? `${apiBaseUrl}/documents/templates/${encodeURIComponent(template.id)}/thumbnail?version=${encodeURIComponent(template.updatedAt)}&format=9x16`
+    : "";
+  const [loadedThumbnailUrl, setLoadedThumbnailUrl] = useState("");
+  const [failedThumbnailUrl, setFailedThumbnailUrl] = useState("");
+  const thumbnailReady = Boolean(
+    thumbnailUrl && loadedThumbnailUrl === thumbnailUrl,
+  );
+  const thumbnailFailed = Boolean(
+    thumbnailUrl && failedThumbnailUrl === thumbnailUrl,
+  );
+
+  return (
+    <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
+      <div className="flex items-center justify-between gap-3">
+        <p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">
+          Cover letter template
+        </p>
+        <Mail className="h-4 w-4 shrink-0 text-accent" />
+      </div>
+      <p className="mb-1.5 mt-3 text-[8px] font-black uppercase tracking-[0.12em] text-muted">
+        Built-in
+      </p>
+      <div className="grid grid-cols-[160px]">
+        <div
+          aria-label={`${template?.name ?? "Standard cover letter"} selected template`}
+          className="min-w-0 rounded-lg border border-accent/55 bg-accent/[0.08] p-2 text-center shadow-[0_0_0_1px_rgba(255,90,0,0.08)]"
+        >
+          <span className="relative mx-auto block w-full max-w-[9rem]">
+            <span
+              data-testid="cover-letter-template-thumbnail"
+              className="relative block aspect-[9/16] w-full overflow-hidden rounded-[5px] border border-slate-300/70 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
+            >
+              {thumbnailUrl && !thumbnailFailed ? (
+                <img
+                  src={thumbnailUrl}
+                  alt={`${template?.name ?? "Standard cover letter"} template preview`}
+                  loading="lazy"
+                  decoding="async"
+                  onLoad={() => setLoadedThumbnailUrl(thumbnailUrl)}
+                  onError={() => setFailedThumbnailUrl(thumbnailUrl)}
+                  className={cn(
+                    "h-full w-full object-cover transition-opacity duration-200",
+                    thumbnailReady ? "opacity-100" : "opacity-0",
+                  )}
+                />
+              ) : thumbnailFailed ? (
+                <span className="flex h-full flex-col items-center justify-center gap-1 text-slate-500">
+                  <FileText className="h-5 w-5" />
+                  <span className="text-[6px] font-bold uppercase tracking-[0.08em]">
+                    Preview unavailable
+                  </span>
+                </span>
+              ) : null}
+              {!thumbnailReady && !thumbnailFailed ? (
+                <span
+                  aria-hidden="true"
+                  className="absolute inset-0 flex items-center justify-center"
+                >
+                  <LoaderCircle className="h-5 w-5 animate-spin text-slate-500" />
+                </span>
+              ) : null}
+            </span>
+            <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-accent/50 bg-[#15100d] shadow-lg">
+              <Check className="h-3 w-3 text-accent" />
+            </span>
+          </span>
+          <span className="mt-2.5 flex min-h-8 items-start justify-center text-[10px] font-bold leading-4 text-white">
+            <span className="line-clamp-2">
+              {template?.name ?? "Standard cover letter"}
+            </span>
+          </span>
+        </div>
+      </div>
+      <p className="mt-3 text-[9px] leading-4 text-muted">
+        Fixed Swiss-style structure · company details researched automatically ·
+        no DOCX upload required
+      </p>
+    </div>
+  );
+}
+
 function inferSourceLanguage(fileName: string, title = "") {
   const value = `${fileName} ${title}`.toLowerCase();
   if (/(?:^|[\s_.-])(de|deu|ger)(?:[\s_.-]|$)|deutsch|german/.test(value)) return "German";
@@ -2083,7 +2172,7 @@ export function ApplicationWorkspace({
                 {packProgress ? <div className={cn("mb-4 rounded-xl border p-3", packProgress.status === "failed" ? "border-red-400/25 bg-red-500/[0.045]" : packProgress.status === "partial" ? "border-amber-400/25 bg-amber-400/[0.045]" : "border-white/[0.08] bg-black/15")}><div className="grid gap-2 sm:grid-cols-4">{packStageDefinitions.map((stage, index) => { const currentIndex = packStageDefinitions.findIndex((candidate) => candidate.id === packProgress.stage); const stageStatus = index < currentIndex ? "completed" : index === currentIndex ? packProgress.status : "pending"; return <div key={stage.id} className={cn("rounded-lg border px-2.5 py-2", stageStatus === "completed" ? "border-success/20 bg-success/[0.05]" : stageStatus === "failed" ? "border-red-400/25 bg-red-500/[0.06]" : stageStatus === "partial" ? "border-amber-400/25 bg-amber-400/[0.06]" : stageStatus === "active" || stageStatus === "retrying" ? "border-accent/30 bg-accent/[0.07]" : "border-white/[0.06] bg-white/[0.015]")}><div className="flex items-center gap-2">{stageStatus === "completed" ? <Check className="h-3.5 w-3.5 text-success" /> : stageStatus === "active" || stageStatus === "retrying" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin text-accent" /> : stageStatus === "failed" ? <AlertTriangle className="h-3.5 w-3.5 text-red-200" /> : <CircleDot className="h-3.5 w-3.5 text-muted" />}<span className={cn("text-[9px] font-black uppercase tracking-wide", stageStatus === "completed" ? "text-success" : stageStatus === "failed" ? "text-red-200" : stageStatus === "partial" ? "text-amber-200" : stageStatus === "active" || stageStatus === "retrying" ? "text-white" : "text-muted")}>{stage.label}</span></div></div>; })}</div><div className="mt-2 flex items-center justify-between gap-3 px-1 text-[9px]"><span className={cn(packProgress.status === "failed" ? "text-red-200" : packProgress.status === "partial" ? "text-amber-200" : "text-muted")}>{packProgress.message}</span><span className="shrink-0 font-mono text-muted">{packProgress.attempt > 1 ? `attempt ${packProgress.attempt}/3 · ` : ""}{packProgress.jobId.slice(-8)}</span></div></div> : null}
                 {masterResumeLoaded && !currentMasterResume ? <div className="mb-4 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2.5 text-xs leading-5 text-amber-200">Confirm your Master Resume in My Profile before tailoring a vacancy.</div> : null}
                 <div className="space-y-10">
-                  <DocumentCard sectionLabel="Resume document" documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Create and download a tailored CV for this role." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><p className="mt-3 text-[9px] text-muted">Master Resume · {currentMasterResume ? `v${currentMasterResume.version} confirmed` : "required"}</p><ResumeTemplatePicker templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} />
+                  <DocumentCard sectionLabel="Resume document" documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Create and download a tailored CV for this role." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><p className="mt-3 text-[9px] text-muted">Master Resume · {currentMasterResume ? `v${currentMasterResume.version} confirmed` : "required"}</p><ResumeTemplatePicker apiBaseUrl={apiBaseUrl} templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} />
                   <CollapsibleDocumentPreview
                     title="Resume preview"
                     description="Open the exact generated PDF, ATS scan and document changes"
@@ -2131,16 +2220,10 @@ export function ApplicationWorkspace({
                     canGenerate={Boolean(!isGeneratingPack && documentsLoaded && coverLetterTemplate && coverLetterNamesComplete && applicationReview && confirmationsReady)}
                     disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded ? documentError ? "Retry loading history" : "Loading history…" : !coverLetterTemplate ? "Loading template…" : !coverLetterNamesComplete ? "Complete contact names" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"}
                     sourceControl={(
-                      <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
-                        <p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">Built-in template</p>
-                        <div className="mt-2 flex items-center gap-3 rounded-lg border border-white/[0.08] bg-black/15 px-3 py-3">
-                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-accent/20 bg-accent/10 text-accent"><Mail className="h-4 w-4" /></span>
-                          <div className="min-w-0">
-                            <p className="text-[11px] font-bold text-white">{coverLetterTemplate?.name ?? "Standard cover letter"}</p>
-                            <p className="mt-0.5 text-[9px] leading-4 text-muted">Fixed Swiss-style structure · company details researched automatically · no DOCX upload required</p>
-                          </div>
-                        </div>
-                      </div>
+                      <CoverLetterTemplateCard
+                        apiBaseUrl={apiBaseUrl}
+                        template={coverLetterTemplate}
+                      />
                     )}
                     generationControl={(
                       <div className="mt-3 space-y-3">

@@ -600,6 +600,22 @@ describe("ApplicationWorkspace", () => {
     expect(
       await screen.findByText("Standard cover letter"),
     ).toBeInTheDocument();
+    const coverLetterThumbnail = screen.getByTestId(
+      "cover-letter-template-thumbnail",
+    );
+    expect(coverLetterThumbnail).toHaveClass("aspect-[9/16]");
+    expect(coverLetterThumbnail.parentElement).toHaveClass("max-w-[9rem]");
+    expect(
+      screen.getByRole("img", {
+        name: "Standard cover letter template preview",
+      }),
+    ).toHaveAttribute(
+      "src",
+      "http://localhost:8000/documents/templates/4a9260bb-dc6a-5b9d-8a3a-1caa1e1433e8/thumbnail?version=2026-07-28T10%3A00%3A00.000Z&format=9x16",
+    );
+    expect(
+      screen.getByLabelText("Standard cover letter selected template"),
+    ).toBeInTheDocument();
     expect(screen.getByText(/no DOCX upload required/)).toBeInTheDocument();
     expect(
       screen.queryByRole("combobox", { name: "Source cover letter" }),

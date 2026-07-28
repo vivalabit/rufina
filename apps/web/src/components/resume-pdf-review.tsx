@@ -95,106 +95,75 @@ export type ResumePdfDocument = {
   versions: ResumePdfDocumentVersion[];
 };
 
-const bundledTemplateTheme: Record<
-  string,
-  {
-    accentName: string;
-    accentColor: string;
-    previewClass: string;
-  }
-> = {
-  classic_single: {
-    accentName: "Neutral",
-    accentColor: "#2b2b2b",
-    previewClass: "border-[#d7d2c8] bg-[#f7f4ee]",
-  },
-  modern_single: {
-    accentName: "Teal",
-    accentColor: "#176b87",
-    previewClass: "border-[#bcd6dc] bg-[#f3f8f8]",
-  },
-  modern_two_column: {
-    accentName: "Navy",
-    accentColor: "#243b53",
-    previewClass: "border-[#b9c5d1] bg-[#f3f6f8]",
-  },
-  swiss_classic: {
-    accentName: "Black",
-    accentColor: "#000000",
-    previewClass: "border-[#b8b8b8] bg-white",
-  },
-  swiss_local_german: {
-    accentName: "Black",
-    accentColor: "#000000",
-    previewClass: "border-[#aeb8ae] bg-[#fffefb]",
-  },
-};
-
 function currentVersion(document: ResumePdfDocument | null | undefined) {
   return document?.versions.find(
     (version) => version.version === document.currentVersion,
   );
 }
 
-function visualTheme(template: ResumeTemplate) {
-  const bundled = bundledTemplateTheme[template.id];
-  if (bundled) return bundled;
-  const accentColor = template.designJson?.accentColor || "#64748b";
-  return {
-    accentName: accentColor.toUpperCase(),
-    accentColor,
-    previewClass: "border-[#cbd5e1] bg-[#f8fafc]",
-  };
-}
+function ResumeTemplateThumbnail({
+  apiBaseUrl,
+  template,
+}: {
+  apiBaseUrl: string;
+  template: ResumeTemplate;
+}) {
+  const templateVersion = template.version ?? template.baseTemplateId;
+  const thumbnailUrl = `${apiBaseUrl}/resume-templates/${encodeURIComponent(template.id)}/thumbnail?version=${encodeURIComponent(String(templateVersion))}&format=9x16`;
+  const [status, setStatus] = useState<"loading" | "ready" | "error">(
+    "loading",
+  );
 
-function templatePreview(template: ResumeTemplate) {
-  const theme = visualTheme(template);
-  const accentStyle = { backgroundColor: theme.accentColor };
+  useEffect(() => {
+    setStatus("loading");
+  }, [thumbnailUrl]);
+
   return (
     <span
-      aria-hidden="true"
-      className={cn(
-        "relative block h-24 overflow-hidden rounded-md border p-2 shadow-inner",
-        theme.previewClass,
-      )}
+      data-testid={`resume-template-thumbnail-${template.id}`}
+      className="relative block aspect-[9/16] w-full overflow-hidden rounded-[5px] border border-slate-300/70 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
     >
-      <span className="block h-2 w-2/3 rounded-sm" style={accentStyle} />
-      <span className="mt-1 block h-1 w-1/2 rounded-sm bg-slate-400/65" />
-      {template.columns === 2 ? (
-        <span className="mt-3 grid grid-cols-[0.72fr_1.28fr] gap-1.5">
-          <span className="space-y-1 rounded-sm bg-slate-300/45 p-1">
-            <span className="block h-1 rounded-sm bg-slate-500/60" />
-            <span className="block h-1 rounded-sm bg-slate-400/50" />
-            <span className="block h-1 w-4/5 rounded-sm bg-slate-400/50" />
-            <span className="block h-1 rounded-sm bg-slate-400/50" />
-          </span>
-          <span className="space-y-1">
-            <span className="block h-1 rounded-sm" style={accentStyle} />
-            <span className="block h-1 rounded-sm bg-slate-400/50" />
-            <span className="block h-1 rounded-sm bg-slate-400/50" />
-            <span className="block h-1 w-4/5 rounded-sm bg-slate-400/50" />
-          </span>
-        </span>
+      {status !== "error" ? (
+        <img
+          src={thumbnailUrl}
+          alt={`${template.name} resume template preview`}
+          loading="lazy"
+          decoding="async"
+          onLoad={() => setStatus("ready")}
+          onError={() => setStatus("error")}
+          className={cn(
+            "h-full w-full object-cover transition-opacity duration-200",
+            status === "ready" ? "opacity-100" : "opacity-0",
+          )}
+        />
       ) : (
-        <span className="mt-3 block space-y-1">
-          <span className="block h-1 w-1/3 rounded-sm" style={accentStyle} />
-          <span className="block h-1 rounded-sm bg-slate-400/50" />
-          <span className="block h-1 rounded-sm bg-slate-400/50" />
-          <span className="block h-1 w-4/5 rounded-sm bg-slate-400/50" />
-          <span className="mt-2 block h-1 w-1/3 rounded-sm" style={accentStyle} />
-          <span className="block h-1 rounded-sm bg-slate-400/50" />
+        <span className="flex h-full flex-col items-center justify-center gap-1 text-slate-500">
+          <FileText className="h-4 w-4" />
+          <span className="text-[6px] font-bold uppercase tracking-[0.08em]">
+            Preview unavailable
+          </span>
         </span>
       )}
+      {status === "loading" ? (
+        <span
+          aria-hidden="true"
+          className="absolute inset-0 flex items-center justify-center"
+        >
+          <LoaderCircle className="h-4 w-4 animate-spin text-slate-500" />
+        </span>
+      ) : null}
     </span>
   );
 }
 
 export function ResumeTemplatePicker({
+  apiBaseUrl,
   templates,
   selectedId,
   onChange,
   notice,
 }: {
+  apiBaseUrl: string;
   templates: ResumeTemplate[];
   selectedId: ResumeTemplateId;
   onChange: (templateId: ResumeTemplateId) => void;
@@ -246,6 +215,7 @@ export function ResumeTemplatePicker({
       </select>
       {customTemplates.length ? (
         <TemplatePickerGroup
+          apiBaseUrl={apiBaseUrl}
           title="My templates"
           templates={customTemplates}
           selectedId={selectedId}
@@ -253,6 +223,7 @@ export function ResumeTemplatePicker({
         />
       ) : null}
       <TemplatePickerGroup
+        apiBaseUrl={apiBaseUrl}
         title="Built-in"
         templates={bundledTemplates}
         selectedId={selectedId}
@@ -271,11 +242,13 @@ export function ResumeTemplatePicker({
 }
 
 function TemplatePickerGroup({
+  apiBaseUrl,
   title,
   templates,
   selectedId,
   onChange,
 }: {
+  apiBaseUrl: string;
   title: string;
   templates: ResumeTemplate[];
   selectedId: ResumeTemplateId;
@@ -287,7 +260,7 @@ function TemplatePickerGroup({
       <p className="mb-1.5 text-[8px] font-black uppercase tracking-[0.12em] text-muted">
         {title}
       </p>
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
+      <div className="grid grid-cols-[repeat(auto-fill,minmax(144px,160px))] gap-2">
         {templates.map((template) => {
           const isSelected = template.id === selectedId;
           return (
@@ -298,16 +271,25 @@ function TemplatePickerGroup({
               aria-label={`Use ${template.name} resume template`}
               onClick={() => onChange(template.id)}
               className={cn(
-                "rounded-lg border p-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
+                "group min-w-0 rounded-lg border p-2 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
                 isSelected
-                  ? "border-accent/55 bg-accent/[0.08]"
-                  : "border-white/[0.08] bg-black/15 hover:border-white/[0.16]",
+                  ? "border-accent/55 bg-accent/[0.08] shadow-[0_0_0_1px_rgba(255,90,0,0.08)]"
+                  : "border-white/[0.08] bg-black/15 hover:border-white/[0.2] hover:bg-white/[0.03]",
               )}
             >
-              {templatePreview(template)}
-              <span className="mt-1.5 flex items-center gap-1 text-[8px] font-bold leading-3 text-white">
-                {isSelected ? <Check className="h-3 w-3 text-accent" /> : null}
-                <span className="truncate">{template.name}</span>
+              <span className="relative mx-auto block w-full max-w-[9rem]">
+                <ResumeTemplateThumbnail
+                  apiBaseUrl={apiBaseUrl}
+                  template={template}
+                />
+                {isSelected ? (
+                  <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-accent/50 bg-[#15100d] shadow-lg">
+                    <Check className="h-3 w-3 text-accent" />
+                  </span>
+                ) : null}
+              </span>
+              <span className="mt-2.5 flex min-h-8 items-start justify-center text-[10px] font-bold leading-4 text-white">
+                <span className="line-clamp-2">{template.name}</span>
               </span>
             </button>
           );

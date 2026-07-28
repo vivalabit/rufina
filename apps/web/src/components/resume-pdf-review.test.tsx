@@ -152,6 +152,7 @@ describe("ResumeTemplatePicker", () => {
     const onChange = vi.fn();
     render(
       <ResumeTemplatePicker
+        apiBaseUrl="http://localhost:8000"
         templates={[customTemplate, ...templates]}
         selectedId="modern_two_column"
         onChange={onChange}
@@ -171,6 +172,23 @@ describe("ResumeTemplatePicker", () => {
         name: "Use My Swiss CV resume template",
       }),
     ).toBeInTheDocument();
+    for (const template of [customTemplate, ...templates]) {
+      expect(
+        screen.getByTestId(`resume-template-thumbnail-${template.id}`),
+      ).toHaveClass("aspect-[9/16]");
+      expect(
+        screen.getByTestId(`resume-template-thumbnail-${template.id}`)
+          .parentElement,
+      ).toHaveClass("max-w-[9rem]");
+      expect(
+        screen.getByRole("img", {
+          name: `${template.name} resume template preview`,
+        }),
+      ).toHaveAttribute(
+        "src",
+        `http://localhost:8000/resume-templates/${template.id}/thumbnail?version=${template.version ?? template.baseTemplateId}&format=9x16`,
+      );
+    }
     expect(screen.queryByText("Allowed theme")).not.toBeInTheDocument();
     expect(screen.queryByText("A4")).not.toBeInTheDocument();
     expect(

@@ -1,15 +1,22 @@
 from __future__ import annotations
 
-from collections import deque
+from collections import OrderedDict, deque
 from dataclasses import dataclass
 from threading import Lock
 from time import monotonic
 
 from app.models.resume import FinalResume
+from app.services.document_thumbnail import (
+    PdfThumbnailRenderError,
+    render_pdf_first_page_thumbnail,
+)
 from app.services.resume_pdf_renderer import (
     ResolvedResumeTemplate,
+    ResumePdfRenderError,
     render_resolved_final_resume_pdf,
 )
+
+PREVIEW_THUMBNAIL_CACHE_SIZE = 64
 
 
 DEMO_FINAL_RESUME = FinalResume.model_validate(
@@ -176,6 +183,9 @@ class ResumeTemplatePreviewRateLimiter:
 
 
 preview_rate_limiter = ResumeTemplatePreviewRateLimiter()
+thumbnail_rate_limiter = ResumeTemplatePreviewRateLimiter()
+_preview_thumbnail_cache: OrderedDict[tuple[str, str, str], bytes] = OrderedDict()
+_preview_thumbnail_cache_lock = Lock()
 
 
 def render_resume_template_preview(
@@ -190,10 +200,48 @@ def render_resume_template_preview(
     )
 
 
+def render_resume_template_thumbnail(
+    template: ResolvedResumeTemplate,
+) -> bytes:
+    cache_key = (template.id, template.version, template.design_sha256)
+    with _preview_thumbnail_cache_lock:
+        cached = _preview_thumbnail_cache.get(cache_key)
+        if cached is not None:
+            _preview_thumbnail_cache.move_to_end(cache_key)
+            return cached
+
+    pdf = render_resume_template_preview(template)
+    thumbnail = rasterize_resume_template_first_page(pdf)
+
+    with _preview_thumbnail_cache_lock:
+        _preview_thumbnail_cache[cache_key] = thumbnail
+        _preview_thumbnail_cache.move_to_end(cache_key)
+        while len(_preview_thumbnail_cache) > PREVIEW_THUMBNAIL_CACHE_SIZE:
+            _preview_thumbnail_cache.popitem(last=False)
+    return thumbnail
+
+
+def rasterize_resume_template_first_page(pdf: bytes) -> bytes:
+    try:
+        return render_pdf_first_page_thumbnail(pdf)
+    except PdfThumbnailRenderError as exc:
+        raise ResumePdfRenderError(
+            f"Resume template thumbnail rendering failed: {exc}"
+        ) from exc
+
+
+def clear_resume_template_thumbnail_cache() -> None:
+    with _preview_thumbnail_cache_lock:
+        _preview_thumbnail_cache.clear()
+
+
 __all__ = [
     "DEMO_FINAL_RESUME",
     "PreviewRateLimitExceeded",
     "ResumeTemplatePreviewRateLimiter",
+    "clear_resume_template_thumbnail_cache",
     "preview_rate_limiter",
     "render_resume_template_preview",
+    "render_resume_template_thumbnail",
+    "thumbnail_rate_limiter",
 ]

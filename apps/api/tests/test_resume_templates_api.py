@@ -1,6 +1,7 @@
 from collections.abc import Generator
 from datetime import UTC, datetime
 from io import BytesIO
+import struct
 
 import pytest
 from fastapi.testclient import TestClient
@@ -17,7 +18,11 @@ from app.models.documents import (
     DocumentRecord,
     DocumentVersionRecord,
 )
-from app.services.resume_template_preview import preview_rate_limiter
+from app.services.resume_template_preview import (
+    clear_resume_template_thumbnail_cache,
+    preview_rate_limiter,
+    thumbnail_rate_limiter,
+)
 
 
 OWNER_A = {"X-Rufina-Owner-Id": "owner-a"}
@@ -55,10 +60,14 @@ def client(api_sessions: sessionmaker[Session]) -> TestClient:
 @pytest.fixture(autouse=True)
 def reset_preview_rate_limit() -> Generator[None, None, None]:
     preview_rate_limiter.reset()
+    thumbnail_rate_limiter.reset()
+    clear_resume_template_thumbnail_cache()
     try:
         yield
     finally:
         preview_rate_limiter.reset()
+        thumbnail_rate_limiter.reset()
+        clear_resume_template_thumbnail_cache()
 
 
 def template_request(name: str = "Zurich backend") -> dict[str, object]:
@@ -461,6 +470,40 @@ def test_saved_preview_is_owner_scoped_and_does_not_create_artifacts(
         assert db.scalar(select(func.count()).select_from(DocumentFileRecord)) == 0
 
 
+def test_saved_thumbnail_is_a_real_first_page_png_and_owner_scoped(
+    client: TestClient,
+) -> None:
+    custom = create_custom_template(
+        client,
+        headers=OWNER_A,
+        name="Thumbnail template",
+    )
+    template_id = custom["id"]
+
+    response = client.get(
+        f"/resume-templates/{template_id}/thumbnail",
+        headers=OWNER_A,
+    )
+    foreign = client.get(
+        f"/resume-templates/{template_id}/thumbnail",
+        headers=OWNER_B,
+    )
+
+    assert response.status_code == 200
+    assert response.content.startswith(b"\x89PNG\r\n\x1a\n")
+    assert response.headers["content-type"] == "image/png"
+    assert response.headers["cache-control"] == "private, max-age=300"
+    assert response.headers["content-disposition"] == (
+        'inline; filename="resume-template-thumbnail.png"'
+    )
+    assert response.headers["x-rufina-template-id"] == template_id
+    assert response.headers["x-rufina-template-version"] == "1"
+    width, height = struct.unpack(">II", response.content[16:24])
+    assert width == 360
+    assert height == 640
+    assert foreign.status_code == 404
+
+
 def test_preview_payload_limit_is_checked_before_render(
     client: TestClient,
 ) -> None:
@@ -504,6 +547,38 @@ def test_preview_rate_limit_is_owner_scoped(
     )
     other_owner = client.post(
         "/resume-templates/classic_single/preview",
+        headers=OWNER_B,
+    )
+
+    assert first.status_code == 200
+    assert limited.status_code == 429
+    assert limited.headers["retry-after"] == "60"
+    assert other_owner.status_code == 200
+
+
+def test_thumbnail_rate_limit_is_owner_scoped(
+    client: TestClient,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        resume_template_thumbnail_rate_limit=1,
+        resume_template_thumbnail_rate_window_seconds=60,
+    )
+    monkeypatch.setattr(
+        "app.api.resume_templates.render_resume_template_thumbnail",
+        lambda _template: b"\x89PNG\r\n\x1a\n" + b"x" * 32,
+    )
+
+    first = client.get(
+        "/resume-templates/classic_single/thumbnail",
+        headers=OWNER_A,
+    )
+    limited = client.get(
+        "/resume-templates/classic_single/thumbnail",
+        headers=OWNER_A,
+    )
+    other_owner = client.get(
+        "/resume-templates/classic_single/thumbnail",
         headers=OWNER_B,
     )
 
