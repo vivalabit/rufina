@@ -91,9 +91,9 @@ SYSTEM_DOCUMENT_QUESTIONS = (
     ClarificationQuestion(
         question_id="cover-letter-company-contact",
         requirement="Known employee at the hiring company",
-        question="Do you know or have you spoken with an employee at this company? If yes, provide their full name.",
-        why="A genuine company contact may add relevant context to the cover letter.",
-        claim_if_confirmed="The candidate knows or has spoken with an employee at the company.",
+        question="Do you know or have you spoken with an employee at this company? If yes, provide their full name and confirm that this contact strengthened your positive impression of the company.",
+        why="A genuine company contact can give the cover letter a more personal opening.",
+        claim_if_confirmed="The candidate knows or has spoken with the named employee, and that contact strengthened the candidate's positive impression of the company.",
         blocking=False,
     ),
     ClarificationQuestion(

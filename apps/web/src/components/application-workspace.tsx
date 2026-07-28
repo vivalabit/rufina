@@ -379,8 +379,17 @@ const coverLetterRecipientQuestion = {
   claimIfConfirmed: "The named person is the recruiter or intended hiring contact for this application.",
   blocking: false,
 } satisfies NonNullable<ApplicationGuide["clarificationQuestions"]>[number];
+const coverLetterCompanyContactQuestion = {
+  id: "cover-letter-company-contact",
+  requirement: "Known employee at the hiring company",
+  question: "Do you know or have you spoken with an employee at this company?",
+  why: "A genuine company contact can give the cover letter a more personal opening.",
+  claimIfConfirmed: "The candidate knows or has spoken with the named employee, and that contact strengthened the candidate's positive impression of the company.",
+  blocking: false,
+} satisfies NonNullable<ApplicationGuide["clarificationQuestions"]>[number];
 const coverLetterContextQuestions = [
   coverLetterRecipientQuestion,
+  coverLetterCompanyContactQuestion,
 ];
 const coverLetterContextQuestionIds = new Set<string>(
   coverLetterContextQuestions.map((question) => question.id),
@@ -532,7 +541,7 @@ export function buildDocumentGenerationPrompt(
   targetLanguage: string,
 ) {
   const headerInstructions = "Fill every editable field in the bundled cover-letter template instead of leaving placeholder text unchanged. Use confirmation:company-header-research for the official recipientCompany and verified address, confirmation:cover-letter-recipient-name for recipientName when present, the candidate profile location plus generation date for letterDate, the exact vacancy title for the subject, and profile:name for candidateName. Keep the recipient block in exactly four lines: official company name; recruiter or Hiring Team; street and building number; postal code, city, and country. Split the researched full address between recipientStreet and recipientCity at the boundary after the street and building number. Do not invent, shorten, or omit any part of the researched company address.";
-  return `${headerInstructions} Act as an experienced career consultant and recruiter who writes personalized cover letters for strong candidates. Using the complete candidate resume/profile and vacancy in CONTEXT_JSON, write a compelling cover letter tailored specifically to this role in ${targetLanguage}. Before writing, silently analyze the vacancy: identify its key responsibilities, must-have and preferred requirements, most important competencies, the employer problems the new hire should solve, and the company's own professional vocabulary. Silently analyze the resume: identify the most relevant experience, projects, responsibilities, recurring areas of work, and transferable skills that prove fit, as well as the candidate's strongest competitive advantages. Build the letter around the mapping “employer need → verified candidate capability → benefit the candidate can deliver”. Use confirmation:cover-letter-additional-context when present for motivation, proud achievements, reasons for changing roles, details to emphasize, and details to avoid. Never invent facts, achievements, numbers, tools, experience, feelings, names, praise, or endorsement. When evidence is insufficient, use a neutral formulation instead of asking questions during document generation. Write approximately 250–350 words when the editable template capacity allows it. Use a confident, professional, natural tone and language clear to a non-technical recruiter. Personalize the letter to the company and role. The first two or three sentences should immediately show why the candidate is relevant. The second substantive body paragraph must give a concise, recruiter-friendly synthesis of what the candidate has done across their experience: the kinds of systems, products, workflows, or business problems they worked on; their recurring responsibilities; and the broader operational value of that work. Generalize only from verified resume evidence. Describe two to four coherent capability areas rather than walking through employers or roles. Do not copy, closely paraphrase, enumerate, or compress achievement bullets from the resume in this paragraph. Do not include metrics, percentages, counts, revenue, time savings, or other numbers in this paragraph. It should read as a natural professional overview, similar in abstraction and flow to: “Throughout my experience, I have built [types of systems] for [types of real-world use cases]. I have focused on [recurring responsibilities and operational outcomes]. I also have experience with [another verified capability area].” Use the pattern, not these facts or exact wording. In the following paragraph, connect the most relevant capabilities to the employer's needs and explain how the candidate can help solve the company's tasks. Include at most one concise, verified example elsewhere in the letter when it materially improves credibility; do not turn that paragraph into a list of CV metrics or retell the whole CV. Explain the specific attraction of the role and company using only available evidence, and focus equally on the benefit to the employer. If the candidate is changing profession or industry, explain transferable value without defensiveness. Do not emphasize unmet requirements. Avoid bureaucracy, overly complex sentences, generic AI phrasing, flattery, overconfidence, and unsupported clichés such as “ideal candidate”, “team player”, “stress-resistant”, or “fast learner”. Do not mention language proficiency. Recommended narrative: a short opening naming the position and main relevance argument; the high-level professional overview defined above; a paragraph connecting those capabilities to the company's tasks, optionally with one concise verified example; specific motivation for the role or company; and a short, confident invitation to continue the conversation. Do not print analysis, arguments, questions, numbered answers, improvement notes, or section headings in the letter. Update the subject with the exact vacancy title. Greet the person from confirmation:cover-letter-recipient-name when a verified full name is available; otherwise greet the company's hiring team. If confirmation:cover-letter-company-contact says YES and contains a full employee name, mention that genuine contact naturally once in the letter, but never claim or imply that the employee recommended, endorsed, or recruited the candidate. The bundled DOCX uses format cover-letter-blocks-v1 and exposes editable paragraphs and spans with stable paragraphId, spanId, original, and evidenceId values. Preserve its fixed layout, closing, hyperlinks, and every non-editable element. Return only valid JSON with this exact shape: {"replacements":[{"paragraphId":"paragraph-0002","spanId":"paragraph-0002-span-0001","original":"exact original editable span text","replacement":"new text","reason":"short reason","evidenceIds":["source:paragraph-0002-span-0001","vacancy:title"]}]}. Use only editable text spans, copy paragraphId, spanId, and original exactly, and cite every profile, vacancy, confirmation, and source evidence ID supporting each replacement. Do not insert or remove paragraphs or spans and do not use Markdown.`;
+  return `${headerInstructions} Act as an experienced career consultant and recruiter who writes personalized cover letters for strong candidates. Using the complete candidate resume/profile and vacancy in CONTEXT_JSON, write a compelling cover letter tailored specifically to this role in ${targetLanguage}. Before writing, silently analyze the vacancy: identify its key responsibilities, must-have and preferred requirements, most important competencies, the employer problems the new hire should solve, and the company's own professional vocabulary. Silently analyze the resume: identify the most relevant experience, projects, responsibilities, recurring areas of work, and transferable skills that prove fit, as well as the candidate's strongest competitive advantages. Build the letter around the mapping “employer need → verified candidate capability → benefit the candidate can deliver”. Use confirmation:cover-letter-additional-context when present for motivation, proud achievements, reasons for changing roles, details to emphasize, and details to avoid. Never invent facts, achievements, numbers, tools, experience, feelings, names, praise, or endorsement. When evidence is insufficient, use a neutral formulation instead of asking questions during document generation. Write approximately 250–350 words when the editable template capacity allows it. Use a confident, professional, natural tone and language clear to a non-technical recruiter. Personalize the letter to the company and role. The first two or three sentences should immediately show why the candidate is relevant. The second substantive body paragraph must give a concise, recruiter-friendly synthesis of what the candidate has done across their experience: the kinds of systems, products, workflows, or business problems they worked on; their recurring responsibilities; and the broader operational value of that work. Generalize only from verified resume evidence. Describe two to four coherent capability areas rather than walking through employers or roles. Do not copy, closely paraphrase, enumerate, or compress achievement bullets from the resume in this paragraph. Do not include metrics, percentages, counts, revenue, time savings, or other numbers in this paragraph. It should read as a natural professional overview, similar in abstraction and flow to: “Throughout my experience, I have built [types of systems] for [types of real-world use cases]. I have focused on [recurring responsibilities and operational outcomes]. I also have experience with [another verified capability area].” Use the pattern, not these facts or exact wording. In the following paragraph, connect the most relevant capabilities to the employer's needs and explain how the candidate can help solve the company's tasks. Include at most one concise, verified example elsewhere in the letter when it materially improves credibility; do not turn that paragraph into a list of CV metrics or retell the whole CV. Explain the specific attraction of the role and company using only available evidence, and focus equally on the benefit to the employer. If the candidate is changing profession or industry, explain transferable value without defensiveness. Do not emphasize unmet requirements. Avoid bureaucracy, overly complex sentences, generic AI phrasing, flattery, overconfidence, and unsupported clichés such as “ideal candidate”, “team player”, “stress-resistant”, or “fast learner”. Do not mention language proficiency. Recommended narrative: a short opening naming the position and main relevance argument; the high-level professional overview defined above; a paragraph connecting those capabilities to the company's tasks, optionally with one concise verified example; specific motivation for the role or company; and a short, confident invitation to continue the conversation. Do not print analysis, arguments, questions, numbered answers, improvement notes, or section headings in the letter. Update the subject with the exact vacancy title. Greet the person from confirmation:cover-letter-recipient-name when a verified full name is available; otherwise greet the company's hiring team. If confirmation:cover-letter-company-contact says YES and contains a full employee name, then immediately after the greeting the first substantive sentence must naturally state that the candidate knows or has spoken with that employee and that this contact strengthened the candidate's positive impression of the company and interest in the role. Mention the contact only once, before the main relevance argument, and never claim or imply that the employee recommended, endorsed, or recruited the candidate. If that confirmation is absent or says NO, do not mention a company contact. The bundled DOCX uses format cover-letter-blocks-v1 and exposes editable paragraphs and spans with stable paragraphId, spanId, original, and evidenceId values. Preserve its fixed layout, closing, hyperlinks, and every non-editable element. Return only valid JSON with this exact shape: {"replacements":[{"paragraphId":"paragraph-0002","spanId":"paragraph-0002-span-0001","original":"exact original editable span text","replacement":"new text","reason":"short reason","evidenceIds":["source:paragraph-0002-span-0001","vacancy:title"]}]}. Use only editable text spans, copy paragraphId, spanId, and original exactly, and cite every profile, vacancy, confirmation, and source evidence ID supporting each replacement. Do not insert or remove paragraphs or spans and do not use Markdown.`;
 }
 
 function ensureGenerationPromptFits(prompt: string) {
@@ -881,9 +890,19 @@ export function ApplicationWorkspace({
   );
   const coverLetterRecipient = candidateConfirmations[coverLetterRecipientQuestion.id];
   const coverLetterRecipientName = coverLetterRecipient?.exampleText ?? "";
-  const coverLetterNamesComplete = (
+  const coverLetterRecipientNameComplete = (
     coverLetterRecipient?.response !== "yes"
     || coverLetterRecipientName.trim().split(/\s+/).filter(Boolean).length >= 2
+  );
+  const coverLetterCompanyContact = candidateConfirmations[coverLetterCompanyContactQuestion.id];
+  const coverLetterCompanyContactName = coverLetterCompanyContact?.exampleText ?? "";
+  const coverLetterCompanyContactNameComplete = (
+    coverLetterCompanyContact?.response !== "yes"
+    || coverLetterCompanyContactName.trim().split(/\s+/).filter(Boolean).length >= 2
+  );
+  const coverLetterNamesComplete = (
+    coverLetterRecipientNameComplete
+    && coverLetterCompanyContactNameComplete
   );
   const vacancyLanguage = applicationGuide?.language || (application ? detectLegacyJobLanguage(application.job) : "");
   const effectiveLanguage = languageMode === "auto" ? vacancyLanguage : languageMode;
@@ -1955,25 +1974,46 @@ export function ApplicationWorkspace({
                       </div>
                     )}
                     generationControl={(
-                      <label className="mt-3 block rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
-                        <span className="text-[10px] font-bold text-[#d9e0e8]">Recruiter name <span className="font-normal text-muted">(optional)</span></span>
-                        <span className="mt-1 block text-[9px] leading-4 text-muted">Used in the greeting. Leave empty to address the company&apos;s hiring team.</span>
-                        <input
-                          aria-label="Recruiter name"
-                          value={coverLetterRecipientName}
-                          maxLength={160}
-                          onChange={(event) => {
-                            const name = event.target.value;
-                            updateCandidateConfirmation(coverLetterRecipientQuestion, {
-                              response: name.trim() ? "yes" : "no",
-                              exampleText: name,
-                            });
-                          }}
-                          placeholder="First name and last name"
-                          className={cn("mt-2 h-10 w-full rounded-xl border bg-[#0b1118] px-3 text-xs text-white outline-none placeholder:text-muted/55", coverLetterNamesComplete ? "border-white/[0.08] focus:border-accent/40" : "border-amber-400/40 focus:border-amber-300")}
-                        />
-                        {!coverLetterNamesComplete ? <span className="mt-1.5 block text-[9px] font-bold text-amber-200">Enter first and last name or leave the field empty.</span> : null}
-                      </label>
+                      <div className="mt-3 space-y-3">
+                        <label className="block rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
+                          <span className="text-[10px] font-bold text-[#d9e0e8]">Recruiter name <span className="font-normal text-muted">(optional)</span></span>
+                          <span className="mt-1 block text-[9px] leading-4 text-muted">Used in the greeting. Leave empty to address the company&apos;s hiring team.</span>
+                          <input
+                            aria-label="Recruiter name"
+                            value={coverLetterRecipientName}
+                            maxLength={160}
+                            onChange={(event) => {
+                              const name = event.target.value;
+                              updateCandidateConfirmation(coverLetterRecipientQuestion, {
+                                response: name.trim() ? "yes" : "no",
+                                exampleText: name,
+                              });
+                            }}
+                            placeholder="First name and last name"
+                            className={cn("mt-2 h-10 w-full rounded-xl border bg-[#0b1118] px-3 text-xs text-white outline-none placeholder:text-muted/55", coverLetterRecipientNameComplete ? "border-white/[0.08] focus:border-accent/40" : "border-amber-400/40 focus:border-amber-300")}
+                          />
+                          {!coverLetterRecipientNameComplete ? <span className="mt-1.5 block text-[9px] font-bold text-amber-200">Enter first and last name or leave the field empty.</span> : null}
+                        </label>
+                        <label className="block rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
+                          <span className="text-[10px] font-bold text-[#d9e0e8]">Know someone at the company? <span className="font-normal text-muted">(optional)</span></span>
+                          <span className="mt-1 block text-[9px] leading-4 text-muted">Enter their full name. The letter will open with this connection and how it strengthened your positive impression of the company.</span>
+                          <input
+                            aria-label="Company contact name"
+                            value={coverLetterCompanyContactName}
+                            maxLength={160}
+                            onChange={(event) => {
+                              const name = event.target.value;
+                              updateCandidateConfirmation(coverLetterCompanyContactQuestion, {
+                                response: name.trim() ? "yes" : "no",
+                                exampleText: name,
+                              });
+                            }}
+                            placeholder="First name and last name"
+                            className={cn("mt-2 h-10 w-full rounded-xl border bg-[#0b1118] px-3 text-xs text-white outline-none placeholder:text-muted/55", coverLetterCompanyContactNameComplete ? "border-white/[0.08] focus:border-accent/40" : "border-amber-400/40 focus:border-amber-300")}
+                          />
+                          {!coverLetterCompanyContactNameComplete ? <span className="mt-1.5 block text-[9px] font-bold text-amber-200">Enter first and last name or leave the field empty.</span> : null}
+                        </label>
+                      </div>
                     )}
                   />
                 </div>

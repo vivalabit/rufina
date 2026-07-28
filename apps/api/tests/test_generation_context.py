@@ -271,6 +271,12 @@ def test_cover_letter_context_questions_are_always_authoritative() -> None:
         "Known employee at the hiring company"
     )
     assert "full name" in question_by_id["cover-letter-company-contact"].question.lower()
+    assert "positive impression" in (
+        question_by_id["cover-letter-company-contact"].question.lower()
+    )
+    assert "positive impression" in (
+        question_by_id["cover-letter-company-contact"].claim_if_confirmed.lower()
+    )
     assert question_by_id["cover-letter-additional-context"].blocking is False
     assert len(clarification_questions({})) == 3
 

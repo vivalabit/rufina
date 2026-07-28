@@ -40,6 +40,15 @@ describe("cover letter generation prompt", () => {
     expect(prompt).toContain(
       "confirmation:company-header-research",
     );
+    expect(prompt).toContain(
+      "immediately after the greeting the first substantive sentence must naturally state that the candidate knows or has spoken with that employee",
+    );
+    expect(prompt).toContain(
+      "strengthened the candidate's positive impression of the company and interest in the role",
+    );
+    expect(prompt).toContain(
+      "never claim or imply that the employee recommended, endorsed, or recruited the candidate",
+    );
     expect(prompt).not.toContain(
       "a paragraph with the strongest matching evidence",
     );
@@ -612,6 +621,9 @@ describe("ApplicationWorkspace", () => {
     const recruiterName = screen.getByRole("textbox", {
       name: "Recruiter name",
     });
+    const companyContactName = screen.getByRole("textbox", {
+      name: "Company contact name",
+    });
     const generateCoverLetter = screen.getByRole("button", {
       name: "Generate Cover letter",
     });
@@ -619,11 +631,33 @@ describe("ApplicationWorkspace", () => {
       recruiterName.compareDocumentPosition(generateCoverLetter)
       & Node.DOCUMENT_POSITION_FOLLOWING,
     ).toBeTruthy();
+    expect(
+      recruiterName.compareDocumentPosition(companyContactName)
+      & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
+    expect(
+      companyContactName.compareDocumentPosition(generateCoverLetter)
+      & Node.DOCUMENT_POSITION_FOLLOWING,
+    ).toBeTruthy();
 
     fireEvent.change(recruiterName, {
       target: { value: "Taylor Smith" },
     });
+    fireEvent.change(companyContactName, {
+      target: { value: "Marco Rossi" },
+    });
     expect(recruiterName).toHaveValue("Taylor Smith");
+    expect(companyContactName).toHaveValue("Marco Rossi");
+    await waitFor(() => {
+      expect(
+        fetchMock.mock.calls.some(([input, init]) => (
+          String(input).includes("/applications/application-v3/confirmations")
+          && init?.method === "PUT"
+          && String(init.body).includes('"questionId":"cover-letter-company-contact"')
+          && String(init.body).includes('"exampleText":"Marco Rossi"')
+        )),
+      ).toBe(true);
+    });
   });
 
   it("does not loop when the application guide is missing", async () => {
