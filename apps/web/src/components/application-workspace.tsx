@@ -283,6 +283,7 @@ type AiPrivacySettings = {
 type PackStageId = "resume_generation" | "resume_validation" | "cover_letter_generation" | "saving";
 type PackProgressStatus = "active" | "retrying" | "failed" | "completed" | "partial";
 type WorkspaceStep = "review" | "confirm" | "create" | "final";
+type ResumeGenerationMode = "recruiter_xyz_ats";
 
 type CoverLetterDraft = {
   documentId?: string;
@@ -374,6 +375,22 @@ const confirmationAnswerMaxChars = 1_500;
 const documentRevisionMessageMaxChars = 7_000;
 const documentGenerationMessageMaxChars = 11_500;
 const resumeTemplateStorageKeyPrefix = "tasko.resume-template.v1";
+const resumeGenerationModeStorageKeyPrefix = "tasko.resume-generation-mode.v1";
+const resumeGenerationModes: ReadonlyArray<{
+  id: ResumeGenerationMode;
+  name: string;
+  description: string;
+  stages: string;
+}> = [
+  {
+    id: "recruiter_xyz_ats",
+    name: "Recruiter → XYZ → ATS",
+    description:
+      "Deep evidence-backed tailoring with recruiter analysis, XYZ experience rewriting, and a final ATS review.",
+    stages: "3 AI stages",
+  },
+];
+const defaultResumeGenerationMode = resumeGenerationModes[0].id;
 const coverLetterRecipientQuestion = {
   id: "cover-letter-recipient-name",
   requirement: "Named recruiter or intended hiring contact",
@@ -406,6 +423,10 @@ const packStageDefinitions: Array<{ id: PackStageId; label: string }> = [
 
 function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function isResumeGenerationMode(value: string | null): value is ResumeGenerationMode {
+  return resumeGenerationModes.some((mode) => mode.id === value);
 }
 
 function currentContent(document: GeneratedDocument | undefined) {
@@ -836,6 +857,8 @@ export function ApplicationWorkspace({
   const [resumeTemplates, setResumeTemplates] = useState<ResumeTemplate[]>([]);
   const [selectedResumeTemplateId, setSelectedResumeTemplateId] = useState<ResumeTemplateId>("classic_single");
   const [resumeTemplateNotice, setResumeTemplateNotice] = useState("");
+  const [selectedResumeGenerationMode, setSelectedResumeGenerationMode] =
+    useState<ResumeGenerationMode>(defaultResumeGenerationMode);
   const [currentMasterResume, setCurrentMasterResume] =
     useState<CurrentMasterResume | null>(null);
   const [masterResumeLoaded, setMasterResumeLoaded] = useState(false);
@@ -881,6 +904,16 @@ export function ApplicationWorkspace({
       window.localStorage.setItem(
         `${resumeTemplateStorageKeyPrefix}.${application.id}`,
         templateId,
+      );
+    }
+  }
+
+  function selectResumeGenerationMode(mode: ResumeGenerationMode) {
+    setSelectedResumeGenerationMode(mode);
+    if (application) {
+      window.localStorage.setItem(
+        `${resumeGenerationModeStorageKeyPrefix}.${application.id}`,
+        mode,
       );
     }
   }
@@ -940,7 +973,15 @@ export function ApplicationWorkspace({
     const savedTemplateId = window.localStorage.getItem(
       `${resumeTemplateStorageKeyPrefix}.${application.id}`,
     );
+    const savedGenerationMode = window.localStorage.getItem(
+      `${resumeGenerationModeStorageKeyPrefix}.${application.id}`,
+    );
     setSelectedResumeTemplateId(savedTemplateId || "classic_single");
+    setSelectedResumeGenerationMode(
+      isResumeGenerationMode(savedGenerationMode)
+        ? savedGenerationMode
+        : defaultResumeGenerationMode,
+    );
     setResumeTemplateNotice("");
     setDocumentsLoaded(false);
     setMasterResumeLoaded(false);
@@ -1474,6 +1515,10 @@ export function ApplicationWorkspace({
       setDocumentError("Choose an available resume template");
       return false;
     }
+    if (selectedResumeGenerationMode !== "recruiter_xyz_ats") {
+      setDocumentError("The selected CV generation mode is unavailable");
+      return false;
+    }
 
     const attempt = 1;
     const savedFinalResumeReviewId = reusableFinalResumeReviewId(
@@ -1594,6 +1639,7 @@ export function ApplicationWorkspace({
           masterResumeId: currentMasterResume.masterResumeId,
           targetJobId: activeApplication.job.id,
           applicationId: activeApplication.id,
+          generationMode: selectedResumeGenerationMode,
           targetLanguage: documentLanguage,
           ...(revisionInstruction.trim()
             ? { revisionInstruction: revisionInstruction.trim() }
@@ -2220,7 +2266,7 @@ export function ApplicationWorkspace({
                 {packProgress ? <div className={cn("mb-4 rounded-xl border p-3", packProgress.status === "failed" ? "border-red-400/25 bg-red-500/[0.045]" : packProgress.status === "partial" ? "border-amber-400/25 bg-amber-400/[0.045]" : "border-white/[0.08] bg-black/15")}><div className="grid gap-2 sm:grid-cols-4">{packStageDefinitions.map((stage, index) => { const currentIndex = packStageDefinitions.findIndex((candidate) => candidate.id === packProgress.stage); const stageStatus = index < currentIndex ? "completed" : index === currentIndex ? packProgress.status : "pending"; return <div key={stage.id} className={cn("rounded-lg border px-2.5 py-2", stageStatus === "completed" ? "border-success/20 bg-success/[0.05]" : stageStatus === "failed" ? "border-red-400/25 bg-red-500/[0.06]" : stageStatus === "partial" ? "border-amber-400/25 bg-amber-400/[0.06]" : stageStatus === "active" || stageStatus === "retrying" ? "border-accent/30 bg-accent/[0.07]" : "border-white/[0.06] bg-white/[0.015]")}><div className="flex items-center gap-2">{stageStatus === "completed" ? <Check className="h-3.5 w-3.5 text-success" /> : stageStatus === "active" || stageStatus === "retrying" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin text-accent" /> : stageStatus === "failed" ? <AlertTriangle className="h-3.5 w-3.5 text-red-200" /> : <CircleDot className="h-3.5 w-3.5 text-muted" />}<span className={cn("text-[9px] font-black uppercase tracking-wide", stageStatus === "completed" ? "text-success" : stageStatus === "failed" ? "text-red-200" : stageStatus === "partial" ? "text-amber-200" : stageStatus === "active" || stageStatus === "retrying" ? "text-white" : "text-muted")}>{stage.label}</span></div></div>; })}</div><div className="mt-2 flex items-center justify-between gap-3 px-1 text-[9px]"><span className={cn(packProgress.status === "failed" ? "text-red-200" : packProgress.status === "partial" ? "text-amber-200" : "text-muted")}>{packProgress.message}</span><span className="shrink-0 font-mono text-muted">{packProgress.attempt > 1 ? `attempt ${packProgress.attempt}/3 · ` : ""}{packProgress.jobId.slice(-8)}</span></div></div> : null}
                 {masterResumeLoaded && !currentMasterResume ? <div className="mb-4 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2.5 text-xs leading-5 text-amber-200">Confirm your Master Resume in My Profile before tailoring a vacancy.</div> : null}
                 <div className="space-y-10">
-                  <DocumentCard sectionLabel="Resume document" documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Create and download a tailored CV for this role." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><p className="mt-3 text-[9px] text-muted">Master Resume · {currentMasterResume ? `v${currentMasterResume.version} confirmed` : "required"}</p><ResumeTemplatePicker apiBaseUrl={apiBaseUrl} templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} />
+                  <DocumentCard sectionLabel="Resume document" documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Create and download a tailored CV for this role." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><p className="mt-3 text-[9px] text-muted">Master Resume · {currentMasterResume ? `v${currentMasterResume.version} confirmed` : "required"}</p><ResumeTemplatePicker apiBaseUrl={apiBaseUrl} templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} generationControl={<ResumeGenerationModePicker selectedId={selectedResumeGenerationMode} onChange={selectResumeGenerationMode} />} />
                   <CollapsibleDocumentPreview
                     title="Resume preview"
                     description="Open the exact generated PDF, ATS scan and document changes"
@@ -2482,6 +2528,67 @@ export function ApplicationWorkspace({
       </div>
     ) : null}
     </>
+  );
+}
+
+function ResumeGenerationModePicker({
+  selectedId,
+  onChange,
+}: {
+  selectedId: ResumeGenerationMode;
+  onChange: (mode: ResumeGenerationMode) => void;
+}) {
+  const selectedMode =
+    resumeGenerationModes.find((mode) => mode.id === selectedId)
+    ?? resumeGenerationModes[0];
+
+  return (
+    <section
+      aria-labelledby="resume-generation-mode-title"
+      className="mt-3 rounded-xl border border-accent/20 bg-accent/[0.035] p-3"
+    >
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="flex flex-wrap items-center gap-2">
+            <p
+              id="resume-generation-mode-title"
+              className="text-[9px] font-black uppercase tracking-[0.1em] text-muted"
+            >
+              CV generation mode
+            </p>
+            <span className="rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-accent">
+              Mode 01
+            </span>
+          </div>
+          <p className="mt-1 text-[9px] leading-4 text-muted">
+            Choose how Rufina should tailor this CV before starting generation.
+          </p>
+        </div>
+        <label className="flex shrink-0 items-center gap-2 rounded-lg border border-white/[0.09] bg-[#0b1118] p-1.5 pl-3">
+          <span className="text-[9px] font-bold text-muted">Mode</span>
+          <select
+            aria-label="CV generation mode"
+            value={selectedId}
+            onChange={(event) => onChange(event.target.value as ResumeGenerationMode)}
+            className="h-9 min-w-52 rounded-md border border-white/[0.09] bg-[#151c24] px-3 text-[10px] font-bold text-white outline-none focus:border-accent/60"
+          >
+            {resumeGenerationModes.map((mode) => (
+              <option key={mode.id} value={mode.id}>
+                {mode.name}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="mt-3 flex items-start justify-between gap-3 rounded-lg border border-white/[0.07] bg-black/20 px-3 py-2.5">
+        <p className="text-[9px] leading-4 text-[#cbd3df]">
+          {selectedMode.description}
+        </p>
+        <span className="shrink-0 rounded-full border border-white/[0.08] bg-white/[0.035] px-2 py-1 text-[8px] font-black uppercase tracking-wide text-muted">
+          {selectedMode.stages}
+        </span>
+      </div>
+    </section>
   );
 }
 

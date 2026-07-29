@@ -1362,12 +1362,17 @@ TailoringTargetJobId = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=160),
 ]
+ResumeGenerationMode = Literal["recruiter_xyz_ats"]
 
 
 class SeniorRecruiterAnalysisRequest(StrictResumeModel):
     master_resume_id: ResumeId = Field(alias="masterResumeId")
     target_job_id: TailoringTargetJobId = Field(alias="targetJobId")
     application_id: CanonicalId | None = Field(default=None, alias="applicationId")
+    generation_mode: ResumeGenerationMode = Field(
+        default="recruiter_xyz_ats",
+        alias="generationMode",
+    )
     target_language: Literal["English", "German"] | None = Field(
         default=None,
         alias="targetLanguage",

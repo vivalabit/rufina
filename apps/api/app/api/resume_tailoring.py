@@ -174,6 +174,7 @@ def run_senior_recruiter_analysis(
                 SENIOR_RECRUITER_REQUEST_TYPE,
                 {
                     "promptVersion": SENIOR_RECRUITER_PROMPT_VERSION,
+                    "generationMode": payload.generation_mode,
                     "masterResumeVersionId": master_version.id,
                     "masterResume": master_resume.model_dump(
                         by_alias=True,

@@ -318,6 +318,7 @@ describe("ApplicationWorkspace", () => {
             masterResumeId: "master-resume-1",
             targetJobId: "job-product-designer",
             applicationId: "application-v3",
+            generationMode: "recruiter_xyz_ats",
             targetLanguage: "English",
           });
           return Response.json({ id: "recruiter-analysis-1" });
@@ -447,6 +448,32 @@ describe("ApplicationWorkspace", () => {
         name: "DOCX",
       }),
     ).toHaveAttribute("download", "Alex-Morgan-resume.docx");
+  });
+
+  it("shows the current three-stage pipeline as the first CV generation mode", async () => {
+    installApplicationWorkspaceApiMock({ aiPrivacySettings: consent });
+    renderApplicationWorkspace(createV3WorkspaceApplication());
+
+    const modeMenu = await screen.findByRole("combobox", {
+      name: "CV generation mode",
+    });
+    expect(modeMenu).toHaveValue("recruiter_xyz_ats");
+    expect(
+      within(modeMenu).getAllByRole("option").map((option) => ({
+        label: option.textContent,
+        value: (option as HTMLOptionElement).value,
+      })),
+    ).toEqual([
+      {
+        label: "Recruiter → XYZ → ATS",
+        value: "recruiter_xyz_ats",
+      },
+    ]);
+    expect(
+      screen.getByText(
+        /Deep evidence-backed tailoring with recruiter analysis/i,
+      ),
+    ).toBeInTheDocument();
   });
 
   it("passes the selected document language into CV generation", async () => {
