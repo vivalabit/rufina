@@ -95,12 +95,14 @@ def test_templates_are_deduplicated_and_binary_retention_follows_owner_deletion(
     assert first.status_code == 201
     assert duplicate.status_code == 201
     assert duplicate.json()["id"] == first.json()["id"]
-    assert len(listed.json()) == 1
+    assert len(listed.json()) == 2
+    assert listed.json()[0]["builtIn"] is True
+    assert listed.json()[1]["id"] == first.json()["id"]
     assert len(stored_content_sha256) == 64
-    assert "extractedText" not in listed.json()[0]
+    assert all("extractedText" not in template for template in listed.json())
     assert created.status_code == 201
     assert deleted_template.status_code == 204
-    assert template_count == 0
+    assert template_count == 1
     assert retained_file is not None
     assert retained_file.template_id is None
     assert retained_download.status_code == 200

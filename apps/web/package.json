@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "build": "next build",
-    "lint": "next lint",
+    "lint": "eslint .",
     "test": "pnpm test:unit && pnpm test:components",
     "test:unit": "node --test src/lib/*.test.mjs",
     "test:components": "vitest run",

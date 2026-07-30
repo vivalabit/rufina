@@ -19,6 +19,9 @@ from app.models.documents import (
     DocumentVersionRecord,
 )
 from app.models.jobs import JobMatchFeedbackRecord, StoredJobRecord
+from app.services.cover_letter_template_registry import (
+    bundled_cover_letter_template_id,
+)
 
 
 def test_application_data_is_scoped_to_request_owner() -> None:
@@ -211,8 +214,14 @@ def test_application_data_is_scoped_to_request_owner() -> None:
     assert conflicting_owner_headers.status_code == 400
     assert [item["questionId"] for item in confirmations_a.json()] == ["question-a"]
     assert foreign_confirmations.status_code == 404
-    assert templates_a.json() == []
-    assert templates_b.json() == []
+    assert [item["id"] for item in templates_a.json()] == [
+        bundled_cover_letter_template_id("owner-a")
+    ]
+    assert [item["id"] for item in templates_b.json()] == [
+        bundled_cover_letter_template_id("owner-b")
+    ]
+    assert templates_a.json()[0]["builtIn"] is True
+    assert templates_b.json()[0]["builtIn"] is True
     assert [item["id"] for item in resume_templates_a.json()] == [
         "classic_single",
         "modern_single",
