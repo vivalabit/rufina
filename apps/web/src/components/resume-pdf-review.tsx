@@ -11,6 +11,7 @@ import {
   LoaderCircle,
   RefreshCw,
   ScanSearch,
+  X,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -162,12 +163,14 @@ export function ResumeTemplatePicker({
   selectedId,
   onChange,
   notice,
+  compact = false,
 }: {
   apiBaseUrl: string;
   templates: ResumeTemplate[];
   selectedId: ResumeTemplateId;
   onChange: (templateId: ResumeTemplateId) => void;
   notice?: string;
+  compact?: boolean;
 }) {
   const customTemplates = templates.filter(
     (template) => template.kind === "custom",
@@ -175,6 +178,133 @@ export function ResumeTemplatePicker({
   const bundledTemplates = templates.filter(
     (template) => template.kind !== "custom",
   );
+  const selectedTemplate =
+    templates.find((template) => template.id === selectedId) ?? templates[0];
+  const [isTemplateDialogOpen, setIsTemplateDialogOpen] = useState(false);
+
+  useEffect(() => {
+    if (!isTemplateDialogOpen) return;
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsTemplateDialogOpen(false);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", closeOnEscape);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isTemplateDialogOpen]);
+
+  function selectCompactTemplate(templateId: ResumeTemplateId) {
+    onChange(templateId);
+    setIsTemplateDialogOpen(false);
+  }
+
+  if (compact) {
+    return (
+      <>
+        <section
+          aria-labelledby="resume-template-picker-title"
+          className="mt-4 border-t border-white/[0.08] pt-4"
+        >
+          <div className="grid grid-cols-[76px_minmax(0,1fr)] items-center gap-4">
+            <span className="relative block w-full max-w-[9rem]">
+              {selectedTemplate ? (
+                <ResumeTemplateThumbnail
+                  apiBaseUrl={apiBaseUrl}
+                  template={selectedTemplate}
+                />
+              ) : (
+                <span className="block aspect-[9/16] w-full border border-dashed border-white/[0.12] bg-white/[0.02]" />
+              )}
+            </span>
+            <div className="min-w-0">
+              <p
+                id="resume-template-picker-title"
+                className="text-[9px] font-black uppercase tracking-[0.12em] text-muted"
+              >
+                Resume template
+              </p>
+              <p className="mt-2 truncate text-[11px] font-bold text-white">
+                {selectedTemplate?.name ?? "Select a template"}
+              </p>
+              <button
+                type="button"
+                onClick={() => setIsTemplateDialogOpen(true)}
+                className="mt-2 border-b border-white/25 pb-0.5 text-[9px] font-bold text-[#dce3ec] transition hover:border-accent hover:text-white"
+              >
+                Change template
+              </button>
+            </div>
+          </div>
+          {notice ? (
+            <p role="status" className="mt-3 text-[9px] leading-4 text-amber-100">
+              {notice}
+            </p>
+          ) : null}
+        </section>
+        {isTemplateDialogOpen ? (
+          <div
+            className="fixed inset-0 z-[80] grid place-items-center bg-black/75 p-4 backdrop-blur-sm"
+            onMouseDown={(event) => {
+              if (event.currentTarget === event.target) {
+                setIsTemplateDialogOpen(false);
+              }
+            }}
+          >
+            <section
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="resume-template-dialog-title"
+              aria-describedby="resume-template-dialog-description"
+              className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/[0.12] bg-[#0c131c] shadow-[0_30px_90px_rgba(0,0,0,0.55)]"
+            >
+              <header className="flex items-start justify-between gap-4 border-b border-white/[0.08] px-5 py-4 sm:px-6">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.14em] text-accent">
+                    Resume appearance
+                  </p>
+                  <h2 id="resume-template-dialog-title" className="mt-1 text-lg font-bold text-white">
+                    Choose resume template
+                  </h2>
+                  <p id="resume-template-dialog-description" className="mt-1 text-[10px] leading-4 text-muted">
+                    Select one layout. The chosen template will be used for the next CV generation.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  aria-label="Close template selection"
+                  onClick={() => setIsTemplateDialogOpen(false)}
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/[0.09] text-muted transition hover:bg-white/[0.05] hover:text-white"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </header>
+              <div className="job-scroll overflow-y-auto px-5 pb-6 sm:px-6">
+                {customTemplates.length ? (
+                  <TemplatePickerGroup
+                    apiBaseUrl={apiBaseUrl}
+                    title="My templates"
+                    templates={customTemplates}
+                    selectedId={selectedId}
+                    onChange={selectCompactTemplate}
+                  />
+                ) : null}
+                <TemplatePickerGroup
+                  apiBaseUrl={apiBaseUrl}
+                  title="Built-in"
+                  templates={bundledTemplates}
+                  selectedId={selectedId}
+                  onChange={selectCompactTemplate}
+                />
+              </div>
+            </section>
+          </div>
+        ) : null}
+      </>
+    );
+  }
 
   return (
     <section

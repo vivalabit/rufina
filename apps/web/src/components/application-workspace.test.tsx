@@ -238,32 +238,38 @@ describe("ApplicationWorkspace", () => {
     });
     renderApplicationWorkspace(createV3WorkspaceApplication());
 
-    const selector = await screen.findByRole("combobox", {
-      name: "Resume template",
+    expect(
+      screen.queryByRole("dialog", { name: "Choose resume template" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(await screen.findByRole("button", {
+      name: "Change template",
+    }));
+    const templateDialog = screen.getByRole("dialog", {
+      name: "Choose resume template",
     });
     expect(
-      within(selector)
-        .getAllByRole("option")
-        .map((option) => option.getAttribute("value")),
-    ).toEqual([
-      "4ce57ea1-74a2-44cb-90c2-bfe24c549233",
-      "classic_single",
-      "modern_single",
-      "modern_two_column",
-    ]);
-    expect(
-      within(selector).getByRole("group", { name: "My templates" }),
+      within(templateDialog).getByRole("button", {
+        name: "Use My Swiss CV resume template",
+      }),
     ).toBeInTheDocument();
     expect(
-      within(selector).getByRole("group", { name: "Built-in" }),
+      within(templateDialog).getByRole("button", {
+        name: "Use Classic resume template",
+      }),
     ).toBeInTheDocument();
 
     fireEvent.click(
-      screen.getByRole("button", {
+      within(templateDialog).getByRole("button", {
         name: "Use My Swiss CV resume template",
       }),
     );
-    expect(selector).toHaveValue("4ce57ea1-74a2-44cb-90c2-bfe24c549233");
+    expect(
+      screen.queryByRole("dialog", { name: "Choose resume template" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(screen.getByRole("region", { name: "Resume template" }))
+        .getByText("My Swiss CV"),
+    ).toBeInTheDocument();
     expect(
       window.localStorage.getItem(
         "tasko.resume-template.v1.application-v3",
@@ -282,10 +288,7 @@ describe("ApplicationWorkspace", () => {
     installApplicationWorkspaceApiMock();
     renderApplicationWorkspace(createV3WorkspaceApplication());
 
-    const selector = await screen.findByRole("combobox", {
-      name: "Resume template",
-    });
-    await waitFor(() => expect(selector).toHaveValue("classic_single"));
+    await screen.findByTestId("resume-template-thumbnail-classic_single");
     expect(
       screen.getByText(
         "Your previously selected resume template is no longer available. An available built-in template was selected.",
@@ -470,10 +473,20 @@ describe("ApplicationWorkspace", () => {
       },
     ]);
     expect(
+      screen.queryByText(
+        /Deep evidence-backed tailoring with recruiter analysis/i,
+      ),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "About selected CV generation mode",
+      }),
+    );
+    expect(
       screen.getByText(
         /Deep evidence-backed tailoring with recruiter analysis/i,
       ),
-    ).toBeInTheDocument();
+    ).toBeVisible();
   });
 
   it("passes the selected document language into CV generation", async () => {
@@ -585,10 +598,12 @@ describe("ApplicationWorkspace", () => {
       createV3WorkspaceApplication(),
     );
 
-    const selector = await screen.findByRole("combobox", {
+    const compactTemplatePicker = await screen.findByRole("region", {
       name: "Resume template",
     });
-    await waitFor(() => expect(selector).toHaveValue(customTemplateId));
+    await waitFor(() => expect(
+      within(compactTemplatePicker).getByText("My Swiss CV"),
+    ).toBeInTheDocument());
     fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
 
     await waitFor(
@@ -709,6 +724,9 @@ describe("ApplicationWorkspace", () => {
       screen.queryByText("Personalize your documents"),
     ).not.toBeInTheDocument();
     expect(screen.queryByText("Document context")).not.toBeInTheDocument();
+    expect(
+      screen.queryByText("Preview, validation & changes"),
+    ).not.toBeInTheDocument();
 
     const recruiterName = screen.getByRole("textbox", {
       name: "Recruiter name",
@@ -727,6 +745,7 @@ describe("ApplicationWorkspace", () => {
     const applicationChat = screen.getByRole("heading", {
       name: "Ask questions or improve either document",
     });
+    expect(applicationChat.closest("details")).toHaveAttribute("open");
     expect(
       documentLanguage.compareDocumentPosition(generateResume)
       & Node.DOCUMENT_POSITION_FOLLOWING,

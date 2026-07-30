@@ -13,6 +13,7 @@ import {
   ExternalLink,
   FileCheck2,
   FileText,
+  Info,
   LoaderCircle,
   Mail,
   MessageSquareText,
@@ -429,42 +430,6 @@ function isResumeGenerationMode(value: string | null): value is ResumeGeneration
   return resumeGenerationModes.some((mode) => mode.id === value);
 }
 
-function currentContent(document: GeneratedDocument | undefined) {
-  if (!document) return "";
-  const content = document.versions.find((version) => version.version === document.currentVersion)?.content ?? "";
-  try {
-    const payload = JSON.parse(content) as {
-      replacements?: Array<{
-        blockId?: string;
-        paragraphId?: string;
-        spanId?: string;
-        replacement?: string;
-        reason?: string;
-        evidenceIds?: string[];
-      }>;
-    };
-    if (!Array.isArray(payload.replacements)) return content;
-    if (payload.replacements.length === 0) return "No safe text replacements were needed.";
-    return payload.replacements.map((replacement) => {
-      const containerId = replacement.blockId ?? replacement.paragraphId ?? "Text";
-      return `${containerId}${replacement.spanId ? ` · ${replacement.spanId}` : ""}: ${replacement.replacement ?? ""}${replacement.reason ? `\nWhy: ${replacement.reason}` : ""}${replacement.evidenceIds?.length ? `\nEvidence: ${replacement.evidenceIds.join(", ")}` : ""}`;
-    }).join("\n\n");
-  } catch {
-    return content;
-  }
-}
-
-function hasStructuredReplacements(document: GeneratedDocument | undefined) {
-  if (!document) return false;
-  const content = document.versions.find((version) => version.version === document.currentVersion)?.content ?? "";
-  try {
-    const payload = JSON.parse(content) as { replacements?: unknown };
-    return Array.isArray(payload.replacements);
-  } catch {
-    return false;
-  }
-}
-
 function documentFileName(document: GeneratedDocument, version = document.currentVersion) {
   const artifact = document.versions.find((item) => item.version === version)?.artifact;
   if (artifact?.fileName) return artifact.fileName;
@@ -552,9 +517,9 @@ function CollapsibleDocumentPreview({
     <details
       open={isOpen}
       onToggle={(event) => setIsOpen(event.currentTarget.open)}
-      className="group overflow-hidden rounded-2xl border border-white/[0.08] bg-white/[0.018]"
+      className="group border-t border-white/[0.08]"
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 px-4 py-4 text-xs font-bold text-[#dbe2eb] sm:px-5">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-xs font-bold text-[#dbe2eb]">
         <span>
           <span className="block text-sm text-white">{title}</span>
           <span className="mt-1 block text-[10px] font-normal leading-4 text-muted">
@@ -564,9 +529,9 @@ function CollapsibleDocumentPreview({
         <ChevronRight className="h-4 w-4 shrink-0 text-muted transition group-open:rotate-90" />
       </summary>
       {isOpen ? (
-        <div className="border-t border-white/[0.07] p-4 sm:p-5">
+        <div className="border-t border-white/[0.07] py-5">
           {available ? children : (
-            <div className="grid min-h-32 place-items-center rounded-xl border border-dashed border-white/[0.1] bg-black/15 px-4 text-center">
+            <div className="grid min-h-32 place-items-center border border-dashed border-white/[0.1] bg-black/15 px-4 text-center">
               <p className="text-[10px] font-bold text-muted">
                 Generate the document to open its exact PDF preview.
               </p>
@@ -598,25 +563,16 @@ function CoverLetterTemplateCard({
   );
 
   return (
-    <div className="mt-4 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3">
-      <div className="flex items-center justify-between gap-3">
-        <p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">
-          Cover letter template
-        </p>
-        <Mail className="h-4 w-4 shrink-0 text-accent" />
-      </div>
-      <p className="mb-1.5 mt-3 text-[8px] font-black uppercase tracking-[0.12em] text-muted">
-        Built-in
-      </p>
-      <div className="grid grid-cols-[160px]">
+    <div className="mt-4 border-t border-white/[0.08] pt-4">
+      <div className="grid grid-cols-[76px_minmax(0,1fr)] items-center gap-4">
         <div
           aria-label={`${template?.name ?? "Standard cover letter"} selected template`}
-          className="min-w-0 rounded-lg border border-accent/55 bg-accent/[0.08] p-2 text-center shadow-[0_0_0_1px_rgba(255,90,0,0.08)]"
+          className="min-w-0"
         >
           <span className="relative mx-auto block w-full max-w-[9rem]">
             <span
               data-testid="cover-letter-template-thumbnail"
-              className="relative block aspect-[9/16] w-full overflow-hidden rounded-[5px] border border-slate-300/70 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
+              className="relative block aspect-[9/16] w-full overflow-hidden border border-slate-300/70 bg-white shadow-[0_8px_24px_rgba(0,0,0,0.3)]"
             >
               {thumbnailUrl && !thumbnailFailed ? (
                 <img
@@ -648,20 +604,22 @@ function CoverLetterTemplateCard({
                 </span>
               ) : null}
             </span>
-            <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-accent/50 bg-[#15100d] shadow-lg">
-              <Check className="h-3 w-3 text-accent" />
-            </span>
           </span>
-          <span className="mt-2.5 flex min-h-8 items-start justify-center text-[10px] font-bold leading-4 text-white">
-            <span className="line-clamp-2">
-              {template?.name ?? "Standard cover letter"}
-            </span>
-          </span>
+        </div>
+        <div className="min-w-0">
+          <p className="text-[9px] font-black uppercase tracking-[0.12em] text-muted">
+            Cover letter template
+          </p>
+          <p className="mt-2 text-[11px] font-bold text-white">
+            {template?.name ?? "Standard cover letter"}
+          </p>
+          <p className="mt-1 text-[9px] leading-4 text-muted">
+            Built-in · fixed Swiss-style structure
+          </p>
         </div>
       </div>
       <p className="mt-3 text-[9px] leading-4 text-muted">
-        Fixed Swiss-style structure · company details researched automatically ·
-        no DOCX upload required
+        Company details are researched automatically · no DOCX upload required
       </p>
     </div>
   );
@@ -2239,20 +2197,20 @@ export function ApplicationWorkspace({
             </div>
 
             <div className={cn(activeWorkspaceStep !== "create" && "hidden")}>
-            <section className="workspace-card overflow-hidden">
+            <section className="overflow-hidden border-y border-white/[0.08] bg-[#091019]/45">
               <div className="flex flex-col gap-4 border-b border-white/[0.07] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div className="flex items-start gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent/12 text-accent"><Sparkles className="h-[18px] w-[18px]" /></span><div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">03 · Create documents</p><h2 className="mt-1 text-lg font-bold text-white">Application package</h2><p className="mt-1 text-xs leading-5 text-muted">Prepare the resume and cover letter here, then generate the complete pack from the readiness panel.</p></div></div>
+                <div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">03 · Create documents</p><h2 className="mt-1 text-lg font-bold text-white">Application package</h2><p className="mt-1 text-xs leading-5 text-muted">Prepare, generate and download both application documents from one workspace.</p></div>
                 <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] text-muted"><span>AI provider: <strong className="text-white">{aiConfiguration.providerName}</strong></span>{aiDisclosureAccepted ? <button type="button" onClick={revokeAiConsent} className="font-bold text-amber-200 hover:text-white">Revoke consent</button> : <span className="font-bold text-amber-200">Consent required</span>}</div>
               </div>
-              <div className="border-b border-white/[0.07] bg-black/15 px-5 py-4 sm:px-6">
+              <div className="border-b border-white/[0.07] px-5 py-4 sm:px-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white">Document language</p>
                     <p className="mt-1 text-[10px] leading-4 text-muted">Applied to both the tailored CV and cover letter before generation.</p>
                   </div>
-                  <label className="flex shrink-0 items-center gap-2 rounded-xl border border-white/[0.09] bg-[#0b1118] p-1.5 pl-3">
+                  <label className="flex shrink-0 items-center gap-3">
                     <span className="text-[10px] font-bold text-muted">Language</span>
-                    <select aria-label="Document language" value={languageMode} onChange={(event) => setLanguageMode(event.target.value as "auto" | "English" | "German")} className="h-9 min-w-40 rounded-lg border border-white/[0.09] bg-[#151c24] px-3 text-[11px] font-bold text-white outline-none focus:border-accent/60">
+                    <select aria-label="Document language" value={languageMode} onChange={(event) => setLanguageMode(event.target.value as "auto" | "English" | "German")} className="h-9 min-w-40 border-0 border-b border-white/[0.12] bg-transparent px-0 text-[11px] font-bold text-white outline-none focus:border-accent">
                       <option value="auto">Auto · {vacancyLanguage || "English"}</option>
                       <option value="English">English</option>
                       <option value="German">German</option>
@@ -2265,8 +2223,8 @@ export function ApplicationWorkspace({
                 {resumeTailoringProgress ? <ResumeTailoringProgressPanel progress={resumeTailoringProgress} /> : null}
                 {packProgress ? <div className={cn("mb-4 rounded-xl border p-3", packProgress.status === "failed" ? "border-red-400/25 bg-red-500/[0.045]" : packProgress.status === "partial" ? "border-amber-400/25 bg-amber-400/[0.045]" : "border-white/[0.08] bg-black/15")}><div className="grid gap-2 sm:grid-cols-4">{packStageDefinitions.map((stage, index) => { const currentIndex = packStageDefinitions.findIndex((candidate) => candidate.id === packProgress.stage); const stageStatus = index < currentIndex ? "completed" : index === currentIndex ? packProgress.status : "pending"; return <div key={stage.id} className={cn("rounded-lg border px-2.5 py-2", stageStatus === "completed" ? "border-success/20 bg-success/[0.05]" : stageStatus === "failed" ? "border-red-400/25 bg-red-500/[0.06]" : stageStatus === "partial" ? "border-amber-400/25 bg-amber-400/[0.06]" : stageStatus === "active" || stageStatus === "retrying" ? "border-accent/30 bg-accent/[0.07]" : "border-white/[0.06] bg-white/[0.015]")}><div className="flex items-center gap-2">{stageStatus === "completed" ? <Check className="h-3.5 w-3.5 text-success" /> : stageStatus === "active" || stageStatus === "retrying" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin text-accent" /> : stageStatus === "failed" ? <AlertTriangle className="h-3.5 w-3.5 text-red-200" /> : <CircleDot className="h-3.5 w-3.5 text-muted" />}<span className={cn("text-[9px] font-black uppercase tracking-wide", stageStatus === "completed" ? "text-success" : stageStatus === "failed" ? "text-red-200" : stageStatus === "partial" ? "text-amber-200" : stageStatus === "active" || stageStatus === "retrying" ? "text-white" : "text-muted")}>{stage.label}</span></div></div>; })}</div><div className="mt-2 flex items-center justify-between gap-3 px-1 text-[9px]"><span className={cn(packProgress.status === "failed" ? "text-red-200" : packProgress.status === "partial" ? "text-amber-200" : "text-muted")}>{packProgress.message}</span><span className="shrink-0 font-mono text-muted">{packProgress.attempt > 1 ? `attempt ${packProgress.attempt}/3 · ` : ""}{packProgress.jobId.slice(-8)}</span></div></div> : null}
                 {masterResumeLoaded && !currentMasterResume ? <div className="mb-4 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2.5 text-xs leading-5 text-amber-200">Confirm your Master Resume in My Profile before tailoring a vacancy.</div> : null}
-                <div className="space-y-10">
-                  <DocumentCard sectionLabel="Resume document" documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Create and download a tailored CV for this role." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><p className="mt-3 text-[9px] text-muted">Master Resume · {currentMasterResume ? `v${currentMasterResume.version} confirmed` : "required"}</p><ResumeTemplatePicker apiBaseUrl={apiBaseUrl} templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} generationControl={<ResumeGenerationModePicker selectedId={selectedResumeGenerationMode} onChange={selectResumeGenerationMode} />} />
+                <div>
+                  <DocumentCard sectionLabel="Resume document" documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Create and download a tailored CV for this role." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><p className="mt-3 text-[9px] text-muted">Master Resume · {currentMasterResume ? `v${currentMasterResume.version} confirmed` : "required"}</p><ResumeTemplatePicker compact apiBaseUrl={apiBaseUrl} templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} generationControl={<ResumeGenerationModePicker selectedId={selectedResumeGenerationMode} onChange={selectResumeGenerationMode} />} />
                   <CollapsibleDocumentPreview
                     title="Resume preview"
                     description="Open the exact generated PDF, ATS scan and document changes"
@@ -2320,8 +2278,8 @@ export function ApplicationWorkspace({
                       />
                     )}
                     generationControl={(
-                      <div className="mt-3 space-y-3">
-                        <label className="block rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
+                      <div className="mt-4 grid gap-5 border-t border-white/[0.08] pt-4">
+                        <label className="block">
                           <span className="text-[10px] font-bold text-[#d9e0e8]">Recruiter name <span className="font-normal text-muted">(optional)</span></span>
                           <span className="mt-1 block text-[9px] leading-4 text-muted">Used in the greeting. Leave empty to address the company&apos;s hiring team.</span>
                           <input
@@ -2336,11 +2294,11 @@ export function ApplicationWorkspace({
                               });
                             }}
                             placeholder="First name and last name"
-                            className={cn("mt-2 h-10 w-full rounded-xl border bg-[#0b1118] px-3 text-xs text-white outline-none placeholder:text-muted/55", coverLetterRecipientNameComplete ? "border-white/[0.08] focus:border-accent/40" : "border-amber-400/40 focus:border-amber-300")}
+                            className={cn("mt-2 h-10 w-full border-0 border-b bg-transparent px-0 text-xs text-white outline-none placeholder:text-muted/55", coverLetterRecipientNameComplete ? "border-white/[0.12] focus:border-accent" : "border-amber-400/40 focus:border-amber-300")}
                           />
                           {!coverLetterRecipientNameComplete ? <span className="mt-1.5 block text-[9px] font-bold text-amber-200">Enter first and last name or leave the field empty.</span> : null}
                         </label>
-                        <label className="block rounded-xl border border-white/[0.08] bg-white/[0.02] p-3">
+                        <label className="block">
                           <span className="text-[10px] font-bold text-[#d9e0e8]">Know someone at the company? <span className="font-normal text-muted">(optional)</span></span>
                           <span className="mt-1 block text-[9px] leading-4 text-muted">Enter their full name. The letter will open with this connection and how it strengthened your positive impression of the company.</span>
                           <input
@@ -2355,7 +2313,7 @@ export function ApplicationWorkspace({
                               });
                             }}
                             placeholder="First name and last name"
-                            className={cn("mt-2 h-10 w-full rounded-xl border bg-[#0b1118] px-3 text-xs text-white outline-none placeholder:text-muted/55", coverLetterCompanyContactNameComplete ? "border-white/[0.08] focus:border-accent/40" : "border-amber-400/40 focus:border-amber-300")}
+                            className={cn("mt-2 h-10 w-full border-0 border-b bg-transparent px-0 text-xs text-white outline-none placeholder:text-muted/55", coverLetterCompanyContactNameComplete ? "border-white/[0.12] focus:border-accent" : "border-amber-400/40 focus:border-amber-300")}
                           />
                           {!coverLetterCompanyContactNameComplete ? <span className="mt-1.5 block text-[9px] font-bold text-amber-200">Enter first and last name or leave the field empty.</span> : null}
                         </label>
@@ -2376,15 +2334,36 @@ export function ApplicationWorkspace({
                     ) : null}
                   </CollapsibleDocumentPreview>
                 </div>
-                <div className="mt-10 rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/[0.055] to-white/[0.015] p-4 sm:p-5">
-                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex flex-col gap-4 border-t border-white/[0.08] py-6 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-[11px] font-bold text-white">
+                      {resumeReady && coverLetterReady ? "2 documents ready" : "Create the complete application set"}
+                    </p>
+                    <p className="mt-1 text-[9px] leading-4 text-muted">
+                      DOCX and PDF downloads stay with each document above.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    aria-label="Generate application pack"
+                    onClick={() => requestAiGeneration("pack")}
+                    disabled={isGeneratingPack || Boolean(generationType) || !documentsLoaded || !currentMasterResume || !coverLetterTemplate || !coverLetterNamesComplete || !applicationReview || !confirmationsReady}
+                    className="h-10 shrink-0 rounded-lg bg-accent px-4 text-[11px] font-bold text-white hover:bg-[#ff6a14] disabled:opacity-40"
+                  >
+                    {isGeneratingPack ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : resumeReady && coverLetterReady ? <RefreshCw className="h-3.5 w-3.5" /> : null}
+                    {isGeneratingPack ? packStageDefinitions.find((stage) => stage.id === packProgress?.stage)?.label ?? "Generating…" : resumeReady && coverLetterReady ? "Regenerate both" : "Create both documents"}
+                  </Button>
+                </div>
+                <details open className="group border-t border-white/[0.08] py-5">
+                  <summary className="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.12em] text-accent">Application AI chat</p>
                       <h3 className="mt-1 text-sm font-bold text-white">Ask questions or improve either document</h3>
                       <p className="mt-1 text-[10px] leading-4 text-muted">Choose a mode, then ask about the application or request an evidence-backed CV or cover-letter revision.</p>
                     </div>
-                    <span className="rounded-lg border border-white/[0.08] bg-black/20 px-3 py-2 text-[9px] font-black uppercase tracking-wide text-muted">CV · Cover letter · Questions</span>
-                  </div>
+                    <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted transition group-open:rotate-90" />
+                  </summary>
+                  <div className="pt-4">
                   <div role="group" aria-label="AI chat mode" className="mt-4 grid gap-2 sm:grid-cols-3">
                     {([
                       ["question", "Ask a question"],
@@ -2428,7 +2407,8 @@ export function ApplicationWorkspace({
                     <Button type="button" onClick={applyDocumentChatInstruction} disabled={!documentChatInput.trim() || Boolean(generationType) || isGeneratingPack || isDocumentChatResponding || !documentChatCanSubmit} className="h-11 shrink-0 rounded-xl bg-accent px-4 text-xs font-bold text-white disabled:opacity-40">{isDocumentChatResponding || generationType === documentChatTarget ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{documentChatTarget === "question" ? "Send" : "Apply revision"}</Button>
                   </div>
                   {!documentChatTargetReady ? <p className="mt-2 text-[9px] font-bold text-amber-200">{documentChatUnavailableMessage}</p> : null}
-                </div>
+                  </div>
+                </details>
               </div>
             </section>
             </div>
@@ -2480,11 +2460,11 @@ export function ApplicationWorkspace({
           </main>
 
           <aside className="space-y-4 xl:sticky xl:top-4">
-            <section className="workspace-card overflow-hidden">
+            <section className="overflow-hidden border-y border-white/[0.08] bg-[#091019]/35">
               <div className="border-b border-white/[0.07] p-5"><div className="flex items-end justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.13em] text-accent">Readiness</p><h2 className="mt-1 text-base font-bold text-white">Before you apply</h2></div><span className="text-2xl font-black text-white">{progress}<span className="text-sm text-muted">%</span></span></div><div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-gradient-to-r from-accent to-[#ff9b55] transition-all" style={{ width: `${progress}%` }} /></div></div>
-              <div className="p-4"><div className="space-y-1">{checklist.map((item) => <div key={item.label} className="flex items-center gap-2.5 rounded-lg px-2 py-2"><span className={cn("grid h-5 w-5 place-items-center rounded-full border", item.ready ? "border-success/25 bg-success/10 text-success" : "border-white/10 text-[#687383]")}>{item.ready ? <Check className="h-3 w-3" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}</span><span className={cn("text-[11px] font-semibold", item.ready ? "text-[#e0e5ec]" : "text-muted")}>{item.label}</span><span className="ml-auto text-[8px] font-black uppercase tracking-wide text-[#687383]">{item.ready ? "Ready" : "Missing"}</span></div>)}</div>
+              <div className="px-4 pb-4"><div>{checklist.map((item) => <div key={item.label} className="flex items-center gap-2.5 border-b border-white/[0.06] px-2 py-3 last:border-b-0"><span className={cn("grid h-5 w-5 place-items-center rounded-full border", item.ready ? "border-success/25 bg-success/10 text-success" : "border-white/10 text-[#687383]")}>{item.ready ? <Check className="h-3 w-3" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}</span><span className={cn("text-[11px] font-semibold", item.ready ? "text-[#e0e5ec]" : "text-muted")}>{item.label}</span><span className="ml-auto text-[8px] font-black uppercase tracking-wide text-[#687383]">{item.ready ? "Ready" : "Missing"}</span></div>)}</div>
                 {activeWorkspaceStep === "create" ? (
-                  <Button onClick={() => requestAiGeneration("pack")} disabled={isGeneratingPack || Boolean(generationType) || !documentsLoaded || !currentMasterResume || !coverLetterTemplate || !coverLetterNamesComplete || !applicationReview || !confirmationsReady} className="mt-4 min-h-12 w-full rounded-xl bg-accent px-4 text-xs font-black text-white shadow-[0_12px_28px_rgba(255,90,0,0.18)] hover:bg-[#ff6a14] disabled:opacity-40">{isGeneratingPack ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}{isGeneratingPack ? packStageDefinitions.find((stage) => stage.id === packProgress?.stage)?.label ?? "Generating pack…" : "Generate application pack"}</Button>
+                  <p className="mt-3 px-2 text-[9px] leading-4 text-muted">Create and download actions are available beside each document.</p>
                 ) : activeWorkspaceStep === "final" ? (
                   <Button type="button" onClick={() => setActiveWorkspaceStep("create")} className="mt-4 h-11 w-full rounded-xl bg-accent text-xs font-bold text-white"><FileText className="h-4 w-4" /> Back to documents</Button>
                 ) : (
@@ -2541,52 +2521,58 @@ function ResumeGenerationModePicker({
   const selectedMode =
     resumeGenerationModes.find((mode) => mode.id === selectedId)
     ?? resumeGenerationModes[0];
+  const [isInfoOpen, setIsInfoOpen] = useState(false);
 
   return (
     <section
       aria-labelledby="resume-generation-mode-title"
-      className="mt-3 rounded-xl border border-accent/20 bg-accent/[0.035] p-3"
+      className="mt-4 border-t border-white/[0.08] pt-4"
     >
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <p
-              id="resume-generation-mode-title"
-              className="text-[9px] font-black uppercase tracking-[0.1em] text-muted"
-            >
-              CV generation mode
-            </p>
-            <span className="rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-accent">
-              Mode 01
-            </span>
-          </div>
-          <p className="mt-1 text-[9px] leading-4 text-muted">
-            Choose how Rufina should tailor this CV before starting generation.
-          </p>
-        </div>
-        <label className="flex shrink-0 items-center gap-2 rounded-lg border border-white/[0.09] bg-[#0b1118] p-1.5 pl-3">
-          <span className="text-[9px] font-bold text-muted">Mode</span>
-          <select
-            aria-label="CV generation mode"
-            value={selectedId}
-            onChange={(event) => onChange(event.target.value as ResumeGenerationMode)}
-            className="h-9 min-w-52 rounded-md border border-white/[0.09] bg-[#151c24] px-3 text-[10px] font-bold text-white outline-none focus:border-accent/60"
-          >
-            {resumeGenerationModes.map((mode) => (
-              <option key={mode.id} value={mode.id}>
-                {mode.name}
-              </option>
-            ))}
-          </select>
-        </label>
-      </div>
-      <div className="mt-3 flex items-start justify-between gap-3 rounded-lg border border-white/[0.07] bg-black/20 px-3 py-2.5">
-        <p className="text-[9px] leading-4 text-[#cbd3df]">
-          {selectedMode.description}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <p
+          id="resume-generation-mode-title"
+          className="text-[9px] font-black uppercase tracking-[0.1em] text-muted"
+        >
+          CV generation mode
         </p>
-        <span className="shrink-0 rounded-full border border-white/[0.08] bg-white/[0.035] px-2 py-1 text-[8px] font-black uppercase tracking-wide text-muted">
-          {selectedMode.stages}
-        </span>
+        <div className="flex items-center gap-2">
+          <label className="shrink-0">
+            <span className="sr-only">Mode</span>
+            <select
+              aria-label="CV generation mode"
+              value={selectedId}
+              onChange={(event) => onChange(event.target.value as ResumeGenerationMode)}
+              className="h-9 min-w-48 rounded-lg border border-white/[0.1] bg-[#111923] px-3 text-[10px] font-bold text-white outline-none focus:border-accent/60"
+            >
+              {resumeGenerationModes.map((mode) => (
+                <option key={mode.id} value={mode.id}>
+                  {mode.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="relative">
+            <button
+              type="button"
+              aria-label="About selected CV generation mode"
+              aria-expanded={isInfoOpen}
+              aria-controls="resume-generation-mode-info"
+              onClick={() => setIsInfoOpen((current) => !current)}
+              className="grid h-9 w-9 place-items-center rounded-lg border border-white/[0.1] text-muted transition hover:bg-white/[0.05] hover:text-white"
+            >
+              <Info className="h-4 w-4" />
+            </button>
+            {isInfoOpen ? <div id="resume-generation-mode-info" className="absolute right-0 top-11 z-30 w-72 rounded-xl border border-white/[0.12] bg-[#111923] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.5)]">
+              <p className="text-[10px] font-bold text-white">{selectedMode.name}</p>
+              <p className="mt-2 text-[9px] leading-4 text-[#cbd3df]">
+                {selectedMode.description}
+              </p>
+              <p className="mt-3 border-t border-white/[0.08] pt-3 text-[8px] font-black uppercase tracking-[0.1em] text-muted">
+                {selectedMode.stages}
+              </p>
+            </div> : null}
+          </div>
+        </div>
       </div>
     </section>
   );
@@ -2633,28 +2619,8 @@ function DocumentCard({
   sourceControl?: React.ReactNode;
   generationControl?: React.ReactNode;
 }) {
-  const content = currentContent(document);
   const currentVersion = document?.versions.find((version) => version.version === document.currentVersion);
   const readiness = getGeneratedDocumentReadiness(document, isOutdated);
-  const factualValidationStatus = currentVersion?.factualValidation.status ?? "not run";
-  const structuralChecksStatus = currentVersion?.visualValidation.status ?? "not run";
-  const visualValidation = currentVersion?.visualValidation;
-  const pageCheck = currentVersion && (currentVersion.visualValidation.sourcePageCount !== undefined || currentVersion.visualValidation.renderedPageCount !== undefined)
-    ? `${currentVersion.visualValidation.sourcePageCount ?? "?"} source → ${currentVersion.visualValidation.renderedPageCount ?? "?"} rendered · ${currentVersion.visualValidation.pageCountChanged === true ? "changed" : "unchanged"}`
-    : "Not reported";
-  const linkCheck = currentVersion && (currentVersion.visualValidation.sourceLinkCount !== undefined || currentVersion.visualValidation.renderedLinkCount !== undefined)
-    ? `DOCX ${currentVersion.visualValidation.sourceLinkCount ?? "?"} → ${currentVersion.visualValidation.renderedLinkCount ?? "?"} · PDF ${currentVersion.visualValidation.sourcePdfLinkCount ?? "?"} → ${currentVersion.visualValidation.renderedPdfLinkCount ?? "?"} · ${currentVersion.visualValidation.linkLocationChangedCount ?? 0} moved`
-    : currentVersion?.visualValidation.linksPreserved === true ? "Preserved" : currentVersion?.visualValidation.linksPreserved === false ? "Changed" : "Not reported";
-  const textCheck = visualValidation?.renderedTextBoxCount !== undefined
-    ? `${visualValidation.sourceTextBoxCount ?? "?"} → ${visualValidation.renderedTextBoxCount} boxes · ${visualValidation.missingTextCount ?? 0} PDF missing · ${visualValidation.disappearedSourceTextCount ?? 0} source lost · ${visualValidation.textGeometryChangedCount ?? 0} moved · ${visualValidation.textOutsidePageCount ?? 0} outside`
-    : "Not reported";
-  const imageCheck = visualValidation?.renderedImageCount !== undefined
-    ? `DOCX ${visualValidation.sourceImageCount ?? "?"} → ${visualValidation.renderedImageCount} · PDF boxes ${visualValidation.sourceImageBoxCount ?? "?"} → ${visualValidation.renderedImageBoxCount ?? "?"} · ${visualValidation.missingSourceImageCount ?? 0} DOCX missing · ${visualValidation.missingPdfImageCount ?? 0} PDF missing · ${visualValidation.imageGeometryChangedCount ?? 0} moved · ${visualValidation.imageOutsidePageCount ?? 0} outside`
-    : "Not reported";
-  const overflowCheck = visualValidation?.cellOverflowCount !== undefined || visualValidation?.textOutsidePageCount !== undefined
-    ? `${visualValidation?.textOutsidePageCount ?? 0} page · ${visualValidation?.cellOverflowCount ?? 0} cell overflow · ${visualValidation?.tableStructureIssueCount ?? 0} table structure`
-    : currentVersion?.visualValidation.tableOverflow === false ? "No overflow detected" : currentVersion?.visualValidation.tableOverflow === true ? "Overflow detected" : "Not reported";
-  const geometryIssueCount = visualValidation?.issues?.length ?? (structuralChecksStatus === "passed" ? 0 : undefined);
   const isResume = documentType === "tailored_resume";
   const docxDownload = document && isResume
     ? resumeDocxDownload(document)
@@ -2662,56 +2628,35 @@ function DocumentCard({
   const pdfDownload = document && !isResume
     ? coverLetterPdfDownload(document)
     : null;
-  const showsChangeList = isResume || hasStructuredReplacements(document);
   const isRestoringDocument = Boolean(document && restoringVersionKey.startsWith(`${document.id}:`));
   return (
-    <article className="flex flex-col rounded-2xl border border-white/[0.11] bg-[#0a1017] p-4 shadow-[0_18px_45px_rgba(0,0,0,0.18)] transition hover:border-white/[0.16] sm:p-5">
-      <div className="mb-5 flex items-center justify-between gap-3 border-b border-white/[0.08] pb-3">
+    <article className="border-t border-white/[0.08] py-7 first:border-t-0">
+      <div className="grid gap-6 lg:grid-cols-[minmax(150px,0.72fr)_minmax(250px,1.2fr)_minmax(250px,0.95fr)] lg:gap-8">
+      <div className="min-w-0">
         <p className="text-[9px] font-black uppercase tracking-[0.16em] text-accent">{isResume ? "01" : "02"} · {sectionLabel}</p>
-        <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-muted">{isResume ? "CV" : "Letter"}</span>
+        <Icon className="mt-5 h-5 w-5 text-[#d6dde6]" />
+        <h3 className="mt-3 text-sm font-bold text-white">{label}</h3>
+        <p className="mt-1 text-[10px] leading-4 text-muted">{description}</p>
       </div>
-      <div className="flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.07] bg-white/[0.035] text-accent"><Icon className="h-[18px] w-[18px]" /></span>
-        <div className="min-w-0 flex-1"><div className="flex flex-wrap items-baseline justify-between gap-2"><h3 className="text-sm font-bold text-white">{label}</h3>{document ? <span className={cn("text-[9px]", readiness.ready ? "text-success" : "text-amber-200")}>v{document.currentVersion} · {readiness.ready ? "Ready" : readiness.label}</span> : null}</div><p className="mt-1 text-[10px] leading-4 text-muted">{description}</p></div>
-      </div>
+      <div className="min-w-0">
       {sourceControl}
-      <details className="group mt-3 overflow-hidden rounded-xl border border-white/[0.07] bg-white/[0.015]">
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-3 py-2.5"><span><span className="block text-[10px] font-bold text-[#d8dfe8]">Preview, validation &amp; changes</span><span className="mt-0.5 block text-[9px] font-normal text-muted">{content ? "Inspect the generated document details" : "Available after generation"}</span></span><ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted transition group-open:rotate-90" /></summary>
-      <div className="border-t border-white/[0.07] p-3">
-      <div><p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">{showsChangeList ? `${isResume ? "CV" : "Cover letter"} change list` : "Document text preview"}</p>{showsChangeList ? <p className="mt-1 text-[9px] leading-4 text-muted">Proposed content changes only — this is not a visual DOCX preview.</p> : null}</div>
-      <div className={cn("mt-2 min-h-[132px] overflow-hidden rounded-xl border p-4", content ? showsChangeList ? "border-white/[0.09] bg-white/[0.025] text-[#dfe5ec]" : "border-white/[0.09] bg-[#f6f4ef] text-[#20242a] shadow-inner" : "border-dashed border-white/[0.1] bg-white/[0.015]")}>
-        {isGenerating ? <div className="grid min-h-[100px] place-items-center text-center"><div><LoaderCircle className="mx-auto h-5 w-5 animate-spin text-accent" /><p className="mt-2 text-[11px] font-semibold text-muted">Writing an evidence-based version…</p></div></div> : content ? <p className={cn("line-clamp-[7] whitespace-pre-wrap text-[9px] leading-[1.55]", !showsChangeList && "font-serif")}>{content}</p> : <div className="grid min-h-[100px] place-items-center text-center"><div><Icon className="mx-auto h-5 w-5 text-[#606b79]" /><p className="mt-2 text-[10px] font-semibold text-[#7f8998]">{showsChangeList ? "Change list will appear after generation" : "Text preview will appear after generation"}</p></div></div>}
-      </div>
-      {currentVersion ? (
-        <details className="mt-3 rounded-xl border border-white/[0.08] bg-white/[0.02]">
-          <summary className="cursor-pointer px-3 py-2.5 text-[10px] font-bold text-white marker:text-muted">Validation and change review · {currentVersion.diff.length} change{currentVersion.diff.length === 1 ? "" : "s"}</summary>
-          <div className="job-scroll max-h-72 space-y-2 overflow-y-auto border-t border-white/[0.07] p-3">
-            <div className="flex flex-wrap gap-1.5"><span className={cn("rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-wide", factualValidationStatus === "passed" ? "border-success/25 bg-success/10 text-success" : "border-amber-400/25 bg-amber-400/10 text-amber-200")}>Factual validation · {factualValidationStatus}</span></div>
-            <div className="rounded-lg border border-white/[0.07] bg-black/20 p-2.5">
-              <div className="flex items-center justify-between gap-2"><p className="text-[9px] font-black uppercase tracking-wide text-[#cbd3df]">Rendered geometry checks</p><span className={cn("rounded-full border px-2 py-0.5 text-[8px] font-black uppercase tracking-wide", structuralChecksStatus === "passed" ? "border-success/25 bg-success/10 text-success" : "border-amber-400/25 bg-amber-400/10 text-amber-200")}>{geometryIssueCount === undefined ? structuralChecksStatus : `${geometryIssueCount} issue${geometryIssueCount === 1 ? "" : "s"}`}</span></div>
-              <div className="mt-2 grid gap-1.5 text-[9px] sm:grid-cols-2">
-                <span className={cn("rounded-md border px-2 py-1.5", visualValidation?.pageCountChanged ? "border-red-400/20 bg-red-500/[0.04] text-red-200" : "border-white/[0.07] bg-white/[0.025] text-muted")}><strong className="text-[#dfe5ec]">Pages</strong><span className="mt-0.5 block">{pageCheck}</span></span>
-                <span className={cn("rounded-md border px-2 py-1.5", (visualValidation?.missingTextCount ?? 0) > 0 || (visualValidation?.disappearedSourceTextCount ?? 0) > 0 || (visualValidation?.textGeometryChangedCount ?? 0) > 0 ? "border-red-400/20 bg-red-500/[0.04] text-red-200" : "border-white/[0.07] bg-white/[0.025] text-muted")}><strong className="text-[#dfe5ec]">Text geometry</strong><span className="mt-0.5 block">{textCheck}</span></span>
-                <span className={cn("rounded-md border px-2 py-1.5", (visualValidation?.missingSourceImageCount ?? 0) > 0 || (visualValidation?.missingPdfImageCount ?? 0) > 0 || (visualValidation?.imageGeometryChangedCount ?? 0) > 0 ? "border-red-400/20 bg-red-500/[0.04] text-red-200" : "border-white/[0.07] bg-white/[0.025] text-muted")}><strong className="text-[#dfe5ec]">Images</strong><span className="mt-0.5 block">{imageCheck}</span></span>
-                <span className={cn("rounded-md border px-2 py-1.5", currentVersion.visualValidation.linksPreserved === false ? "border-red-400/20 bg-red-500/[0.04] text-red-200" : "border-white/[0.07] bg-white/[0.025] text-muted")}><strong className="text-[#dfe5ec]">Links</strong><span className="mt-0.5 block">{linkCheck}</span></span>
-                <span className={cn("rounded-md border px-2 py-1.5 sm:col-span-2", currentVersion.visualValidation.tableOverflow === true || (visualValidation?.textOutsidePageCount ?? 0) > 0 ? "border-red-400/20 bg-red-500/[0.04] text-red-200" : "border-white/[0.07] bg-white/[0.025] text-muted")}><strong className="text-[#dfe5ec]">Overflow</strong><span className="mt-0.5 block">{overflowCheck}</span></span>
-              </div>
-              {visualValidation?.missingTextSamples?.length ? <p className="mt-2 text-[9px] text-red-200">Missing text: {visualValidation.missingTextSamples.join(", ")}</p> : null}
-              {visualValidation?.disappearedSourceTextSamples?.length ? <p className="mt-2 text-[9px] text-red-200">Unexpectedly removed: {visualValidation.disappearedSourceTextSamples.join(", ")}</p> : null}
-              {visualValidation?.issues?.length ? <ul className="mt-2 list-disc space-y-1 pl-4 text-[9px] text-red-200">{visualValidation.issues.map((issue) => <li key={issue}>{issue}</li>)}</ul> : null}
-            </div>
-            {currentVersion.diff.length ? currentVersion.diff.map((change) => <article key={`${change.blockId}-${change.spanId ?? change.original}`} className="rounded-lg border border-white/[0.07] bg-black/20 p-2.5"><div className="flex items-center justify-between gap-2"><p className="text-[9px] font-black uppercase tracking-wide text-[#9aa5b4]">{change.blockId}{change.spanId ? ` · ${change.spanId}` : ""} · {change.type}</p><p className="text-[8px] text-muted">{change.reason}</p></div><p className="mt-2 whitespace-pre-wrap text-[10px] leading-4 text-red-200/75 line-through">{change.original || "Added paragraph"}</p><p className="mt-1 whitespace-pre-wrap text-[10px] leading-4 text-emerald-200">{change.replacement || "Removed paragraph"}</p></article>) : <p className="rounded-lg border border-success/15 bg-success/[0.04] px-3 py-2 text-[9px] font-bold text-success">No factual content changes</p>}
-          </div>
-        </details>
-      ) : null}
-      </div>
-      </details>
       {generationControl}
-      <div className="mt-3 flex flex-wrap gap-2">
-        <Button type="button" disabled={isGenerating || isRestoringDocument || !canGenerate} onClick={onGenerate} className="h-10 flex-1 rounded-xl bg-accent px-3 text-[11px] font-bold text-white hover:bg-[#ff6a14] disabled:opacity-40">{isGenerating ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : document ? <RefreshCw className="h-3.5 w-3.5" /> : <Sparkles className="h-3.5 w-3.5" />}{isGenerating ? "Generating…" : !canGenerate ? disabledLabel : document ? "Regenerate" : `Generate ${label}`}</Button>
+      </div>
+      <div className="min-w-0 lg:border-l lg:border-white/[0.08] lg:pl-8">
+      <p className={cn("flex items-center gap-2 text-[10px] font-bold", document ? readiness.ready ? "text-success" : "text-amber-200" : "text-muted")}>
+        <span className={cn("h-1.5 w-1.5 rounded-full", document ? readiness.ready ? "bg-success" : "bg-amber-300" : "bg-[#677281]")} />
+        {isGenerating
+          ? "Generating…"
+          : document
+            ? `${readiness.ready ? "Ready" : readiness.label} · v${document.currentVersion}`
+            : `Not created · ${canGenerate ? "Ready to generate" : disabledLabel}`}
+      </p>
+      {currentVersion ? <p className="mt-1 text-[9px] text-muted">Generated {formatVersionTimestamp(currentVersion.createdAt)}</p> : null}
+      <div className="mt-4 flex flex-wrap gap-2">
         {pdfDownload ? <a href={pdfDownload.href} download={pdfDownload.fileName} onClick={(event) => confirmDocumentDownload(event, readiness.warnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> PDF</a> : null}
         {document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`} download={documentFileName(document)} onClick={(event) => confirmDocumentDownload(event, readiness.warnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(document)}</a> : null}
         {docxDownload ? <a href={docxDownload.href} download={docxDownload.fileName} onClick={(event) => confirmDocumentDownload(event, readiness.warnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> DOCX</a> : null}
+        <Button type="button" aria-label={isGenerating ? "Generating…" : !canGenerate ? disabledLabel : document ? "Regenerate" : `Generate ${label}`} variant={document ? "ghost" : "default"} disabled={isGenerating || isRestoringDocument || !canGenerate} onClick={onGenerate} className={cn("h-10 px-3 text-[11px] font-bold disabled:opacity-40", document ? "rounded-none border-0 bg-transparent text-muted hover:bg-transparent hover:text-white" : "rounded-lg bg-accent text-white hover:bg-[#ff6a14]")}>{isGenerating ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : document ? <RefreshCw className="h-3.5 w-3.5" /> : null}{isGenerating ? "Generating…" : document ? "Regenerate" : `Create ${isResume ? "CV" : "letter"}`}</Button>
         {document && !isResume ? <Button type="button" variant="ghost" aria-label={`Delete ${label}`} disabled={deletingDocumentId === document.id || isGenerating} onClick={onDelete} className="h-10 rounded-xl border border-red-400/20 px-3 text-red-200 hover:bg-red-500/10"><Trash2 className="h-3.5 w-3.5" /></Button> : null}
       </div>
       {document ? <p className="mt-2 text-[9px] leading-4 text-muted">Download the current {isResume ? "resume" : "cover letter"} as PDF or editable DOCX.</p> : null}
@@ -2745,6 +2690,8 @@ function DocumentCard({
           </div>
         </details>
       ) : null}
+      </div>
+      </div>
     </article>
   );
 }
