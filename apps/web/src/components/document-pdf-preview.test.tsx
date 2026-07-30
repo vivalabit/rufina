@@ -20,7 +20,7 @@ describe("DocumentPdfPreview", () => {
 
   it("loads the selected version and displays PDF and DOCX downloads", async () => {
     const fetchMock = vi.fn<typeof fetch>(async () => (
-      new Response(new Blob(["%PDF-1.7"]), {
+      new Response("%PDF-1.7", {
         headers: { "Content-Type": "application/pdf" },
       })
     ));

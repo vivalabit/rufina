@@ -7,5 +7,6 @@ afterEach(() => {
   cleanup();
   window.localStorage.clear();
   vi.restoreAllMocks();
+  vi.unstubAllEnvs();
   vi.unstubAllGlobals();
 });

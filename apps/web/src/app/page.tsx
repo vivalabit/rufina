@@ -526,7 +526,7 @@ type ResumeSkillsImportResponse = {
   detail?: string;
 };
 
-const jobs: Job[] = [
+const demoJobs: Job[] = [
   {
     id: "stripe-senior-product-designer",
     company: "Stripe",
@@ -2872,10 +2872,12 @@ function mergeSkillLists(currentSkills: string[], importedSkills: string[]) {
 }
 
 export default function HomePage() {
+  const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
+  const initialJobs = demoMode ? demoJobs : [];
   const [activeView, setActiveView] = useState<View>("Dashboard");
   const [assistantLaunch, setAssistantLaunch] = useState<AssistantLaunch | null>(null);
-  const [jobList, setJobList] = useState<Job[]>(jobs);
-  const [selectedJobId, setSelectedJobId] = useState(jobs[0].id);
+  const [jobList, setJobList] = useState<Job[]>(initialJobs);
+  const [selectedJobId, setSelectedJobId] = useState(initialJobs[0]?.id ?? "");
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState(tabs[0]);
   const [pendingAiMatchFocus, setPendingAiMatchFocus] = useState<"analysis" | "recommendations" | null>(null);
@@ -5590,6 +5592,7 @@ export default function HomePage() {
           <CalendarView
             applications={trackedApplications}
             events={trackedApplicationEvents}
+            demoMode={demoMode}
             onOpenAssistant={(prompt, applicationId) => openAssistant(prompt, applicationId ? "application" : "profile", applicationId)}
             onSaveEvent={saveApplicationEvent}
             onDeleteEvent={deleteApplicationEvent}
@@ -6664,12 +6667,14 @@ function createCalendarDemoEvents(month: Date): ApplicationEvent[] {
 function CalendarView({
   applications,
   events,
+  demoMode,
   onOpenAssistant,
   onSaveEvent,
   onDeleteEvent,
 }: {
   applications: TrackedApplication[];
   events: ApplicationEvent[];
+  demoMode: boolean;
   onOpenAssistant: (prompt: string, applicationId: string) => void;
   onSaveEvent: (event: ApplicationEvent) => void;
   onDeleteEvent: (eventId: string) => void;
@@ -6682,7 +6687,10 @@ function CalendarView({
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [eventDraft, setEventDraft] = useState<ApplicationEventDraft | null>(null);
   const [draftApplicationId, setDraftApplicationId] = useState("");
-  const demoEvents = useMemo(() => createCalendarDemoEvents(visibleMonth), [visibleMonth]);
+  const demoEvents = useMemo(
+    () => (demoMode ? createCalendarDemoEvents(visibleMonth) : []),
+    [demoMode, visibleMonth],
+  );
   const displayEvents = events.length > 0 ? events : demoEvents;
   const filteredEvents = activeType === "all" ? displayEvents : displayEvents.filter((event) => event.type === activeType);
   const monthDays = getCalendarMonthDays(visibleMonth);

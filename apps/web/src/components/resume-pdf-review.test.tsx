@@ -275,7 +275,7 @@ describe("ResumePdfReview", () => {
         return Response.json(detail);
       }
       if (url.pathname === "/documents/pdf-document-classic/download") {
-        return new Response(new Blob(["%PDF-1.7"]), {
+        return new Response("%PDF-1.7", {
           headers: { "Content-Type": "application/pdf" },
         });
       }
@@ -331,7 +331,7 @@ describe("ResumePdfReview", () => {
           return Response.json(detail);
         }
         if (url.pathname === "/documents/pdf-document-imaginator/download") {
-          return new Response(new Blob(["%PDF-1.7"]));
+          return new Response("%PDF-1.7");
         }
         throw new Error(`Unhandled request: ${url.pathname}`);
       }),
@@ -385,10 +385,10 @@ describe("ResumePdfReview", () => {
         return Response.json(classic);
       }
       if (url.pathname === "/documents/pdf-document-classic/download") {
-        return new Response(new Blob(["%PDF-classic"]));
+        return new Response("%PDF-classic");
       }
       if (url.pathname === "/resume-tailoring/ats-final-review/ats-review-1/pdf") {
-        return new Response(new Blob(["%PDF-modern"]), {
+        return new Response("%PDF-modern", {
           headers: { "X-Rufina-Document-Id": "pdf-document-modern" },
         });
       }
@@ -441,7 +441,7 @@ describe("ResumePdfReview", () => {
           return Response.json(classic);
         }
         if (url.pathname === "/documents/pdf-document-classic/download") {
-          return new Response(new Blob(["%PDF-classic"]));
+          return new Response("%PDF-classic");
         }
         if (
           url.pathname ===

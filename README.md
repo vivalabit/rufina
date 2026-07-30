@@ -88,6 +88,9 @@ WEB_PORT=3000
 API_PORT=8000
 POSTGRES_PORT=5432
 REDIS_PORT=6379
+
+# Seed the UI with example vacancies and calendar events — optional
+DEMO_MODE=1
 ```
 
 `OPENAI_API_KEY` is required when `AI_BACKEND=openai_api`. `BRIGHTDATA_API_KEY` is only required for LinkedIn and Indeed searches.
@@ -158,6 +161,7 @@ Rufina reads configuration from the `.env` file in the repository root.
 
 - `OPENAI_API_KEY` — required when using the OpenAI API directly.
 - `BRIGHTDATA_API_KEY` — required for LinkedIn and Indeed vacancy search.
+- `DEMO_MODE=1` — shows the Stripe/Figma example vacancies and sample calendar events. Demo data is disabled by default.
 - jobs.ch and manually added vacancies do not require an API key.
 
 ### AI Providers

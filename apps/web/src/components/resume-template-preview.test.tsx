@@ -40,7 +40,7 @@ it("debounces draft changes and keeps the PDF as a browser Blob URL", async () =
         JSON.parse(String(init?.body)) as Record<string, unknown>,
       );
       return new Response(
-        new Blob(["validated-pdf"], { type: "application/pdf" }),
+        "validated-pdf",
         { headers: { "Content-Type": "application/pdf" } },
       );
     }),

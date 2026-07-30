@@ -106,7 +106,7 @@ it("edits, saves, duplicates, and deletes an owner template", async () => {
         url.pathname === "/resume-templates/preview" &&
         method === "POST"
       ) {
-        return new Response(new Blob(["pdf"], { type: "application/pdf" }), {
+        return new Response("pdf", {
           headers: { "Content-Type": "application/pdf" },
         });
       }
@@ -199,7 +199,9 @@ it("creates a personal template from a bundled foundation", async () => {
         url.pathname === "/resume-templates/preview" &&
         method === "POST"
       ) {
-        return new Response(new Blob(["pdf"], { type: "application/pdf" }));
+        return new Response("pdf", {
+          headers: { "Content-Type": "application/pdf" },
+        });
       }
       throw new Error(`Unexpected request: ${method} ${url.pathname}`);
     }),
@@ -290,7 +292,9 @@ it("downloads one portable JSON backup and imports it as a new template", async 
         url.pathname === "/resume-templates/preview" &&
         method === "POST"
       ) {
-        return new Response(new Blob(["pdf"], { type: "application/pdf" }));
+        return new Response("pdf", {
+          headers: { "Content-Type": "application/pdf" },
+        });
       }
       throw new Error(`Unexpected request: ${method} ${url.pathname}`);
     }),

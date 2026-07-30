@@ -938,8 +938,54 @@ it("saves and deletes manual-search configs through the API", async () => {
   ).toBeNull();
 });
 
+it("shows seeded vacancies and calendar events only in demo mode", async () => {
+  window.history.replaceState(null, "", "#jobs");
+  installApplicationWorkspaceApiMock({
+    requestHandler: async (url, method) => {
+      if (url.pathname === "/job-search/configs" && method === "GET") return Response.json([]);
+      if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
+      if (url.pathname === "/jobs/dismissed-ids" && method === "GET") return Response.json([]);
+      if (url.pathname === "/applications" && method === "GET") return Response.json([]);
+      if (url.pathname === "/applications/events" && method === "GET") return Response.json([]);
+      if (url.pathname === "/profile" && method === "GET") return Response.json({});
+      if (url.pathname === "/settings" && method === "GET") return Response.json(configuredAppSettings);
+      if ((url.pathname === "/applications" || url.pathname === "/applications/events") && method === "PUT") {
+        return Response.json([]);
+      }
+      return undefined;
+    },
+  });
+
+  vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "0");
+  const regularMode = render(<HomePage />);
+
+  expect(await screen.findByText("0 jobs found")).toBeInTheDocument();
+  expect(screen.queryByText("Stripe")).not.toBeInTheDocument();
+  expect(screen.queryByText("Figma")).not.toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("link", { name: "Calendar" }));
+  expect(await screen.findByRole("heading", { name: "Calendar" })).toBeInTheDocument();
+  expect(screen.queryByText("Technical Assessment")).not.toBeInTheDocument();
+  expect(screen.queryByText("Future Wealth Group")).not.toBeInTheDocument();
+
+  regularMode.unmount();
+  window.history.replaceState(null, "", "#jobs");
+  vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "1");
+  render(<HomePage />);
+
+  expect(await screen.findByText("2 jobs found")).toBeInTheDocument();
+  expect(screen.getAllByText("Stripe").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Figma").length).toBeGreaterThan(0);
+
+  fireEvent.click(screen.getByRole("link", { name: "Calendar" }));
+  expect(await screen.findByRole("heading", { name: "Calendar" })).toBeInTheDocument();
+  expect(screen.getAllByText("Technical Assessment").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Future Wealth Group").length).toBeGreaterThan(0);
+});
+
 it("keeps preparation drafts out of Applications until they are marked as applied", async () => {
   window.history.replaceState(null, "", "#jobs");
+  vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "1");
   const savedApplicationStatuses: string[] = [];
 
   installApplicationWorkspaceApiMock({
@@ -987,6 +1033,7 @@ it("keeps preparation drafts out of Applications until they are marked as applie
 
 it("offers decision-focused assistant questions on the Jobs page", async () => {
   window.history.replaceState(null, "", "#jobs");
+  vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "1");
   const assistantRequests: Array<Record<string, unknown>> = [];
   Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
     configurable: true,

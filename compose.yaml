@@ -74,6 +74,7 @@ services:
       dockerfile: apps/web/Dockerfile
     command: pnpm --dir apps/web exec next dev --webpack --hostname 0.0.0.0
     environment:
+      DEMO_MODE: ${DEMO_MODE:-0}
       NEXT_PUBLIC_API_URL: http://localhost:8000
       NEXT_TELEMETRY_DISABLED: "1"
       WATCHPACK_POLLING: "true"

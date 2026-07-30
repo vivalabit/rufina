@@ -396,7 +396,7 @@ describe("ApplicationWorkspace", () => {
           && method === "GET"
         ) {
           requestOrder.push(`pdf:${url.searchParams.get("templateId")}`);
-          return new Response(new Blob(["%PDF-1.7"]), {
+          return new Response("%PDF-1.7", {
             headers: {
               "Content-Type": "application/pdf",
               "X-Rufina-Document-Id": saved.id,
@@ -420,7 +420,7 @@ describe("ApplicationWorkspace", () => {
           url.pathname === `/documents/${saved.id}/download`
           && method === "GET"
         ) {
-          return new Response(new Blob(["%PDF-1.7"]));
+          return new Response("%PDF-1.7");
         }
         return undefined;
       },
@@ -564,7 +564,7 @@ describe("ApplicationWorkspace", () => {
           && method === "GET"
         ) {
           requestOrder.push(`pdf:${url.searchParams.get("templateId")}`);
-          return new Response(new Blob(["%PDF-1.7"]), {
+          return new Response("%PDF-1.7", {
             headers: { "X-Rufina-Document-Id": saved.id },
           });
         }
@@ -582,7 +582,7 @@ describe("ApplicationWorkspace", () => {
           url.pathname === `/documents/${saved.id}/download`
           && method === "GET"
         ) {
-          return new Response(new Blob(["%PDF-1.7"]));
+          return new Response("%PDF-1.7");
         }
         return undefined;
       },
@@ -700,7 +700,7 @@ describe("ApplicationWorkspace", () => {
           url.pathname === `/documents/${classic.id}/download` &&
           method === "GET"
         ) {
-          return new Response(new Blob(["%PDF-classic"]));
+          return new Response("%PDF-classic");
         }
         if (
           url.pathname ===
@@ -708,7 +708,7 @@ describe("ApplicationWorkspace", () => {
           method === "GET"
         ) {
           requestOrder.push(`pdf:${url.searchParams.get("templateId")}`);
-          return new Response(new Blob(["%PDF-custom"]), {
+          return new Response("%PDF-custom", {
             headers: { "X-Rufina-Document-Id": custom.id },
           });
         }
@@ -732,7 +732,7 @@ describe("ApplicationWorkspace", () => {
           url.pathname === `/documents/${custom.id}/download` &&
           method === "GET"
         ) {
-          return new Response(new Blob(["%PDF-custom"]));
+          return new Response("%PDF-custom");
         }
         return undefined;
       },
@@ -819,7 +819,7 @@ describe("ApplicationWorkspace", () => {
           && method === "GET"
         ) {
           requestOrder.push(`pdf:${url.searchParams.get("templateId")}`);
-          return new Response(new Blob(["%PDF-custom"]), {
+          return new Response("%PDF-custom", {
             headers: { "X-Rufina-Document-Id": custom.id },
           });
         }
@@ -837,7 +837,7 @@ describe("ApplicationWorkspace", () => {
           url.pathname === `/documents/${classic.id}/download`
           && method === "GET"
         ) {
-          return new Response(new Blob(["%PDF-classic"]));
+          return new Response("%PDF-classic");
         }
         if (url.pathname === `/documents/${custom.id}` && method === "GET") {
           return Response.json(custom);
@@ -846,7 +846,7 @@ describe("ApplicationWorkspace", () => {
           url.pathname === `/documents/${custom.id}/download`
           && method === "GET"
         ) {
-          return new Response(new Blob(["%PDF-custom"]));
+          return new Response("%PDF-custom");
         }
         return undefined;
       },
