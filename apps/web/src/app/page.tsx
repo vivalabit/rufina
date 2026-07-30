@@ -12308,6 +12308,16 @@ function AppSidebar({
           <span>Settings</span>
           <ChevronRight className="ml-auto h-[18px] w-[18px] 2xl:h-5 2xl:w-5" />
         </a>
+        <a
+          href="https://github.com/vivalabit/rufina"
+          target="_blank"
+          rel="noreferrer"
+          className="app-sidebar-source flex h-9 items-center gap-2.5 rounded-md px-3 text-xs text-muted transition hover:bg-white/[0.055] hover:text-white 2xl:h-10 2xl:gap-3 2xl:text-sm"
+        >
+          <Github className="h-4 w-4 2xl:h-[18px] 2xl:w-[18px]" />
+          <span>Source Code</span>
+          <ExternalLink className="ml-auto h-3.5 w-3.5 2xl:h-4 2xl:w-4" />
+        </a>
       </div>
     </aside>
   );

@@ -2,6 +2,7 @@
 name = "rufina-api"
 version = "0.1.0"
 description = "FastAPI backend for the Rufina personal job search assistant."
+license = "AGPL-3.0-only"
 requires-python = ">=3.12"
 dependencies = [
   "alembic>=1.14.0",

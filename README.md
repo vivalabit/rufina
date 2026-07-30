@@ -22,9 +22,17 @@ Rufina is a personal AI assistant for job hunting. It finds suitable job opening
 
 <img src="https://api.iconify.design/tabler/robot.svg?color=%23FF5A00" width="22" alt="AI assistant icon" /> **Personal AI Assistant**: Supports you throughout the job search, from finding vacancies to preparing application documents.
 
+## License
 
-## How It Works 
+Rufina's source code is licensed under the
+[GNU Affero General Public License v3.0](LICENSE).
 
+Copyright © 2026 Rufina contributors.
+
+The Rufina name, logo, and brand assets are not covered by the AGPL license.
+See [TRADEMARKS.md](TRADEMARKS.md) for details.
+
+## How It Works
 
 1. <img src="https://api.iconify.design/tabler/user-circle.svg?color=%23FF5A00" width="22" alt="Profile icon" /> **Build Your Candidate Profile**  
    Add your experience, skills, job preferences, and confirm your Master Resume.
@@ -195,7 +203,6 @@ pnpm openclaw:setup
 - **AI:** OpenAI Responses API or Codex through OpenClaw
 - **Documents:** LibreOffice, Poppler, Tesseract, Playwright
 - **Infrastructure:** Docker Compose, pnpm workspaces
-
 
 ## Privacy & Security
 
