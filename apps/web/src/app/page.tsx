@@ -20,11 +20,9 @@ import {
   CircleDot,
   Cloud,
   Code2,
-  Copy,
   Database,
   Download,
   Edit3,
-  Eye,
   ExternalLink,
   FileText,
   FlaskConical,
@@ -342,11 +340,6 @@ const defaultAppSettings: AppSettings = {
   job_screening_timeout_seconds: 60,
   job_screening_max_attempts: 2,
   job_screening_max_description_chars: 12_000,
-};
-
-type BrightDataApiKeyResponse = {
-  brightdata_api_key?: string;
-  detail?: string;
 };
 
 type UiSettings = {
@@ -8677,10 +8670,6 @@ function SettingsView({
   const [screeningDescriptionLimitDraft, setScreeningDescriptionLimitDraft] = useState(
     settings.job_screening_max_description_chars,
   );
-  const [isCurrentKeyVisible, setIsCurrentKeyVisible] = useState(false);
-  const [revealedCurrentKey, setRevealedCurrentKey] = useState("");
-  const [isCurrentKeyLoading, setIsCurrentKeyLoading] = useState(false);
-  const [copyStatus, setCopyStatus] = useState("");
   const hasUsableOpenAiKey = settings.openai_api_key_configured || Boolean(openAiApiKeyDraft.trim());
   const aiConnectionValidationMessage = aiBackendDraft === "openai_api"
     ? !hasUsableOpenAiKey
@@ -8720,26 +8709,13 @@ function SettingsView({
   const aiValidationMessage =
     aiConnectionValidationMessage || aiMatchValidationMessage || screeningValidationMessage;
   const currentKeyPreview = settings.brightdata_api_key_preview || "No key saved";
-  const displayedCurrentKey =
-    settings.has_brightdata_api_key && isCurrentKeyVisible
-      ? revealedCurrentKey || (isCurrentKeyLoading ? "Loading key..." : currentKeyPreview)
-      : settings.has_brightdata_api_key
-        ? currentKeyPreview
-        : "No key saved";
   const statusMessage =
     status === "error"
       ? message || "Settings save failed"
-      : copyStatus ||
-        message ||
+      : message ||
         (settings.has_brightdata_api_key
-          ? "Key is encrypted and stored securely"
+          ? "Key is configured and only used server-side"
           : "Add a Bright Data key to enable LinkedIn and Indeed vacancy search.");
-
-  useEffect(() => {
-    setIsCurrentKeyVisible(false);
-    setRevealedCurrentKey("");
-    setCopyStatus("");
-  }, [settings.brightdata_api_key_preview, settings.has_brightdata_api_key]);
 
   useEffect(() => {
     setAiBackendDraft(settings.ai_backend);
@@ -8809,57 +8785,6 @@ function SettingsView({
     setAiBackendDraft("openclaw_codex");
     setOpenAiApiKeyDraft("");
     onSaveAi({ ai_backend: "openclaw_codex", openai_api_key: "" });
-  }
-
-  async function loadCurrentApiKey() {
-    if (!settings.has_brightdata_api_key) return "";
-    if (revealedCurrentKey) return revealedCurrentKey;
-
-    try {
-      setIsCurrentKeyLoading(true);
-      const response = await fetch(`${apiBaseUrl}/settings/brightdata-key`, { cache: "no-store" });
-      const data = (await response.json()) as BrightDataApiKeyResponse;
-
-      if (!response.ok) {
-        throw new Error(data.detail ?? "Current key request failed");
-      }
-
-      const fullKey = data.brightdata_api_key ?? "";
-      setRevealedCurrentKey(fullKey);
-      return fullKey;
-    } catch {
-      setCopyStatus("Could not load current key");
-      window.setTimeout(() => setCopyStatus(""), 2000);
-      return "";
-    } finally {
-      setIsCurrentKeyLoading(false);
-    }
-  }
-
-  async function toggleCurrentKeyVisibility() {
-    if (isCurrentKeyVisible) {
-      setIsCurrentKeyVisible(false);
-      return;
-    }
-
-    const fullKey = await loadCurrentApiKey();
-    if (fullKey) {
-      setIsCurrentKeyVisible(true);
-    }
-  }
-
-  async function copyCurrentKey() {
-    const fullKey = await loadCurrentApiKey();
-    if (!fullKey) return;
-
-    try {
-      await navigator.clipboard.writeText(fullKey);
-      setCopyStatus("Current key copied");
-      window.setTimeout(() => setCopyStatus(""), 2000);
-    } catch {
-      setCopyStatus("Copy failed");
-      window.setTimeout(() => setCopyStatus(""), 2000);
-    }
   }
 
   return (
@@ -9285,31 +9210,10 @@ function SettingsView({
           <div className="mt-6 grid gap-5">
             <div className="grid gap-2">
               <p className="text-sm font-bold text-[#d8dee8] 2xl:text-base">Current key</p>
-              <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto]">
-                <div className="flex min-w-0 overflow-hidden rounded-md border border-border bg-[#0d131a]">
-                  <div className="min-w-0 flex-1 px-3 py-3 font-mono text-sm font-semibold text-muted 2xl:px-4 2xl:text-base">
-                    {displayedCurrentKey}
-                  </div>
-                  <button
-                    type="button"
-                    aria-label={isCurrentKeyVisible ? "Hide current key" : "Show current key"}
-                    className="grid w-12 shrink-0 place-items-center border-l border-border text-muted transition hover:bg-white/[0.055] hover:text-white 2xl:w-14"
-                    disabled={!settings.has_brightdata_api_key || isCurrentKeyLoading}
-                    onClick={toggleCurrentKeyVisibility}
-                  >
-                    <Eye className="h-5 w-5" />
-                  </button>
+              <div className="flex min-w-0 overflow-hidden rounded-md border border-border bg-[#0d131a]">
+                <div className="min-w-0 flex-1 px-3 py-3 font-mono text-sm font-semibold text-muted 2xl:px-4 2xl:text-base">
+                  {currentKeyPreview}
                 </div>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-12 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06] lg:w-[112px] 2xl:h-[52px] 2xl:text-sm"
-                  disabled={!settings.has_brightdata_api_key || isCurrentKeyLoading}
-                  onClick={copyCurrentKey}
-                >
-                  <Copy className="h-4 w-4" />
-                  Copy
-                </Button>
               </div>
             </div>
 
@@ -9346,7 +9250,7 @@ function SettingsView({
                   <p className="mt-2 max-w-[720px] text-sm leading-6 text-muted 2xl:text-base 2xl:leading-7">
                     Your API key is saved securely and used for LinkedIn and Indeed vacancy search on the server side.
                     <br />
-                    The full key is fetched only when you reveal or copy it.
+                    The full key is never returned by the settings API.
                   </p>
                 </div>
               </div>
@@ -9358,7 +9262,7 @@ function SettingsView({
                   "flex items-center gap-3 text-sm font-semibold 2xl:text-base",
                   status === "error"
                     ? "text-[#ff7a7a]"
-                    : settings.has_brightdata_api_key || copyStatus
+                    : settings.has_brightdata_api_key
                       ? "text-success"
                       : "text-muted",
                 )}

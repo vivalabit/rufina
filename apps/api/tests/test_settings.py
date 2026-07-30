@@ -41,18 +41,21 @@ def test_upsert_env_value_preserves_other_lines(tmp_path: Path) -> None:
     )
 
 
-def test_get_brightdata_api_key_returns_full_key(monkeypatch) -> None:
+def test_brightdata_api_key_cannot_be_read_back(monkeypatch) -> None:
     monkeypatch.setenv("BRIGHTDATA_API_KEY", "full-secret-key")
     get_settings.cache_clear()
     client = TestClient(app)
 
     try:
         response = client.get("/settings/brightdata-key")
+        settings_response = client.get("/settings")
     finally:
         get_settings.cache_clear()
 
-    assert response.status_code == 200
-    assert response.json() == {"brightdata_api_key": "full-secret-key"}
+    assert response.status_code == 404
+    assert settings_response.status_code == 200
+    assert settings_response.json()["brightdata_api_key_preview"] == "full****-key"
+    assert "full-secret-key" not in settings_response.text
 
 
 def test_ai_backend_mode_accepts_only_supported_transports() -> None:

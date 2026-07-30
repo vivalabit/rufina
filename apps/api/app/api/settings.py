@@ -57,10 +57,6 @@ class AppSettingsResponse(BaseModel):
     job_screening_max_description_chars: int
 
 
-class BrightDataApiKeyResponse(BaseModel):
-    brightdata_api_key: str = ""
-
-
 class AppSettingsUpdateRequest(BaseModel):
     brightdata_api_key: str | None = Field(default=None, max_length=4096)
     ai_backend: AIBackendName | None = None
@@ -175,12 +171,6 @@ def build_settings_response() -> AppSettingsResponse:
 @router.get("", response_model=AppSettingsResponse)
 def get_app_settings() -> AppSettingsResponse:
     return build_settings_response()
-
-
-@router.get("/brightdata-key", response_model=BrightDataApiKeyResponse)
-def get_brightdata_api_key() -> BrightDataApiKeyResponse:
-    settings = get_settings()
-    return BrightDataApiKeyResponse(brightdata_api_key=(settings.brightdata_api_key or "").strip())
 
 
 @router.put("", response_model=AppSettingsResponse)

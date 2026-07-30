@@ -41,7 +41,7 @@ services:
       OPENCLAW_ASSISTANT_MAX_HISTORY_MESSAGES: "12"
       OPENCLAW_ASSISTANT_MAX_HISTORY_CHARS: "8000"
     ports:
-      - "${API_PORT:-8000}:8000"
+      - "127.0.0.1:${API_PORT:-8000}:8000"
     volumes:
       - .:/workspace
       - ${HOME}/.openclaw:/root/.openclaw
@@ -109,7 +109,7 @@ services:
       POSTGRES_USER: tasko
       POSTGRES_PASSWORD: tasko
     ports:
-      - "${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -121,7 +121,7 @@ services:
   redis:
     image: redis:7-alpine
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
     volumes:
       - redis-data:/data
     healthcheck:

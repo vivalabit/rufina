@@ -221,6 +221,9 @@ it("saves a selectable AI backend without overwriting unrelated settings", async
 
   expect(await screen.findByText("OpenAI API key saved but not in use")).toBeInTheDocument();
   expect(screen.getByText(/sk-e\*\*\*\*-key remains stored/)).toBeInTheDocument();
+  expect(screen.getByText("brig****-key")).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Show current key" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Copy" })).not.toBeInTheDocument();
   const openAiMode = screen.getByRole("radio", { name: /OpenAI API/ });
   const openClawMode = screen.getByRole("radio", { name: /Codex credits via OpenClaw/ });
   expect(openClawMode).toBeChecked();
