@@ -668,6 +668,9 @@ const legacyParserSearchConfigsStorageKey = "tasko.parserSearchConfigs.v1";
 const parserSearchConfigsStorageKey = "tasko.parserSearchConfigs.v2";
 const uiSettingsStorageKey = "tasko.uiSettings.v1";
 const appLogsStorageKey = "tasko.appLogs.v1";
+const screenshotSessionId =
+  process.env.NEXT_PUBLIC_SCREENSHOT_SESSION_ID?.trim() ?? "";
+const screenshotSessionStorageKey = "rufina.screenshotSessionId";
 const legacyMovedFromJobsNote = "Moved from Jobs after applying.";
 const maxStoredAppLogs = 300;
 
@@ -3063,6 +3066,23 @@ export default function HomePage() {
     );
     return storedUserJobs;
   }
+
+  useEffect(() => {
+    if (!screenshotSessionId) return;
+    if (
+      window.localStorage.getItem(screenshotSessionStorageKey) ===
+      screenshotSessionId
+    ) {
+      return;
+    }
+
+    for (const key of Object.keys(window.localStorage)) {
+      if (key.startsWith("tasko.")) {
+        window.localStorage.removeItem(key);
+      }
+    }
+    window.localStorage.setItem(screenshotSessionStorageKey, screenshotSessionId);
+  }, []);
 
   useEffect(() => {
     if (activeTab !== "AI Match" || !pendingAiMatchFocus) return;

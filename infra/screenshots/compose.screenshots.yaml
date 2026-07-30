@@ -1,0 +1,31 @@
+services:
+  api:
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      CORS_ORIGINS: '["http://localhost:${WEB_PORT:-3001}","http://127.0.0.1:${WEB_PORT:-3001}"]'
+      OPENCLAW_AI_MATCH_ENABLED: "false"
+      OPENCLAW_ASSISTANT_ENABLED: "false"
+      OPENCLAW_RESUME_IMPORT_ENABLED: "false"
+      OPENCLAW_RESUME_TAILORING_ENABLED: "false"
+      RUFINA_SCREENSHOT_MODE: "1"
+    volumes:
+      - .:/workspace
+      - screenshot-openclaw-home:/root/.openclaw
+      - screenshot-openclaw-shared-state:/root/.openclaw-shared-state
+      - screenshot-openclaw-state:/root/.openclaw/state
+      - screenshot-openclaw-npm:${HOME}/.openclaw/npm
+      - screenshot-openclaw-workspace:${HOME}/.openclaw/workspace-rufina-assistant
+      - screenshot-openclaw-agent:${HOME}/.openclaw/agents/rufina-assistant
+
+  web:
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-8001}
+      NEXT_PUBLIC_SCREENSHOT_SESSION_ID: ${SCREENSHOT_SESSION_ID:-screenshot-default}
+
+volumes:
+  screenshot-openclaw-home:
+  screenshot-openclaw-shared-state:
+  screenshot-openclaw-state:
+  screenshot-openclaw-npm:
+  screenshot-openclaw-workspace:
+  screenshot-openclaw-agent:

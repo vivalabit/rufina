@@ -12,7 +12,12 @@
     "openclaw:setup": "python3 scripts/setup_openclaw_rufina_assistant.py",
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
-    "docker:logs": "docker compose logs -f"
+    "docker:logs": "docker compose logs -f",
+    "screenshots:up": "bash scripts/screenshot_workspace.sh up",
+    "screenshots:seed": "bash scripts/screenshot_workspace.sh seed",
+    "screenshots:reset": "bash scripts/screenshot_workspace.sh reset",
+    "screenshots:down": "bash scripts/screenshot_workspace.sh down",
+    "screenshots:logs": "bash scripts/screenshot_workspace.sh logs"
   },
   "devDependencies": {
     "prettier": "^3.5.3"
