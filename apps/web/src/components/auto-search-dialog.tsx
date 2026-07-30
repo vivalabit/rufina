@@ -2068,16 +2068,17 @@ function formatNextRun(schedule: JobSearchSchedule): string {
   const value = new Date(schedule.nextRunAt);
   if (Number.isNaN(value.getTime())) return "Not scheduled";
   try {
-    return new Intl.DateTimeFormat(undefined, {
+    return new Intl.DateTimeFormat("en-US", {
       month: "short",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
+      hour12: false,
       timeZone: schedule.timezone,
       timeZoneName: "short",
     }).format(value);
   } catch {
-    return value.toLocaleString();
+    return value.toLocaleString("en-US", { hour12: false });
   }
 }
 
@@ -2171,9 +2172,10 @@ function formatAuditTime(value: string): string {
   const date = new Date(value);
   return Number.isNaN(date.getTime())
     ? value
-    : new Intl.DateTimeFormat(undefined, {
+    : new Intl.DateTimeFormat("en-US", {
         dateStyle: "medium",
         timeStyle: "short",
+        hour12: false,
       }).format(date);
 }
 

@@ -1640,7 +1640,7 @@ function formatProfileDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
 
-  return date.toLocaleDateString(undefined, {
+  return date.toLocaleDateString("en-US", {
     month: "short",
     day: "numeric",
     year: "numeric",
@@ -2184,12 +2184,13 @@ function formatLogTimestamp(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Time unknown";
 
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString("en-US", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
     second: "2-digit",
+    hour12: false,
   });
 }
 
@@ -2199,11 +2200,12 @@ function formatAiMatchTimestamp(value?: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Time unknown";
 
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString("en-US", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
+    hour12: false,
   });
 }
 
@@ -2644,14 +2646,22 @@ function formatApplicationEventDate(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Date TBD";
 
-  return date.toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" });
+  return date.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
 }
 
 function formatApplicationEventTime(value: string) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Time TBD";
 
-  return date.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+  return date.toLocaleTimeString("en-US", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 function formatApplicationDate(value: string) {
@@ -7956,7 +7966,7 @@ function ApplicationsView({
                   >
                     <div className="rounded-md border border-accent/45 bg-accent/10 py-1.5 text-center">
                       <p className="text-[9px] font-black uppercase text-accent 2xl:text-[10px]">
-                        {Number.isNaN(eventDate.getTime()) ? "TBD" : eventDate.toLocaleDateString(undefined, { month: "short" })}
+                        {Number.isNaN(eventDate.getTime()) ? "TBD" : eventDate.toLocaleDateString("en-US", { month: "short" })}
                       </p>
                       <p className="text-lg font-bold leading-none text-white 2xl:text-xl">
                         {Number.isNaN(eventDate.getTime()) ? "-" : eventDate.getDate()}
@@ -9693,7 +9703,7 @@ function DashboardView({
                 className="grid w-full gap-2 rounded-md border border-border px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/[0.025] sm:grid-cols-[48px_minmax(0,1fr)_150px_auto] sm:items-center"
               >
                 <div className="text-center">
-                  <p className="text-[10px] font-bold uppercase text-accent">{new Date(nextEvent.startsAt).toLocaleDateString(undefined, { month: "short" })}</p>
+                  <p className="text-[10px] font-bold uppercase text-accent">{new Date(nextEvent.startsAt).toLocaleDateString("en-US", { month: "short" })}</p>
                   <p className="text-lg font-bold leading-tight">{new Date(nextEvent.startsAt).getDate()}</p>
                 </div>
                 <div className="min-w-0">
