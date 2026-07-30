@@ -19,6 +19,7 @@ from app.models.job_screening import JobScreeningDecisionRecord
 from app.models.jobs import JobMatchRecord
 from app.models.privacy import AiPrivacySettingsRecord
 from app.models.profile import CandidateMatchSnapshotRecord
+from app.models.resume import ImaginatorResumeRecord
 
 
 def privacy_settings_record(
@@ -81,6 +82,7 @@ def delete_ai_data_for_owner(db: Session, owner_id: str) -> int:
         JobScreeningDecisionRecord,
         JobMatchRecord,
         CandidateMatchSnapshotRecord,
+        ImaginatorResumeRecord,
     )
     for model in models:
         result = db.execute(delete(model).where(model.owner_id == owner_id))

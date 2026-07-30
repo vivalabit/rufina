@@ -182,6 +182,48 @@ function generatedPdfDocument(templateId = "classic_single") {
   };
 }
 
+function generatedImaginatorPdfDocument(templateId = "classic_single") {
+  const document = generatedPdfDocument(templateId);
+  return {
+    ...document,
+    id: `imaginator-pdf-document-${templateId}`,
+    inputVersions: {
+      ...document.inputVersions,
+      generationMode: "imaginator",
+    },
+    versions: document.versions.map((version) => ({
+      ...version,
+      artifact: {
+        ...version.artifact,
+        sourceAtsFinalReviewId: null,
+        sourceImaginatorResumeId: "imaginator-resume-1",
+        stageResults: {
+          generationMode: "imaginator",
+          claimLedger: [
+            {
+              path: "summary",
+              text: "Ideal AI leader with global impact.",
+              origin: "synthetic",
+              evidenceIds: ["imagination:1"],
+            },
+            {
+              path: "education[0]",
+              text: "ETH Zurich",
+              origin: "locked_source",
+              evidenceIds: [],
+            },
+          ],
+        },
+        provenance: {
+          generationMode: "imaginator",
+          syntheticClaimCount: 1,
+          lockedClaimCount: 1,
+        },
+      },
+    })),
+  };
+}
+
 describe("ApplicationWorkspace", () => {
   it("shows an empty state when no application is selected", () => {
     renderApplicationWorkspace(null);
@@ -471,6 +513,10 @@ describe("ApplicationWorkspace", () => {
         label: "Recruiter → XYZ → ATS",
         value: "recruiter_xyz_ats",
       },
+      {
+        label: "Imaginator",
+        value: "imaginator",
+      },
     ]);
     expect(
       screen.queryByText(
@@ -487,6 +533,103 @@ describe("ApplicationWorkspace", () => {
         /Deep evidence-backed tailoring with recruiter analysis/i,
       ),
     ).toBeVisible();
+  });
+
+  it("runs Imaginator as a standalone resume stage before rendering", async () => {
+    const saved = generatedImaginatorPdfDocument();
+    const requestOrder: string[] = [];
+    const fetchMock = installApplicationWorkspaceApiMock({
+      aiPrivacySettings: consent,
+      requestHandler: async (url, method, init) => {
+        if (
+          url.pathname === "/resume-tailoring/imaginator"
+          && method === "POST"
+        ) {
+          requestOrder.push("imaginator");
+          expect(JSON.parse(String(init?.body))).toEqual({
+            masterResumeId: "master-resume-1",
+            targetJobId: "job-product-designer",
+            applicationId: "application-v3",
+            generationMode: "imaginator",
+            targetLanguage: "English",
+          });
+          return Response.json({
+            id: "imaginator-resume-1",
+            generationMode: "imaginator",
+          });
+        }
+        if (
+          url.pathname
+            === "/resume-tailoring/imaginator/imaginator-resume-1/pdf"
+          && method === "GET"
+        ) {
+          requestOrder.push(`pdf:${url.searchParams.get("templateId")}`);
+          return new Response(new Blob(["%PDF-1.7"]), {
+            headers: { "X-Rufina-Document-Id": saved.id },
+          });
+        }
+        if (
+          url.pathname === `/documents/${saved.id}/attachments`
+          && method === "POST"
+        ) {
+          requestOrder.push("attach");
+          return Response.json(saved);
+        }
+        if (url.pathname === `/documents/${saved.id}` && method === "GET") {
+          return Response.json(saved);
+        }
+        if (
+          url.pathname === `/documents/${saved.id}/download`
+          && method === "GET"
+        ) {
+          return new Response(new Blob(["%PDF-1.7"]));
+        }
+        return undefined;
+      },
+    });
+    const { props } = renderApplicationWorkspace(
+      createV3WorkspaceApplication(),
+    );
+
+    fireEvent.change(
+      await screen.findByRole("combobox", { name: "CV generation mode" }),
+      { target: { value: "imaginator" } },
+    );
+    expect(
+      screen.getByText(/Imaginator may invent experience/i),
+    ).toBeInTheDocument();
+
+    const generate = screen.getByRole("button", {
+      name: "Generate Tailored CV",
+    });
+    await waitFor(() => expect(generate).toBeEnabled());
+    fireEvent.click(generate);
+
+    await waitFor(
+      () => expect(props.onDocumentAttached).toHaveBeenCalledTimes(1),
+      { timeout: 4_000 },
+    );
+    expect(requestOrder).toEqual([
+      "imaginator",
+      "pdf:classic_single",
+      "attach",
+    ]);
+    expect(
+      fetchMock.mock.calls.some(([input, init]) =>
+        [
+          "/resume-tailoring/senior-recruiter-analysis",
+          "/resume-tailoring/experience-rewrite",
+          "/resume-tailoring/ats-final-review",
+        ].some(
+          (path) =>
+            new URL(String(input)).pathname === path
+            && init?.method === "POST",
+        ),
+      ),
+    ).toBe(false);
+    expect(
+      await screen.findByText("PDF rendered, validated, and saved"),
+    ).toBeInTheDocument();
   });
 
   it("passes the selected document language into CV generation", async () => {
@@ -634,6 +777,109 @@ describe("ApplicationWorkspace", () => {
     ).toBeInTheDocument();
     window.localStorage.removeItem(
       "tasko.resume-template.v1.application-v3",
+    );
+  });
+
+  it("re-renders a saved Imaginator resume without rerunning AI", async () => {
+    const customTemplateId = generationResumeTemplates[0].id;
+    window.localStorage.setItem(
+      "tasko.resume-template.v1.application-v3",
+      customTemplateId,
+    );
+    window.localStorage.setItem(
+      "tasko.resume-generation-mode.v1.application-v3",
+      "imaginator",
+    );
+    const detailedClassic = generatedImaginatorPdfDocument("classic_single");
+    const classic = {
+      ...detailedClassic,
+      versions: detailedClassic.versions.map((version) => ({
+        ...version,
+        artifact: {
+          ...version.artifact,
+          finalResumeJson: null,
+          stageResults: null,
+          provenance: null,
+        },
+      })),
+    };
+    const custom = {
+      ...generatedImaginatorPdfDocument(customTemplateId),
+      id: "imaginator-pdf-document-custom",
+    };
+    const requestOrder: string[] = [];
+    const fetchMock = installApplicationWorkspaceApiMock({
+      documents: [classic],
+      resumeTemplates: generationResumeTemplates,
+      aiPrivacySettings: { hasCurrentConsent: false },
+      requestHandler: async (url, method) => {
+        if (
+          url.pathname ===
+            "/resume-tailoring/imaginator/imaginator-resume-1/pdf"
+          && method === "GET"
+        ) {
+          requestOrder.push(`pdf:${url.searchParams.get("templateId")}`);
+          return new Response(new Blob(["%PDF-custom"]), {
+            headers: { "X-Rufina-Document-Id": custom.id },
+          });
+        }
+        if (
+          url.pathname === `/documents/${custom.id}/attachments`
+          && method === "POST"
+        ) {
+          requestOrder.push("attach");
+          return Response.json(custom);
+        }
+        if (url.pathname === `/documents/${classic.id}` && method === "GET") {
+          return Response.json(classic);
+        }
+        if (
+          url.pathname === `/documents/${classic.id}/download`
+          && method === "GET"
+        ) {
+          return new Response(new Blob(["%PDF-classic"]));
+        }
+        if (url.pathname === `/documents/${custom.id}` && method === "GET") {
+          return Response.json(custom);
+        }
+        if (
+          url.pathname === `/documents/${custom.id}/download`
+          && method === "GET"
+        ) {
+          return new Response(new Blob(["%PDF-custom"]));
+        }
+        return undefined;
+      },
+    });
+    const { props } = renderApplicationWorkspace(
+      createV3WorkspaceApplication(),
+    );
+
+    const modeMenu = await screen.findByRole("combobox", {
+      name: "CV generation mode",
+    });
+    await waitFor(() => expect(modeMenu).toHaveValue("imaginator"));
+    fireEvent.click(screen.getByRole("button", { name: "Regenerate" }));
+
+    await waitFor(
+      () => expect(props.onDocumentAttached).toHaveBeenCalledTimes(1),
+      { timeout: 4_000 },
+    );
+    expect(requestOrder).toEqual([`pdf:${customTemplateId}`, "attach"]);
+    expect(
+      fetchMock.mock.calls.some(([input, init]) =>
+        new URL(String(input)).pathname === "/resume-tailoring/imaginator"
+        && init?.method === "POST",
+      ),
+    ).toBe(false);
+    expect(
+      screen.queryByRole("dialog", { name: /AI data disclosure/i }),
+    ).not.toBeInTheDocument();
+    window.localStorage.removeItem(
+      "tasko.resume-template.v1.application-v3",
+    );
+    window.localStorage.removeItem(
+      "tasko.resume-generation-mode.v1.application-v3",
     );
   });
 

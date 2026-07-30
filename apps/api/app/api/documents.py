@@ -393,6 +393,7 @@ def list_document_versions(
                         DocumentFileRecord.renderer_template_version,
                         DocumentFileRecord.renderer_design_sha256,
                         DocumentFileRecord.source_ats_final_review_id,
+                        DocumentFileRecord.source_imaginator_resume_id,
                     )
                 )
                 .where(
@@ -680,6 +681,12 @@ def restore_document_version(
                         source_file.renderer_template_version
                     ),
                     renderer_design_sha256=source_file.renderer_design_sha256,
+                    source_ats_final_review_id=(
+                        source_file.source_ats_final_review_id
+                    ),
+                    source_imaginator_resume_id=(
+                        source_file.source_imaginator_resume_id
+                    ),
                     final_resume_json=source_file.final_resume_json,
                     stage_results=source_file.stage_results,
                     provenance=source_file.provenance,
@@ -1750,6 +1757,7 @@ def load_initial_document_relations(
                     DocumentFileRecord.renderer_template_version,
                     DocumentFileRecord.renderer_design_sha256,
                     DocumentFileRecord.source_ats_final_review_id,
+                    DocumentFileRecord.source_imaginator_resume_id,
                 )
             )
             .join(
@@ -2118,6 +2126,7 @@ def document_artifact_payload(
         template_version=artifact.renderer_template_version,
         design_sha256=artifact.renderer_design_sha256,
         source_ats_final_review_id=artifact.source_ats_final_review_id,
+        source_imaginator_resume_id=artifact.source_imaginator_resume_id,
         final_resume_json=(
             artifact.final_resume_json if include_details else None
         ),

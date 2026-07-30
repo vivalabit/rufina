@@ -114,3 +114,37 @@ it("marks all five stages complete after a successful pipeline", () => {
     screen.getByText("PDF rendered, validated, and saved"),
   ).toBeInTheDocument();
 });
+
+it("shows Imaginator and protected-fact audit without ATS stages", () => {
+  render(
+    <ResumeTailoringProgressPanel
+      progress={{
+        mode: "imaginator",
+        stage: "immutable_validation",
+        status: "active",
+        message: "Checking locked facts",
+        attempt: 1,
+      }}
+    />,
+  );
+
+  const imaginatorStages = screen.getByRole("list", {
+    name: "Imaginator stages",
+  });
+  expect(within(imaginatorStages).getAllByRole("listitem")).toHaveLength(2);
+  expect(
+    within(imaginatorStages).getByRole("listitem", {
+      name: "Imaginator generation: completed",
+    }),
+  ).toBeInTheDocument();
+  expect(
+    within(imaginatorStages).getByRole("listitem", {
+      name: "Protected facts audit: in progress",
+    }),
+  ).toBeInTheDocument();
+  expect(screen.getByText("AI + audit")).toBeInTheDocument();
+  expect(
+    screen.queryByRole("list", { name: "AI tailoring stages" }),
+  ).not.toBeInTheDocument();
+  expect(screen.queryByText("ATS final review")).not.toBeInTheDocument();
+});

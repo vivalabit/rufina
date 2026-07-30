@@ -147,6 +147,54 @@ function pdfDocument(
   };
 }
 
+function imaginatorPdfDocument(): ResumePdfDocument {
+  const document = pdfDocument("pdf-document-imaginator");
+  const version = document.versions[0];
+  return {
+    ...document,
+    versions: [
+      {
+        ...version,
+        artifact: {
+          ...version.artifact!,
+          sourceAtsFinalReviewId: null,
+          sourceImaginatorResumeId: "imaginator-1",
+          stageResults: {
+            generationMode: "imaginator",
+            claimLedger: [
+              {
+                path: "summary",
+                text: "Built globally distributed AI platforms.",
+                origin: "synthetic",
+                evidenceIds: ["imagination:1"],
+              },
+              {
+                path: "education[0]",
+                text: "University of London",
+                origin: "locked_source",
+                evidenceIds: [],
+              },
+            ],
+            protectedFactsAudit: {
+              passed: true,
+              auditedClaimCount: 18,
+              promptVersion: "imaginator-protected-facts-audit-v1",
+              model: "gpt-5.6-terra",
+            },
+          },
+          provenance: {
+            generationMode: "imaginator",
+            syntheticClaimCount: 1,
+            lockedClaimCount: 1,
+            resumeMasterVersionId: "master-version-7",
+            imaginatorConstraintsVersion: "imaginator-locks-v1",
+          },
+        },
+      },
+    ],
+  };
+}
+
 describe("ResumeTemplatePicker", () => {
   it("groups personal and built-in templates and previews custom tokens", () => {
     const onChange = vi.fn();
@@ -271,6 +319,60 @@ describe("ResumePdfReview", () => {
         "Published the first algorithm for the Analytical Engine.",
       ),
     ).toBeInTheDocument();
+  });
+
+  it("labels Imaginator claims and exposes locked-fact provenance", async () => {
+    const detail = imaginatorPdfDocument();
+    vi.stubGlobal(
+      "fetch",
+      vi.fn<typeof fetch>(async (input) => {
+        const url = new URL(String(input));
+        if (url.pathname === "/documents/pdf-document-imaginator") {
+          return Response.json(detail);
+        }
+        if (url.pathname === "/documents/pdf-document-imaginator/download") {
+          return new Response(new Blob(["%PDF-1.7"]));
+        }
+        throw new Error(`Unhandled request: ${url.pathname}`);
+      }),
+    );
+
+    render(
+      <ResumePdfReview
+        apiBaseUrl="http://localhost:8000"
+        applicationId="application-1"
+        document={detail}
+        templates={templates}
+        selectedTemplateId="classic_single"
+        onDocumentReady={vi.fn()}
+      />,
+    );
+
+    expect(
+      await screen.findByTitle("Resume PDF preview"),
+    ).toHaveAttribute("src", "blob:resume-preview");
+    expect(
+      screen.getByText("Imaginator draft · contains AI-invented claims"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("tab", { name: "Invented claims · 1" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Built globally distributed AI platforms."),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: "ATS scan" }),
+    ).not.toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Download DOCX" })).toHaveAttribute(
+      "href",
+      "http://localhost:8000/resume-tailoring/imaginator/imaginator-1/docx?templateId=classic_single",
+    );
+
+    fireEvent.click(screen.getByRole("tab", { name: "Provenance" }));
+    expect(screen.getByText("Locked source facts")).toBeInTheDocument();
+    expect(screen.getByText("Passed · 18 claims")).toBeInTheDocument();
+    expect(screen.getByText("master-version-7")).toBeInTheDocument();
+    expect(screen.getByText("imaginator-locks-v1")).toBeInTheDocument();
   });
 
   it("renders a custom UUID from the saved FinalResume and switches artifacts", async () => {

@@ -22,7 +22,6 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base, OwnerScoped
 
-
 MAX_TEXT_LENGTH = 20_000
 MAX_ITEMS_PER_SECTION = 100
 
@@ -83,6 +82,7 @@ EvidenceKind = Literal[
     "confirmation",
     "vacancy",
     "generation",
+    "imagination",
 ]
 EvidenceClaimType = Literal[
     "employer",
@@ -500,6 +500,102 @@ class AtsFinalReviewRecord(OwnerScoped, Base):
     )
 
 
+class ImaginatorResumeRecord(OwnerScoped, Base):
+    """Immutable output of the standalone Imaginator resume pipeline."""
+
+    __tablename__ = "imaginator_resumes"
+    __table_args__ = (
+        CheckConstraint(
+            "input_tokens >= 0 AND output_tokens >= 0 AND total_tokens >= 0",
+            name="ck_imaginator_resumes_tokens_nonnegative",
+        ),
+        CheckConstraint(
+            "latency_ms >= 0",
+            name="ck_imaginator_resumes_latency_nonnegative",
+        ),
+        Index(
+            "ix_imaginator_resumes_input",
+            "owner_id",
+            "resume_master_version_id",
+            "target_job_id",
+            "created_at",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    resume_master_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "resume_masters.id",
+            ondelete="CASCADE",
+            name="fk_imaginator_resumes_master",
+        ),
+        nullable=False,
+        index=True,
+    )
+    resume_master_version_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "resume_master_versions.id",
+            ondelete="CASCADE",
+            name="fk_imaginator_resumes_master_version",
+        ),
+        nullable=False,
+        index=True,
+    )
+    target_job_id: Mapped[str] = mapped_column(
+        String(160),
+        nullable=False,
+        index=True,
+    )
+    application_id: Mapped[str | None] = mapped_column(
+        String(160),
+        ForeignKey(
+            "stored_applications.id",
+            ondelete="SET NULL",
+            name="fk_imaginator_resumes_application",
+        ),
+        nullable=True,
+        index=True,
+    )
+    vacancy_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_fingerprint: Mapped[str] = mapped_column(String(64), nullable=False)
+    constraints_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    prompt_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    result: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    render_input: Mapped[dict[str, object]] = mapped_column(JSON, nullable=False)
+    claim_ledger: Mapped[list[dict[str, object]]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=list,
+    )
+    protected_facts_audit: Mapped[dict[str, object]] = mapped_column(
+        JSON,
+        nullable=False,
+    )
+    model: Mapped[str] = mapped_column(String(160), nullable=False)
+    backend: Mapped[str] = mapped_column(String(32), nullable=False)
+    provider_session_id: Mapped[str] = mapped_column(
+        String(500),
+        nullable=False,
+        default="",
+    )
+    input_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    output_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    total_tokens: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    token_count_source: Mapped[str] = mapped_column(
+        String(32),
+        nullable=False,
+        default="unavailable",
+    )
+    latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+
 class ResumeTailoringRunRecord(OwnerScoped, Base):
     """Durable identity and aggregate status for one three-stage tailoring run."""
 
@@ -687,10 +783,9 @@ def prevent_resume_source_file_mutation(
         "extraction",
         "created_at",
     )
-    if (
-        master_history.has_changes()
-        and not master_association_is_confirmation
-    ) or any(state.attrs[field].history.has_changes() for field in immutable_fields):
+    if (master_history.has_changes() and not master_association_is_confirmation) or any(
+        state.attrs[field].history.has_changes() for field in immutable_fields
+    ):
         raise ValueError("Resume import source files are immutable")
 
 
@@ -722,10 +817,7 @@ def prevent_senior_recruiter_analysis_mutation(
     analysis: SeniorRecruiterAnalysisRecord,
 ) -> None:
     state = inspect(analysis)
-    if any(
-        attribute.history.has_changes()
-        for attribute in state.attrs
-    ):
+    if any(attribute.history.has_changes() for attribute in state.attrs):
         raise ValueError("Senior recruiter analyses are immutable")
 
 
@@ -749,6 +841,17 @@ def prevent_ats_final_review_mutation(
     state = inspect(review)
     if any(attribute.history.has_changes() for attribute in state.attrs):
         raise ValueError("ATS final reviews are immutable")
+
+
+@event.listens_for(ImaginatorResumeRecord, "before_update")
+def prevent_imaginator_resume_mutation(
+    _mapper: object,
+    _connection: object,
+    resume: ImaginatorResumeRecord,
+) -> None:
+    state = inspect(resume)
+    if any(attribute.history.has_changes() for attribute in state.attrs):
+        raise ValueError("Imaginator resumes are immutable")
 
 
 @event.listens_for(ResumeTailoringStageRecord, "before_update")
@@ -875,9 +978,7 @@ class ResumeEvidence(StrictResumeModel):
             raise ValueError("evidence ID must start with its type and a colon")
         has_claim_metadata = self.claim_type is not None or self.experience_id is not None
         if has_claim_metadata and (
-            self.type != "profile"
-            or self.claim_type is None
-            or self.experience_id is None
+            self.type != "profile" or self.claim_type is None or self.experience_id is None
         ):
             raise ValueError(
                 "claimType and experienceId must be provided together for profile evidence"
@@ -1081,6 +1182,10 @@ class MasterResume(StrictResumeModel):
 
     @model_validator(mode="after")
     def validate_canonical_resume(self) -> MasterResume:
+        if any(item.type == "imagination" for item in self.evidence):
+            raise ValueError(
+                "Master Resume evidence cannot contain Imaginator claims"
+            )
         _validate_resume_graph(self)
         return self
 
@@ -1134,11 +1239,7 @@ class ExperienceRewriteLink(StrictResumeModel):
             "linked rewritten bullet IDs",
         )
         _require_unique(
-            (
-                original_id
-                for link in self.bullet_links
-                for original_id in link.original_bullet_ids
-            ),
+            (original_id for link in self.bullet_links for original_id in link.original_bullet_ids),
             "linked original bullet IDs",
         )
         return self
@@ -1177,36 +1278,24 @@ class ExperienceRewrite(StrictResumeModel):
             (link.rewritten_experience_id for link in self.links),
             "linked rewritten experience IDs",
         )
-        if {
-            link.original_experience_id for link in self.links
-        } != {
+        if {link.original_experience_id for link in self.links} != {
             experience.master_experience_id for experience in self.experiences
         }:
-            raise ValueError(
-                "links must cover every masterExperienceId exactly once"
-            )
-        if {
-            link.rewritten_experience_id for link in self.links
-        } != {
+            raise ValueError("links must cover every masterExperienceId exactly once")
+        if {link.rewritten_experience_id for link in self.links} != {
             experience.id for experience in self.experiences
         }:
-            raise ValueError(
-                "links must cover every rewritten experience ID exactly once"
-            )
+            raise ValueError("links must cover every rewritten experience ID exactly once")
         linked_bullet_ids = {
             bullet_link.rewritten_bullet_id
             for link in self.links
             for bullet_link in link.bullet_links
         }
         rewritten_bullet_ids = {
-            bullet.id
-            for experience in self.experiences
-            for bullet in experience.bullets
+            bullet.id for experience in self.experiences for bullet in experience.bullets
         }
         if linked_bullet_ids != rewritten_bullet_ids:
-            raise ValueError(
-                "links must cover every rewritten bullet ID exactly once"
-            )
+            raise ValueError("links must cover every rewritten bullet ID exactly once")
         return self
 
 
@@ -1258,11 +1347,218 @@ class FinalResume(StrictResumeModel):
 
     @model_validator(mode="after")
     def validate_final_resume(self) -> FinalResume:
+        if any(item.type == "imagination" for item in self.evidence) and (
+            not self.id.startswith("resume:imaginator:")
+        ):
+            raise ValueError(
+                "imagination evidence is reserved for Imaginator resumes"
+            )
         _validate_resume_graph(self)
         _require_unique(
             (item.master_experience_id for item in self.experiences),
             "masterExperienceIds",
         )
+        return self
+
+
+class ImaginatorExperienceDraft(StrictResumeModel):
+    master_experience_id: ExperienceId = Field(alias="masterExperienceId")
+    title: StrictText = Field(max_length=300)
+    location: OptionalText = Field(default="", max_length=240)
+    period: StrictText = Field(max_length=100)
+    bullets: list[StrictText] = Field(min_length=1, max_length=20)
+
+    @model_validator(mode="after")
+    def reject_duplicate_bullets(self) -> ImaginatorExperienceDraft:
+        _require_unique(
+            (bullet.casefold() for bullet in self.bullets),
+            "Imaginator experience bullets",
+        )
+        return self
+
+
+class ImaginatorOmittedExperienceDraft(StrictResumeModel):
+    master_experience_id: ExperienceId = Field(alias="masterExperienceId")
+    reason: StrictText = Field(max_length=1_000)
+
+
+class ImaginatorSkillGroupDraft(StrictResumeModel):
+    category: StrictText = Field(max_length=160)
+    skills: list[StrictText] = Field(min_length=1, max_length=40)
+
+    @model_validator(mode="after")
+    def reject_duplicate_skills(self) -> ImaginatorSkillGroupDraft:
+        _require_unique(
+            (skill.casefold() for skill in self.skills),
+            "Imaginator skills",
+        )
+        return self
+
+
+class ImaginatorProjectDraft(StrictResumeModel):
+    name: StrictText = Field(max_length=300)
+    role: OptionalText = Field(default="", max_length=300)
+    url: OptionalText = Field(default="", max_length=500)
+    bullets: list[StrictText] = Field(min_length=1, max_length=20)
+
+
+class ImaginatorCertificationDraft(StrictResumeModel):
+    name: StrictText = Field(max_length=300)
+    issuer: StrictText = Field(max_length=300)
+    issued_on: OptionalText = Field(default="", alias="issuedOn", max_length=40)
+    expires_on: OptionalText = Field(default="", alias="expiresOn", max_length=40)
+
+
+class ImaginatorLanguageDraft(StrictResumeModel):
+    name: StrictText = Field(max_length=120)
+    proficiency: StrictText = Field(max_length=120)
+
+
+class ImaginatorAdditionalSectionDraft(StrictResumeModel):
+    title: StrictText = Field(max_length=200)
+    items: list[StrictText] = Field(min_length=1, max_length=40)
+
+
+class ImaginatorDraft(StrictResumeModel):
+    """Mutable, company-free and education-free output produced by Imaginator."""
+
+    headline: StrictText = Field(max_length=300)
+    summary: StrictText
+    experiences: list[ImaginatorExperienceDraft] = Field(
+        default_factory=list,
+        max_length=MAX_ITEMS_PER_SECTION,
+    )
+    omitted_experiences: list[ImaginatorOmittedExperienceDraft] = Field(
+        default_factory=list,
+        alias="omittedExperiences",
+        max_length=MAX_ITEMS_PER_SECTION,
+    )
+    skill_groups: list[ImaginatorSkillGroupDraft] = Field(
+        default_factory=list,
+        alias="skillGroups",
+        max_length=20,
+    )
+    projects: list[ImaginatorProjectDraft] = Field(
+        default_factory=list,
+        max_length=MAX_ITEMS_PER_SECTION,
+    )
+    certifications: list[ImaginatorCertificationDraft] = Field(
+        default_factory=list,
+        max_length=MAX_ITEMS_PER_SECTION,
+    )
+    languages: list[ImaginatorLanguageDraft] = Field(
+        default_factory=list,
+        max_length=MAX_ITEMS_PER_SECTION,
+    )
+    additional_sections: list[ImaginatorAdditionalSectionDraft] = Field(
+        default_factory=list,
+        alias="additionalSections",
+        max_length=MAX_ITEMS_PER_SECTION,
+    )
+    section_order: list[ResumeSectionName] = Field(
+        alias="sectionOrder",
+        min_length=1,
+        max_length=8,
+    )
+
+    @model_validator(mode="after")
+    def validate_draft_identity(self) -> ImaginatorDraft:
+        _require_unique(
+            (item.master_experience_id for item in self.experiences),
+            "Imaginator masterExperienceIds",
+        )
+        _require_unique(
+            (item.master_experience_id for item in self.omitted_experiences),
+            "Imaginator omitted masterExperienceIds",
+        )
+        if {item.master_experience_id for item in self.experiences} & {
+            item.master_experience_id for item in self.omitted_experiences
+        }:
+            raise ValueError("Imaginator included and omitted experiences must not overlap")
+        _require_unique(
+            (group.category.casefold() for group in self.skill_groups),
+            "Imaginator skill categories",
+        )
+        _require_unique(self.section_order, "Imaginator sectionOrder")
+        _require_unique(
+            (skill.casefold() for group in self.skill_groups for skill in group.skills),
+            "Imaginator skills across categories",
+        )
+        return self
+
+
+class ImaginatorProtectedFactViolation(StrictResumeModel):
+    path: StrictText = Field(max_length=500)
+    categories: list[Literal["employer", "education", "identity"]] = Field(
+        min_length=1,
+        max_length=3,
+    )
+    reason: StrictText = Field(max_length=2_000)
+
+    @model_validator(mode="after")
+    def validate_categories(self) -> ImaginatorProtectedFactViolation:
+        _require_unique(self.categories, "Imaginator protected-fact categories")
+        return self
+
+
+class ImaginatorProtectedFactsAudit(StrictResumeModel):
+    """Typed result of the independent protected-facts review."""
+
+    input_fingerprint: StrictText = Field(
+        alias="inputFingerprint",
+        min_length=64,
+        max_length=64,
+    )
+    verdict: Literal["pass", "reject"]
+    safe_paths: list[StrictText] = Field(
+        alias="safePaths",
+        max_length=2_000,
+    )
+    violations: list[ImaginatorProtectedFactViolation] = Field(
+        default_factory=list,
+        max_length=2_000,
+    )
+
+    @model_validator(mode="after")
+    def validate_verdict(self) -> ImaginatorProtectedFactsAudit:
+        if (self.verdict == "pass") != (not self.violations):
+            raise ValueError(
+                "Imaginator protected-facts verdict must match its violations"
+            )
+        _require_unique(
+            (item.path for item in self.violations),
+            "Imaginator protected-fact violations",
+        )
+        _require_unique(
+            self.safe_paths,
+            "Imaginator protected-facts safePaths",
+        )
+        if set(self.safe_paths) & {item.path for item in self.violations}:
+            raise ValueError(
+                "Imaginator protected-facts paths must be safe or violating, not both"
+            )
+        return self
+
+
+class ImaginatorClaimLedgerEntry(StrictResumeModel):
+    path: StrictText = Field(max_length=500)
+    text: StrictText
+    origin: Literal["locked_source", "synthetic"]
+    evidence_ids: list[EvidenceId] = Field(
+        default_factory=list,
+        alias="evidenceIds",
+        max_length=20,
+    )
+
+    @model_validator(mode="after")
+    def validate_origin(self) -> ImaginatorClaimLedgerEntry:
+        _require_unique(self.evidence_ids, "Imaginator claim evidenceIds")
+        if self.origin == "synthetic" and not self.evidence_ids:
+            raise ValueError("synthetic Imaginator claims require an evidence ID")
+        if self.origin == "locked_source" and self.evidence_ids:
+            raise ValueError(
+                "locked Imaginator claims must not use synthetic evidence"
+            )
         return self
 
 
@@ -1313,9 +1609,7 @@ class SeniorRecruiterKeyword(StrictResumeModel):
         if self.evidence_status == "unsupported" and self.evidence_ids:
             raise ValueError("unsupported keywords must not cite resume evidence")
         if self.evidence_status != "unsupported" and not self.evidence_ids:
-            raise ValueError(
-                "verified and transferable keywords must cite resume evidence"
-            )
+            raise ValueError("verified and transferable keywords must cite resume evidence")
         return self
 
 
@@ -1349,9 +1643,7 @@ class SeniorRecruiterAnalysis(StrictResumeModel):
 
     @model_validator(mode="after")
     def require_unique_findings(self) -> SeniorRecruiterAnalysis:
-        normalized_keywords = [
-            item.keyword.casefold() for item in self.missing_keywords
-        ]
+        normalized_keywords = [item.keyword.casefold() for item in self.missing_keywords]
         normalized_red_flags = [item.flag.casefold() for item in self.red_flags]
         _require_unique(normalized_keywords, "missing keywords")
         _require_unique(normalized_red_flags, "red flags")
@@ -1362,14 +1654,102 @@ TailoringTargetJobId = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=160),
 ]
-ResumeGenerationMode = Literal["recruiter_xyz_ats"]
+ResumeGenerationMode = Literal["recruiter_xyz_ats", "imaginator"]
+
+
+class ImaginatorResumeRequest(StrictResumeModel):
+    master_resume_id: ResumeId = Field(alias="masterResumeId")
+    target_job_id: TailoringTargetJobId = Field(alias="targetJobId")
+    application_id: CanonicalId | None = Field(default=None, alias="applicationId")
+    generation_mode: Literal["imaginator"] = Field(
+        default="imaginator",
+        alias="generationMode",
+    )
+    target_language: Literal["English", "German"] | None = Field(
+        default=None,
+        alias="targetLanguage",
+    )
+    revision_instruction: OptionalText | None = Field(
+        default=None,
+        alias="revisionInstruction",
+        max_length=7_000,
+    )
+
+
+class ImaginatorResumeMetrics(StrictResumeModel):
+    latency_ms: int = Field(alias="latencyMs", ge=0)
+    input_tokens: int = Field(alias="inputTokens", ge=0)
+    output_tokens: int = Field(alias="outputTokens", ge=0)
+    total_tokens: int = Field(alias="totalTokens", ge=0)
+    token_count_source: StrictText = Field(
+        alias="tokenCountSource",
+        max_length=32,
+    )
+
+
+class ImaginatorProtectedFactsAuditAttestation(StrictResumeModel):
+    schema_version: Literal["1.0"] = Field(
+        default="1.0",
+        alias="schemaVersion",
+    )
+    passed: bool
+    audited_claim_count: int = Field(alias="auditedClaimCount", ge=1, le=2_000)
+    prompt_version: StrictText = Field(alias="promptVersion", max_length=64)
+    result: ImaginatorProtectedFactsAudit
+    metrics: ImaginatorResumeMetrics
+    model: StrictText = Field(max_length=160)
+    backend: Literal["openclaw_codex", "openai_api"]
+    provider_session_id: OptionalText = Field(
+        alias="providerSessionId",
+        max_length=500,
+    )
+
+    @model_validator(mode="after")
+    def validate_attestation(self) -> ImaginatorProtectedFactsAuditAttestation:
+        if self.passed != (self.result.verdict == "pass"):
+            raise ValueError(
+                "Imaginator protected-facts attestation is inconsistent"
+            )
+        classified_claim_count = (
+            len(self.result.safe_paths) + len(self.result.violations)
+        )
+        if self.audited_claim_count != classified_claim_count:
+            raise ValueError(
+                "Imaginator protected-facts claim count is inconsistent"
+            )
+        return self
+
+
+class ImaginatorResumeResponse(StrictResumeModel):
+    id: CanonicalId
+    master_resume_id: ResumeId = Field(alias="masterResumeId")
+    master_resume_version: int = Field(alias="masterResumeVersion", ge=1)
+    target_job_id: TailoringTargetJobId = Field(alias="targetJobId")
+    generation_mode: Literal["imaginator"] = Field(alias="generationMode")
+    final_resume: FinalResume = Field(alias="finalResume")
+    claim_ledger: list[ImaginatorClaimLedgerEntry] = Field(
+        alias="claimLedger",
+        max_length=2_000,
+    )
+    protected_facts_audit: ImaginatorProtectedFactsAuditAttestation = Field(
+        alias="protectedFactsAudit",
+    )
+    metrics: ImaginatorResumeMetrics
+    model: StrictText = Field(max_length=160)
+    backend: Literal["openclaw_codex", "openai_api"]
+    prompt_version: StrictText = Field(alias="promptVersion", max_length=64)
+    constraints_version: StrictText = Field(
+        alias="constraintsVersion",
+        max_length=64,
+    )
+    created_at: datetime = Field(alias="createdAt")
 
 
 class SeniorRecruiterAnalysisRequest(StrictResumeModel):
     master_resume_id: ResumeId = Field(alias="masterResumeId")
     target_job_id: TailoringTargetJobId = Field(alias="targetJobId")
     application_id: CanonicalId | None = Field(default=None, alias="applicationId")
-    generation_mode: ResumeGenerationMode = Field(
+    generation_mode: Literal["recruiter_xyz_ats"] = Field(
         default="recruiter_xyz_ats",
         alias="generationMode",
     )
@@ -1523,9 +1903,7 @@ class MasterResumeConfirmationRequest(StrictResumeModel):
     @model_validator(mode="after")
     def require_all_review_sections(self) -> MasterResumeConfirmationRequest:
         if set(self.confirmed_sections) != set(MASTER_RESUME_REVIEW_SECTIONS):
-            raise ValueError(
-                "confirmedSections must contain every review section exactly once"
-            )
+            raise ValueError("confirmedSections must contain every review section exactly once")
         return self
 
 
@@ -1648,9 +2026,7 @@ def _validate_resume_graph(resume: MasterResume | FinalResume) -> None:
     _require_unique(evidence_ids, "evidence IDs")
     unknown_evidence_ids = sorted(set(_all_evidence_references(resume)) - set(evidence_ids))
     if unknown_evidence_ids:
-        raise ValueError(
-            f"resume content references unknown evidence IDs: {unknown_evidence_ids}"
-        )
+        raise ValueError(f"resume content references unknown evidence IDs: {unknown_evidence_ids}")
 
 
 # Explicit domain aliases used by generation and persistence boundaries.
@@ -1675,8 +2051,8 @@ __all__ = [
     "EvidenceBackedText",
     "EvidenceClaimType",
     "EvidenceId",
-    "ExperienceId",
     "ExperienceBulletRewriteLink",
+    "ExperienceId",
     "ExperienceRewrite",
     "ExperienceRewriteLink",
     "ExperienceRewriteMetrics",
@@ -1684,6 +2060,22 @@ __all__ = [
     "ExperienceRewriteRequest",
     "ExperienceRewriteResponse",
     "FinalResume",
+    "ImaginatorAdditionalSectionDraft",
+    "ImaginatorCertificationDraft",
+    "ImaginatorClaimLedgerEntry",
+    "ImaginatorDraft",
+    "ImaginatorExperienceDraft",
+    "ImaginatorLanguageDraft",
+    "ImaginatorOmittedExperienceDraft",
+    "ImaginatorProjectDraft",
+    "ImaginatorProtectedFactViolation",
+    "ImaginatorProtectedFactsAudit",
+    "ImaginatorProtectedFactsAuditAttestation",
+    "ImaginatorResumeMetrics",
+    "ImaginatorResumeRecord",
+    "ImaginatorResumeRequest",
+    "ImaginatorResumeResponse",
+    "ImaginatorSkillGroupDraft",
     "JobId",
     "MasterCertification",
     "MasterEducation",
@@ -1700,17 +2092,18 @@ __all__ = [
     "ResumeBasics",
     "ResumeBullet",
     "ResumeEvidence",
+    "ResumeGenerationMode",
     "ResumeId",
     "ResumeItemId",
     "ResumeMasterRecord",
     "ResumeMasterVersionRecord",
-    "ResumeTailoringRunRecord",
-    "ResumeTailoringStageRecord",
     "ResumeSectionName",
     "ResumeSourceBoundingBox",
     "ResumeSourceExtraction",
-    "ResumeSourceFragment",
     "ResumeSourceFileRecord",
+    "ResumeSourceFragment",
+    "ResumeTailoringRunRecord",
+    "ResumeTailoringStageRecord",
     "RewrittenExperience",
     "SeniorRecruiterAnalysis",
     "SeniorRecruiterAnalysisMetrics",

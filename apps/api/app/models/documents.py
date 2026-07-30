@@ -2,7 +2,7 @@ from datetime import datetime, timezone
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
-from sqlalchemy import JSON, DateTime, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint, event, inspect
+from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint, event, inspect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base, OwnerScoped
@@ -355,6 +355,20 @@ class DocumentFileRecord(Base):
             "renderer_design_sha256",
             name="uq_document_files_resume_pdf_source",
         ),
+        UniqueConstraint(
+            "source_imaginator_resume_id",
+            "renderer_template_id",
+            "renderer_template_version",
+            "renderer_design_sha256",
+            name="uq_document_files_imaginator_resume_pdf_source",
+        ),
+        CheckConstraint(
+            (
+                "source_ats_final_review_id IS NULL "
+                "OR source_imaginator_resume_id IS NULL"
+            ),
+            name="ck_document_files_single_resume_pipeline_source",
+        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -406,6 +420,16 @@ class DocumentFileRecord(Base):
         nullable=True,
         index=True,
     )
+    source_imaginator_resume_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey(
+            "imaginator_resumes.id",
+            ondelete="SET NULL",
+            name="fk_document_files_imaginator_resume",
+        ),
+        nullable=True,
+        index=True,
+    )
     final_resume_json: Mapped[dict[str, Any] | None] = mapped_column(
         JSON,
         nullable=True,
@@ -438,6 +462,10 @@ class DocumentArtifactPayload(BaseModel):
     source_ats_final_review_id: str | None = Field(
         default=None,
         alias="sourceAtsFinalReviewId",
+    )
+    source_imaginator_resume_id: str | None = Field(
+        default=None,
+        alias="sourceImaginatorResumeId",
     )
     final_resume_json: dict[str, Any] | None = Field(
         default=None,

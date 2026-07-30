@@ -2,15 +2,18 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
+  AlertTriangle,
   Check,
   Columns2,
   Download,
   Eye,
   FileDiff,
   FileText,
+  LockKeyhole,
   LoaderCircle,
   RefreshCw,
   ScanSearch,
+  Sparkles,
   X,
 } from "lucide-react";
 
@@ -20,6 +23,11 @@ import type {
   ResumeTemplate,
   ResumeTemplateId,
 } from "@/lib/resume-templates";
+import {
+  resumeArtifactGenerationMode,
+  resumeRenderSource,
+  resumeRenderUrl,
+} from "@/lib/resume-generation";
 import { cn } from "@/lib/utils";
 
 export type { ResumeTemplate, ResumeTemplateId } from "@/lib/resume-templates";
@@ -44,6 +52,7 @@ type ResumeExperience = {
 };
 
 type ResumeStageResults = {
+  generationMode?: "recruiter_xyz_ats" | "imaginator";
   experienceRewrite?: {
     experiences?: ResumeExperience[];
   };
@@ -55,6 +64,18 @@ type ResumeStageResults = {
       experiences?: ResumeExperience[];
     };
   };
+  claimLedger?: Array<{
+    path?: string;
+    text?: string;
+    origin?: "locked_source" | "synthetic";
+    evidenceIds?: string[];
+  }>;
+  protectedFactsAudit?: {
+    passed?: boolean;
+    auditedClaimCount?: number;
+    promptVersion?: string;
+    model?: string;
+  };
 };
 
 export type ResumePdfArtifact = {
@@ -63,6 +84,7 @@ export type ResumePdfArtifact = {
   templateId?: string | null;
   templateVersion?: string | null;
   sourceAtsFinalReviewId?: string | null;
+  sourceImaginatorResumeId?: string | null;
   finalResumeJson?: Record<string, unknown> | null;
   stageResults?: ResumeStageResults | null;
   provenance?: Record<string, unknown> | null;
@@ -460,6 +482,16 @@ function atsChanges(stageResults: ResumeStageResults | null | undefined) {
   );
 }
 
+function provenanceValue(
+  provenance: Record<string, unknown> | null | undefined,
+  key: string,
+): string | number | null {
+  const value = provenance?.[key];
+  return typeof value === "string" || typeof value === "number"
+    ? value
+    : null;
+}
+
 export function ResumePdfReview({
   apiBaseUrl,
   applicationId,
@@ -489,13 +521,38 @@ export function ResumePdfReview({
     hasPdf ? "loading" : "idle",
   );
   const [error, setError] = useState("");
-  const [activeTab, setActiveTab] = useState<"ats" | "diff">("ats");
+  const [activeTab, setActiveTab] = useState<"overview" | "details">(
+    "overview",
+  );
 
   const activeVersion = currentVersion(activeDocument);
   const artifact = activeVersion?.artifact;
   const stageResults = artifact?.stageResults;
+  const generationMode = resumeArtifactGenerationMode(artifact);
+  const isImaginator = generationMode === "imaginator";
+  const renderSource = resumeRenderSource(artifact);
   const skippedSections = stageResults?.atsFinalReview?.atsScan?.skippedSections ?? [];
   const stageDiff = useMemo(() => atsChanges(stageResults), [stageResults]);
+  const syntheticClaims = (stageResults?.claimLedger ?? []).filter(
+    (claim) => claim.origin === "synthetic",
+  );
+  const lockedClaims = (stageResults?.claimLedger ?? []).filter(
+    (claim) => claim.origin === "locked_source",
+  );
+  const protectedFactsAudit = stageResults?.protectedFactsAudit;
+  const syntheticClaimCount =
+    provenanceValue(artifact?.provenance, "syntheticClaimCount")
+    ?? syntheticClaims.length;
+  const lockedClaimCount =
+    provenanceValue(artifact?.provenance, "lockedClaimCount")
+    ?? lockedClaims.length;
+  const sourceMasterResumeVersion =
+    provenanceValue(artifact?.provenance, "resumeMasterVersionId");
+  const constraintsVersion =
+    provenanceValue(
+      artifact?.provenance,
+      "imaginatorConstraintsVersion",
+    );
   const legacyDiff = activeVersion?.diff ?? [];
   const selectedTemplate = templates.find(
     (template) => template.id === selectedTemplateId,
@@ -577,10 +634,9 @@ export function ResumePdfReview({
   }, [apiBaseUrl, document?.id, document?.currentVersion, hasPdf]);
 
   async function renderSelectedTemplate() {
-    const reviewId = artifact?.sourceAtsFinalReviewId;
-    if (!reviewId) {
+    if (!renderSource) {
       setStatus("error");
-      setError("This saved resume does not contain an ATS final review ID.");
+      setError("This saved resume does not contain a reusable render source.");
       return;
     }
 
@@ -588,7 +644,12 @@ export function ResumePdfReview({
     setError("");
     try {
       const response = await fetchWithTimeout(
-        `${apiBaseUrl}/resume-tailoring/ats-final-review/${encodeURIComponent(reviewId)}/pdf?templateId=${encodeURIComponent(selectedTemplateId)}`,
+        resumeRenderUrl(
+          apiBaseUrl,
+          renderSource,
+          "pdf",
+          selectedTemplateId,
+        ),
         { cache: "no-store" },
       );
       if (!response.ok) {
@@ -633,12 +694,29 @@ export function ResumePdfReview({
     ? `${apiBaseUrl}/documents/${encodeURIComponent(activeDocument.id)}/download`
     : "";
   const downloadName = artifact?.fileName ?? "resume.pdf";
-  const docxHref = artifact?.sourceAtsFinalReviewId
-    ? `${apiBaseUrl}/resume-tailoring/ats-final-review/${encodeURIComponent(artifact.sourceAtsFinalReviewId)}/docx?templateId=${encodeURIComponent(artifact.templateId ?? selectedTemplateId)}`
+  const docxHref = renderSource
+    ? resumeRenderUrl(
+        apiBaseUrl,
+        renderSource,
+        "docx",
+        artifact?.templateId ?? selectedTemplateId,
+      )
     : "";
   const docxName = downloadName.toLowerCase().endsWith(".pdf")
     ? `${downloadName.slice(0, -4)}.docx`
     : "resume.docx";
+  const confirmImaginatorDownload = (
+    event: React.MouseEvent<HTMLAnchorElement>,
+  ) => {
+    if (
+      isImaginator
+      && !window.confirm(
+        "This Imaginator draft contains AI-invented claims. Review every claim before using it. Download anyway?",
+      )
+    ) {
+      event.preventDefault();
+    }
+  };
 
   return (
     <section
@@ -665,7 +743,7 @@ export function ResumePdfReview({
           {needsRender ? (
             <Button
               type="button"
-              disabled={status === "rendering" || !artifact?.sourceAtsFinalReviewId}
+              disabled={status === "rendering" || !renderSource}
               onClick={() => void renderSelectedTemplate()}
               className="h-9 rounded-lg bg-accent px-3 text-[10px] font-bold text-white hover:bg-[#ff6a14] disabled:opacity-45"
             >
@@ -683,6 +761,7 @@ export function ResumePdfReview({
             <a
               href={downloadHref}
               download={downloadName}
+              onClick={confirmImaginatorDownload}
               className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.09] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"
             >
               <Download className="h-3.5 w-3.5" />
@@ -693,6 +772,7 @@ export function ResumePdfReview({
             <a
               href={docxHref}
               download={docxName}
+              onClick={confirmImaginatorDownload}
               className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.09] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"
             >
               <FileText className="h-3.5 w-3.5" />
@@ -701,6 +781,23 @@ export function ResumePdfReview({
           ) : null}
         </div>
       </div>
+      {isImaginator ? (
+        <div
+          role="alert"
+          className="flex items-start gap-2 border-b border-amber-400/20 bg-amber-400/[0.07] px-4 py-3 text-amber-100"
+        >
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <div>
+            <p className="text-[10px] font-bold">
+              Imaginator draft · contains AI-invented claims
+            </p>
+            <p className="mt-1 text-[9px] leading-4 text-amber-100/80">
+              Employer names, education and candidate identity are locked. Review
+              every generated claim before using this document.
+            </p>
+          </div>
+        </div>
+      ) : null}
       {error ? (
         <div role="alert" className="border-b border-red-400/20 bg-red-500/[0.06] px-4 py-3 text-[10px] text-red-200">
           {error}
@@ -739,32 +836,118 @@ export function ResumePdfReview({
             <button
               type="button"
               role="tab"
-              aria-selected={activeTab === "ats"}
-              onClick={() => setActiveTab("ats")}
+              aria-selected={activeTab === "overview"}
+              onClick={() => setActiveTab("overview")}
               className={cn(
                 "inline-flex h-9 items-center justify-center gap-1.5 rounded-lg text-[10px] font-bold transition",
-                activeTab === "ats" ? "bg-white/[0.09] text-white" : "text-muted hover:text-white",
+                activeTab === "overview" ? "bg-white/[0.09] text-white" : "text-muted hover:text-white",
               )}
             >
-              <ScanSearch className="h-3.5 w-3.5" />
-              ATS scan
+              {isImaginator ? (
+                <Sparkles className="h-3.5 w-3.5" />
+              ) : (
+                <ScanSearch className="h-3.5 w-3.5" />
+              )}
+              {isImaginator
+                ? `Invented claims · ${syntheticClaimCount}`
+                : "ATS scan"}
             </button>
             <button
               type="button"
               role="tab"
-              aria-selected={activeTab === "diff"}
-              onClick={() => setActiveTab("diff")}
+              aria-selected={activeTab === "details"}
+              onClick={() => setActiveTab("details")}
               className={cn(
                 "inline-flex h-9 items-center justify-center gap-1.5 rounded-lg text-[10px] font-bold transition",
-                activeTab === "diff" ? "bg-white/[0.09] text-white" : "text-muted hover:text-white",
+                activeTab === "details" ? "bg-white/[0.09] text-white" : "text-muted hover:text-white",
               )}
             >
-              <FileDiff className="h-3.5 w-3.5" />
-              Diff · {stageDiff.length || legacyDiff.length}
+              {isImaginator ? (
+                <LockKeyhole className="h-3.5 w-3.5" />
+              ) : (
+                <FileDiff className="h-3.5 w-3.5" />
+              )}
+              {isImaginator
+                ? "Provenance"
+                : `Diff · ${stageDiff.length || legacyDiff.length}`}
             </button>
           </div>
           <div className="job-scroll h-[476px] overflow-y-auto p-3">
-            {activeTab === "ats" ? (
+            {isImaginator && activeTab === "overview" ? (
+              syntheticClaims.length ? (
+                <div className="space-y-2">
+                  {syntheticClaims.map((claim, index) => (
+                    <article
+                      key={`${claim.path ?? "claim"}-${index}`}
+                      className="rounded-lg border border-amber-400/20 bg-amber-400/[0.045] p-3"
+                    >
+                      <p className="text-[8px] font-black uppercase tracking-wide text-amber-200">
+                        {claim.path || `Generated claim ${index + 1}`}
+                      </p>
+                      <p className="mt-2 text-[10px] leading-4 text-[#dfe5ec]">
+                        {claim.text || "Generated claim details unavailable"}
+                      </p>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.045] p-3">
+                  <p className="text-[10px] font-bold text-amber-100">
+                    Synthetic claim details are unavailable.
+                  </p>
+                </div>
+              )
+            ) : isImaginator ? (
+              <div className="space-y-2">
+                <article className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-3">
+                  <p className="flex items-center gap-1.5 text-[10px] font-bold text-white">
+                    <LockKeyhole className="h-3.5 w-3.5 text-success" />
+                    Locked source facts
+                  </p>
+                  <dl className="mt-3 space-y-2 text-[9px] leading-4 text-muted">
+                    <div className="flex justify-between gap-3">
+                      <dt>Locked claims</dt>
+                      <dd className="font-mono text-white">{lockedClaimCount}</dd>
+                    </div>
+                    <div className="flex justify-between gap-3">
+                      <dt>Synthetic claims</dt>
+                      <dd className="font-mono text-amber-100">{syntheticClaimCount}</dd>
+                    </div>
+                    {protectedFactsAudit ? (
+                      <div className="flex justify-between gap-3">
+                        <dt>Protected-fact audit</dt>
+                        <dd className="text-right font-mono text-success">
+                          {protectedFactsAudit.passed ? "Passed" : "Unavailable"}
+                          {typeof protectedFactsAudit.auditedClaimCount === "number"
+                            ? ` · ${protectedFactsAudit.auditedClaimCount} claims`
+                            : ""}
+                        </dd>
+                      </div>
+                    ) : null}
+                    {sourceMasterResumeVersion ? (
+                      <div className="flex justify-between gap-3">
+                        <dt>Master Resume version</dt>
+                        <dd className="break-all font-mono text-white">
+                          {sourceMasterResumeVersion}
+                        </dd>
+                      </div>
+                    ) : null}
+                    {constraintsVersion ? (
+                      <div className="flex justify-between gap-3">
+                        <dt>Constraints</dt>
+                        <dd className="break-all font-mono text-white">
+                          {constraintsVersion}
+                        </dd>
+                      </div>
+                    ) : null}
+                  </dl>
+                </article>
+                <p className="px-1 text-[9px] leading-4 text-muted">
+                  Employer names, education and candidate identity were copied
+                  from the locked Master Resume by the server.
+                </p>
+              </div>
+            ) : activeTab === "overview" ? (
               skippedSections.length ? (
                 <div className="space-y-2">
                   {skippedSections.map((item) => (

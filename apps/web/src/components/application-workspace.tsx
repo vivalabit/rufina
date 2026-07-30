@@ -45,6 +45,14 @@ import {
 } from "@/lib/candidate-confirmations";
 import { isGeneratedDocumentOutdated } from "@/lib/generation-provenance";
 import {
+  canReuseResumeRenderSource,
+  resumeArtifactGenerationMode,
+  resumeRenderSource,
+  resumeRenderUrl,
+  type ResumeGenerationMode,
+  type ResumeRenderSource,
+} from "@/lib/resume-generation";
+import {
   getDocumentVersionDownloadWarnings,
   getGeneratedDocumentReadiness,
 } from "@/lib/document-readiness";
@@ -189,6 +197,7 @@ type GeneratedDocumentVersion = {
     templateId?: ResumePdfArtifact["templateId"];
     templateVersion?: ResumePdfArtifact["templateVersion"];
     sourceAtsFinalReviewId?: ResumePdfArtifact["sourceAtsFinalReviewId"];
+    sourceImaginatorResumeId?: ResumePdfArtifact["sourceImaginatorResumeId"];
     finalResumeJson?: ResumePdfArtifact["finalResumeJson"];
     stageResults?: ResumePdfArtifact["stageResults"];
     provenance?: ResumePdfArtifact["provenance"];
@@ -284,8 +293,6 @@ type AiPrivacySettings = {
 type PackStageId = "resume_generation" | "resume_validation" | "cover_letter_generation" | "saving";
 type PackProgressStatus = "active" | "retrying" | "failed" | "completed" | "partial";
 type WorkspaceStep = "review" | "confirm" | "create" | "final";
-type ResumeGenerationMode = "recruiter_xyz_ats";
-
 type CoverLetterDraft = {
   documentId?: string;
   title: string;
@@ -390,6 +397,13 @@ const resumeGenerationModes: ReadonlyArray<{
       "Deep evidence-backed tailoring with recruiter analysis, XYZ experience rewriting, and a final ATS review.",
     stages: "3 AI stages",
   },
+  {
+    id: "imaginator",
+    name: "Imaginator",
+    description:
+      "Creates an idealized candidate and may invent experience, skills, achievements, and qualifications. Employer names, education, and identity stay locked.",
+    stages: "Creative generation + protected-fact audit",
+  },
 ];
 const defaultResumeGenerationMode = resumeGenerationModes[0].id;
 const coverLetterRecipientQuestion = {
@@ -447,9 +461,10 @@ function resumeDocxDownload(document: GeneratedDocument) {
     (item) => item.version === document.currentVersion,
   );
   const artifact = version?.artifact;
+  const source = resumeRenderSource(artifact);
   if (
     artifact?.contentType !== "application/pdf"
-    || !artifact.sourceAtsFinalReviewId
+    || !source
   ) {
     return null;
   }
@@ -458,7 +473,7 @@ function resumeDocxDownload(document: GeneratedDocument) {
     ? `${artifact.fileName.slice(0, -4)}.docx`
     : "resume.docx";
   return {
-    href: `${apiBaseUrl}/resume-tailoring/ats-final-review/${encodeURIComponent(artifact.sourceAtsFinalReviewId)}/docx?templateId=${encodeURIComponent(templateId)}`,
+    href: resumeRenderUrl(apiBaseUrl, source, "docx", templateId),
     fileName,
   };
 }
@@ -736,20 +751,20 @@ async function readApiError(response: Response, fallback: string) {
   return fallback;
 }
 
-function reusableFinalResumeReviewId(
+function reusableResumeSource(
   document: GeneratedDocument | undefined,
   isOutdated: boolean,
-): string | null {
+  selectedMode: ResumeGenerationMode,
+): ResumeRenderSource | null {
   const version = document?.versions.find(
     (candidate) => candidate.version === document.currentVersion,
   );
   const artifact = version?.artifact;
-  return !isOutdated &&
-    artifact?.contentType === "application/pdf" &&
-    artifact.finalResumeJson &&
-    artifact.sourceAtsFinalReviewId
-    ? artifact.sourceAtsFinalReviewId
-    : null;
+  if (artifact?.contentType !== "application/pdf") return null;
+  return canReuseResumeRenderSource(artifact, {
+    isOutdated,
+    selectedMode,
+  });
 }
 
 function generatedDocumentLanguage(
@@ -1024,9 +1039,12 @@ export function ApplicationWorkspace({
     () => documents.find((document) => document.type === "cover_letter"),
     [documents],
   );
-  const latestResumeIsPdf = latestResume?.versions.find(
+  const latestResumeVersion = latestResume?.versions.find(
     (version) => version.version === latestResume.currentVersion,
-  )?.artifact?.contentType === "application/pdf";
+  );
+  const latestResumeArtifact = latestResumeVersion?.artifact;
+  const latestResumeIsPdf =
+    latestResumeArtifact?.contentType === "application/pdf";
   const coverLetterTemplate = useMemo(
     () => templates.find((template) => template.builtIn) ?? null,
     [templates],
@@ -1277,6 +1295,11 @@ export function ApplicationWorkspace({
         latestResume.generationFingerprint,
         latestResume.currentGenerationFingerprint,
       )
+      || (
+        latestResumeArtifact?.contentType === "application/pdf"
+        && resumeArtifactGenerationMode(latestResumeArtifact)
+          !== selectedResumeGenerationMode
+      )
       || hasNewerResumeConfirmation
       || (
         generatedDocumentLanguage(latestResume) !== null
@@ -1473,15 +1496,12 @@ export function ApplicationWorkspace({
       setDocumentError("Choose an available resume template");
       return false;
     }
-    if (selectedResumeGenerationMode !== "recruiter_xyz_ats") {
-      setDocumentError("The selected CV generation mode is unavailable");
-      return false;
-    }
-
     const attempt = 1;
-    const savedFinalResumeReviewId = reusableFinalResumeReviewId(
+    const generationMode = selectedResumeGenerationMode;
+    const savedRenderSource = reusableResumeSource(
       latestResume,
       isResumeOutdated,
+      generationMode,
     );
     setGenerationType("tailored_resume");
     setDocumentError("");
@@ -1489,6 +1509,7 @@ export function ApplicationWorkspace({
       path: string,
       body: unknown,
       fallback: string,
+      timeoutMs = AI_GENERATION_REQUEST_TIMEOUT_MS,
     ): Promise<T> => {
       const response = await fetchWithTimeout(
         `${apiBaseUrl}${path}`,
@@ -1497,7 +1518,7 @@ export function ApplicationWorkspace({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
         },
-        AI_GENERATION_REQUEST_TIMEOUT_MS,
+        timeoutMs,
       );
       if (!response.ok) {
         throw new Error(await readApiError(response, fallback));
@@ -1505,10 +1526,11 @@ export function ApplicationWorkspace({
       return await response.json() as T;
     };
     const renderAndAttachFinalResume = async (
-      reviewId: string,
+      source: ResumeRenderSource,
       reuseSavedFinalResume: boolean,
     ) => {
       setResumeTailoringProgress({
+        mode: generationMode,
         stage: "rendering_pdf",
         status: "active",
         message: reuseSavedFinalResume
@@ -1517,7 +1539,12 @@ export function ApplicationWorkspace({
         attempt,
       });
       const pdfResponse = await fetchWithTimeout(
-        `${apiBaseUrl}/resume-tailoring/ats-final-review/${encodeURIComponent(reviewId)}/pdf?templateId=${encodeURIComponent(selectedResumeTemplateId)}`,
+        resumeRenderUrl(
+          apiBaseUrl,
+          source,
+          "pdf",
+          selectedResumeTemplateId,
+        ),
         { cache: "no-store" },
         AI_GENERATION_REQUEST_TIMEOUT_MS,
       );
@@ -1538,6 +1565,7 @@ export function ApplicationWorkspace({
       await pdfResponse.arrayBuffer();
 
       setResumeTailoringProgress({
+        mode: generationMode,
         stage: "validating_pdf",
         status: "active",
         message: "Loading the server-validated PDF artifact",
@@ -1565,6 +1593,7 @@ export function ApplicationWorkspace({
             ? "Saved finalResume rendered with the selected template"
             : "PDF rendered, validated, and saved",
           attempt,
+          generationMode,
         ),
       );
       onDocumentAttached(activeApplication.id, {
@@ -1579,13 +1608,52 @@ export function ApplicationWorkspace({
     };
 
     try {
-      if (savedFinalResumeReviewId && !revisionInstruction.trim()) {
+      if (savedRenderSource && !revisionInstruction.trim()) {
         return await renderAndAttachFinalResume(
-          savedFinalResumeReviewId,
+          savedRenderSource,
           true,
         );
       }
+      if (generationMode === "imaginator") {
+        setResumeTailoringProgress({
+          mode: generationMode,
+          stage: "imaginator_generation",
+          status: "active",
+          message:
+            "Imaginator is building an idealized profile and then running an independent protected-fact audit",
+          attempt,
+        });
+        const imaginator = await postStage<{ id: string }>(
+          "/resume-tailoring/imaginator",
+          {
+            masterResumeId: currentMasterResume.masterResumeId,
+            targetJobId: activeApplication.job.id,
+            applicationId: activeApplication.id,
+            generationMode,
+            targetLanguage: documentLanguage,
+            ...(revisionInstruction.trim()
+              ? { revisionInstruction: revisionInstruction.trim() }
+              : {}),
+          },
+          "Imaginator generation failed",
+          AI_GENERATION_REQUEST_TIMEOUT_MS * 2,
+        );
+        setResumeTailoringProgress({
+          mode: generationMode,
+          stage: "immutable_validation",
+          status: "active",
+          message:
+            "Employer, education, and identity claims passed the independent protected-fact audit",
+          attempt,
+        });
+        return await renderAndAttachFinalResume(
+          { kind: "imaginator", id: imaginator.id },
+          false,
+        );
+      }
+
       setResumeTailoringProgress({
+        mode: generationMode,
         stage: "recruiter_analysis",
         status: "active",
         message: "Recruiter analysis is reviewing the confirmed Master Resume",
@@ -1597,7 +1665,7 @@ export function ApplicationWorkspace({
           masterResumeId: currentMasterResume.masterResumeId,
           targetJobId: activeApplication.job.id,
           applicationId: activeApplication.id,
-          generationMode: selectedResumeGenerationMode,
+          generationMode,
           targetLanguage: documentLanguage,
           ...(revisionInstruction.trim()
             ? { revisionInstruction: revisionInstruction.trim() }
@@ -1607,6 +1675,7 @@ export function ApplicationWorkspace({
       );
 
       setResumeTailoringProgress({
+        mode: generationMode,
         stage: "experience_rewrite",
         status: "active",
         message: "Experience rewrite is adapting verified achievements",
@@ -1622,6 +1691,7 @@ export function ApplicationWorkspace({
       );
 
       setResumeTailoringProgress({
+        mode: generationMode,
         stage: "ats_final_review",
         status: "active",
         message: "ATS final review is producing the only renderable finalResume",
@@ -1635,13 +1705,19 @@ export function ApplicationWorkspace({
         },
         "ATS final review failed",
       );
-      return await renderAndAttachFinalResume(review.id, false);
+      return await renderAndAttachFinalResume(
+        { kind: "ats_final_review", id: review.id },
+        false,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : "Resume tailoring failed";
       setResumeTailoringProgress((current) => current
         ? { ...current, status: "failed", message }
         : {
-            stage: "recruiter_analysis",
+            mode: generationMode,
+            stage: generationMode === "imaginator"
+              ? "imaginator_generation"
+              : "recruiter_analysis",
             status: "failed",
             message,
             attempt,
@@ -1724,7 +1800,13 @@ export function ApplicationWorkspace({
   ) {
     const canRenderSavedFinalResumeWithoutAi =
       action === "tailored_resume" &&
-      Boolean(reusableFinalResumeReviewId(latestResume, isResumeOutdated));
+      Boolean(
+        reusableResumeSource(
+          latestResume,
+          isResumeOutdated,
+          selectedResumeGenerationMode,
+        ),
+      );
     if (!aiDisclosureAccepted && !canRenderSavedFinalResumeWithoutAi) {
       setAiDisclosureConfirmed(false);
       setPendingAiGeneration({ action, instruction });
@@ -1881,7 +1963,9 @@ export function ApplicationWorkspace({
       updateProgress(
         "resume_generation",
         "active",
-        "Running the three mandatory resume-tailoring stages",
+        selectedResumeGenerationMode === "imaginator"
+          ? "Running Imaginator and locked-fact validation"
+          : "Running the three mandatory resume-tailoring stages",
       );
       const resumeSaved = await generateResumePdf(true);
       if (!resumeSaved) {
@@ -1890,7 +1974,9 @@ export function ApplicationWorkspace({
       updateProgress(
         "resume_generation",
         "completed",
-        "Three-stage resume tailoring completed",
+        selectedResumeGenerationMode === "imaginator"
+          ? "Imaginator resume generation completed"
+          : "Three-stage resume tailoring completed",
       );
       updateProgress(
         "resume_validation",
@@ -2224,7 +2310,7 @@ export function ApplicationWorkspace({
                 {packProgress ? <div className={cn("mb-4 rounded-xl border p-3", packProgress.status === "failed" ? "border-red-400/25 bg-red-500/[0.045]" : packProgress.status === "partial" ? "border-amber-400/25 bg-amber-400/[0.045]" : "border-white/[0.08] bg-black/15")}><div className="grid gap-2 sm:grid-cols-4">{packStageDefinitions.map((stage, index) => { const currentIndex = packStageDefinitions.findIndex((candidate) => candidate.id === packProgress.stage); const stageStatus = index < currentIndex ? "completed" : index === currentIndex ? packProgress.status : "pending"; return <div key={stage.id} className={cn("rounded-lg border px-2.5 py-2", stageStatus === "completed" ? "border-success/20 bg-success/[0.05]" : stageStatus === "failed" ? "border-red-400/25 bg-red-500/[0.06]" : stageStatus === "partial" ? "border-amber-400/25 bg-amber-400/[0.06]" : stageStatus === "active" || stageStatus === "retrying" ? "border-accent/30 bg-accent/[0.07]" : "border-white/[0.06] bg-white/[0.015]")}><div className="flex items-center gap-2">{stageStatus === "completed" ? <Check className="h-3.5 w-3.5 text-success" /> : stageStatus === "active" || stageStatus === "retrying" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin text-accent" /> : stageStatus === "failed" ? <AlertTriangle className="h-3.5 w-3.5 text-red-200" /> : <CircleDot className="h-3.5 w-3.5 text-muted" />}<span className={cn("text-[9px] font-black uppercase tracking-wide", stageStatus === "completed" ? "text-success" : stageStatus === "failed" ? "text-red-200" : stageStatus === "partial" ? "text-amber-200" : stageStatus === "active" || stageStatus === "retrying" ? "text-white" : "text-muted")}>{stage.label}</span></div></div>; })}</div><div className="mt-2 flex items-center justify-between gap-3 px-1 text-[9px]"><span className={cn(packProgress.status === "failed" ? "text-red-200" : packProgress.status === "partial" ? "text-amber-200" : "text-muted")}>{packProgress.message}</span><span className="shrink-0 font-mono text-muted">{packProgress.attempt > 1 ? `attempt ${packProgress.attempt}/3 · ` : ""}{packProgress.jobId.slice(-8)}</span></div></div> : null}
                 {masterResumeLoaded && !currentMasterResume ? <div className="mb-4 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2.5 text-xs leading-5 text-amber-200">Confirm your Master Resume in My Profile before tailoring a vacancy.</div> : null}
                 <div>
-                  <DocumentCard sectionLabel="Resume document" documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Create and download a tailored CV for this role." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><p className="mt-3 text-[9px] text-muted">Master Resume · {currentMasterResume ? `v${currentMasterResume.version} confirmed` : "required"}</p><ResumeTemplatePicker compact apiBaseUrl={apiBaseUrl} templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} generationControl={<ResumeGenerationModePicker selectedId={selectedResumeGenerationMode} onChange={selectResumeGenerationMode} />} />
+                  <DocumentCard sectionLabel="Resume document" documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Create and download a tailored CV for this role." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><p className="mt-3 text-[9px] text-muted">Master Resume · {currentMasterResume ? `v${currentMasterResume.version} confirmed` : "required"}</p><ResumeTemplatePicker compact apiBaseUrl={apiBaseUrl} templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} generationControl={<ResumeGenerationModePicker selectedId={selectedResumeGenerationMode} onChange={selectResumeGenerationMode} disabled={Boolean(generationType || isGeneratingPack)} />} />
                   <CollapsibleDocumentPreview
                     title="Resume preview"
                     description="Open the exact generated PDF, ATS scan and document changes"
@@ -2359,7 +2445,7 @@ export function ApplicationWorkspace({
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.12em] text-accent">Application AI chat</p>
                       <h3 className="mt-1 text-sm font-bold text-white">Ask questions or improve either document</h3>
-                      <p className="mt-1 text-[10px] leading-4 text-muted">Choose a mode, then ask about the application or request an evidence-backed CV or cover-letter revision.</p>
+                      <p className="mt-1 text-[10px] leading-4 text-muted">Choose a mode, then ask about the application or request a CV or cover-letter revision.</p>
                     </div>
                     <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted transition group-open:rotate-90" />
                   </summary>
@@ -2432,6 +2518,32 @@ export function ApplicationWorkspace({
                     const itemPdfDownload = item.label === "Cover letter" && item.document
                       ? coverLetterPdfDownload(item.document)
                       : null;
+                    const itemCurrentArtifact = item.document?.versions.find(
+                      (version) => (
+                        version.version === item.document?.currentVersion
+                      ),
+                    )?.artifact;
+                    const itemIsImaginator = Boolean(
+                      item.label === "Tailored CV"
+                      && itemCurrentArtifact
+                      && resumeArtifactGenerationMode(itemCurrentArtifact)
+                        === "imaginator",
+                    );
+                    const itemDownloadWarnings = item.document
+                      ? [
+                          ...getGeneratedDocumentReadiness(
+                            item.document,
+                            item.label === "Tailored CV"
+                              ? isResumeOutdated
+                              : isCoverLetterOutdated,
+                          ).warnings,
+                          ...(itemIsImaginator
+                            ? [
+                                "the Imaginator draft contains AI-invented claims",
+                              ]
+                            : []),
+                        ]
+                      : [];
                     return (
                       <article key={item.label} className="rounded-2xl border border-white/[0.08] bg-black/15 p-4">
                         <div className="flex items-start gap-3">
@@ -2440,9 +2552,9 @@ export function ApplicationWorkspace({
                         </div>
                         <div className="mt-4 flex gap-2">
                           <Button type="button" variant="ghost" onClick={() => setActiveWorkspaceStep("create")} className="h-9 flex-1 rounded-xl border border-white/[0.08] text-[10px] font-bold text-[#dfe5ec] hover:bg-white/[0.05]">{item.document ? "Review & edit" : "Prepare document"}</Button>
-                          {itemPdfDownload ? <a href={itemPdfDownload.href} download={itemPdfDownload.fileName} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> PDF</a> : null}
-                          {item.document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(item.document.id)}/download`} download={documentFileName(item.document)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(item.document)}</a> : null}
-                          {itemDocxDownload ? <a href={itemDocxDownload.href} download={itemDocxDownload.fileName} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> DOCX</a> : null}
+                          {itemPdfDownload ? <a href={itemPdfDownload.href} download={itemPdfDownload.fileName} onClick={(event) => confirmDocumentDownload(event, itemDownloadWarnings)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> PDF</a> : null}
+                          {item.document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(item.document.id)}/download`} download={documentFileName(item.document)} onClick={(event) => confirmDocumentDownload(event, itemDownloadWarnings)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(item.document)}</a> : null}
+                          {itemDocxDownload ? <a href={itemDocxDownload.href} download={itemDocxDownload.fileName} onClick={(event) => confirmDocumentDownload(event, itemDownloadWarnings)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> DOCX</a> : null}
                         </div>
                       </article>
                     );
@@ -2514,9 +2626,11 @@ export function ApplicationWorkspace({
 function ResumeGenerationModePicker({
   selectedId,
   onChange,
+  disabled = false,
 }: {
   selectedId: ResumeGenerationMode;
   onChange: (mode: ResumeGenerationMode) => void;
+  disabled?: boolean;
 }) {
   const selectedMode =
     resumeGenerationModes.find((mode) => mode.id === selectedId)
@@ -2541,8 +2655,9 @@ function ResumeGenerationModePicker({
             <select
               aria-label="CV generation mode"
               value={selectedId}
+              disabled={disabled}
               onChange={(event) => onChange(event.target.value as ResumeGenerationMode)}
-              className="h-9 min-w-48 rounded-lg border border-white/[0.1] bg-[#111923] px-3 text-[10px] font-bold text-white outline-none focus:border-accent/60"
+              className="h-9 min-w-48 rounded-lg border border-white/[0.1] bg-[#111923] px-3 text-[10px] font-bold text-white outline-none focus:border-accent/60 disabled:cursor-not-allowed disabled:opacity-45"
             >
               {resumeGenerationModes.map((mode) => (
                 <option key={mode.id} value={mode.id}>
@@ -2574,6 +2689,19 @@ function ResumeGenerationModePicker({
           </div>
         </div>
       </div>
+      {selectedId === "imaginator" ? (
+        <div
+          role="alert"
+          className="mt-3 flex items-start gap-2 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2.5 text-amber-100"
+        >
+          <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+          <p className="text-[9px] leading-4">
+            Imaginator may invent experience, achievements, skills, and
+            qualifications. Employer names, education, and candidate identity
+            remain locked. Review every generated claim before use.
+          </p>
+        </div>
+      ) : null}
     </section>
   );
 }
@@ -2622,6 +2750,17 @@ function DocumentCard({
   const currentVersion = document?.versions.find((version) => version.version === document.currentVersion);
   const readiness = getGeneratedDocumentReadiness(document, isOutdated);
   const isResume = documentType === "tailored_resume";
+  const isImaginatorResume = Boolean(
+    isResume
+    && currentVersion?.artifact
+    && resumeArtifactGenerationMode(currentVersion.artifact) === "imaginator",
+  );
+  const currentDownloadWarnings = isImaginatorResume
+    ? [
+        ...readiness.warnings,
+        "the Imaginator draft contains AI-invented claims",
+      ]
+    : readiness.warnings;
   const docxDownload = document && isResume
     ? resumeDocxDownload(document)
     : null;
@@ -2648,14 +2787,19 @@ function DocumentCard({
         {isGenerating
           ? "Generating…"
           : document
-            ? `${readiness.ready ? "Ready" : readiness.label} · v${document.currentVersion}`
+            ? `${isImaginatorResume ? "Idealized draft" : readiness.ready ? "Ready" : readiness.label} · v${document.currentVersion}`
             : `Not created · ${canGenerate ? "Ready to generate" : disabledLabel}`}
       </p>
+      {isImaginatorResume ? (
+        <p className="mt-1 text-[9px] leading-4 text-amber-100">
+          Contains AI-invented claims · review before use
+        </p>
+      ) : null}
       {currentVersion ? <p className="mt-1 text-[9px] text-muted">Generated {formatVersionTimestamp(currentVersion.createdAt)}</p> : null}
       <div className="mt-4 flex flex-wrap gap-2">
-        {pdfDownload ? <a href={pdfDownload.href} download={pdfDownload.fileName} onClick={(event) => confirmDocumentDownload(event, readiness.warnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> PDF</a> : null}
-        {document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`} download={documentFileName(document)} onClick={(event) => confirmDocumentDownload(event, readiness.warnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(document)}</a> : null}
-        {docxDownload ? <a href={docxDownload.href} download={docxDownload.fileName} onClick={(event) => confirmDocumentDownload(event, readiness.warnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> DOCX</a> : null}
+        {pdfDownload ? <a href={pdfDownload.href} download={pdfDownload.fileName} onClick={(event) => confirmDocumentDownload(event, currentDownloadWarnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> PDF</a> : null}
+        {document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`} download={documentFileName(document)} onClick={(event) => confirmDocumentDownload(event, currentDownloadWarnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(document)}</a> : null}
+        {docxDownload ? <a href={docxDownload.href} download={docxDownload.fileName} onClick={(event) => confirmDocumentDownload(event, currentDownloadWarnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> DOCX</a> : null}
         <Button type="button" aria-label={isGenerating ? "Generating…" : !canGenerate ? disabledLabel : document ? "Regenerate" : `Generate ${label}`} variant={document ? "ghost" : "default"} disabled={isGenerating || isRestoringDocument || !canGenerate} onClick={onGenerate} className={cn("h-10 px-3 text-[11px] font-bold disabled:opacity-40", document ? "rounded-none border-0 bg-transparent text-muted hover:bg-transparent hover:text-white" : "rounded-lg bg-accent text-white hover:bg-[#ff6a14]")}>{isGenerating ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : document ? <RefreshCw className="h-3.5 w-3.5" /> : null}{isGenerating ? "Generating…" : document ? "Regenerate" : `Create ${isResume ? "CV" : "letter"}`}</Button>
         {document && !isResume ? <Button type="button" variant="ghost" aria-label={`Delete ${label}`} disabled={deletingDocumentId === document.id || isGenerating} onClick={onDelete} className="h-10 rounded-xl border border-red-400/20 px-3 text-red-200 hover:bg-red-500/10"><Trash2 className="h-3.5 w-3.5" /></Button> : null}
       </div>
@@ -2671,6 +2815,15 @@ function DocumentCard({
               const restoreKey = `${document.id}:${version.version}`;
               const isRestoring = restoringVersionKey === restoreKey;
               const downloadWarnings = getDocumentVersionDownloadWarnings(version, isCurrent && isOutdated);
+              if (
+                isResume
+                && version.artifact
+                && resumeArtifactGenerationMode(version.artifact) === "imaginator"
+              ) {
+                downloadWarnings.push(
+                  "the Imaginator draft contains AI-invented claims",
+                );
+              }
               const versionPdfDownload = !isResume
                 ? coverLetterPdfDownload(document, version.version)
                 : null;

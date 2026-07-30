@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 
 import { cn } from "@/lib/utils";
+import type { ResumeGenerationMode } from "@/lib/resume-generation";
 
 export const resumeTailoringAiStages = [
   { id: "recruiter_analysis", label: "Recruiter analysis" },
@@ -20,8 +21,14 @@ export const resumeTailoringPdfStages = [
   { id: "validating_pdf", label: "Validating PDF" },
 ] as const;
 
+export const resumeImaginatorStages = [
+  { id: "imaginator_generation", label: "Imaginator generation" },
+  { id: "immutable_validation", label: "Protected facts audit" },
+] as const;
+
 export type ResumeTailoringStageId =
   | (typeof resumeTailoringAiStages)[number]["id"]
+  | (typeof resumeImaginatorStages)[number]["id"]
   | (typeof resumeTailoringPdfStages)[number]["id"];
 
 export type ResumeTailoringProgressStatus =
@@ -31,6 +38,7 @@ export type ResumeTailoringProgressStatus =
   | "failed";
 
 export type ResumeTailoringProgress = {
+  mode?: ResumeGenerationMode;
   stage: ResumeTailoringStageId;
   status: ResumeTailoringProgressStatus;
   message: string;
@@ -41,16 +49,21 @@ type DisplayStatus =
   | ResumeTailoringProgressStatus
   | "pending";
 
-const allStages = [
-  ...resumeTailoringAiStages,
-  ...resumeTailoringPdfStages,
-] as const;
-
 export function ResumeTailoringProgressPanel({
   progress,
 }: {
   progress: ResumeTailoringProgress;
 }) {
+  const mode = progress.mode ?? "recruiter_xyz_ats";
+  const generationStages = mode === "imaginator"
+    ? resumeImaginatorStages
+    : resumeTailoringAiStages;
+  const generationGroupLabel = mode === "imaginator"
+    ? "Imaginator stages"
+    : "AI tailoring stages";
+  const stageBadge = mode === "imaginator"
+    ? "AI + audit"
+    : "3 AI stages";
   return (
     <section
       role="group"
@@ -70,7 +83,7 @@ export function ResumeTailoringProgressPanel({
               Resume tailoring
             </p>
             <span className="rounded-full border border-[#9f7aea]/25 bg-[#9f7aea]/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-[#c4a7ff]">
-              3 AI stages
+              {stageBadge}
             </span>
           </div>
           <p
@@ -93,8 +106,8 @@ export function ResumeTailoringProgressPanel({
 
       <div className="grid gap-3 p-3 lg:grid-cols-[minmax(0,3fr)_minmax(230px,2fr)]">
         <ProgressStageGroup
-          label="AI tailoring stages"
-          stages={resumeTailoringAiStages}
+          label={generationGroupLabel}
+          stages={generationStages}
           progress={progress}
           numbered
         />
@@ -128,7 +141,9 @@ function ProgressStageGroup({
       aria-label={label}
       className={cn(
         "grid gap-2",
-        numbered ? "sm:grid-cols-3" : "sm:grid-cols-2",
+        numbered && stages.length === 3
+          ? "sm:grid-cols-3"
+          : "sm:grid-cols-2",
       )}
     >
       {stages.map((stage, index) => {
@@ -162,10 +177,20 @@ function ProgressStageGroup({
   );
 }
 
+function stagesForProgress(progress: ResumeTailoringProgress) {
+  return [
+    ...(progress.mode === "imaginator"
+      ? resumeImaginatorStages
+      : resumeTailoringAiStages),
+    ...resumeTailoringPdfStages,
+  ] as ReadonlyArray<{ id: ResumeTailoringStageId; label: string }>;
+}
+
 function displayStatus(
   stageId: ResumeTailoringStageId,
   progress: ResumeTailoringProgress,
 ): DisplayStatus {
+  const allStages = stagesForProgress(progress);
   const currentIndex = allStages.findIndex(
     (stage) => stage.id === progress.stage,
   );
@@ -223,8 +248,10 @@ function StageIcon({ status }: { status: DisplayStatus }) {
 export function completedResumeTailoringProgress(
   message = "PDF rendered and validated",
   attempt = 1,
+  mode: ResumeGenerationMode = "recruiter_xyz_ats",
 ): ResumeTailoringProgress {
   return {
+    mode,
     stage: "validating_pdf",
     status: "completed",
     message,

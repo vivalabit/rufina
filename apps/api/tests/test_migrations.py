@@ -131,6 +131,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "senior_recruiter_analyses",
             "experience_rewrites",
             "ats_final_reviews",
+            "imaginator_resumes",
             "resume_tailoring_runs",
             "resume_tailoring_stages",
             "resume_template_definitions",
@@ -151,7 +152,12 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260726_0028"
+            assert revision == "20260730_0030"
+        imaginator_columns = {
+            column["name"]
+            for column in inspect(engine).get_columns("imaginator_resumes")
+        }
+        assert "protected_facts_audit" in imaginator_columns
         assert inspect(engine).get_pk_constraint("stored_jobs")["constrained_columns"] == [
             "owner_id",
             "id",
@@ -510,6 +516,36 @@ def test_upgrade_database_can_run_again_at_head(tmp_path) -> None:
     upgrade_database(database_url)
 
 
+def test_imaginator_audit_migration_upgrades_original_0029_shape(
+    tmp_path,
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'imaginator-audit.sqlite'}"
+    config = get_alembic_config(database_url)
+    command.upgrade(config, "20260730_0029")
+
+    engine = create_engine(database_url)
+    try:
+        assert "protected_facts_audit" not in {
+            column["name"]
+            for column in inspect(engine).get_columns("imaginator_resumes")
+        }
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+
+    engine = create_engine(database_url)
+    try:
+        audit_column = next(
+            column
+            for column in inspect(engine).get_columns("imaginator_resumes")
+            if column["name"] == "protected_facts_audit"
+        )
+        assert audit_column["nullable"] is False
+    finally:
+        engine.dispose()
+
+
 def test_screening_persistence_migration_backfills_run_statistics(
     tmp_path,
 ) -> None:
@@ -818,7 +854,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260726_0028"
+            assert revision == "20260730_0030"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
