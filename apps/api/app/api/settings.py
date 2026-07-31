@@ -28,6 +28,7 @@ JOB_SCREENING_BATCH_SIZE_ENV = "JOB_SCREENING_BATCH_SIZE"
 JOB_SCREENING_TIMEOUT_SECONDS_ENV = "JOB_SCREENING_TIMEOUT_SECONDS"
 JOB_SCREENING_MAX_ATTEMPTS_ENV = "JOB_SCREENING_MAX_ATTEMPTS"
 JOB_SCREENING_MAX_DESCRIPTION_CHARS_ENV = "JOB_SCREENING_MAX_DESCRIPTION_CHARS"
+TASKO_SETTINGS_FILE_ENV = "TASKO_SETTINGS_FILE"
 
 AIBackendName = Literal["openclaw_codex", "openai_api"]
 ReasoningEffort = Literal["off", "none", "low", "medium", "high", "xhigh", "max"]
@@ -111,6 +112,11 @@ def format_env_value(value: str) -> str:
 
 def upsert_env_value(env_path: Path, key: str, value: str) -> None:
     upsert_env_values(env_path, {key: value})
+
+
+def settings_file_path() -> Path:
+    configured_path = os.environ.get(TASKO_SETTINGS_FILE_ENV, "").strip()
+    return Path(configured_path) if configured_path else REPO_ROOT / ".env"
 
 
 def upsert_env_values(env_path: Path, values: dict[str, str]) -> None:
@@ -269,7 +275,7 @@ def update_app_settings(payload: AppSettingsUpdateRequest) -> AppSettingsRespons
         return build_settings_response()
 
     try:
-        upsert_env_values(REPO_ROOT / ".env", updates)
+        upsert_env_values(settings_file_path(), updates)
     except OSError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,

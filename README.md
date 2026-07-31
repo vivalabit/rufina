@@ -89,6 +89,9 @@ API_PORT=8000
 POSTGRES_PORT=5432
 REDIS_PORT=6379
 
+# Browser-facing API URL — update when API_PORT changes
+NEXT_PUBLIC_API_URL=http://localhost:8000
+
 # Seed the UI with example vacancies and calendar events — optional
 DEMO_MODE=1
 ```
@@ -109,6 +112,11 @@ Alternatively, use the project script:
 pnpm docker:up
 ```
 
+The default Compose configuration builds release images: Next.js is compiled
+with `next build` and served with `next start`, while Uvicorn runs without
+hot reload or a source-code bind mount. API readiness includes a database
+probe, and dependent services wait for healthy containers.
+
 Open the application at [http://localhost:3000](http://localhost:3000). The API is available at [http://localhost:8000](http://localhost:8000).
 
 To stop the stack:
@@ -116,6 +124,15 @@ To stop the stack:
 ```bash
 docker compose down
 ```
+
+For Docker-based development with hot reload and source mounts, use the
+development override:
+
+```bash
+pnpm docker:dev
+```
+
+Stop that stack with `pnpm docker:dev:down`.
 
 ### Run Locally with pnpm
 

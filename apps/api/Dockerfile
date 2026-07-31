@@ -26,14 +26,15 @@ RUN ln -s ../lib/node_modules/openclaw/openclaw.mjs /usr/local/bin/openclaw
 WORKDIR /workspace/apps/api
 
 COPY apps/api/pyproject.toml ./
-RUN python -m pip install --upgrade pip \
-    && python -m pip install -e . \
-    && python -m playwright install --with-deps chromium
-
 COPY apps/api/alembic.ini ./alembic.ini
 COPY apps/api/migrations ./migrations
 COPY apps/api/app ./app
 
+RUN python -m pip install --upgrade pip \
+    && python -m pip install . \
+    && python -m playwright install --with-deps chromium
+
 EXPOSE 8000
 
+ENTRYPOINT ["python", "-m", "app.core.docker_entrypoint"]
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]

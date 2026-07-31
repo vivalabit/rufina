@@ -1,0 +1,27 @@
+services:
+  api:
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+    environment:
+      APP_ENV: local
+    volumes:
+      - .:/workspace
+
+  web:
+    build:
+      target: development
+    environment:
+      DEMO_MODE: ${DEMO_MODE:-0}
+      NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
+      NEXT_TELEMETRY_DISABLED: "1"
+      WATCHPACK_POLLING: "true"
+    volumes:
+      - ./apps/web:/workspace/apps/web
+      - ./packages/shared:/workspace/packages/shared
+      - web-root-node-modules:/workspace/node_modules
+      - web-app-node-modules:/workspace/apps/web/node_modules
+      - web-next-cache:/workspace/apps/web/.next
+
+volumes:
+  web-root-node-modules:
+  web-app-node-modules:
+  web-next-cache:

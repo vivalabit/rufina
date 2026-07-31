@@ -5,7 +5,12 @@ from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
 from app.api import settings as settings_api
-from app.api.settings import format_env_value, mask_secret, upsert_env_value
+from app.api.settings import (
+    format_env_value,
+    mask_secret,
+    settings_file_path,
+    upsert_env_value,
+)
 from app.core.settings import Settings, get_settings
 from app.main import app
 
@@ -39,6 +44,21 @@ def test_upsert_env_value_preserves_other_lines(tmp_path: Path) -> None:
         "BRIGHTDATA_API_KEY=new-key\n"
         "# BRIGHTDATA_API_KEY=commented\n"
     )
+
+
+def test_settings_file_path_supports_persistent_container_storage(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(settings_api, "REPO_ROOT", tmp_path)
+    monkeypatch.delenv("TASKO_SETTINGS_FILE", raising=False)
+
+    assert settings_file_path() == tmp_path / ".env"
+
+    runtime_path = tmp_path / "runtime" / "settings.env"
+    monkeypatch.setenv("TASKO_SETTINGS_FILE", str(runtime_path))
+
+    assert settings_file_path() == runtime_path
 
 
 def test_brightdata_api_key_cannot_be_read_back(monkeypatch) -> None:

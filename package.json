@@ -12,6 +12,8 @@
     "test:e2e:workspace": "bash scripts/run_workspace_e2e.sh",
     "openclaw:setup": "python3 scripts/setup_openclaw_rufina_assistant.py",
     "docker:up": "docker compose up --build",
+    "docker:dev": "docker compose -f compose.yaml -f compose.dev.yaml up --build",
+    "docker:dev:down": "docker compose -f compose.yaml -f compose.dev.yaml down",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
     "screenshots:up": "bash scripts/screenshot_workspace.sh up",

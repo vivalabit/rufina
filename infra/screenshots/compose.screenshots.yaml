@@ -18,6 +18,10 @@ services:
       - screenshot-openclaw-agent:${HOME}/.openclaw/agents/rufina-assistant
 
   web:
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-8001}
+        NEXT_PUBLIC_SCREENSHOT_SESSION_ID: ${SCREENSHOT_SESSION_ID:-screenshot-default}
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-8001}
       NEXT_PUBLIC_SCREENSHOT_SESSION_ID: ${SCREENSHOT_SESSION_ID:-screenshot-default}

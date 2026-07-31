@@ -9,6 +9,11 @@ services:
       OPENCLAW_ASSISTANT_MODEL: e2e-model
       OPENCLAW_ASSISTANT_MAX_ATTEMPTS: "2"
       OPENCLAW_ASSISTANT_RETRY_BACKOFF_SECONDS: "0"
+    volumes:
+      - .:/workspace
   web:
+    build:
+      args:
+        NEXT_PUBLIC_API_URL: http://127.0.0.1:${API_PORT:-18000}
     environment:
       NEXT_PUBLIC_API_URL: http://127.0.0.1:${API_PORT:-18000}

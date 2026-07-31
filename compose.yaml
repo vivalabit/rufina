@@ -2,17 +2,15 @@ name: tasko
 
 services:
   api:
+    image: ${TASKO_API_IMAGE:-tasko-api}:${TASKO_VERSION:-latest}
     build:
       context: .
       dockerfile: apps/api/Dockerfile
-    command: >-
-      sh -c "if [ \"$$AI_BACKEND\" = \"openclaw_codex\" ]; then
-      python -m app.core.openclaw_state; fi &&
-      exec uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
     environment:
-      APP_ENV: local
+      APP_ENV: production
       DATABASE_URL: postgresql+psycopg://tasko:tasko@postgres:5432/tasko
       REDIS_URL: redis://redis:6379/0
+      TASKO_SETTINGS_FILE: /var/lib/tasko/settings.env
       CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000"]'
       AI_BACKEND: ${AI_BACKEND:-openclaw_codex}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
@@ -43,7 +41,7 @@ services:
     ports:
       - "127.0.0.1:${API_PORT:-8000}:8000"
     volumes:
-      - .:/workspace
+      - tasko-config:/var/lib/tasko
       - ${HOME}/.openclaw:/root/.openclaw
       - ${HOME}/.openclaw/state:/root/.openclaw-shared-state:ro
       - openclaw-tasko-state:/root/.openclaw/state
@@ -54,41 +52,34 @@ services:
       postgres:
         condition: service_healthy
       redis:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test:
         [
           "CMD",
           "python",
           "-c",
-          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health/ready', timeout=3)",
         ]
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 10s
+      start_period: 30s
 
   web:
+    image: ${TASKO_WEB_IMAGE:-tasko-web}:${TASKO_VERSION:-latest}
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-    command: pnpm --dir apps/web exec next dev --webpack --hostname 0.0.0.0
-    environment:
-      DEMO_MODE: ${DEMO_MODE:-0}
-      NEXT_PUBLIC_API_URL: http://localhost:8000
-      NEXT_TELEMETRY_DISABLED: "1"
-      WATCHPACK_POLLING: "true"
+      target: runner
+      args:
+        DEMO_MODE: ${DEMO_MODE:-0}
+        NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:-http://localhost:8000}
     ports:
       - "${WEB_PORT:-3000}:3000"
-    volumes:
-      - ./apps/web:/workspace/apps/web
-      - ./packages/shared:/workspace/packages/shared
-      - web-root-node-modules:/workspace/node_modules
-      - web-app-node-modules:/workspace/apps/web/node_modules
-      - web-next-cache:/workspace/apps/web/.next
     depends_on:
       api:
-        condition: service_started
+        condition: service_healthy
     healthcheck:
       test:
         [
@@ -100,7 +91,7 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-      start_period: 20s
+      start_period: 30s
 
   postgres:
     image: pgvector/pgvector:pg16
@@ -117,6 +108,7 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 10s
 
   redis:
     image: redis:7-alpine
@@ -129,11 +121,10 @@ services:
       interval: 5s
       timeout: 5s
       retries: 10
+      start_period: 5s
 
 volumes:
   postgres-data:
   redis-data:
-  web-root-node-modules:
-  web-app-node-modules:
-  web-next-cache:
+  tasko-config:
   openclaw-tasko-state:
