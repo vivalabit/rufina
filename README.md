@@ -71,32 +71,15 @@ cd rufina
 
 ### Configure Environment Variables
 
-Create a `.env` file in the repository root:
+Create a `.env` file from the committed template:
 
-```env
-# AI backend
-AI_BACKEND=openai_api
-OPENAI_API_KEY=your_openai_api_key
-OPENAI_API_MODEL=gpt-5.6-terra
-OPENAI_API_REASONING_EFFORT=medium
-
-# LinkedIn and Indeed job search — optional
-BRIGHTDATA_API_KEY=your_brightdata_api_key
-
-# Local ports — optional
-WEB_PORT=3000
-API_PORT=8000
-POSTGRES_PORT=5432
-REDIS_PORT=6379
-
-# Browser-facing API URL — update when API_PORT changes
-NEXT_PUBLIC_API_URL=http://localhost:8000
-
-# Seed the UI with example vacancies and calendar events — optional
-DEMO_MODE=1
+```bash
+cp .env.example .env
 ```
 
-`OPENAI_API_KEY` is required when `AI_BACKEND=openai_api`. `BRIGHTDATA_API_KEY` is only required for LinkedIn and Indeed searches.
+Edit `.env` before starting the application. `OPENAI_API_KEY` is required when
+`AI_BACKEND=openai_api`. `BRIGHTDATA_API_KEY` is only required for LinkedIn and
+Indeed searches.
 
 ### Run with Docker
 
@@ -156,7 +139,7 @@ Set up and start the API:
 python3.12 -m venv .venv
 source .venv/bin/activate
 python -m pip install --upgrade pip
-python -m pip install -e apps/api
+python -m pip install --constraint apps/api/constraints.txt --editable 'apps/api[dev]'
 python -m playwright install chromium
 cd apps/api
 uvicorn app.main:app --reload --port 8000
@@ -169,6 +152,13 @@ pnpm dev
 ```
 
 The application will be available at [http://localhost:3000](http://localhost:3000).
+
+Python package versions are pinned in `apps/api/constraints.txt`. After changing
+`apps/api/pyproject.toml`, regenerate the constraints with:
+
+```bash
+uv pip compile apps/api/pyproject.toml --all-extras --universal --python-version 3.12 --upgrade --output-file apps/api/constraints.txt
+```
 
 ## Configuration
 

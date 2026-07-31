@@ -26,12 +26,13 @@ RUN ln -s ../lib/node_modules/openclaw/openclaw.mjs /usr/local/bin/openclaw
 WORKDIR /workspace/apps/api
 
 COPY apps/api/pyproject.toml ./
+COPY apps/api/constraints.txt ./
 COPY apps/api/alembic.ini ./alembic.ini
 COPY apps/api/migrations ./migrations
 COPY apps/api/app ./app
 
 RUN python -m pip install --upgrade pip \
-    && python -m pip install . \
+    && python -m pip install --constraint constraints.txt . \
     && python -m playwright install --with-deps chromium
 
 EXPOSE 8000
