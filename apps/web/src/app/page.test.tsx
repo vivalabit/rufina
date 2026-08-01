@@ -941,7 +941,7 @@ it("saves and deletes manual-search configs through the API", async () => {
   ).toBeNull();
 });
 
-it("configures direct company career pages without invoking a parser", async () => {
+it("shows an empty direct-company catalog without invoking a parser", async () => {
   window.history.replaceState(null, "", "#jobs");
   const configWrites: Array<Record<string, unknown>> = [];
   const runRequests: Array<Record<string, unknown>> = [];
@@ -1006,13 +1006,12 @@ it("configures direct company career pages without invoking a parser", async () 
   fireEvent.click(screen.getByRole("button", { name: /LinkedIn/ }));
 
   expect(screen.getByText("Direct company pages")).toBeInTheDocument();
-  fireEvent.change(screen.getByPlaceholderText("e.g. Acme"), {
-    target: { value: "Acme AG" },
-  });
-  fireEvent.change(
-    screen.getByPlaceholderText("https://company.com/careers"),
-    { target: { value: "https://careers.acme.test/jobs" } },
-  );
+  expect(screen.getByText("Company catalog is empty")).toBeInTheDocument();
+  expect(
+    screen.getByPlaceholderText("Search companies or career pages..."),
+  ).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Select all" })).toBeDisabled();
+  expect(screen.queryByRole("button", { name: "Add company" })).toBeNull();
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1030,16 +1029,13 @@ it("configures direct company career pages without invoking a parser", async () 
       search: {
         sources: [],
         directCompaniesEnabled: true,
-        directCompanies: [
-          {
-            name: "Acme AG",
-            careersUrl: "https://careers.acme.test/jobs",
-            enabled: true,
-          },
-        ],
+        directCompanyIds: [],
       },
     },
   });
+  const savedFilters = configWrites[0].filters as Record<string, unknown>;
+  const savedSearch = savedFilters.search as Record<string, unknown>;
+  expect(savedSearch).not.toHaveProperty("directCompanies");
 
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(

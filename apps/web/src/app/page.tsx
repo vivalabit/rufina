@@ -65,10 +65,7 @@ import {
 } from "@/components/assistant-view";
 import { ApplicationWorkspace } from "@/components/application-workspace";
 import { DashboardGreeting, useHydrationSafeCurrentTime } from "@/components/dashboard-greeting";
-import {
-  DirectCompaniesSource,
-  type DirectCompanyTarget,
-} from "@/components/direct-companies-source";
+import { DirectCompaniesSource } from "@/components/direct-companies-source";
 import {
   JobsToolbar,
   type BulkAnalysisScope,
@@ -78,6 +75,7 @@ import { ResumeTemplateManager } from "@/components/resume-template-manager";
 import { getAiMatchAnalysisStatus, legacyAiMatchVersion } from "@/lib/ai-match";
 import { getAiSourceLabel, type AiBackend, type AiSource } from "@/lib/ai-source";
 import { findWorkspaceApplication, getHashForView, getRouteFromHash, type View } from "@/lib/app-route";
+import { directCompanyCatalog } from "@/lib/direct-company-catalog";
 import { cn } from "@/lib/utils";
 
 type AiMatchMetadata = {
@@ -366,7 +364,7 @@ type ParserId = "linkedin" | "indeed" | "jobs_ch";
 type ParserSearchForm = {
   parsers: ParserId[];
   directCompaniesEnabled: boolean;
-  directCompanies: DirectCompanyTarget[];
+  directCompanyIds: string[];
   keywords: string;
   location: string;
   remote: string;
@@ -688,7 +686,7 @@ const assistantPrompts = {
 const defaultParserSearchForm: ParserSearchForm = {
   parsers: ["linkedin"],
   directCompaniesEnabled: false,
-  directCompanies: [],
+  directCompanyIds: [],
   keywords: "",
   location: "",
   remote: "Any",
@@ -2024,8 +2022,10 @@ function normalizeParserSearchConfigs(configs: ParserSearchConfig[]) {
         parsers: normalizeParserIds(config.form),
         directCompaniesEnabled:
           config.form.directCompaniesEnabled === true,
-        directCompanies: normalizeDirectCompanies(
-          config.form.directCompanies,
+        directCompanyIds: normalizeDirectCompanyIds(
+          config.form.directCompanyIds ??
+            (config.form as ParserSearchForm & { directCompanies?: unknown })
+              .directCompanies,
         ),
       },
       filters: isRecord(config.filters)
@@ -2074,14 +2074,8 @@ function parserSearchFiltersFromForm(
       folder: form.folder,
       sources: normalizeParserIds(form),
       directCompaniesEnabled: form.directCompaniesEnabled === true,
-      directCompanies: normalizeDirectCompanies(form.directCompanies).map(
-        (company) => ({
-          id: company.id,
-          name: company.name.trim(),
-          careersUrl: company.careersUrl.trim(),
-          enabled: company.enabled,
-        }),
-      ),
+      directCompanyIds: normalizeDirectCompanyIds(form.directCompanyIds),
+      directCompanies: undefined,
     },
     screening: currentScreening ?? {
       enabled: true,
@@ -2107,15 +2101,18 @@ function parserSearchConfigFromApi(
           source === "linkedin" || source === "indeed" || source === "jobs_ch",
       )
     : [];
-  const directCompanies = normalizeDirectCompanies(
-    searchFilters.directCompanies ?? searchFilters.direct_companies,
+  const directCompanyIds = normalizeDirectCompanyIds(
+    searchFilters.directCompanyIds ??
+      searchFilters.direct_company_ids ??
+      searchFilters.directCompanies ??
+      searchFilters.direct_companies,
   );
   const directCompaniesEnabled =
     filterBoolean(
       searchFilters,
       "directCompaniesEnabled",
       "direct_companies_enabled",
-    ) ?? directCompanies.length > 0;
+    ) ?? directCompanyIds.length > 0;
   return {
     id: config.id,
     name: config.name,
@@ -2128,7 +2125,7 @@ function parserSearchConfigFromApi(
           ? sources
           : [...defaultParserSearchForm.parsers],
       directCompaniesEnabled,
-      directCompanies,
+      directCompanyIds,
       keywords: filterString(searchFilters, "keywords"),
       location: filterString(searchFilters, "location"),
       remote:
@@ -2166,60 +2163,22 @@ function parserSearchConfigFromApi(
   };
 }
 
-function normalizeDirectCompanies(value: unknown): DirectCompanyTarget[] {
+function normalizeDirectCompanyIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
 
-  return value.flatMap((item) => {
-    if (!isRecord(item)) return [];
-    const name = filterString(item, "name");
-    const careersUrl = filterString(item, "careersUrl", "careers_url");
-    const id = filterString(item, "id") || createClientId("direct-company");
-    return [
-      {
-        id,
-        name,
-        careersUrl,
-        enabled: filterBoolean(item, "enabled") ?? true,
-      },
-    ];
-  });
-}
-
-function createDirectCompanyTarget(): DirectCompanyTarget {
-  return {
-    id: createClientId("direct-company"),
-    name: "",
-    careersUrl: "",
-    enabled: true,
-  };
-}
-
-function validateDirectCompanies(form: ParserSearchForm): string | null {
-  if (!form.directCompaniesEnabled) return null;
-  if (form.directCompanies.length === 0) {
-    return "Add at least one company careers page";
-  }
-
-  const seenUrls = new Set<string>();
-  for (const [index, company] of form.directCompanies.entries()) {
-    if (!company.name.trim()) return `Enter a name for company ${index + 1}`;
-    const careersUrl = company.careersUrl.trim();
-    if (!careersUrl) return `Enter a careers page URL for ${company.name.trim()}`;
-    try {
-      const parsedUrl = new URL(careersUrl);
-      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
-        return `Use an http or https careers page URL for ${company.name.trim()}`;
-      }
-      const normalizedUrl = parsedUrl.href.replace(/\/$/, "");
-      if (seenUrls.has(normalizedUrl)) {
-        return `Remove the duplicate careers page for ${company.name.trim()}`;
-      }
-      seenUrls.add(normalizedUrl);
-    } catch {
-      return `Enter a valid careers page URL for ${company.name.trim()}`;
-    }
-  }
-  return null;
+  return Array.from(
+    new Set(
+      value.flatMap((item) => {
+        const id =
+          typeof item === "string"
+            ? item.trim()
+            : isRecord(item)
+              ? filterString(item, "id").trim()
+              : "";
+        return id ? [id] : [];
+      }),
+    ),
+  );
 }
 
 function filterString(
@@ -4204,51 +4163,16 @@ export default function HomePage() {
           !directCompaniesEnabled && current.parsers.length === 0
             ? [...defaultParserSearchForm.parsers]
             : current.parsers,
-        directCompanies:
-          directCompaniesEnabled && current.directCompanies.length === 0
-            ? [createDirectCompanyTarget()]
-            : current.directCompanies,
       };
     });
     setParserSearchStatus("idle");
     setParserSearchMessage("");
   }
 
-  function addDirectCompany() {
+  function updateSelectedDirectCompanies(companyIds: string[]) {
     setParserSearchForm((current) => ({
       ...current,
-      directCompanies: [
-        ...current.directCompanies,
-        createDirectCompanyTarget(),
-      ],
-    }));
-    setParserSearchStatus("idle");
-    setParserSearchMessage("");
-  }
-
-  function updateDirectCompany(
-    companyId: string,
-    field: "name" | "careersUrl" | "enabled",
-    value: string | boolean,
-  ) {
-    setParserSearchForm((current) => ({
-      ...current,
-      directCompanies: current.directCompanies.map((company) =>
-        company.id === companyId
-          ? { ...company, [field]: value }
-          : company,
-      ),
-    }));
-    setParserSearchStatus("idle");
-    setParserSearchMessage("");
-  }
-
-  function removeDirectCompany(companyId: string) {
-    setParserSearchForm((current) => ({
-      ...current,
-      directCompanies: current.directCompanies.filter(
-        (company) => company.id !== companyId,
-      ),
+      directCompanyIds: normalizeDirectCompanyIds(companyIds),
     }));
     setParserSearchStatus("idle");
     setParserSearchMessage("");
@@ -4312,13 +4236,6 @@ export default function HomePage() {
       setParserSearchMessage("Enter a config name before saving");
       return;
     }
-    const directCompaniesError = validateDirectCompanies(parserSearchForm);
-    if (directCompaniesError) {
-      setParserSearchStatus("error");
-      setParserSearchMessage(directCompaniesError);
-      return;
-    }
-
     const formToSave = { ...parserSearchForm, searchName: configName };
     const isUpdate = Boolean(selectedParserSearchConfigId);
     setParserSearchStatus("loading");
@@ -6408,10 +6325,9 @@ export default function HomePage() {
                     <div className="mt-4 grid gap-4">
                       {parserSearchForm.directCompaniesEnabled && (
                         <DirectCompaniesSource
-                          companies={parserSearchForm.directCompanies}
-                          onAdd={addDirectCompany}
-                          onChange={updateDirectCompany}
-                          onRemove={removeDirectCompany}
+                          companies={directCompanyCatalog}
+                          selectedCompanyIds={parserSearchForm.directCompanyIds}
+                          onSelectedCompanyIdsChange={updateSelectedDirectCompanies}
                         />
                       )}
 
