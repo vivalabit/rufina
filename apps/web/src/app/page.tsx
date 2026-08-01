@@ -66,6 +66,10 @@ import {
 import { ApplicationWorkspace } from "@/components/application-workspace";
 import { DashboardGreeting, useHydrationSafeCurrentTime } from "@/components/dashboard-greeting";
 import {
+  DirectCompaniesSource,
+  type DirectCompanyTarget,
+} from "@/components/direct-companies-source";
+import {
   JobsToolbar,
   type BulkAnalysisScope,
 } from "@/components/jobs-toolbar";
@@ -361,6 +365,8 @@ type ParserId = "linkedin" | "indeed" | "jobs_ch";
 
 type ParserSearchForm = {
   parsers: ParserId[];
+  directCompaniesEnabled: boolean;
+  directCompanies: DirectCompanyTarget[];
   keywords: string;
   location: string;
   remote: string;
@@ -681,6 +687,8 @@ const assistantPrompts = {
 
 const defaultParserSearchForm: ParserSearchForm = {
   parsers: ["linkedin"],
+  directCompaniesEnabled: false,
+  directCompanies: [],
   keywords: "",
   location: "",
   remote: "Any",
@@ -1736,6 +1744,13 @@ function getParsersLabel(parsers: ParserId[]) {
   return parsers.map(getParserLabel).join(" + ");
 }
 
+function getSearchSourcesLabel(form: ParserSearchForm) {
+  return [
+    ...form.parsers.map(getParserLabel),
+    ...(form.directCompaniesEnabled ? ["Direct Companies"] : []),
+  ].join(" + ");
+}
+
 function normalizeParserIds(form: ParserSearchForm): ParserId[] {
   const parserCandidates = Array.isArray(form.parsers) ? form.parsers : [];
   const legacyParser = (form as ParserSearchForm & { parser?: unknown }).parser;
@@ -1747,6 +1762,7 @@ function normalizeParserIds(form: ParserSearchForm): ParserId[] {
   if (legacyParser === "linkedin" || legacyParser === "indeed" || legacyParser === "jobs_ch") {
     return [legacyParser];
   }
+  if (form.directCompaniesEnabled) return [];
   return [...defaultParserSearchForm.parsers];
 }
 
@@ -2006,6 +2022,11 @@ function normalizeParserSearchConfigs(configs: ParserSearchConfig[]) {
         ...defaultParserSearchForm,
         ...config.form,
         parsers: normalizeParserIds(config.form),
+        directCompaniesEnabled:
+          config.form.directCompaniesEnabled === true,
+        directCompanies: normalizeDirectCompanies(
+          config.form.directCompanies,
+        ),
       },
       filters: isRecord(config.filters)
         ? config.filters
@@ -2052,6 +2073,15 @@ function parserSearchFiltersFromForm(
       searchName: form.searchName.trim(),
       folder: form.folder,
       sources: normalizeParserIds(form),
+      directCompaniesEnabled: form.directCompaniesEnabled === true,
+      directCompanies: normalizeDirectCompanies(form.directCompanies).map(
+        (company) => ({
+          id: company.id,
+          name: company.name.trim(),
+          careersUrl: company.careersUrl.trim(),
+          enabled: company.enabled,
+        }),
+      ),
     },
     screening: currentScreening ?? {
       enabled: true,
@@ -2077,6 +2107,15 @@ function parserSearchConfigFromApi(
           source === "linkedin" || source === "indeed" || source === "jobs_ch",
       )
     : [];
+  const directCompanies = normalizeDirectCompanies(
+    searchFilters.directCompanies ?? searchFilters.direct_companies,
+  );
+  const directCompaniesEnabled =
+    filterBoolean(
+      searchFilters,
+      "directCompaniesEnabled",
+      "direct_companies_enabled",
+    ) ?? directCompanies.length > 0;
   return {
     id: config.id,
     name: config.name,
@@ -2084,7 +2123,12 @@ function parserSearchConfigFromApi(
     updatedAt: config.updatedAt,
     form: {
       ...defaultParserSearchForm,
-      parsers: sources.length > 0 ? sources : [...defaultParserSearchForm.parsers],
+      parsers:
+        sources.length > 0 || directCompaniesEnabled
+          ? sources
+          : [...defaultParserSearchForm.parsers],
+      directCompaniesEnabled,
+      directCompanies,
       keywords: filterString(searchFilters, "keywords"),
       location: filterString(searchFilters, "location"),
       remote:
@@ -2122,6 +2166,62 @@ function parserSearchConfigFromApi(
   };
 }
 
+function normalizeDirectCompanies(value: unknown): DirectCompanyTarget[] {
+  if (!Array.isArray(value)) return [];
+
+  return value.flatMap((item) => {
+    if (!isRecord(item)) return [];
+    const name = filterString(item, "name");
+    const careersUrl = filterString(item, "careersUrl", "careers_url");
+    const id = filterString(item, "id") || createClientId("direct-company");
+    return [
+      {
+        id,
+        name,
+        careersUrl,
+        enabled: filterBoolean(item, "enabled") ?? true,
+      },
+    ];
+  });
+}
+
+function createDirectCompanyTarget(): DirectCompanyTarget {
+  return {
+    id: createClientId("direct-company"),
+    name: "",
+    careersUrl: "",
+    enabled: true,
+  };
+}
+
+function validateDirectCompanies(form: ParserSearchForm): string | null {
+  if (!form.directCompaniesEnabled) return null;
+  if (form.directCompanies.length === 0) {
+    return "Add at least one company careers page";
+  }
+
+  const seenUrls = new Set<string>();
+  for (const [index, company] of form.directCompanies.entries()) {
+    if (!company.name.trim()) return `Enter a name for company ${index + 1}`;
+    const careersUrl = company.careersUrl.trim();
+    if (!careersUrl) return `Enter a careers page URL for ${company.name.trim()}`;
+    try {
+      const parsedUrl = new URL(careersUrl);
+      if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
+        return `Use an http or https careers page URL for ${company.name.trim()}`;
+      }
+      const normalizedUrl = parsedUrl.href.replace(/\/$/, "");
+      if (seenUrls.has(normalizedUrl)) {
+        return `Remove the duplicate careers page for ${company.name.trim()}`;
+      }
+      seenUrls.add(normalizedUrl);
+    } catch {
+      return `Enter a valid careers page URL for ${company.name.trim()}`;
+    }
+  }
+  return null;
+}
+
 function filterString(
   filters: Record<string, unknown>,
   ...keys: string[]
@@ -2148,9 +2248,12 @@ function filterNumber(
 
 function filterBoolean(
   filters: Record<string, unknown>,
-  key: string,
+  ...keys: string[]
 ): boolean | null {
-  return typeof filters[key] === "boolean" ? filters[key] : null;
+  for (const key of keys) {
+    if (typeof filters[key] === "boolean") return filters[key];
+  }
+  return null;
 }
 
 function normalizeStoredLogs(value: unknown) {
@@ -4073,7 +4176,13 @@ export default function HomePage() {
   function toggleParser(parser: ParserId) {
     setParserSearchForm((current) => {
       const isSelected = current.parsers.includes(parser);
-      if (isSelected && current.parsers.length === 1) return current;
+      if (
+        isSelected &&
+        current.parsers.length === 1 &&
+        !current.directCompaniesEnabled
+      ) {
+        return current;
+      }
       return {
         ...current,
         parsers: isSelected
@@ -4081,6 +4190,66 @@ export default function HomePage() {
           : [...current.parsers, parser],
       };
     });
+    setParserSearchStatus("idle");
+    setParserSearchMessage("");
+  }
+
+  function toggleDirectCompanies() {
+    setParserSearchForm((current) => {
+      const directCompaniesEnabled = !current.directCompaniesEnabled;
+      return {
+        ...current,
+        directCompaniesEnabled,
+        parsers:
+          !directCompaniesEnabled && current.parsers.length === 0
+            ? [...defaultParserSearchForm.parsers]
+            : current.parsers,
+        directCompanies:
+          directCompaniesEnabled && current.directCompanies.length === 0
+            ? [createDirectCompanyTarget()]
+            : current.directCompanies,
+      };
+    });
+    setParserSearchStatus("idle");
+    setParserSearchMessage("");
+  }
+
+  function addDirectCompany() {
+    setParserSearchForm((current) => ({
+      ...current,
+      directCompanies: [
+        ...current.directCompanies,
+        createDirectCompanyTarget(),
+      ],
+    }));
+    setParserSearchStatus("idle");
+    setParserSearchMessage("");
+  }
+
+  function updateDirectCompany(
+    companyId: string,
+    field: "name" | "careersUrl" | "enabled",
+    value: string | boolean,
+  ) {
+    setParserSearchForm((current) => ({
+      ...current,
+      directCompanies: current.directCompanies.map((company) =>
+        company.id === companyId
+          ? { ...company, [field]: value }
+          : company,
+      ),
+    }));
+    setParserSearchStatus("idle");
+    setParserSearchMessage("");
+  }
+
+  function removeDirectCompany(companyId: string) {
+    setParserSearchForm((current) => ({
+      ...current,
+      directCompanies: current.directCompanies.filter(
+        (company) => company.id !== companyId,
+      ),
+    }));
     setParserSearchStatus("idle");
     setParserSearchMessage("");
   }
@@ -4141,6 +4310,12 @@ export default function HomePage() {
     if (!configName) {
       setParserSearchStatus("error");
       setParserSearchMessage("Enter a config name before saving");
+      return;
+    }
+    const directCompaniesError = validateDirectCompanies(parserSearchForm);
+    if (directCompaniesError) {
+      setParserSearchStatus("error");
+      setParserSearchMessage(directCompaniesError);
       return;
     }
 
@@ -5426,6 +5601,18 @@ export default function HomePage() {
 
   async function runParsers() {
     const parsers = normalizeParserIds(parserSearchForm);
+    if (parsers.length === 0) {
+      const message =
+        "Direct Companies is configured, but its parser is not connected yet. Save this config to use it when the parser is added.";
+      setParserSearchStatus("ready");
+      setParserSearchMessage(message);
+      appendAppLog({
+        level: "info",
+        area: "Vacancy search",
+        message,
+      });
+      return;
+    }
     const parsersLabel = getParsersLabel(parsers);
     setParserSearchStatus("loading");
     setParserSearchMessage(`Searching ${parsersLabel}...`);
@@ -5484,9 +5671,12 @@ export default function HomePage() {
           : run.jobsFound > 0
             ? `Found ${run.jobsFound} vacancies; all were already saved or deleted`
             : `No vacancies returned from ${parsersLabel}`;
-      const message = run.warning
+      const parserMessage = run.warning
         ? `${finalMessage} · ${run.warning}`
         : finalMessage;
+      const message = parserSearchForm.directCompaniesEnabled
+        ? `${parserMessage} · Direct Companies skipped; parser not connected yet`
+        : parserMessage;
 
       setParserSearchStatus("ready");
       setParserSearchMessage(message);
@@ -6165,6 +6355,35 @@ export default function HomePage() {
                           </button>
                         );
                       })}
+                      <button
+                        type="button"
+                        aria-pressed={parserSearchForm.directCompaniesEnabled}
+                        onClick={toggleDirectCompanies}
+                        className={cn(
+                          "rounded-md border bg-white/[0.035] p-3 text-left transition",
+                          parserSearchForm.directCompaniesEnabled
+                            ? "border-[#8b5cf6] shadow-[0_0_0_1px_rgba(139,92,246,0.20)]"
+                            : "border-border hover:border-white/20 hover:bg-white/[0.055]",
+                        )}
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-[#6d45c8] text-[11px] font-black uppercase tracking-tight text-white">
+                            dc
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h4 className="text-sm font-bold text-white">Direct Companies</h4>
+                              <span className="rounded bg-[#8b5cf6]/20 px-2 py-0.5 text-[10px] font-bold text-[#c8b5ff]">
+                                Setup
+                              </span>
+                            </div>
+                            <p className="mt-1 text-xs font-medium text-muted">Track jobs on company career pages</p>
+                          </div>
+                          <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded border-2", parserSearchForm.directCompaniesEnabled ? "border-[#8b5cf6] bg-[#8b5cf6]" : "border-white/25")}>
+                            {parserSearchForm.directCompaniesEnabled && <Check className="h-3.5 w-3.5 text-white" />}
+                          </span>
+                        </div>
+                      </button>
                     </div>
                   </section>
 
@@ -6187,6 +6406,15 @@ export default function HomePage() {
                     </div>
 
                     <div className="mt-4 grid gap-4">
+                      {parserSearchForm.directCompaniesEnabled && (
+                        <DirectCompaniesSource
+                          companies={parserSearchForm.directCompanies}
+                          onAdd={addDirectCompany}
+                          onChange={updateDirectCompany}
+                          onRemove={removeDirectCompany}
+                        />
+                      )}
+
                       <label className="grid gap-2">
                         <span className="text-xs font-bold text-[#d8dee8]">Job title or keywords</span>
                         <input
@@ -6421,7 +6649,7 @@ export default function HomePage() {
 
               <div className="mt-4 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm font-semibold text-muted">
-                  Sources: <span className="text-white">{getParsersLabel(parserSearchForm.parsers)}</span>
+                  Sources: <span className="text-white">{getSearchSourcesLabel(parserSearchForm)}</span>
                   {parserSearchMessage && (
                     <span className={cn("ml-2", parserSearchStatus === "error" ? "text-[#ff7a7a]" : "text-accent")}>
                       {parserSearchMessage}

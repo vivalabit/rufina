@@ -941,6 +941,115 @@ it("saves and deletes manual-search configs through the API", async () => {
   ).toBeNull();
 });
 
+it("configures direct company career pages without invoking a parser", async () => {
+  window.history.replaceState(null, "", "#jobs");
+  const configWrites: Array<Record<string, unknown>> = [];
+  const runRequests: Array<Record<string, unknown>> = [];
+  const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+    const url = new URL(requestUrl, "http://localhost");
+    const method = init?.method ?? "GET";
+
+    if (url.pathname === "/job-search/configs" && method === "GET") {
+      return Response.json([]);
+    }
+    if (url.pathname === "/job-search/configs" && method === "POST") {
+      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      configWrites.push(body);
+      return Response.json(
+        {
+          id: "direct-companies-config",
+          ...body,
+          createdAt: "2026-08-01T10:00:00.000Z",
+          updatedAt: "2026-08-01T10:00:00.000Z",
+        },
+        { status: 201 },
+      );
+    }
+    if (url.pathname === "/job-search/run" && method === "POST") {
+      runRequests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      throw new Error("Direct Companies must not invoke an unavailable parser");
+    }
+    if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
+    if (url.pathname === "/jobs/dismissed-ids" && method === "GET") {
+      return Response.json([]);
+    }
+    if (url.pathname === "/applications" && method === "GET") {
+      return Response.json([]);
+    }
+    if (url.pathname === "/applications/events" && method === "GET") {
+      return Response.json([]);
+    }
+    if (url.pathname === "/profile" && method === "GET") return Response.json({});
+    if (url.pathname === "/settings" && method === "GET") {
+      return Response.json(configuredAppSettings);
+    }
+    if (
+      (url.pathname === "/applications" ||
+        url.pathname === "/applications/events") &&
+      method === "PUT"
+    ) {
+      return Response.json([]);
+    }
+    throw new Error(`Unhandled request: ${method} ${url.pathname}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<HomePage />);
+  fireEvent.click(await screen.findByRole("button", { name: "Search vacancies" }));
+  fireEvent.click(screen.getByRole("button", { name: /Direct Companies/ }));
+  fireEvent.click(screen.getByRole("button", { name: /LinkedIn/ }));
+
+  expect(screen.getByText("Direct company pages")).toBeInTheDocument();
+  fireEvent.change(screen.getByPlaceholderText("e.g. Acme"), {
+    target: { value: "Acme AG" },
+  });
+  fireEvent.change(
+    screen.getByPlaceholderText("https://company.com/careers"),
+    { target: { value: "https://careers.acme.test/jobs" } },
+  );
+  fireEvent.change(
+    screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
+    { target: { value: "Direct companies" } },
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Save config" }));
+
+  expect(
+    await screen.findByText("Saved config: Direct companies"),
+  ).toBeInTheDocument();
+  expect(configWrites).toHaveLength(1);
+  expect(configWrites[0]).toMatchObject({
+    name: "Direct companies",
+    filters: {
+      schemaVersion: 2,
+      search: {
+        sources: [],
+        directCompaniesEnabled: true,
+        directCompanies: [
+          {
+            name: "Acme AG",
+            careersUrl: "https://careers.acme.test/jobs",
+            enabled: true,
+          },
+        ],
+      },
+    },
+  });
+
+  fireEvent.click(screen.getByRole("button", { name: "Start search" }));
+  expect(
+    await screen.findByText(
+      /Direct Companies is configured, but its parser is not connected yet/,
+    ),
+  ).toBeInTheDocument();
+  expect(runRequests).toHaveLength(0);
+});
+
 it("shows seeded vacancies and calendar events only in demo mode", async () => {
   window.history.replaceState(null, "", "#jobs");
   installApplicationWorkspaceApiMock({
