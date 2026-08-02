@@ -16,5 +16,8 @@ vacancy-search API key.
 | Galaxus     | [Career page](https://jobs.migros.ch/de/unsere-unternehmen/galaxus/)                           | Migros Jobs server-rendered vacancy page |
 
 During a search, Rufina scans all vacancies exposed by the selected company
-source. Already known vacancies are skipped; only new vacancies proceed to the
-configured AI screening and matching pipeline.
+source. Every result is saved in the private `discovered_vacancies` inventory
+before screening. Unchanged vacancies reuse screening decisions, while only
+`keep` vacancies are materialized in the user-facing job list. After a
+successful complete scan, inventory vacancies no longer present in the company
+catalog are marked inactive; failed or partial scans never mark them missing.

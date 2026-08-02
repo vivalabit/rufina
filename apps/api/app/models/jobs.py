@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
-from sqlalchemy import JSON, DateTime, Integer, String
+from sqlalchemy import JSON, CheckConstraint, DateTime, Index, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base, OwnerScoped
@@ -46,6 +46,73 @@ class StoredJobRecord(OwnerScoped, Base):
         index=True,
     )
     dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class DiscoveredVacancyRecord(OwnerScoped, Base):
+    __tablename__ = "discovered_vacancies"
+    __table_args__ = (
+        CheckConstraint(
+            "availability IN ('active', 'inactive')",
+            name="ck_discovered_vacancies_availability",
+        ),
+        Index(
+            "ix_discovered_vacancies_owner_url_hash",
+            "owner_id",
+            "url_hash",
+        ),
+        Index(
+            "ix_discovered_vacancies_owner_identity_hash",
+            "owner_id",
+            "identity_hash",
+        ),
+        Index(
+            "ix_discovered_vacancies_owner_source_availability",
+            "owner_id",
+            "source",
+            "availability",
+        ),
+    )
+
+    owner_id: Mapped[str] = mapped_column(
+        String(160),
+        primary_key=True,
+        default=DEFAULT_OWNER_ID,
+        index=True,
+    )
+    id: Mapped[str] = mapped_column(String(160), primary_key=True)
+    source: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    canonical_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    url_hash: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    identity_hash: Mapped[str] = mapped_column(String(64), nullable=False, default="")
+    vacancy_hash: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    first_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+    )
+    last_seen_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        index=True,
+    )
+    last_seen_run_id: Mapped[str | None] = mapped_column(
+        String(36),
+        nullable=True,
+        index=True,
+    )
+    availability: Mapped[str] = mapped_column(
+        String(16),
+        nullable=False,
+        default="active",
+        server_default="active",
+        index=True,
+    )
+    unavailable_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
 
 class JobMatchRecord(OwnerScoped, Base):

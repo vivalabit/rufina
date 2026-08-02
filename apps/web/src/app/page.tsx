@@ -428,6 +428,9 @@ type JobSearchRunPayload = {
   status: string;
   jobsFound: number;
   jobsAlreadyKnown: number;
+  jobsDiscoveredNew: number;
+  jobsDiscoveredUpdated: number;
+  jobsAlreadyObserved: number;
   jobsScreened: number;
   jobsPassed: number;
   jobsRejected: number;
@@ -435,6 +438,7 @@ type JobSearchRunPayload = {
   jobsAdded: number;
   jobsAnalyzed: number;
   screeningErrors: number;
+  jobsScreeningAiCalls: number;
   sourceErrors: Record<string, string>;
   warning?: string | null;
 };

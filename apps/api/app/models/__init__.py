@@ -1,6 +1,7 @@
 """Domain model exports."""
 
 from app.models.job_screening import JobScreeningDecisionRecord
+from app.models.jobs import DiscoveredVacancyRecord
 from app.models.job_search import (
     JobSearchConfigRecord,
     JobSearchConfigV2,
@@ -85,6 +86,7 @@ __all__ = [
     "ExperienceRewriteRecord",
     "ExperienceRewriteRequest",
     "ExperienceRewriteResponse",
+    "DiscoveredVacancyRecord",
     "FinalResume",
     "ImaginatorClaimLedgerEntry",
     "ImaginatorDraft",

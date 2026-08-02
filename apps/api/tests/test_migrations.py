@@ -129,6 +129,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "job_search_schedules",
             "job_search_runs",
             "job_screening_decisions",
+            "discovered_vacancies",
             "resume_masters",
             "resume_master_versions",
             "resume_source_files",
@@ -156,7 +157,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260802_0034"
+            assert revision == "20260802_0035"
             entry_it = connection.execute(
                 text(
                     "SELECT id, owner_id, name, filters "
@@ -567,6 +568,10 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "jobs_analyzed",
             "screening_errors",
             "warning",
+            "jobs_discovered_new",
+            "jobs_discovered_updated",
+            "jobs_already_observed",
+            "jobs_screening_ai_calls",
         }
     finally:
         engine.dispose()
@@ -1089,7 +1094,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260802_0034"
+            assert revision == "20260802_0035"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
@@ -1129,7 +1134,7 @@ def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> Non
                     "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
                 )
             ).scalar_one()
-        assert revision == "20260802_0034"
+        assert revision == "20260802_0035"
         assert entry_it_count == 1
         assert LEGACY_RECOVERABLE_MISSING_TABLES <= set(
             inspect(engine).get_table_names()
@@ -1177,6 +1182,74 @@ def test_job_soft_delete_migration_preserves_existing_jobs(tmp_path) -> None:
             assert row.search_config_version is None
             assert row.screening_config_hash is None
             assert row.screening_config_snapshot is None
+    finally:
+        engine.dispose()
+
+
+def test_discovered_vacancy_migration_backfills_only_imported_stored_jobs(
+    tmp_path,
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'discovered-vacancies.sqlite'}"
+    config = get_alembic_config(database_url)
+    command.upgrade(config, "20260802_0034")
+    added_at = "2026-07-31T08:30:00+00:00"
+
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO stored_jobs "
+                    "(owner_id, id, data, status) VALUES "
+                    "('inventory-owner', 'linkedin-imported-42', :imported, 'active'), "
+                    "('inventory-owner', 'manual-saved-42', :manual, 'active')"
+                ),
+                {
+                    "imported": json.dumps(
+                        {
+                            "id": "linkedin-imported-42",
+                            "title": "Imported Engineer",
+                            "company": "Example AG",
+                            "location": "Zurich",
+                            "overview": "Build the platform",
+                            "sourceUrl": (
+                                "https://example.test/jobs/42?tracking=legacy"
+                            ),
+                            "addedAt": added_at,
+                        }
+                    ),
+                    "manual": json.dumps(
+                        {
+                            "id": "manual-saved-42",
+                            "title": "Manual vacancy",
+                        }
+                    ),
+                },
+            )
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            rows = connection.execute(
+                text(
+                    "SELECT owner_id, id, source, canonical_url, "
+                    "first_seen_at, availability, vacancy_hash "
+                    "FROM discovered_vacancies"
+                )
+            ).mappings().all()
+        assert len(rows) == 1
+        row = rows[0]
+        assert row["owner_id"] == "inventory-owner"
+        assert row["id"] == "linkedin-imported-42"
+        assert row["source"] == "linkedin"
+        assert row["canonical_url"] == "https://example.test/jobs/42"
+        assert str(row["first_seen_at"]).startswith("2026-07-31 08:30:00")
+        assert row["availability"] == "active"
+        assert len(row["vacancy_hash"]) == 64
     finally:
         engine.dispose()
 

@@ -12,6 +12,7 @@ class DirectCompanyParserDefinition:
     careers_url: str
     parser_path: str
     settings_map: tuple[tuple[str, str], ...] = ()
+    full_catalog: bool = True
 
 
 # Keep company-specific imports out of the central search runner. Adding a company

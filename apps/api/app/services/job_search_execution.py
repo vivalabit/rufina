@@ -1,4 +1,3 @@
-import re
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -37,6 +36,13 @@ from app.services.ai_privacy import (
 from app.services.candidate_snapshot import (
     CandidateSnapshotError,
     get_candidate_match_snapshot,
+)
+from app.services.discovered_vacancies import (
+    DiscoveredVacancyUpsertResult,
+    compact_screening_data,
+    mark_missing_vacancies_inactive,
+    stable_job_id,
+    upsert_discovered_vacancies,
 )
 from app.services.job_match_store import persist_job_and_match
 from app.services.job_screening import (
@@ -103,6 +109,7 @@ class ScreeningPipelineResult:
     jobs_rejected: int = 0
     jobs_uncertain: int = 0
     screening_errors: int = 0
+    jobs_screening_ai_calls: int = 0
     warning: str | None = None
 
 
@@ -160,6 +167,9 @@ def execute_job_search(
         run.status = "running"
         run.jobs_found = 0
         run.jobs_already_known = 0
+        run.jobs_discovered_new = 0
+        run.jobs_discovered_updated = 0
+        run.jobs_already_observed = 0
         run.jobs_screened = 0
         run.jobs_passed = 0
         run.jobs_rejected = 0
@@ -167,6 +177,7 @@ def execute_job_search(
         run.jobs_added = 0
         run.jobs_analyzed = 0
         run.screening_errors = 0
+        run.jobs_screening_ai_calls = 0
         run.warning = None
         run.source_errors = {}
         run.started_at = started_at
@@ -234,9 +245,33 @@ def execute_job_search(
         db.commit()
         raise
 
-    candidates, jobs_already_known = prepare_new_job_candidates(
+    discovered_at = datetime.now(UTC)
+    inventory_result = upsert_discovered_vacancies(
         db,
         jobs=search_result.jobs,
+        run_id=run.id,
+        seen_at=discovered_at,
+        max_description_chars=settings.job_screening_max_description_chars,
+    )
+    reconcile_full_catalog_inventory(
+        db,
+        search_result=search_result,
+        inventory_result=inventory_result,
+        unavailable_at=discovered_at,
+    )
+    run.jobs_found = len(search_result.jobs)
+    run.jobs_discovered_new = inventory_result.jobs_discovered_new
+    run.jobs_discovered_updated = inventory_result.jobs_discovered_updated
+    run.jobs_already_observed = inventory_result.jobs_already_observed
+    run.source_errors = search_result.source_errors
+    db.commit()
+
+    candidates, jobs_already_known = prepare_new_job_candidates(
+        db,
+        jobs=[snapshot.job for snapshot in inventory_result.vacancies],
+        resolved_job_ids=[
+            snapshot.job_id for snapshot in inventory_result.vacancies
+        ],
     )
     screening_result = screen_new_job_candidates(
         db,
@@ -272,7 +307,6 @@ def execute_job_search(
             ),
         ),
     )
-    run.jobs_found = len(search_result.jobs)
     run.jobs_already_known = jobs_already_known
     run.jobs_screened = screening_result.jobs_screened
     run.jobs_passed = screening_result.jobs_passed
@@ -281,6 +315,7 @@ def execute_job_search(
     run.jobs_added = len(new_jobs)
     run.jobs_analyzed = 0
     run.screening_errors = screening_result.screening_errors
+    run.jobs_screening_ai_calls = screening_result.jobs_screening_ai_calls
     run.warning = screening_result.warning
     run.source_errors = search_result.source_errors
     run.status = (
@@ -435,11 +470,41 @@ def source_requests_from_snapshot(
     return requests
 
 
+def reconcile_full_catalog_inventory(
+    db: Session,
+    *,
+    search_result: VacancySearchRunResult,
+    inventory_result: DiscoveredVacancyUpsertResult,
+    unavailable_at: datetime,
+) -> None:
+    seen_job_ids = {
+        snapshot.job_id for snapshot in inventory_result.vacancies
+    }
+    for source, source_result in search_result.source_results.items():
+        definition = direct_company_definition(source)
+        if (
+            definition is None
+            or not definition.full_catalog
+            or source in search_result.source_errors
+            or source_result.status != "completed"
+        ):
+            continue
+        mark_missing_vacancies_inactive(
+            db,
+            source=source,
+            seen_job_ids=seen_job_ids,
+            unavailable_at=unavailable_at,
+        )
+
+
 def prepare_new_job_candidates(
     db: Session,
     *,
     jobs: list[ParsedJob],
+    resolved_job_ids: list[str] | None = None,
 ) -> tuple[list[NewJobCandidate], int]:
+    if resolved_job_ids is not None and len(resolved_job_ids) != len(jobs):
+        raise ValueError("resolved_job_ids must match jobs")
     records = db.scalars(select(StoredJobRecord)).all()
     existing_ids = {record.id for record in records}
     existing_urls = {
@@ -453,7 +518,11 @@ def prepare_new_job_candidates(
     candidates: list[NewJobCandidate] = []
 
     for index, job in enumerate(jobs):
-        job_id = parsed_job_id(job, index=index)
+        job_id = (
+            resolved_job_ids[index]
+            if resolved_job_ids is not None
+            else parsed_job_id(job, index=index)
+        )
         url_key = canonical_job_url(job.url)
         identity_key = job_identity(job)
         if (
@@ -525,6 +594,7 @@ def screen_new_job_candidates(
 
     consent = privacy_settings_record(db, get_bound_owner_id())
     external_screening_attempted = False
+    ai_calls = 0
     missing_consent = bool(
         uncached and not has_current_ai_consent(consent, settings)
     )
@@ -554,6 +624,7 @@ def screen_new_job_candidates(
                 batch = uncached[offset : offset + batch_size]
                 expected_ids = [candidate.job_id for candidate in batch]
                 try:
+                    ai_calls += 1
                     raw_decisions = facade.screen(
                         screening_config,
                         [compact_jobs[job_id] for job_id in expected_ids],
@@ -651,6 +722,7 @@ def screen_new_job_candidates(
             decision.decision == "uncertain" for decision in ordered_decisions
         ),
         screening_errors=error_count,
+        jobs_screening_ai_calls=ai_calls,
         warning=warning,
     )
 
@@ -661,21 +733,7 @@ def compact_screening_job(candidate: NewJobCandidate) -> dict[str, Any]:
             **candidate.compact_data,
             "id": candidate.job_id,
         }
-    job = candidate.job
-    return {
-        "id": candidate.job_id,
-        "title": job.title or "",
-        "company": job.company or "",
-        "location": job.location or "",
-        "description": job.description or "",
-        "employmentType": job.employment_type or "",
-        "seniority": job.seniority or "",
-        "source": job.source,
-        "postedAt": job.posted_at or "",
-        "salaryMin": job.salary_min,
-        "salaryMax": job.salary_max,
-        "salaryCurrency": job.salary_currency or "",
-    }
+    return compact_screening_data(candidate.job, job_id=candidate.job_id)
 
 
 def screening_error_decision(
@@ -840,14 +898,8 @@ def match_new_jobs_if_allowed(
 
 
 def parsed_job_id(job: ParsedJob, *, index: int) -> str:
-    source = normalize_source(job.source)
-    identity = (
-        job.url
-        or f"{job.title or f'{source}-job'}-{job.company or 'company'}-"
-        f"{job.location or 'location'}-{index}"
-    )
-    slug = re.sub(r"[^a-z0-9]+", "-", identity.casefold()).strip("-")[:96]
-    return f"{source}-{slug or uuid4().hex}"
+    del index
+    return stable_job_id(job)
 
 
 def parsed_job_to_stored_job(

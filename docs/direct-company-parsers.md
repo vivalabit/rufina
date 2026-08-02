@@ -46,19 +46,53 @@ is added.
 5. `VacancySearchRunner` merges the results and deduplicates them by canonical
    URL or `title + company + location`. A failure in one company is recorded in
    `source_errors` without discarding successful results from other sources.
-6. `prepare_new_job_candidates()` compares vacancies with `StoredJobRecord`
-   entries by stable job ID, canonical URL, and identity. Known vacancies are
-   not processed further.
-7. When screening is enabled, only new candidates are sent to AI in batches.
+6. Every deduplicated parser result is upserted into the owner-scoped
+   `discovered_vacancies` inventory by stable job ID, canonical URL, or
+   normalized `title + company + location`. This write is committed before AI
+   screening, so missing consent, timeouts, and model failures do not lose a
+   discovered vacancy.
+7. `prepare_new_job_candidates()` compares inventory vacancies with
+   `StoredJobRecord` entries by stable job ID, canonical URL, and identity.
+   Active and dismissed user records are not processed further.
+8. When screening is enabled, only candidates without a reusable decision are
+   sent to AI in batches.
    Decisions are cached by vacancy hash, configuration hash, model, and prompt
-   version. Only vacancies with a `keep` decision are persisted; `reject`,
-   `uncertain`, and screening errors are not added. External AI processing
-   requires current user consent.
-8. Persisted new vacancies can additionally receive an AI match against the
+   version. A cached `keep` can materialize a missing user record, while cached
+   `reject` and `uncertain` decisions remain inventory-only. Screening errors
+   are retried. External AI processing requires current user consent.
+9. Only a `keep` decision creates a `StoredJobRecord`; `reject`, `uncertain`,
+   and screening errors never enter the user-facing `/jobs` list.
+10. Persisted new vacancies can additionally receive an AI match against the
    candidate profile when `aiAnalysisEnabled` is enabled. This is a separate
    stage that runs after screening.
-9. A stored vacancy ID begins with `<source-id>-`. The frontend uses this prefix
+11. A stored vacancy ID begins with `<source-id>-`. The frontend uses this prefix
    to find the company in its catalog and display the correct logo.
+
+## Persistent Vacancy Inventory
+
+The persistence layers have separate responsibilities:
+
+- `discovered_vacancies` is the complete technical catalog of normalized
+  vacancies observed by parsers, including rejected and uncertain results;
+- `job_screening_decisions` is append-only screening audit and cache data for a
+  specific vacancy/config/model/prompt identity;
+- `stored_jobs` is the user-facing list used by applications, documents,
+  matching, dismiss, and related workflows.
+
+Changing screening-relevant vacancy content changes `vacancy_hash` and causes a
+new decision. Changing the screening filter, model, or prompt version also
+causes a new decision without deleting old audit history. A keep from one
+configuration never makes a later ordinary search hide an active user record,
+and a dismissed record always takes precedence.
+
+Direct Company registry entries declare `full_catalog=True`. After a successful
+`completed` scan, active inventory records from that source that were not seen
+are marked `inactive` and receive `unavailable_at`. A failed, timed-out, queued,
+running, or otherwise partial scan must not mark vacancies unavailable.
+
+Run statistics distinguish new, changed, and unchanged inventory observations
+(`jobsDiscoveredNew`, `jobsDiscoveredUpdated`, `jobsAlreadyObserved`) and count
+new external screening batches separately (`jobsScreeningAiCalls`).
 
 The main orchestration code is located in:
 

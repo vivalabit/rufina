@@ -15,7 +15,7 @@ from app.core.database import Base, get_db
 from app.core.settings import Settings, get_settings
 from app.main import app
 from app.models.job_screening import JobScreeningDecisionRecord
-from app.models.jobs import StoredJobRecord
+from app.models.jobs import DiscoveredVacancyRecord, StoredJobRecord
 from app.models.parsers import ParsedJob, ParserSearchResponse
 from app.models.privacy import AiPrivacySettingsRecord
 from app.services import job_search_execution
@@ -477,6 +477,10 @@ def test_manual_screening_persists_and_matches_only_keep_and_reuses_cache(
     assert first.json()["status"] == "completed"
     assert first.json()["jobsFound"] == 3
     assert first.json()["jobsAlreadyKnown"] == 0
+    assert first.json()["jobsDiscoveredNew"] == 3
+    assert first.json()["jobsDiscoveredUpdated"] == 0
+    assert first.json()["jobsAlreadyObserved"] == 0
+    assert first.json()["jobsScreeningAiCalls"] == 1
     assert first.json()["jobsScreened"] == 3
     assert first.json()["jobsPassed"] == 1
     assert first.json()["jobsRejected"] == 1
@@ -549,6 +553,10 @@ def test_manual_screening_persists_and_matches_only_keep_and_reuses_cache(
 
     assert second.status_code == 200
     assert second.json()["jobsAlreadyKnown"] == 1
+    assert second.json()["jobsDiscoveredNew"] == 0
+    assert second.json()["jobsDiscoveredUpdated"] == 0
+    assert second.json()["jobsAlreadyObserved"] == 3
+    assert second.json()["jobsScreeningAiCalls"] == 0
     assert second.json()["jobsScreened"] == 2
     assert second.json()["jobsPassed"] == 0
     assert second.json()["jobsRejected"] == 1
@@ -559,12 +567,24 @@ def test_manual_screening_persists_and_matches_only_keep_and_reuses_cache(
     assert matched_batches[1] == []
 
     with api_context.sessions() as db:
+        inventory = list(
+            db.scalars(
+                select(DiscoveredVacancyRecord).where(
+                    DiscoveredVacancyRecord.owner_id == owner_id
+                )
+            ).all()
+        )
         decisions = list(
             db.scalars(
                 select(JobScreeningDecisionRecord)
                 .where(JobScreeningDecisionRecord.owner_id == owner_id)
             ).all()
         )
+    assert len(inventory) == 3
+    assert {record.id for record in inventory} == {
+        parsed_job_id(job, index=index) for index, job in enumerate(jobs)
+    }
+    assert all(record.availability == "active" for record in inventory)
     assert len(decisions) == 3
     assert {decision.decision for decision in decisions} == {
         "keep",
@@ -728,6 +748,132 @@ def test_screening_audit_is_owner_scoped_rechecks_and_allows_without_full_match(
         for item in api_context.client.get("/jobs", headers=headers).json()
     } == {"Cashier", "Salesperson"}
     assert expensive_match.call_count == 0
+
+
+def test_inventory_rescreens_rejected_vacancy_when_cache_identity_changes(
+    api_context: ApiContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner_id = "inventory-rescreen-owner"
+    headers = {"X-Rufina-Owner-Id": owner_id}
+    job = parsed_job(
+        title="Rejected Platform Engineer",
+        url="https://www.linkedin.com/jobs/view/inventory-rescreen",
+    )
+    runner = FakeRunner(
+        VacancySearchRunResult(
+            jobs=[job],
+            source_results={"linkedin": completed_response("linkedin", [job])},
+            source_errors={},
+        )
+    )
+    facade = FakeScreeningFacade({job.title: "reject"})
+    monkeypatch.setattr(
+        job_search_api,
+        "create_vacancy_search_runner",
+        lambda _settings: runner,
+    )
+    monkeypatch.setattr(
+        job_search_execution,
+        "create_job_screening_ai_facade",
+        lambda _settings: facade,
+    )
+    grant_ai_consent(api_context, owner_id=owner_id)
+    config_id, schedule_id = create_search(
+        api_context.client,
+        headers,
+        filters=screening_filters(),
+    )
+
+    first = api_context.client.post(
+        f"/job-search/schedules/{schedule_id}/run",
+        headers=headers,
+    )
+    unchanged = api_context.client.post(
+        f"/job-search/schedules/{schedule_id}/run",
+        headers=headers,
+    )
+    assert first.json()["jobsScreeningAiCalls"] == 1
+    assert unchanged.json()["jobsScreeningAiCalls"] == 0
+    assert len(facade.calls) == 1
+
+    changed_job = job.model_copy(
+        update={"description": "Materially changed vacancy description"}
+    )
+    runner.result = VacancySearchRunResult(
+        jobs=[changed_job],
+        source_results={
+            "linkedin": completed_response("linkedin", [changed_job])
+        },
+        source_errors={},
+    )
+    changed = api_context.client.post(
+        f"/job-search/schedules/{schedule_id}/run",
+        headers=headers,
+    )
+    assert changed.json()["jobsDiscoveredUpdated"] == 1
+    assert changed.json()["jobsScreeningAiCalls"] == 1
+
+    changed_filters = screening_filters()
+    changed_filters["screening"]["targetRoles"] = ["Platform Engineer"]
+    config_update = api_context.client.patch(
+        f"/job-search/configs/{config_id}",
+        headers=headers,
+        json={"filters": changed_filters},
+    )
+    assert config_update.status_code == 200
+    changed_config = api_context.client.post(
+        f"/job-search/schedules/{schedule_id}/run",
+        headers=headers,
+    )
+    assert changed_config.json()["jobsScreeningAiCalls"] == 1
+
+    monkeypatch.setattr(
+        api_context.settings,
+        "job_screening_model",
+        "inventory-test-model-v2",
+    )
+    changed_model = api_context.client.post(
+        f"/job-search/schedules/{schedule_id}/run",
+        headers=headers,
+    )
+    assert changed_model.json()["jobsScreeningAiCalls"] == 1
+
+    monkeypatch.setattr(
+        job_search_execution,
+        "JOB_SCREENING_PROMPT_VERSION",
+        "job-screening-prompt-inventory-test-v2",
+    )
+    changed_prompt = api_context.client.post(
+        f"/job-search/schedules/{schedule_id}/run",
+        headers=headers,
+    )
+    assert changed_prompt.json()["jobsScreeningAiCalls"] == 1
+    assert len(facade.calls) == 5
+    assert api_context.client.get("/jobs", headers=headers).json() == []
+
+    with api_context.sessions() as db:
+        decisions = list(
+            db.scalars(
+                select(JobScreeningDecisionRecord).where(
+                    JobScreeningDecisionRecord.owner_id == owner_id
+                )
+            ).all()
+        )
+        inventory = list(
+            db.scalars(
+                select(DiscoveredVacancyRecord).where(
+                    DiscoveredVacancyRecord.owner_id == owner_id
+                )
+            ).all()
+        )
+    assert len(decisions) == 5
+    assert len({decision.vacancy_hash for decision in decisions}) == 2
+    assert len({decision.config_hash for decision in decisions}) == 2
+    assert len({decision.model for decision in decisions}) == 2
+    assert len({decision.prompt_version for decision in decisions}) == 2
+    assert len(inventory) == 1
+    assert inventory[0].data["description"] == changed_job.description
 
 
 def test_final_screening_matrix_only_persists_and_analyzes_entry_product_manager(
@@ -919,6 +1065,33 @@ def test_screening_without_consent_is_uncertain_and_never_calls_models(
     assert len(audit) == 1
     assert audit[0]["decision"] == "uncertain"
     assert audit[0]["reasonCode"] == "screening_error"
+    with api_context.sessions() as db:
+        inventory = list(
+            db.scalars(
+                select(DiscoveredVacancyRecord).where(
+                    DiscoveredVacancyRecord.owner_id == owner_id
+                )
+            ).all()
+        )
+    assert len(inventory) == 1
+    assert inventory[0].data["title"] == job.title
+
+    retry_facade = FakeScreeningFacade({job.title: "reject"})
+    monkeypatch.setattr(
+        job_search_execution,
+        "create_job_screening_ai_facade",
+        lambda _settings: retry_facade,
+    )
+    grant_ai_consent(api_context, owner_id=owner_id)
+    retry = api_context.client.post(
+        f"/job-search/schedules/{schedule_id}/run",
+        headers=headers,
+    )
+    assert retry.status_code == 200
+    assert retry.json()["jobsScreeningAiCalls"] == 1
+    assert retry.json()["jobsRejected"] == 1
+    assert len(retry_facade.calls) == 1
+    assert api_context.client.get("/jobs", headers=headers).json() == []
 
 
 def test_manual_screening_error_is_partial_and_fail_closed(

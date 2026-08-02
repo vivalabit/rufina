@@ -262,6 +262,24 @@ class JobSearchRunRecord(OwnerScoped, Base):
         default=0,
         server_default=text("0"),
     )
+    jobs_discovered_new: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+    )
+    jobs_discovered_updated: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+    )
+    jobs_already_observed: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+    )
     jobs_screened: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
@@ -294,6 +312,12 @@ class JobSearchRunRecord(OwnerScoped, Base):
         server_default=text("0"),
     )
     screening_errors: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=0,
+        server_default=text("0"),
+    )
+    jobs_screening_ai_calls: Mapped[int] = mapped_column(
         Integer,
         nullable=False,
         default=0,
@@ -1117,6 +1141,9 @@ class JobSearchRunPayload(BaseModel):
     status: str
     jobs_found: int = Field(alias="jobsFound", ge=0)
     jobs_already_known: int = Field(alias="jobsAlreadyKnown", ge=0)
+    jobs_discovered_new: int = Field(alias="jobsDiscoveredNew", ge=0)
+    jobs_discovered_updated: int = Field(alias="jobsDiscoveredUpdated", ge=0)
+    jobs_already_observed: int = Field(alias="jobsAlreadyObserved", ge=0)
     jobs_screened: int = Field(alias="jobsScreened", ge=0)
     jobs_passed: int = Field(alias="jobsPassed", ge=0)
     jobs_rejected: int = Field(alias="jobsRejected", ge=0)
@@ -1124,6 +1151,7 @@ class JobSearchRunPayload(BaseModel):
     jobs_added: int = Field(alias="jobsAdded", ge=0)
     jobs_analyzed: int = Field(alias="jobsAnalyzed", ge=0)
     screening_errors: int = Field(alias="screeningErrors", ge=0)
+    jobs_screening_ai_calls: int = Field(alias="jobsScreeningAiCalls", ge=0)
     source_errors: dict[str, str] = Field(alias="sourceErrors")
     started_at: datetime = Field(alias="startedAt")
     completed_at: datetime | None = Field(alias="completedAt")
