@@ -10,16 +10,22 @@ const companies: DirectCompanyDefinition[] = [
     id: "alpha",
     name: "Alpha Labs",
     careersUrl: "https://alpha.example/careers",
+    logoSrc: "/company-logos/alpha.svg",
+    logoAlt: "Alpha Labs logo",
   },
   {
     id: "beta",
     name: "Beta Systems",
     careersUrl: "https://jobs.beta.example",
+    logoSrc: "/company-logos/beta.svg",
+    logoAlt: "Beta Systems logo",
   },
   {
     id: "gamma",
     name: "Gamma AG",
     careersUrl: "https://gamma.example/jobs",
+    logoSrc: "/company-logos/gamma.svg",
+    logoAlt: "Gamma AG logo",
   },
 ];
 

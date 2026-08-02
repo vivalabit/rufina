@@ -302,6 +302,7 @@ describe("AutoSearchDialog", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Create first rule" }),
     );
+    fireEvent.click(screen.getByRole("button", { name: "Indeed" }));
 
     fireEvent.change(screen.getByLabelText("Rule name"), {
       target: { value: "Daily backend roles" },
@@ -380,7 +381,7 @@ describe("AutoSearchDialog", () => {
       body: {
         name: "Daily backend roles",
         configId: config.id,
-        sources: ["linkedin"],
+        sources: ["linkedin", "indeed"],
       },
     });
   });

@@ -94,6 +94,128 @@ class FakeScreeningFacade:
         ]
 
 
+def test_manual_run_uses_source_specific_queries_from_preset(
+    api_context: ApiContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers = {"X-Rufina-Owner-Id": "preset-run-owner"}
+    runner = FakeRunner(
+        VacancySearchRunResult(jobs=[], source_results={}, source_errors={})
+    )
+    monkeypatch.setattr(
+        job_search_api,
+        "create_vacancy_search_runner",
+        lambda _settings: runner,
+    )
+    profile = api_context.client.post(
+        "/job-search/configs",
+        headers=headers,
+        json={
+            "name": "Entry IT",
+            "filters": {
+                "schemaVersion": 2,
+                "search": {"keywords": "common direct-company query"},
+                "screening": {"enabled": True},
+            },
+        },
+    ).json()
+    source_config_ids: dict[str, str] = {}
+    for source, keywords in (
+        ("linkedin", "linkedin api query"),
+        ("indeed", "indeed api query"),
+        ("jobs_ch", "jobs.ch web query"),
+    ):
+        source_config = api_context.client.post(
+            "/job-search/source-configs",
+            headers=headers,
+            json={
+                "name": source,
+                "configId": profile["id"],
+                "source": source,
+                "filters": {"keywords": keywords, "resultsLimit": 10},
+            },
+        )
+        assert source_config.status_code == 201
+        source_config_ids[source] = source_config.json()["id"]
+    preset = api_context.client.post(
+        "/job-search/presets",
+        headers=headers,
+        json={
+            "name": "All Entry IT sources",
+            "configId": profile["id"],
+            "sources": ["linkedin", "indeed", "jobs_ch", "sbb"],
+            "sourceConfigIds": source_config_ids,
+        },
+    )
+    assert preset.status_code == 201
+
+    response = api_context.client.post(
+        "/job-search/run",
+        headers=headers,
+        json={
+            "presetId": preset.json()["id"],
+            "aiAnalysisEnabled": False,
+        },
+    )
+
+    assert response.status_code == 200
+    request = runner.requests[0]
+    assert request["request"].keywords == "common direct-company query"
+    assert {
+        source: source_request.keywords
+        for source, source_request in request["source_requests"].items()
+    } == {
+        "linkedin": "linkedin api query",
+        "indeed": "indeed api query",
+        "jobs_ch": "jobs.ch web query",
+    }
+    snapshot = response.json()["configSnapshot"]
+    assert set(snapshot["sourceConfigs"]) == {"linkedin", "indeed", "jobs_ch"}
+    assert snapshot["sourceConfigs"]["indeed"]["id"] == source_config_ids["indeed"]
+
+
+def test_manual_run_uses_explicit_direct_company_source_with_common_config(
+    api_context: ApiContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner = FakeRunner(
+        VacancySearchRunResult(
+            jobs=[],
+            source_results={},
+            source_errors={},
+        )
+    )
+    monkeypatch.setattr(
+        job_search_api,
+        "create_vacancy_search_runner",
+        lambda _settings: runner,
+    )
+
+    response = api_context.client.post(
+        "/job-search/run",
+        headers={"X-Rufina-Owner-Id": "direct-company-owner"},
+        json={
+            "config": {
+                "name": "SBB direct search",
+                "filters": {
+                    "schemaVersion": 2,
+                    "search": {
+                        "keywords": "lokführer",
+                    },
+                    "screening": {"enabled": True},
+                },
+            },
+            "sources": ["linkedin", "sbb"],
+            "aiAnalysisEnabled": False,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["sources"] == ["linkedin", "sbb"]
+    assert runner.requests[0]["sources"] == ["linkedin", "sbb"]
+    assert runner.requests[0]["request"].keywords == "lokführer"
+
+
 def test_manual_run_accepts_inline_config_without_creating_schedule(
     api_context: ApiContext,
     monkeypatch: pytest.MonkeyPatch,

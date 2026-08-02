@@ -23,7 +23,7 @@ services:
       BRIGHTDATA_API_KEY: ${BRIGHTDATA_API_KEY:-}
       OPENCLAW_COMMAND: openclaw
       OPENCLAW_AGENT_ID: rufina-assistant
-      JOB_SCREENING_MODEL: ${JOB_SCREENING_MODEL:-openai/gpt-5-mini}
+      JOB_SCREENING_MODEL: ${JOB_SCREENING_MODEL:-openai/gpt-5.6-luna}
       JOB_SCREENING_REASONING: ${JOB_SCREENING_REASONING:-none}
       JOB_SCREENING_BATCH_SIZE: ${JOB_SCREENING_BATCH_SIZE:-10}
       JOB_SCREENING_TIMEOUT_SECONDS: ${JOB_SCREENING_TIMEOUT_SECONDS:-60}
@@ -101,7 +101,7 @@ services:
       POSTGRES_USER: tasko
       POSTGRES_PASSWORD: tasko
     ports:
-      - "127.0.0.1:${POSTGRES_PORT:-5432}:5432"
+      - "127.0.0.1:${POSTGRES_PORT:-5433}:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:

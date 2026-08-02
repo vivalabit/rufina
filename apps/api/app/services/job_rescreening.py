@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.core.identity import get_bound_owner_id
 from app.core.settings import Settings
+from app.core.vacancy_sources import SUPPORTED_VACANCY_SOURCE_IDS
 from app.models.job_search import (
     JobSearchConfigRecord,
     JobSearchRescreenConfigGroupPayload,
@@ -37,7 +38,7 @@ from app.services.job_search_execution import (
 ACTIVE_JOB_STATUS = "active"
 DISMISSED_JOB_STATUS = "dismissed"
 SCREENED_OUT_JOB_STATUS = "screened_out"
-IMPORTED_JOB_SOURCES = ("linkedin", "indeed", "jobs_ch")
+IMPORTED_JOB_SOURCES = SUPPORTED_VACANCY_SOURCE_IDS
 
 
 class JobRescreeningError(RuntimeError):

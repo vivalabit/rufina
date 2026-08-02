@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { directCompanyCatalog } from "@/lib/direct-company-catalog";
 import { cn } from "@/lib/utils";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -27,7 +28,11 @@ const sourceOptions = [
   { id: "linkedin", label: "LinkedIn" },
   { id: "indeed", label: "Indeed" },
   { id: "jobs_ch", label: "jobs.ch" },
-] as const;
+  ...directCompanyCatalog.map((company) => ({
+    id: company.id,
+    label: company.name,
+  })),
+];
 const weekdayOptions = [
   { id: 0, short: "Mon", label: "Monday" },
   { id: 1, short: "Tue", label: "Tuesday" },
@@ -85,7 +90,7 @@ const screeningOperatorOptions = [
   ["matches", "matches regex"],
 ] as const;
 
-type JobSearchSource = (typeof sourceOptions)[number]["id"];
+type JobSearchSource = string;
 type JobSearchFrequency = "daily" | "weekdays" | "selected_days";
 type ScreeningSeniority = (typeof seniorityOptions)[number]["id"];
 
@@ -110,7 +115,9 @@ export type JobSearchSchedule = {
   id: string;
   name: string;
   configId: string;
+  presetId?: string | null;
   sources: JobSearchSource[];
+  sourceConfigIds?: Record<string, string>;
   frequency: JobSearchFrequency;
   weekdays: number[];
   localTime: string;
@@ -119,6 +126,26 @@ export type JobSearchSchedule = {
   enabled: boolean;
   nextRunAt: string | null;
   lastRunAt: string | null;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type JobSourceConfig = {
+  id: string;
+  name: string;
+  configId: string;
+  source: JobSearchSource;
+  filters: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type JobSearchPreset = {
+  id: string;
+  name: string;
+  configId: string;
+  sources: JobSearchSource[];
+  sourceConfigIds: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 };
@@ -157,6 +184,8 @@ type ScheduleDraft = {
   mode: EditorMode;
   name: string;
   sources: JobSearchSource[];
+  presetId: string;
+  sourceConfigIds: Record<string, string>;
   configId: string;
   createConfig: boolean;
   configName: string;
@@ -185,6 +214,8 @@ function defaultDraft(): ScheduleDraft {
     mode: "create",
     name: "",
     sources: ["linkedin"],
+    presetId: "",
+    sourceConfigIds: {},
     configId: "",
     createConfig: true,
     configName: "",
@@ -215,6 +246,8 @@ export function AutoSearchDialog({
 }: AutoSearchDialogProps) {
   const [view, setView] = useState<"list" | "form" | "audit">("list");
   const [configs, setConfigs] = useState<JobSearchConfig[]>([]);
+  const [sourceConfigs, setSourceConfigs] = useState<JobSourceConfig[]>([]);
+  const [presets, setPresets] = useState<JobSearchPreset[]>([]);
   const [schedules, setSchedules] = useState<JobSearchSchedule[]>([]);
   const [auditEntries, setAuditEntries] = useState<JobScreeningAuditEntry[]>([]);
   const [draft, setDraft] = useState<ScheduleDraft>(defaultDraft);
@@ -259,11 +292,15 @@ export function AutoSearchDialog({
   async function loadSearchData() {
     setStatus("loading");
     try {
-      const [nextConfigs, nextSchedules] = await Promise.all([
+      const [nextConfigs, nextSourceConfigs, nextPresets, nextSchedules] = await Promise.all([
         requestJson<JobSearchConfig[]>("/job-search/configs"),
+        requestJson<JobSourceConfig[]>("/job-search/source-configs").catch(() => []),
+        requestJson<JobSearchPreset[]>("/job-search/presets").catch(() => []),
         requestJson<JobSearchSchedule[]>("/job-search/schedules"),
       ]);
       setConfigs(nextConfigs);
+      setSourceConfigs(nextSourceConfigs);
+      setPresets(nextPresets);
       setSchedules(nextSchedules);
       setStatus("idle");
     } catch (error) {
@@ -335,7 +372,15 @@ export function AutoSearchDialog({
 
   function openCreate() {
     const next = defaultDraft();
-    if (configs.length > 0) {
+    const preset = presets[0];
+    if (preset) {
+      const config = configById.get(preset.configId);
+      if (config) applyConfigToDraft(next, config);
+      next.createConfig = false;
+      next.presetId = preset.id;
+      next.sources = [...preset.sources];
+      next.sourceConfigIds = { ...preset.sourceConfigIds };
+    } else if (configs.length > 0) {
       applyConfigToDraft(next, configs[0]);
       next.createConfig = false;
     }
@@ -374,11 +419,18 @@ export function AutoSearchDialog({
     setStatus("saving");
     setMessage("");
     try {
-      const configId = await saveConfigForDraft(draft, configById);
+      const configId = draft.presetId
+        ? draft.configId
+        : await saveConfigForDraft(draft, configById);
       const schedulePayload = {
         name: draft.name.trim(),
-        configId,
-        sources: draft.sources,
+        ...(draft.presetId
+          ? { presetId: draft.presetId }
+          : {
+              configId,
+              sources: draft.sources,
+              sourceConfigIds: draft.sourceConfigIds,
+            }),
         frequency: draft.frequency,
         weekdays:
           draft.frequency === "selected_days" ? draft.weekdays : [],
@@ -577,6 +629,8 @@ export function AutoSearchDialog({
           <AutoSearchForm
             draft={draft}
             configs={configs}
+            sourceConfigs={sourceConfigs}
+            presets={presets}
             saving={status === "saving"}
             onChange={setDraft}
             onCancel={() => {
@@ -939,6 +993,8 @@ function ScreeningAudit({
 function AutoSearchForm({
   draft,
   configs,
+  sourceConfigs,
+  presets,
   saving,
   onChange,
   onCancel,
@@ -946,13 +1002,35 @@ function AutoSearchForm({
 }: {
   draft: ScheduleDraft;
   configs: JobSearchConfig[];
+  sourceConfigs: JobSourceConfig[];
+  presets: JobSearchPreset[];
   saving: boolean;
   onChange: (draft: ScheduleDraft) => void;
   onCancel: () => void;
   onSave: () => void;
 }) {
   function patch(update: Partial<ScheduleDraft>) {
-    onChange({ ...draft, ...update });
+    const changesPresetInputs = Object.keys(update).some((field) =>
+      [
+        "createConfig",
+        "configName",
+        "keywords",
+        "location",
+        "resultsLimit",
+        "deduplicate",
+        "screeningEnabled",
+        "targetRoles",
+        "excludedRoles",
+        "allowedSeniority",
+        "excludedSeniority",
+        "hardRules",
+      ].includes(field),
+    );
+    onChange({
+      ...draft,
+      ...(changesPresetInputs ? { presetId: "" } : {}),
+      ...update,
+    });
   }
 
   function toggleSeniority(
@@ -1008,8 +1086,39 @@ function AutoSearchForm({
             />
           </Field>
 
+          <Field label="Run preset">
+            <select
+              aria-label="Run preset"
+              value={draft.presetId}
+              onChange={(event) => {
+                const preset = presets.find((item) => item.id === event.target.value);
+                if (!preset) {
+                  patch({ presetId: "" });
+                  return;
+                }
+                const next = {
+                  ...draft,
+                  presetId: preset.id,
+                  configId: preset.configId,
+                  createConfig: false,
+                  sources: [...preset.sources],
+                  sourceConfigIds: { ...preset.sourceConfigIds },
+                };
+                const config = configs.find((item) => item.id === preset.configId);
+                if (config) applyConfigToDraft(next, config);
+                onChange(next);
+              }}
+              className={inputClass}
+            >
+              <option value="">Custom source mapping</option>
+              {presets.map((preset) => (
+                <option key={preset.id} value={preset.id}>{preset.name}</option>
+              ))}
+            </select>
+          </Field>
+
           <Field label="Sources">
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
               {sourceOptions.map((source) => {
                 const selected = draft.sources.includes(source.id);
                 return (
@@ -1019,6 +1128,7 @@ function AutoSearchForm({
                     aria-pressed={selected}
                     onClick={() =>
                       patch({
+                        presetId: "",
                         sources: selected
                           ? draft.sources.filter((item) => item !== source.id)
                           : [...draft.sources, source.id],
@@ -1039,6 +1149,48 @@ function AutoSearchForm({
             </div>
           </Field>
 
+          {draft.sources.some(isAggregatorSource) ? (
+            <Field label="Source query configs">
+              <div className="grid gap-2">
+                {draft.sources.filter(isAggregatorSource).map((source) => {
+                  const options = sourceConfigs.filter(
+                    (config) => config.source === source && config.configId === draft.configId,
+                  );
+                  return (
+                    <label key={source} className="grid grid-cols-[90px_minmax(0,1fr)] items-center gap-2">
+                      <span className="text-[11px] font-bold text-muted">
+                        {sourceOptions.find((option) => option.id === source)?.label ?? source}
+                      </span>
+                      <select
+                        aria-label={`${source} source query config`}
+                        value={draft.sourceConfigIds[source] ?? ""}
+                        onChange={(event) => patch({
+                          presetId: "",
+                          sourceConfigIds: event.target.value
+                            ? {
+                                ...draft.sourceConfigIds,
+                                [source]: event.target.value,
+                              }
+                            : Object.fromEntries(
+                                Object.entries(draft.sourceConfigIds).filter(
+                                  ([mappedSource]) => mappedSource !== source,
+                                ),
+                              ),
+                        })}
+                        className={inputClass}
+                      >
+                        <option value="">Use common fallback</option>
+                        {options.map((config) => (
+                          <option key={config.id} value={config.id}>{config.name}</option>
+                        ))}
+                      </select>
+                    </label>
+                  );
+                })}
+              </div>
+            </Field>
+          ) : null}
+
           <Field label="Enabled">
             <button
               type="button"
@@ -1055,6 +1207,9 @@ function AutoSearchForm({
         </FormSection>
 
         <FormSection title="Search config">
+          <p className="text-[10px] leading-4 text-muted">
+            The common profile controls screening and direct-company fallback. Aggregator queries can be selected separately above.
+          </p>
           <div className="grid grid-cols-2 gap-2">
             <button
               type="button"
@@ -1064,7 +1219,7 @@ function AutoSearchForm({
                 const config =
                   configs.find((item) => item.id === draft.configId) ?? configs[0];
                 if (!config) return;
-                const next = { ...draft, createConfig: false };
+                const next = { ...draft, presetId: "", createConfig: false };
                 applyConfigToDraft(next, config);
                 onChange(next);
               }}
@@ -1075,7 +1230,7 @@ function AutoSearchForm({
             <button
               type="button"
               aria-pressed={draft.createConfig}
-              onClick={() => patch({ createConfig: true, configId: "" })}
+              onClick={() => patch({ presetId: "", createConfig: true, configId: "", sourceConfigIds: {} })}
               className={choiceClass(draft.createConfig)}
             >
               New config
@@ -1124,7 +1279,11 @@ function AutoSearchForm({
                     (item) => item.id === event.target.value,
                   );
                   if (!config) return;
-                  const next = { ...draft };
+                  const next = {
+                    ...draft,
+                    presetId: "",
+                    sourceConfigIds: {},
+                  };
                   applyConfigToDraft(next, config);
                   onChange(next);
                 }}
@@ -1673,6 +1832,8 @@ function draftFromSchedule(
   draft.mode = mode;
   draft.name = schedule.name;
   draft.sources = [...schedule.sources];
+  draft.presetId = schedule.presetId ?? "";
+  draft.sourceConfigIds = { ...(schedule.sourceConfigIds ?? {}) };
   draft.frequency = schedule.frequency;
   draft.weekdays = [...schedule.weekdays];
   draft.localTime = schedule.localTime.slice(0, 5);
@@ -1684,6 +1845,10 @@ function draftFromSchedule(
     draft.createConfig = false;
   }
   return draft;
+}
+
+function isAggregatorSource(source: string): boolean {
+  return source === "linkedin" || source === "indeed" || source === "jobs_ch";
 }
 
 function applyConfigToDraft(
@@ -1858,6 +2023,14 @@ function updateVersionedFilters(
     schemaVersion: 2,
     search: {
       ...search,
+      sources: undefined,
+      parsers: undefined,
+      directCompaniesEnabled: undefined,
+      direct_companies_enabled: undefined,
+      directCompanyIds: undefined,
+      direct_company_ids: undefined,
+      directCompanies: undefined,
+      direct_companies: undefined,
       resultsLimit: limit,
       deduplicate: draft.deduplicate,
     },

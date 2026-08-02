@@ -63,6 +63,16 @@ class CompletedParser:
         )
 
 
+class RecordingParser(CompletedParser):
+    def __init__(self, parser_id: str) -> None:
+        super().__init__(parser_id, [])
+        self.requests: list[LinkedInSearchRequest] = []
+
+    def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
+        self.requests.append(request)
+        return super().search(request)
+
+
 class FailingIndeedParser:
     parser_id = "indeed"
 
@@ -179,3 +189,26 @@ def test_runner_merges_deduplicates_and_preserves_partial_results() -> None:
     ]
     assert set(result.source_results) == {"linkedin", "jobs_ch"}
     assert result.source_errors == {"indeed": "Indeed upstream failed"}
+
+
+def test_runner_applies_one_common_config_to_every_source() -> None:
+    linkedin = RecordingParser("linkedin")
+    indeed = RecordingParser("indeed")
+    runner = VacancySearchRunner({"linkedin": linkedin, "indeed": indeed})
+
+    runner.run(
+        sources=["linkedin", "indeed"],
+        request=LinkedInSearchRequest(
+            keywords="platform",
+            location="Zurich",
+            results_limit=25,
+        ),
+        wait_for_snapshots=False,
+    )
+
+    assert linkedin.requests[0].keywords == "platform"
+    assert indeed.requests[0].keywords == "platform"
+    assert linkedin.requests[0].location == "Zurich"
+    assert indeed.requests[0].location == "Zurich"
+    assert linkedin.requests[0].results_limit == 25
+    assert indeed.requests[0].results_limit == 25

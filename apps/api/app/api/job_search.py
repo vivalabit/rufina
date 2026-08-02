@@ -1,21 +1,28 @@
 from datetime import UTC, datetime, time
 from typing import Any
 
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
-
 from app.core.database import get_db
 from app.core.identity import bind_request_identity
 from app.core.settings import Settings, get_settings
+from app.models.job_screening import (
+    JobScreeningAuditPayload,
+    JobScreeningDecisionRecord,
+)
 from app.models.job_search import (
     JobSearchConfigCreateRequest,
     JobSearchConfigPayload,
     JobSearchConfigRecord,
     JobSearchConfigUpdateRequest,
     JobSearchManualRunRequest,
+    JobSearchPresetCreateRequest,
+    JobSearchPresetPayload,
+    JobSearchPresetRecord,
+    JobSearchPresetUpdateRequest,
     JobSearchRescreenPayload,
     JobSearchRescreenRequest,
     JobSearchRunPayload,
@@ -24,10 +31,16 @@ from app.models.job_search import (
     JobSearchSchedulePayload,
     JobSearchScheduleRecord,
     JobSearchScheduleUpdateRequest,
+    JobSourceConfigCreateRequest,
+    JobSourceConfigPayload,
+    JobSourceConfigRecord,
+    JobSourceConfigUpdateRequest,
 )
-from app.models.job_screening import (
-    JobScreeningAuditPayload,
-    JobScreeningDecisionRecord,
+from app.services.job_rescreening import (
+    JobRescreeningConfirmationRequired,
+    JobRescreeningError,
+    JobRescreeningPlanChanged,
+    rescreen_stored_jobs,
 )
 from app.services.job_screening_audit import (
     JobScreeningAuditActionUnavailable,
@@ -35,12 +48,6 @@ from app.services.job_screening_audit import (
     allow_screening_decision_manually,
     list_screening_audit,
     recheck_screening_decision,
-)
-from app.services.job_rescreening import (
-    JobRescreeningConfirmationRequired,
-    JobRescreeningError,
-    JobRescreeningPlanChanged,
-    rescreen_stored_jobs,
 )
 from app.services.job_search_execution import (
     JobSearchExecutionError,
@@ -293,6 +300,268 @@ def delete_config(config_id: str, db: Session = Depends(get_db)) -> None:
                 status_code=status.HTTP_409_CONFLICT,
                 detail="Config is used by one or more schedules",
             )
+        if db.scalar(
+            select(JobSearchPresetRecord.id).where(
+                JobSearchPresetRecord.config_id == config_id
+            )
+        ) is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Config is used by one or more search presets",
+            )
+        if db.scalar(
+            select(JobSourceConfigRecord.id).where(
+                JobSourceConfigRecord.config_id == config_id
+            )
+        ) is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Config has one or more source configs",
+            )
+        db.delete(record)
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise database_unavailable(exc) from exc
+
+
+@router.get("/source-configs", response_model=list[JobSourceConfigPayload])
+def list_source_configs(db: Session = Depends(get_db)) -> list[JobSourceConfigRecord]:
+    try:
+        return list(
+            db.scalars(
+                select(JobSourceConfigRecord).order_by(
+                    JobSourceConfigRecord.updated_at.desc(),
+                    JobSourceConfigRecord.id.desc(),
+                )
+            ).all()
+        )
+    except SQLAlchemyError as exc:
+        raise database_unavailable(exc) from exc
+
+
+@router.post(
+    "/source-configs",
+    response_model=JobSourceConfigPayload,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_source_config(
+    request: JobSourceConfigCreateRequest,
+    db: Session = Depends(get_db),
+) -> JobSourceConfigRecord:
+    try:
+        require_config(db, request.config_id)
+        now = utc_now()
+        record = JobSourceConfigRecord(
+            name=request.name,
+            config_id=request.config_id,
+            source=request.source,
+            filters=request.filters,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+        return record
+    except HTTPException:
+        db.rollback()
+        raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise database_unavailable(exc) from exc
+
+
+@router.patch(
+    "/source-configs/{source_config_id}",
+    response_model=JobSourceConfigPayload,
+)
+@router.put(
+    "/source-configs/{source_config_id}",
+    response_model=JobSourceConfigPayload,
+)
+def update_source_config(
+    source_config_id: str,
+    request: JobSourceConfigUpdateRequest,
+    db: Session = Depends(get_db),
+) -> JobSourceConfigRecord:
+    try:
+        record = require_source_config(db, source_config_id)
+        fields = request.model_fields_set
+        if "config_id" in fields:
+            config_id = require_patch_value(request.config_id, "configId")
+            require_config(db, config_id)
+            record.config_id = config_id
+        if "name" in fields:
+            record.name = require_patch_value(request.name, "name")
+        if "source" in fields:
+            record.source = require_patch_value(request.source, "source")
+        if "filters" in fields:
+            record.filters = require_patch_value(request.filters, "filters")
+        ensure_source_config_not_invalidating_references(db, record)
+        record.updated_at = utc_now()
+        db.commit()
+        db.refresh(record)
+        return record
+    except HTTPException:
+        db.rollback()
+        raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise database_unavailable(exc) from exc
+
+
+@router.delete(
+    "/source-configs/{source_config_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+def delete_source_config(source_config_id: str, db: Session = Depends(get_db)) -> None:
+    try:
+        record = require_source_config(db, source_config_id)
+        if source_config_reference_exists(db, record.id):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Source config is used by a preset or schedule",
+            )
+        db.delete(record)
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise database_unavailable(exc) from exc
+
+
+@router.get("/presets", response_model=list[JobSearchPresetPayload])
+def list_presets(db: Session = Depends(get_db)) -> list[JobSearchPresetRecord]:
+    try:
+        return list(
+            db.scalars(
+                select(JobSearchPresetRecord).order_by(
+                    JobSearchPresetRecord.updated_at.desc(),
+                    JobSearchPresetRecord.id.desc(),
+                )
+            ).all()
+        )
+    except SQLAlchemyError as exc:
+        raise database_unavailable(exc) from exc
+
+
+@router.post(
+    "/presets",
+    response_model=JobSearchPresetPayload,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_preset(
+    request: JobSearchPresetCreateRequest,
+    db: Session = Depends(get_db),
+) -> JobSearchPresetRecord:
+    try:
+        require_config(db, request.config_id)
+        require_source_config_mapping(
+            db,
+            config_id=request.config_id,
+            sources=list(request.sources),
+            source_config_ids=request.source_config_ids,
+            require_all=True,
+        )
+        now = utc_now()
+        record = JobSearchPresetRecord(
+            name=request.name,
+            config_id=request.config_id,
+            sources=request.sources,
+            source_config_ids=request.source_config_ids,
+            created_at=now,
+            updated_at=now,
+        )
+        db.add(record)
+        db.commit()
+        db.refresh(record)
+        return record
+    except HTTPException:
+        db.rollback()
+        raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise database_unavailable(exc) from exc
+
+
+@router.patch("/presets/{preset_id}", response_model=JobSearchPresetPayload)
+@router.put("/presets/{preset_id}", response_model=JobSearchPresetPayload)
+def update_preset(
+    preset_id: str,
+    request: JobSearchPresetUpdateRequest,
+    db: Session = Depends(get_db),
+) -> JobSearchPresetRecord:
+    try:
+        record = require_preset(db, preset_id)
+        fields = request.model_fields_set
+        config_id = (
+            require_patch_value(request.config_id, "configId")
+            if "config_id" in fields
+            else record.config_id
+        )
+        sources = (
+            require_patch_value(request.sources, "sources")
+            if "sources" in fields
+            else list(record.sources)
+        )
+        source_config_ids = (
+            require_patch_value(request.source_config_ids, "sourceConfigIds")
+            if "source_config_ids" in fields
+            else dict(record.source_config_ids)
+        )
+        require_config(db, config_id)
+        require_source_config_mapping(
+            db,
+            config_id=config_id,
+            sources=sources,
+            source_config_ids=source_config_ids,
+            require_all=True,
+        )
+        if "name" in fields:
+            record.name = require_patch_value(request.name, "name")
+        record.config_id = config_id
+        record.sources = sources
+        record.source_config_ids = source_config_ids
+        record.updated_at = utc_now()
+        for schedule in db.scalars(
+            select(JobSearchScheduleRecord).where(
+                JobSearchScheduleRecord.preset_id == record.id
+            )
+        ).all():
+            schedule.config_id = config_id
+            schedule.sources = list(sources)
+            schedule.source_config_ids = dict(source_config_ids)
+            schedule.updated_at = record.updated_at
+        db.commit()
+        db.refresh(record)
+        return record
+    except HTTPException:
+        db.rollback()
+        raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise database_unavailable(exc) from exc
+
+
+@router.delete("/presets/{preset_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_preset(preset_id: str, db: Session = Depends(get_db)) -> None:
+    try:
+        record = require_preset(db, preset_id)
+        if db.scalar(
+            select(JobSearchScheduleRecord.id).where(
+                JobSearchScheduleRecord.preset_id == preset_id
+            )
+        ) is not None:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Preset is used by one or more schedules",
+            )
         db.delete(record)
         db.commit()
     except HTTPException:
@@ -328,7 +597,25 @@ def create_schedule(
     db: Session = Depends(get_db),
 ) -> JobSearchScheduleRecord:
     try:
-        require_config(db, request.config_id)
+        preset = require_preset(db, request.preset_id) if request.preset_id else None
+        config_id = preset.config_id if preset else request.config_id
+        sources = list(preset.sources if preset else request.sources)
+        source_config_ids = dict(
+            preset.source_config_ids if preset else request.source_config_ids
+        )
+        if config_id is None:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Job search config is required",
+            )
+        require_config(db, config_id)
+        require_source_config_mapping(
+            db,
+            config_id=config_id,
+            sources=sources,
+            source_config_ids=source_config_ids,
+            require_all=False,
+        )
         now = utc_now()
         next_run_at = calculate_schedule_next_run(
             frequency=request.frequency,
@@ -340,8 +627,10 @@ def create_schedule(
         )
         record = JobSearchScheduleRecord(
             name=request.name,
-            config_id=request.config_id,
-            sources=request.sources,
+            config_id=config_id,
+            preset_id=preset.id if preset else None,
+            sources=sources,
+            source_config_ids=source_config_ids,
             frequency=request.frequency,
             weekdays=request.weekdays,
             local_time=request.local_time,
@@ -390,14 +679,34 @@ def update_schedule(
     try:
         record = require_schedule(db, schedule_id)
         fields = request.model_fields_set
+        if "preset_id" in fields:
+            if request.preset_id is None:
+                record.preset_id = None
+            else:
+                preset = require_preset(db, request.preset_id)
+                record.preset_id = preset.id
+                record.config_id = preset.config_id
+                record.sources = list(preset.sources)
+                record.source_config_ids = dict(preset.source_config_ids)
         if "config_id" in fields:
             config_id = require_patch_value(request.config_id, "configId")
             require_config(db, config_id)
             record.config_id = config_id
+            if "preset_id" not in fields:
+                record.preset_id = None
         if "name" in fields:
             record.name = require_patch_value(request.name, "name")
         if "sources" in fields:
             record.sources = require_patch_value(request.sources, "sources")
+            if "preset_id" not in fields:
+                record.preset_id = None
+        if "source_config_ids" in fields:
+            record.source_config_ids = require_patch_value(
+                request.source_config_ids,
+                "sourceConfigIds",
+            )
+            if "preset_id" not in fields:
+                record.preset_id = None
         if "frequency" in fields:
             record.frequency = require_patch_value(request.frequency, "frequency")
         if "weekdays" in fields:
@@ -419,6 +728,13 @@ def update_schedule(
             weekdays=record.weekdays,
             local_time=record.local_time,
             timezone=record.timezone,
+        )
+        require_source_config_mapping(
+            db,
+            config_id=record.config_id,
+            sources=list(record.sources),
+            source_config_ids=dict(record.source_config_ids),
+            require_all=False,
         )
         if SCHEDULE_FIELDS.intersection(fields) or "enabled" in fields:
             record.next_run_at = calculate_schedule_next_run(
@@ -467,7 +783,13 @@ def run_manual_search(
     settings: Settings = Depends(get_settings),
 ) -> JobSearchRunPayload:
     try:
-        config = require_config(db, request.config_id) if request.config_id else None
+        preset = require_preset(db, request.preset_id) if request.preset_id else None
+        config_id = preset.config_id if preset else request.config_id
+        sources = list(preset.sources if preset else request.sources)
+        source_config_ids = dict(
+            preset.source_config_ids if preset else request.source_config_ids
+        )
+        config = require_config(db, config_id) if config_id else None
         inline_config = request.config
         config_snapshot = (
             None
@@ -480,12 +802,20 @@ def run_manual_search(
                 "updatedAt": None,
             }
         )
+        source_configs = require_source_config_mapping(
+            db,
+            config_id=config.id if config is not None else None,
+            sources=sources,
+            source_config_ids=source_config_ids,
+            require_all=False,
+        )
         result = execute_job_search(
             db,
             schedule=None,
             config=config,
             config_snapshot=config_snapshot,
-            sources=list(request.sources),
+            sources=sources,
+            source_configs=source_configs,
             ai_analysis_enabled=request.ai_analysis_enabled,
             runner=create_vacancy_search_runner(settings),
             settings=settings,
@@ -537,6 +867,13 @@ def run_schedule_now(
                 db,
                 schedule=schedule,
                 config=config,
+                source_configs=require_source_config_mapping(
+                    db,
+                    config_id=config.id,
+                    sources=list(schedule.sources),
+                    source_config_ids=dict(schedule.source_config_ids),
+                    require_all=False,
+                ),
                 runner=create_vacancy_search_runner(settings),
                 settings=settings,
                 run_type="manual",
@@ -593,6 +930,126 @@ def require_config(db: Session, config_id: str) -> JobSearchConfigRecord:
             detail="Job search config not found",
         )
     return record
+
+
+def require_source_config(
+    db: Session,
+    source_config_id: str,
+) -> JobSourceConfigRecord:
+    record = db.get(JobSourceConfigRecord, source_config_id)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job source config not found",
+        )
+    return record
+
+
+def require_preset(db: Session, preset_id: str) -> JobSearchPresetRecord:
+    record = db.get(JobSearchPresetRecord, preset_id)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Job search preset not found",
+        )
+    return record
+
+
+def require_source_config_mapping(
+    db: Session,
+    *,
+    config_id: str | None,
+    sources: list[str],
+    source_config_ids: dict[str, str],
+    require_all: bool,
+) -> dict[str, JobSourceConfigRecord]:
+    selected_sources = set(sources)
+    unexpected_sources = set(source_config_ids) - selected_sources
+    if unexpected_sources:
+        source = min(unexpected_sources)
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail=f"Source config provided for unselected source: {source}",
+        )
+
+    records: dict[str, JobSourceConfigRecord] = {}
+    for source, source_config_id in source_config_ids.items():
+        record = require_source_config(db, source_config_id)
+        if record.source != source:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Source config {source_config_id} belongs to {record.source}",
+            )
+        if config_id is None or record.config_id != config_id:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=(
+                    f"Source config {source_config_id} belongs to another common "
+                    "profile"
+                ),
+            )
+        records[source] = record
+
+    if require_all:
+        missing = [
+            source
+            for source in sources
+            if source in {"linkedin", "indeed", "jobs_ch"}
+            and source not in records
+        ]
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail=f"Select a source config for {missing[0]}",
+            )
+    return records
+
+
+def source_config_reference_exists(db: Session, source_config_id: str) -> bool:
+    presets = db.scalars(select(JobSearchPresetRecord)).all()
+    schedules = db.scalars(select(JobSearchScheduleRecord)).all()
+    return any(
+        source_config_id in record.source_config_ids.values()
+        for record in [*presets, *schedules]
+    )
+
+
+def ensure_source_config_not_invalidating_references(
+    db: Session,
+    record: JobSourceConfigRecord,
+) -> None:
+    for preset in db.scalars(select(JobSearchPresetRecord)).all():
+        mapped_source = next(
+            (
+                source
+                for source, source_config_id in preset.source_config_ids.items()
+                if source_config_id == record.id
+            ),
+            None,
+        )
+        if mapped_source is not None and (
+            mapped_source != record.source or preset.config_id != record.config_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Update would invalidate a search preset",
+            )
+    for schedule in db.scalars(select(JobSearchScheduleRecord)).all():
+        mapped_source = next(
+            (
+                source
+                for source, source_config_id in schedule.source_config_ids.items()
+                if source_config_id == record.id
+            ),
+            None,
+        )
+        if mapped_source is not None and (
+            mapped_source != record.source or schedule.config_id != record.config_id
+        ):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Update would invalidate a job search schedule",
+            )
 
 
 def require_screening_decision(

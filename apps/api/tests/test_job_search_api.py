@@ -210,6 +210,155 @@ def test_job_search_config_and_schedule_crud_is_owner_scoped(
         app.dependency_overrides.clear()
 
 
+def test_source_configs_and_presets_keep_queries_separate_by_source() -> None:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(engine)
+    testing_session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+    def override_get_db() -> Generator[Session, None, None]:
+        with testing_session_local() as db:
+            yield db
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+    headers = {"X-Rufina-Owner-Id": "source-config-owner"}
+    other_owner = {"X-Rufina-Owner-Id": "other-owner"}
+
+    try:
+        profile = client.post(
+            "/job-search/configs",
+            headers=headers,
+            json={
+                "name": "Entry IT",
+                "filters": {
+                    "schemaVersion": 2,
+                    "search": {"keywords": "entry software"},
+                    "screening": {"enabled": True},
+                },
+            },
+        ).json()
+        source_config_ids: dict[str, str] = {}
+        for source, keywords in (
+            ("linkedin", "LinkedIn junior engineer"),
+            ("indeed", "Indeed graduate developer"),
+            ("jobs_ch", "jobs.ch Praktikum IT"),
+        ):
+            response = client.post(
+                "/job-search/source-configs",
+                headers=headers,
+                json={
+                    "name": f"Entry IT · {source}",
+                    "configId": profile["id"],
+                    "source": source,
+                    "filters": {"keywords": keywords, "resultsLimit": 25},
+                },
+            )
+            assert response.status_code == 201
+            payload = response.json()
+            source_config_ids[source] = payload["id"]
+            assert payload["filters"]["keywords"] == keywords
+
+        direct_company_config = client.post(
+            "/job-search/source-configs",
+            headers=headers,
+            json={
+                "name": "SBB query",
+                "configId": profile["id"],
+                "source": "sbb",
+                "filters": {},
+            },
+        )
+        assert direct_company_config.status_code == 422
+
+        incomplete_preset = client.post(
+            "/job-search/presets",
+            headers=headers,
+            json={
+                "name": "Missing jobs.ch",
+                "configId": profile["id"],
+                "sources": ["linkedin", "jobs_ch"],
+                "sourceConfigIds": {
+                    "linkedin": source_config_ids["linkedin"],
+                },
+            },
+        )
+        assert incomplete_preset.status_code == 422
+        assert incomplete_preset.json()["detail"] == "Select a source config for jobs_ch"
+
+        preset_response = client.post(
+            "/job-search/presets",
+            headers=headers,
+            json={
+                "name": "Entry IT · all sources",
+                "configId": profile["id"],
+                "sources": ["linkedin", "indeed", "jobs_ch", "sbb"],
+                "sourceConfigIds": source_config_ids,
+            },
+        )
+        assert preset_response.status_code == 201
+        preset = preset_response.json()
+        assert preset["sourceConfigIds"] == source_config_ids
+        assert client.get("/job-search/presets", headers=other_owner).json() == []
+        assert client.get("/job-search/source-configs", headers=other_owner).json() == []
+
+        schedule_response = client.post(
+            "/job-search/schedules",
+            headers=headers,
+            json={
+                "name": "Entry IT every day",
+                "presetId": preset["id"],
+                "frequency": "daily",
+                "weekdays": [],
+                "localTime": "09:00:00",
+                "timezone": "Europe/Zurich",
+                "enabled": True,
+            },
+        )
+        assert schedule_response.status_code == 201
+        schedule = schedule_response.json()
+        assert schedule["presetId"] == preset["id"]
+        assert schedule["configId"] == profile["id"]
+        assert schedule["sources"] == ["linkedin", "indeed", "jobs_ch", "sbb"]
+        assert schedule["sourceConfigIds"] == source_config_ids
+
+        updated_preset = client.patch(
+            f"/job-search/presets/{preset['id']}",
+            headers=headers,
+            json={
+                "sources": ["linkedin", "sbb"],
+                "sourceConfigIds": {
+                    "linkedin": source_config_ids["linkedin"],
+                },
+            },
+        )
+        assert updated_preset.status_code == 200
+        updated_schedule = client.get(
+            f"/job-search/schedules/{schedule['id']}",
+            headers=headers,
+        ).json()
+        assert updated_schedule["sources"] == ["linkedin", "sbb"]
+        assert updated_schedule["sourceConfigIds"] == {
+            "linkedin": source_config_ids["linkedin"],
+        }
+
+        blocked_source_delete = client.delete(
+            f"/job-search/source-configs/{source_config_ids['linkedin']}",
+            headers=headers,
+        )
+        assert blocked_source_delete.status_code == 409
+        blocked_preset_delete = client.delete(
+            f"/job-search/presets/{preset['id']}",
+            headers=headers,
+        )
+        assert blocked_preset_delete.status_code == 409
+    finally:
+        app.dependency_overrides.clear()
+
+
 def schedule_request(*, config_id: str, name: str) -> dict[str, object]:
     return {
         "name": name,

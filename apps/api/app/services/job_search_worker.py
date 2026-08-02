@@ -1,9 +1,9 @@
 import asyncio
+import hashlib
+import logging
 from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from datetime import UTC, datetime
-import hashlib
-import logging
 from threading import Lock
 
 from sqlalchemy import select, text
@@ -16,6 +16,7 @@ from app.models.job_search import (
     JobSearchConfigRecord,
     JobSearchRunRecord,
     JobSearchScheduleRecord,
+    JobSourceConfigRecord,
 )
 from app.services.job_search_execution import (
     build_config_snapshot,
@@ -153,7 +154,10 @@ def _reserve_due_job_searches(
                 schedule_id=schedule.id,
                 run_type="automatic",
                 scheduled_for=scheduled_for,
-                config_snapshot=build_config_snapshot(config),
+                config_snapshot=build_config_snapshot(
+                    config,
+                    source_configs=source_configs_for_schedule(db, schedule),
+                ),
                 sources=list(schedule.sources),
                 status="queued",
                 jobs_found=0,
@@ -257,6 +261,22 @@ def fail_orphaned_run(
     run.source_errors = {"worker": message}
     run.completed_at = datetime.now(UTC)
     db.commit()
+
+
+def source_configs_for_schedule(
+    db: Session,
+    schedule: JobSearchScheduleRecord,
+) -> dict[str, JobSourceConfigRecord]:
+    records: dict[str, JobSourceConfigRecord] = {}
+    for source, source_config_id in schedule.source_config_ids.items():
+        record = db.get(JobSourceConfigRecord, source_config_id)
+        if (
+            record is not None
+            and record.source == source
+            and record.config_id == schedule.config_id
+        ):
+            records[source] = record
+    return records
 
 
 def has_active_schedule_run(db: Session, schedule_id: str) -> bool:

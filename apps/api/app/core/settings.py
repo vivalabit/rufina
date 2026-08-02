@@ -51,7 +51,11 @@ class Settings(BaseSettings):
     ai_match_batch_size: int | None = Field(default=None, ge=1, le=100)
     ai_match_timeout_seconds: int | None = Field(default=None, ge=10, le=600)
     ai_match_max_attempts: int | None = Field(default=None, ge=1, le=4)
-    job_screening_model: str = Field(default="openai/gpt-5-mini", min_length=1, max_length=256)
+    job_screening_model: str = Field(
+        default="openai/gpt-5.6-luna",
+        min_length=1,
+        max_length=256,
+    )
     job_screening_reasoning: Literal[
         "off", "none", "low", "medium", "high", "xhigh", "max"
     ] = "off"
@@ -95,6 +99,11 @@ class Settings(BaseSettings):
     jobs_ch_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     jobs_ch_max_pages: int = Field(default=50, ge=1, le=100)
     jobs_ch_detail_workers: int = Field(default=6, ge=1, le=20)
+    sbb_jobs_base_url: str = (
+        "https://company.sbb.ch/de/jobs-karriere/jobs/"
+        "offene-stellen.html"
+    )
+    sbb_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

@@ -1,4 +1,5 @@
 import asyncio
+import json
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -9,6 +10,7 @@ from sqlalchemy.exc import SQLAlchemyError
 from app import main as main_module
 from app.core.database import Base
 from app.core.migrations import (
+    LEGACY_RECOVERABLE_MISSING_TABLES,
     LegacyDatabaseMismatchError,
     get_alembic_config,
     upgrade_database,
@@ -122,6 +124,8 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "candidate_match_snapshots",
             "stored_jobs",
             "job_search_configs",
+            "job_source_configs",
+            "job_search_presets",
             "job_search_schedules",
             "job_search_runs",
             "job_screening_decisions",
@@ -152,7 +156,68 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260730_0030"
+            assert revision == "20260802_0034"
+            entry_it = connection.execute(
+                text(
+                    "SELECT id, owner_id, name, filters "
+                    "FROM job_search_configs WHERE id = 'entry-it'"
+                )
+            ).mappings().one()
+            assert entry_it["owner_id"] == "local-owner"
+            assert entry_it["name"] == "Entry IT"
+            entry_it_filters = entry_it["filters"]
+            if isinstance(entry_it_filters, str):
+                entry_it_filters = json.loads(entry_it_filters)
+            assert entry_it_filters["schemaVersion"] == 2
+            assert "sources" not in entry_it_filters["search"]
+            assert entry_it_filters["search"]["resultsLimit"] == 50
+            assert entry_it_filters["screening"]["targetRoles"] == [
+                "Software Engineer",
+                "Software Developer",
+                "Python Developer",
+                "Data Engineer",
+                "Machine Learning Engineer",
+                "AI Engineer",
+                "Web Developer",
+                "IT Intern",
+                "Working Student IT",
+                "Junior IT",
+            ]
+            assert all(
+                len(role) <= 160
+                for role in entry_it_filters["screening"]["targetRoles"]
+            )
+            source_configs = connection.execute(
+                text(
+                    "SELECT id, source, config_id, filters FROM job_source_configs "
+                    "WHERE config_id = 'entry-it' ORDER BY source"
+                )
+            ).mappings().all()
+            assert [row["source"] for row in source_configs] == [
+                "indeed",
+                "jobs_ch",
+                "linkedin",
+            ]
+            assert all(row["config_id"] == "entry-it" for row in source_configs)
+            preset = connection.execute(
+                text(
+                    "SELECT config_id, sources, source_config_ids "
+                    "FROM job_search_presets WHERE id = 'entry-it-all-sources'"
+                )
+            ).mappings().one()
+            preset_sources = preset["sources"]
+            preset_source_config_ids = preset["source_config_ids"]
+            if isinstance(preset_sources, str):
+                preset_sources = json.loads(preset_sources)
+            if isinstance(preset_source_config_ids, str):
+                preset_source_config_ids = json.loads(preset_source_config_ids)
+            assert preset["config_id"] == "entry-it"
+            assert preset_sources == ["linkedin", "indeed", "jobs_ch", "sbb"]
+            assert preset_source_config_ids == {
+                "linkedin": "entry-it-linkedin",
+                "indeed": "entry-it-indeed",
+                "jobs_ch": "entry-it-jobs-ch",
+            }
         imaginator_columns = {
             column["name"]
             for column in inspect(engine).get_columns("imaginator_resumes")
@@ -506,6 +571,163 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
     finally:
         engine.dispose()
 
+
+def test_entry_it_role_fix_repairs_already_migrated_config(tmp_path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'entry-it-role-fix.sqlite'}"
+    config = get_alembic_config(database_url)
+    command.upgrade(config, "20260802_0032")
+    engine = create_engine(database_url)
+    invalid_keywords = (
+        '(intern OR "working student" OR Werkstudent OR Praktikum OR junior OR '
+        'graduate) AND (software OR developer OR python OR data OR "machine '
+        'learning" OR "AI engineer" OR web)'
+    )
+    try:
+        with engine.begin() as connection:
+            raw_filters = connection.execute(
+                text(
+                    "SELECT filters FROM job_search_configs "
+                    "WHERE id = 'entry-it'"
+                )
+            ).scalar_one()
+            filters = json.loads(raw_filters) if isinstance(raw_filters, str) else raw_filters
+            filters["screening"]["targetRoles"] = [invalid_keywords]
+            connection.execute(
+                text(
+                    "UPDATE job_search_configs SET filters = :filters "
+                    "WHERE id = 'entry-it'"
+                ),
+                {"filters": json.dumps(filters)},
+            )
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            raw_filters = connection.execute(
+                text(
+                    "SELECT filters FROM job_search_configs "
+                    "WHERE id = 'entry-it'"
+                )
+            ).scalar_one()
+            filters = json.loads(raw_filters) if isinstance(raw_filters, str) else raw_filters
+            assert filters["screening"]["targetRoles"] == [
+                "Software Engineer",
+                "Software Developer",
+                "Python Developer",
+                "Data Engineer",
+                "Machine Learning Engineer",
+                "AI Engineer",
+                "Web Developer",
+                "IT Intern",
+                "Working Student IT",
+                "Junior IT",
+            ]
+    finally:
+        engine.dispose()
+
+    command.check(get_alembic_config(database_url))
+
+
+def test_legacy_entry_it_config_is_migrated_without_changing_its_id(tmp_path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'legacy-entry-it.sqlite'}"
+    config = get_alembic_config(database_url)
+    command.upgrade(config, "20260730_0030")
+    legacy_id = "6b387c8c588540718f74d7905f93c2c9"
+    legacy_filters = {
+        "keywords": (
+            '(intern OR "working student" OR Werkstudent OR Praktikum OR junior OR '
+            'graduate) AND (software OR developer OR python OR data OR "machine '
+            'learning" OR "AI engineer" OR web)'
+        ),
+        "location": "Zurich, Switzerland",
+        "remote": "Any",
+        "experienceLevel": "Any",
+        "jobType": "Any",
+        "datePosted": "Past 24 hours",
+        "resultsLimit": 50,
+        "country": "Switzerland",
+        "deduplicate": True,
+        "searchName": "Entry IT",
+        "folder": "",
+        "sources": ["linkedin", "indeed"],
+    }
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO job_search_configs "
+                    "(id, name, filters, created_at, updated_at, owner_id) "
+                    "VALUES (:id, 'Entry IT', :filters, :created_at, :updated_at, "
+                    "'local-owner')"
+                ),
+                {
+                    "id": legacy_id,
+                    "filters": json.dumps(legacy_filters),
+                    "created_at": datetime(2026, 7, 23, tzinfo=UTC),
+                    "updated_at": datetime(2026, 7, 23, tzinfo=UTC),
+                },
+            )
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            entry_it = connection.execute(
+                text(
+                    "SELECT id, filters FROM job_search_configs "
+                    "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
+                )
+            ).mappings().one()
+            filters = entry_it["filters"]
+            if isinstance(filters, str):
+                filters = json.loads(filters)
+            assert entry_it["id"] == legacy_id
+            assert filters["schemaVersion"] == 2
+            assert filters["search"]["keywords"] == legacy_filters["keywords"]
+            assert "sources" not in filters["search"]
+            assert filters["screening"]["enabled"] is True
+            assert filters["screening"]["targetRoles"] == [
+                "Software Engineer",
+                "Software Developer",
+                "Python Developer",
+                "Data Engineer",
+                "Machine Learning Engineer",
+                "AI Engineer",
+                "Web Developer",
+                "IT Intern",
+                "Working Student IT",
+                "Junior IT",
+            ]
+            source_configs = connection.execute(
+                text(
+                    "SELECT source, config_id FROM job_source_configs "
+                    "WHERE config_id = :config_id ORDER BY source"
+                ),
+                {"config_id": legacy_id},
+            ).mappings().all()
+            assert [row["source"] for row in source_configs] == [
+                "indeed",
+                "jobs_ch",
+                "linkedin",
+            ]
+            preset = connection.execute(
+                text(
+                    "SELECT config_id FROM job_search_presets "
+                    "WHERE id = 'entry-it-all-sources'"
+                )
+            ).mappings().one()
+            assert preset["config_id"] == legacy_id
+    finally:
+        engine.dispose()
+
     command.check(get_alembic_config(database_url))
 
 
@@ -514,6 +736,19 @@ def test_upgrade_database_can_run_again_at_head(tmp_path) -> None:
 
     upgrade_database(database_url)
     upgrade_database(database_url)
+
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            entry_it_count = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM job_search_configs "
+                    "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
+                )
+            ).scalar_one()
+        assert entry_it_count == 1
+    finally:
+        engine.dispose()
 
 
 def test_imaginator_audit_migration_upgrades_original_0029_shape(
@@ -854,7 +1089,51 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260730_0030"
+            assert revision == "20260802_0034"
+    finally:
+        engine.dispose()
+    command.check(get_alembic_config(database_url))
+
+
+def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'partial-legacy.sqlite'}"
+    config = get_alembic_config(database_url)
+    command.upgrade(config, "20260718_0001")
+
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            for table_name in (
+                "document_version_validations",
+                "document_version_generation_provenance",
+                "document_generation_provenance",
+                "document_pack_jobs",
+                "candidate_confirmations",
+            ):
+                connection.execute(text(f"DROP TABLE {table_name}"))
+            connection.execute(text("DROP TABLE alembic_version"))
+    finally:
+        engine.dispose()
+
+    upgrade_database(database_url)
+
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            revision = connection.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).scalar_one()
+            entry_it_count = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM job_search_configs "
+                    "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
+                )
+            ).scalar_one()
+        assert revision == "20260802_0034"
+        assert entry_it_count == 1
+        assert LEGACY_RECOVERABLE_MISSING_TABLES <= set(
+            inspect(engine).get_table_names()
+        )
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))

@@ -1,11 +1,15 @@
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
 import re
 import time
+from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
 from app.core.settings import Settings
+from app.core.vacancy_sources import (
+    SUPPORTED_VACANCY_SOURCE_IDS,
+    is_direct_company_source,
+)
 from app.models.parsers import (
     IndeedSearchRequest,
     JobsChSearchRequest,
@@ -13,6 +17,8 @@ from app.models.parsers import (
     ParsedJob,
     ParserSearchResponse,
 )
+from app.services.parsers.companies import create_direct_company_parsers
+from app.services.parsers.companies.base import DirectCompanyRequestError
 from app.services.parsers.indeed import IndeedJobsParser
 from app.services.parsers.jobs_ch import JobsChParser, JobsChRequestError
 from app.services.parsers.linkedin import (
@@ -21,12 +27,13 @@ from app.services.parsers.linkedin import (
     LinkedInJobsParser,
 )
 
-SUPPORTED_VACANCY_SOURCES = ("linkedin", "indeed", "jobs_ch")
+SUPPORTED_VACANCY_SOURCES = SUPPORTED_VACANCY_SOURCE_IDS
 BRIGHT_DATA_SOURCES = frozenset({"linkedin", "indeed"})
 SOURCE_ERRORS = (
     BrightDataConfigurationError,
     BrightDataRequestError,
     JobsChRequestError,
+    DirectCompanyRequestError,
 )
 
 
@@ -128,6 +135,7 @@ class VacancySearchRunner:
         *,
         sources: Sequence[str],
         request: LinkedInSearchRequest,
+        source_requests: Mapping[str, LinkedInSearchRequest] | None = None,
         wait_for_snapshots: bool = True,
     ) -> VacancySearchRunResult:
         source_results: dict[str, ParserSearchResponse] = {}
@@ -136,9 +144,14 @@ class VacancySearchRunner:
 
         for source in unique_sources(sources):
             try:
+                selected_request = (
+                    source_requests.get(source, request)
+                    if source_requests is not None
+                    else request
+                )
                 result = self.search_source(
                     source,
-                    request,
+                    selected_request,
                     wait_for_snapshot=wait_for_snapshots,
                 )
                 source_results[source] = result
@@ -164,25 +177,27 @@ class VacancySearchRunner:
 
 
 def create_vacancy_search_runner(settings: Settings) -> VacancySearchRunner:
+    parsers = {
+        "linkedin": LinkedInJobsParser(
+            api_key=settings.brightdata_api_key,
+            api_url=settings.brightdata_api_url,
+            dataset_id=settings.brightdata_linkedin_jobs_dataset_id,
+        ),
+        "indeed": IndeedJobsParser(
+            api_key=settings.brightdata_api_key,
+            api_url=settings.brightdata_api_url,
+            dataset_id=settings.brightdata_indeed_jobs_dataset_id,
+        ),
+        "jobs_ch": JobsChParser(
+            base_url=settings.jobs_ch_base_url,
+            timeout_seconds=settings.jobs_ch_timeout_seconds,
+            max_pages=settings.jobs_ch_max_pages,
+            detail_workers=settings.jobs_ch_detail_workers,
+        ),
+    }
+    parsers.update(create_direct_company_parsers(settings))
     return VacancySearchRunner(
-        {
-            "linkedin": LinkedInJobsParser(
-                api_key=settings.brightdata_api_key,
-                api_url=settings.brightdata_api_url,
-                dataset_id=settings.brightdata_linkedin_jobs_dataset_id,
-            ),
-            "indeed": IndeedJobsParser(
-                api_key=settings.brightdata_api_key,
-                api_url=settings.brightdata_api_url,
-                dataset_id=settings.brightdata_indeed_jobs_dataset_id,
-            ),
-            "jobs_ch": JobsChParser(
-                base_url=settings.jobs_ch_base_url,
-                timeout_seconds=settings.jobs_ch_timeout_seconds,
-                max_pages=settings.jobs_ch_max_pages,
-                detail_workers=settings.jobs_ch_detail_workers,
-            ),
-        },
+        parsers,
         snapshot_poll_interval_seconds=settings.brightdata_snapshot_poll_interval_seconds,
         snapshot_poll_timeout_seconds=settings.brightdata_snapshot_poll_timeout_seconds,
     )
@@ -197,6 +212,8 @@ def request_for_source(
         "indeed": IndeedSearchRequest,
         "jobs_ch": JobsChSearchRequest,
     }.get(source)
+    if request_type is None and is_direct_company_source(source):
+        return request
     if request_type is None:
         raise ValueError(f"Unsupported vacancy source: {source}")
     return request_type.model_validate(request.model_dump())

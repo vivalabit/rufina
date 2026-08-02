@@ -15,6 +15,11 @@ from typing import Any
 AGENT_ID = "rufina-assistant"
 LEGACY_AGENT_ID = "tasko-assistant"
 DEFAULT_MODEL = "openai/gpt-5.6-terra"
+DEFAULT_SCREENING_MODEL = "openai/gpt-5.6-luna"
+LEGACY_SCREENING_MODELS = {
+    "openai/gpt-5-mini",
+    "openai/gpt-5.4-nano",
+}
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_DIR = REPO_ROOT / "openclaw" / AGENT_ID
 
@@ -49,6 +54,41 @@ def load_allowed_plugins(command: str) -> list[str]:
     return [plugin for plugin in allowed_plugins if isinstance(plugin, str)]
 
 
+def load_provider_models(command: str, provider: str) -> list[dict[str, Any]]:
+    path = f'models.providers["{provider}"].models'
+    try:
+        raw = run_openclaw(command, "config", "get", path, "--json")
+    except subprocess.CalledProcessError:
+        return []
+
+    models = json.loads(raw)
+    if not isinstance(models, list):
+        raise RuntimeError(f"OpenClaw {path} is not an array")
+    return [entry for entry in models if isinstance(entry, dict)]
+
+
+def registered_provider_models(
+    command: str,
+    model_keys: set[str],
+) -> dict[str, list[dict[str, Any]]]:
+    registrations: dict[str, list[dict[str, Any]]] = {}
+    for model_key in sorted(model_keys):
+        provider, separator, model_id = model_key.partition("/")
+        if not separator or not provider or not model_id:
+            raise RuntimeError(f"Invalid OpenClaw model key: {model_key}")
+        if provider not in registrations:
+            registrations[provider] = [
+                entry
+                for entry in load_provider_models(command, provider)
+                if f"{provider}/{entry.get('id')}" not in LEGACY_SCREENING_MODELS
+                or f"{provider}/{entry.get('id')}" in model_keys
+            ]
+        entries = registrations[provider]
+        if not any(entry.get("id") == model_id for entry in entries):
+            entries.append({"id": model_id, "name": model_id})
+    return registrations
+
+
 def install_workspace(home: Path) -> Path:
     workspace = home / ".openclaw" / f"workspace-{AGENT_ID}"
     legacy_workspace = home / ".openclaw" / f"workspace-{LEGACY_AGENT_ID}"
@@ -64,9 +104,18 @@ def install_workspace(home: Path) -> Path:
     return workspace
 
 
-def configure_agent(command: str, workspace: Path, model: str) -> None:
+def configure_agent(
+    command: str,
+    workspace: Path,
+    model: str,
+    screening_model: str,
+) -> None:
     agents = load_agents(command)
     allowed_plugins = load_allowed_plugins(command)
+    provider_models = registered_provider_models(
+        command,
+        {model, screening_model},
+    )
     index = next(
         (index for index, agent in enumerate(agents) if agent.get("id") == AGENT_ID),
         None,
@@ -92,6 +141,21 @@ def configure_agent(command: str, workspace: Path, model: str) -> None:
     prefix = f"agents.list[{index}]"
     operations = [
         {"path": "plugins.allow", "value": sorted({*allowed_plugins, "codex"})},
+        {
+            "path": f'agents.defaults.models["{model}"]',
+            "value": {},
+        },
+        {
+            "path": f'agents.defaults.models["{screening_model}"]',
+            "value": {},
+        },
+        *(
+            {
+                "path": f'models.providers["{provider}"].models',
+                "value": models,
+            }
+            for provider, models in provider_models.items()
+        ),
         {"path": f"{prefix}.name", "value": "Rufina Assistant"},
         {"path": f"{prefix}.workspace", "value": f"~/.openclaw/workspace-{AGENT_ID}"},
         {"path": f"{prefix}.agentDir", "value": f"~/.openclaw/agents/{AGENT_ID}/agent"},
@@ -101,7 +165,10 @@ def configure_agent(command: str, workspace: Path, model: str) -> None:
         },
         {
             "path": f"{prefix}.models",
-            "value": {model: {"agentRuntime": {"id": "codex"}}},
+            "value": {
+                model: {"agentRuntime": {"id": "codex"}},
+                screening_model: {"agentRuntime": {"id": "codex"}},
+            },
         },
         {"path": f"{prefix}.thinkingDefault", "value": "off"},
         {"path": f"{prefix}.reasoningDefault", "value": "off"},
@@ -132,7 +199,18 @@ def configure_agent(command: str, workspace: Path, model: str) -> None:
         "--batch-json",
         json.dumps(operations, separators=(",", ":")),
         "--strict-json",
+        "--replace",
     )
+    for legacy_model in LEGACY_SCREENING_MODELS - {model, screening_model}:
+        try:
+            run_openclaw(
+                command,
+                "config",
+                "unset",
+                f'agents.defaults.models["{legacy_model}"]',
+            )
+        except subprocess.CalledProcessError:
+            pass
     run_openclaw(command, "config", "validate")
 
 
@@ -151,6 +229,14 @@ def main() -> int:
         ),
         help=f"Model for the isolated agent (default: {DEFAULT_MODEL})",
     )
+    parser.add_argument(
+        "--screening-model",
+        default=os.environ.get("JOB_SCREENING_MODEL", DEFAULT_SCREENING_MODEL),
+        help=(
+            "Cheap model allowed for vacancy screening "
+            f"(default: {DEFAULT_SCREENING_MODEL})"
+        ),
+    )
     args = parser.parse_args()
 
     command = shutil.which(args.command)
@@ -159,7 +245,7 @@ def main() -> int:
 
     workspace = install_workspace(Path.home())
     try:
-        configure_agent(command, workspace, args.model)
+        configure_agent(command, workspace, args.model, args.screening_model)
     except (subprocess.CalledProcessError, json.JSONDecodeError, RuntimeError) as exc:
         if isinstance(exc, subprocess.CalledProcessError) and exc.stderr:
             print(exc.stderr.strip(), file=sys.stderr)

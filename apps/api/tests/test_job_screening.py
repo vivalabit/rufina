@@ -115,7 +115,7 @@ def test_screening_returns_strict_decisions_in_input_order() -> None:
         decision("job-2", "reject", reason_code="seniority_mismatch"),
     ]
     assert backend.requests[0].structured is True
-    assert backend.requests[0].model == "openai/gpt-5-mini"
+    assert backend.requests[0].model == "openai/gpt-5.6-luna"
     assert backend.requests[0].thinking == "none"
 
 

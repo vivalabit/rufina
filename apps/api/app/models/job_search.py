@@ -19,6 +19,10 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base, OwnerScoped
+from app.core.vacancy_sources import (
+    AGGREGATOR_SOURCE_IDS,
+    SUPPORTED_VACANCY_SOURCE_IDS,
+)
 
 
 def utc_now() -> datetime:
@@ -51,6 +55,91 @@ class JobSearchConfigRecord(OwnerScoped, Base):
         back_populates="config",
         cascade="all, delete-orphan",
     )
+    source_configs: Mapped[list["JobSourceConfigRecord"]] = relationship(
+        back_populates="config",
+        cascade="all, delete-orphan",
+    )
+    presets: Mapped[list["JobSearchPresetRecord"]] = relationship(
+        back_populates="config",
+        cascade="all, delete-orphan",
+    )
+
+
+class JobSourceConfigRecord(OwnerScoped, Base):
+    __tablename__ = "job_source_configs"
+    __table_args__ = (
+        Index(
+            "ix_job_source_configs_config_source",
+            "config_id",
+            "source",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: uuid4().hex,
+    )
+    name: Mapped[str] = mapped_column(String(240), nullable=False)
+    config_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("job_search_configs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    source: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    filters: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
+        index=True,
+    )
+    config: Mapped[JobSearchConfigRecord] = relationship(
+        back_populates="source_configs",
+    )
+
+
+class JobSearchPresetRecord(OwnerScoped, Base):
+    __tablename__ = "job_search_presets"
+
+    id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: uuid4().hex,
+    )
+    name: Mapped[str] = mapped_column(String(240), nullable=False)
+    config_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey("job_search_configs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    sources: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    source_config_ids: Mapped[dict[str, str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
+        index=True,
+    )
+    config: Mapped[JobSearchConfigRecord] = relationship(back_populates="presets")
 
 
 class JobSearchScheduleRecord(OwnerScoped, Base):
@@ -76,6 +165,17 @@ class JobSearchScheduleRecord(OwnerScoped, Base):
         index=True,
     )
     sources: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    source_config_ids: Mapped[dict[str, str]] = mapped_column(
+        JSON,
+        nullable=False,
+        default=dict,
+    )
+    preset_id: Mapped[str | None] = mapped_column(
+        String(36),
+        ForeignKey("job_search_presets.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
     frequency: Mapped[str] = mapped_column(String(32), nullable=False)
     weekdays: Mapped[list[int]] = mapped_column(JSON, nullable=False, default=list)
     local_time: Mapped[time] = mapped_column(Time(), nullable=False)
@@ -220,7 +320,7 @@ class JobSearchRunRecord(OwnerScoped, Base):
 
 
 JobSearchFrequency = Literal["daily", "weekdays", "selected_days"]
-JobSearchSource = Literal["linkedin", "indeed", "jobs_ch"]
+JobSearchSource = str
 ScreeningField = Literal[
     "title",
     "company",
@@ -302,10 +402,9 @@ class SearchFilters(BaseModel):
     results_limit: int = Field(default=100, ge=1, le=1000, alias="resultsLimit")
     country: str = Field(default="Any", max_length=80)
     deduplicate: bool = True
+
     search_name: str = Field(default="", max_length=160, alias="searchName")
     folder: str = Field(default="", max_length=120)
-    sources: list[JobSearchSource] | None = Field(default=None, max_length=10)
-    parsers: list[JobSearchSource] | None = Field(default=None, max_length=10)
 
     model_config = {
         "extra": "forbid",
@@ -580,6 +679,170 @@ class JobSearchConfigPayload(BaseModel):
         return as_utc(value)
 
 
+class JobSourceConfigCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=240)
+    config_id: str = Field(min_length=1, max_length=36, alias="configId")
+    source: JobSearchSource
+    filters: dict[str, Any] = Field(default_factory=dict)
+
+    model_config = {"extra": "forbid", "populate_by_name": True}
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        return normalize_required_text(value, field_name="name")
+
+    @field_validator("source")
+    @classmethod
+    def validate_source(cls, value: JobSearchSource) -> JobSearchSource:
+        return validate_aggregator_source(value)
+
+    @field_validator("filters")
+    @classmethod
+    def validate_filters(cls, value: dict[str, Any]) -> dict[str, Any]:
+        return normalize_source_filters(value)
+
+
+class JobSourceConfigUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=240)
+    config_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=36,
+        alias="configId",
+    )
+    source: JobSearchSource | None = None
+    filters: dict[str, Any] | None = None
+
+    model_config = {"extra": "forbid", "populate_by_name": True}
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str | None) -> str | None:
+        return (
+            normalize_required_text(value, field_name="name")
+            if value is not None
+            else None
+        )
+
+    @field_validator("source")
+    @classmethod
+    def validate_source(cls, value: JobSearchSource | None) -> JobSearchSource | None:
+        return validate_aggregator_source(value) if value is not None else None
+
+    @field_validator("filters")
+    @classmethod
+    def validate_filters(cls, value: dict[str, Any] | None) -> dict[str, Any] | None:
+        return normalize_source_filters(value) if value is not None else None
+
+
+class JobSourceConfigPayload(BaseModel):
+    id: str
+    name: str
+    config_id: str = Field(alias="configId")
+    source: JobSearchSource
+    filters: dict[str, Any]
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+
+    model_config = {"from_attributes": True, "populate_by_name": True}
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def normalize_timestamps(cls, value: datetime) -> datetime:
+        return as_utc(value)
+
+
+class JobSearchPresetCreateRequest(BaseModel):
+    name: str = Field(min_length=1, max_length=240)
+    config_id: str = Field(min_length=1, max_length=36, alias="configId")
+    sources: list[JobSearchSource] = Field(min_length=1, max_length=500)
+    source_config_ids: dict[str, str] = Field(
+        default_factory=dict,
+        alias="sourceConfigIds",
+    )
+
+    model_config = {"extra": "forbid", "populate_by_name": True}
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str) -> str:
+        return normalize_required_text(value, field_name="name")
+
+    @field_validator("sources")
+    @classmethod
+    def normalize_sources(cls, value: list[JobSearchSource]) -> list[JobSearchSource]:
+        return validate_job_search_sources(value)
+
+    @field_validator("source_config_ids")
+    @classmethod
+    def normalize_source_configs(cls, value: dict[str, str]) -> dict[str, str]:
+        return normalize_source_config_ids(value)
+
+
+class JobSearchPresetUpdateRequest(BaseModel):
+    name: str | None = Field(default=None, min_length=1, max_length=240)
+    config_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=36,
+        alias="configId",
+    )
+    sources: list[JobSearchSource] | None = Field(
+        default=None,
+        min_length=1,
+        max_length=500,
+    )
+    source_config_ids: dict[str, str] | None = Field(
+        default=None,
+        alias="sourceConfigIds",
+    )
+
+    model_config = {"extra": "forbid", "populate_by_name": True}
+
+    @field_validator("name")
+    @classmethod
+    def normalize_name(cls, value: str | None) -> str | None:
+        return (
+            normalize_required_text(value, field_name="name")
+            if value is not None
+            else None
+        )
+
+    @field_validator("sources")
+    @classmethod
+    def normalize_sources(
+        cls,
+        value: list[JobSearchSource] | None,
+    ) -> list[JobSearchSource] | None:
+        return validate_job_search_sources(value) if value is not None else None
+
+    @field_validator("source_config_ids")
+    @classmethod
+    def normalize_source_configs(
+        cls,
+        value: dict[str, str] | None,
+    ) -> dict[str, str] | None:
+        return normalize_source_config_ids(value) if value is not None else None
+
+
+class JobSearchPresetPayload(BaseModel):
+    id: str
+    name: str
+    config_id: str = Field(alias="configId")
+    sources: list[JobSearchSource]
+    source_config_ids: dict[str, str] = Field(alias="sourceConfigIds")
+    created_at: datetime = Field(alias="createdAt")
+    updated_at: datetime = Field(alias="updatedAt")
+
+    model_config = {"from_attributes": True, "populate_by_name": True}
+
+    @field_validator("created_at", "updated_at", mode="before")
+    @classmethod
+    def normalize_timestamps(cls, value: datetime) -> datetime:
+        return as_utc(value)
+
+
 class JobSearchRescreenRequest(BaseModel):
     dry_run: bool = Field(default=True, alias="dryRun")
     confirm: bool = False
@@ -648,6 +911,12 @@ class JobSearchRescreenPayload(BaseModel):
 
 
 class JobSearchManualRunRequest(BaseModel):
+    preset_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=36,
+        alias="presetId",
+    )
     config_id: str | None = Field(
         default=None,
         min_length=1,
@@ -655,7 +924,11 @@ class JobSearchManualRunRequest(BaseModel):
         alias="configId",
     )
     config: JobSearchConfigCreateRequest | None = None
-    sources: list[JobSearchSource] = Field(min_length=1, max_length=10)
+    sources: list[JobSearchSource] = Field(default_factory=list, max_length=500)
+    source_config_ids: dict[str, str] = Field(
+        default_factory=dict,
+        alias="sourceConfigIds",
+    )
     ai_analysis_enabled: bool = Field(default=True, alias="aiAnalysisEnabled")
 
     model_config = {"extra": "forbid", "populate_by_name": True}
@@ -666,19 +939,48 @@ class JobSearchManualRunRequest(BaseModel):
         cls,
         value: list[JobSearchSource],
     ) -> list[JobSearchSource]:
-        return list(dict.fromkeys(value))
+        return validate_job_search_sources(value)
+
+    @field_validator("source_config_ids")
+    @classmethod
+    def normalize_source_configs(cls, value: dict[str, str]) -> dict[str, str]:
+        return normalize_source_config_ids(value)
 
     @model_validator(mode="after")
     def require_one_config_source(self) -> "JobSearchManualRunRequest":
+        if self.preset_id:
+            if self.config_id or self.config or self.sources or self.source_config_ids:
+                raise ValueError(
+                    "presetId cannot be combined with configId, config, sources, "
+                    "or sourceConfigIds"
+                )
+            return self
         if bool(self.config_id) == bool(self.config):
-            raise ValueError("provide exactly one of configId or config")
+            raise ValueError("provide presetId or exactly one of configId or config")
+        if not self.sources:
+            raise ValueError("select at least one source")
         return self
 
 
 class JobSearchScheduleCreateRequest(BaseModel):
     name: str = Field(min_length=1, max_length=240)
-    config_id: str = Field(min_length=1, max_length=36, alias="configId")
-    sources: list[JobSearchSource] = Field(min_length=1, max_length=10)
+    preset_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=36,
+        alias="presetId",
+    )
+    config_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=36,
+        alias="configId",
+    )
+    sources: list[JobSearchSource] = Field(default_factory=list, max_length=500)
+    source_config_ids: dict[str, str] = Field(
+        default_factory=dict,
+        alias="sourceConfigIds",
+    )
     frequency: JobSearchFrequency
     weekdays: list[int] = Field(default_factory=list, max_length=7)
     local_time: time = Field(alias="localTime")
@@ -702,13 +1004,41 @@ class JobSearchScheduleCreateRequest(BaseModel):
         cls,
         value: list[JobSearchSource],
     ) -> list[JobSearchSource]:
-        return list(dict.fromkeys(value))
+        return validate_job_search_sources(value)
+
+    @field_validator("source_config_ids")
+    @classmethod
+    def normalize_source_configs(cls, value: dict[str, str]) -> dict[str, str]:
+        return normalize_source_config_ids(value)
+
+    @model_validator(mode="after")
+    def require_preset_or_config(self) -> "JobSearchScheduleCreateRequest":
+        if self.preset_id:
+            if self.config_id or self.sources or self.source_config_ids:
+                raise ValueError(
+                    "presetId cannot be combined with configId, sources, or "
+                    "sourceConfigIds"
+                )
+            return self
+        if not self.config_id or not self.sources:
+            raise ValueError("provide presetId or configId with at least one source")
+        return self
 
 
 class JobSearchScheduleUpdateRequest(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=240)
     config_id: str | None = Field(default=None, min_length=1, max_length=36, alias="configId")
-    sources: list[JobSearchSource] | None = Field(default=None, min_length=1, max_length=10)
+    preset_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=36,
+        alias="presetId",
+    )
+    sources: list[JobSearchSource] | None = Field(default=None, min_length=1, max_length=500)
+    source_config_ids: dict[str, str] | None = Field(
+        default=None,
+        alias="sourceConfigIds",
+    )
     frequency: JobSearchFrequency | None = None
     weekdays: list[int] | None = Field(default=None, max_length=7)
     local_time: time | None = Field(default=None, alias="localTime")
@@ -734,14 +1064,24 @@ class JobSearchScheduleUpdateRequest(BaseModel):
         cls,
         value: list[JobSearchSource] | None,
     ) -> list[JobSearchSource] | None:
-        return list(dict.fromkeys(value)) if value is not None else None
+        return validate_job_search_sources(value) if value is not None else None
+
+    @field_validator("source_config_ids")
+    @classmethod
+    def normalize_source_configs(
+        cls,
+        value: dict[str, str] | None,
+    ) -> dict[str, str] | None:
+        return normalize_source_config_ids(value) if value is not None else None
 
 
 class JobSearchSchedulePayload(BaseModel):
     id: str
     name: str
     config_id: str = Field(alias="configId")
+    preset_id: str | None = Field(alias="presetId")
     sources: list[JobSearchSource]
+    source_config_ids: dict[str, str] = Field(alias="sourceConfigIds")
     frequency: JobSearchFrequency
     weekdays: list[int]
     local_time: time = Field(alias="localTime")
@@ -806,3 +1146,54 @@ def as_utc(value: datetime) -> datetime:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC)
     return value.astimezone(UTC)
+
+
+def normalize_source_ids(value: list[str]) -> list[str]:
+    normalized = list(dict.fromkeys(source.strip() for source in value))
+    if any(not source for source in normalized):
+        raise ValueError("vacancy sources must not be empty")
+    return normalized
+
+
+def validate_job_search_sources(value: list[str]) -> list[str]:
+    normalized = normalize_source_ids(value)
+    unsupported = [
+        source for source in normalized if source not in SUPPORTED_VACANCY_SOURCE_IDS
+    ]
+    if unsupported:
+        raise ValueError(f"Unsupported vacancy source: {unsupported[0]}")
+    return normalized
+
+
+def validate_aggregator_source(value: str) -> str:
+    normalized = value.strip()
+    if normalized not in AGGREGATOR_SOURCE_IDS:
+        raise ValueError(f"Source configs are not supported for: {normalized}")
+    return normalized
+
+
+def normalize_source_filters(value: dict[str, Any]) -> dict[str, Any]:
+    return SearchFilters.model_validate(value).model_dump(
+        by_alias=True,
+        exclude_none=True,
+    )
+
+
+def normalize_source_config_ids(value: dict[str, str]) -> dict[str, str]:
+    normalized: dict[str, str] = {}
+    for source, config_id in value.items():
+        normalized_source = validate_aggregator_source(source)
+        normalized_id = config_id.strip()
+        if not normalized_id:
+            raise ValueError("source config ids must not be empty")
+        if len(normalized_id) > 36:
+            raise ValueError("source config ids must be at most 36 characters")
+        normalized[normalized_source] = normalized_id
+    return normalized
+
+
+def normalize_required_text(value: str, *, field_name: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        raise ValueError(f"{field_name} must not be empty")
+    return normalized

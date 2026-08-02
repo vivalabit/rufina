@@ -1,7 +1,7 @@
+import re
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-import re
 from typing import Any, Literal
 from uuid import uuid4
 
@@ -11,12 +11,19 @@ from sqlalchemy.orm import Session
 
 from app.core.identity import get_bound_owner_id
 from app.core.settings import Settings
+from app.core.vacancy_sources import (
+    AGGREGATOR_SOURCE_IDS,
+    SUPPORTED_VACANCY_SOURCE_IDS,
+    direct_company_definition,
+)
 from app.models.job_search import (
-    JobSearchConfigV2,
     JobSearchConfigRecord,
+    JobSearchConfigV2,
     JobSearchRunRecord,
     JobSearchScheduleRecord,
+    JobSourceConfigRecord,
     ScreeningConfig,
+    SearchFilters,
     normalize_job_search_config,
 )
 from app.models.jobs import StoredJobRecord
@@ -49,8 +56,8 @@ from app.services.job_screening_store import (
 )
 from app.services.job_search_schedule import calculate_next_run_at
 from app.services.vacancy_search import (
-    VacancySearchRunResult,
     VacancySearchRunner,
+    VacancySearchRunResult,
     canonical_job_url,
     job_identity,
     normalize_identity_part,
@@ -109,6 +116,7 @@ def execute_job_search(
     run_type: Literal["manual", "automatic"],
     config_snapshot: dict[str, Any] | None = None,
     sources: list[str] | None = None,
+    source_configs: dict[str, JobSourceConfigRecord] | None = None,
     ai_analysis_enabled: bool | None = None,
     scheduled_for: datetime | None = None,
     now: datetime | None = None,
@@ -120,7 +128,15 @@ def execute_job_search(
     if config_snapshot is None:
         if config is None:
             raise ValueError("config or config_snapshot is required")
-        config_snapshot = build_config_snapshot(config)
+        config_snapshot = build_config_snapshot(
+            config,
+            source_configs=source_configs,
+        )
+    elif source_configs:
+        config_snapshot = {
+            **config_snapshot,
+            "sourceConfigs": build_source_config_snapshots(source_configs),
+        }
     run_sources = list(sources if sources is not None else schedule.sources if schedule else [])
     if not run_sources:
         raise ValueError("at least one job search source is required")
@@ -186,12 +202,16 @@ def execute_job_search(
         request = search_request_from_config(
             run.config_snapshot["filters"],
         )
+        source_requests = source_requests_from_snapshot(
+            run.config_snapshot,
+        )
         search_result = runner.run(
             sources=list(run.sources),
             request=request,
+            source_requests=source_requests,
             wait_for_snapshots=True,
         )
-    except (ValidationError, ValueError) as exc:
+    except (TypeError, ValidationError, ValueError) as exc:
         completed_at = datetime.now(UTC)
         finish_failed_run(
             run,
@@ -352,7 +372,11 @@ def search_request_from_config(
     return LinkedInSearchRequest.model_validate(parser_fields)
 
 
-def build_config_snapshot(config: JobSearchConfigRecord) -> dict[str, Any]:
+def build_config_snapshot(
+    config: JobSearchConfigRecord,
+    *,
+    source_configs: dict[str, JobSourceConfigRecord] | None = None,
+) -> dict[str, Any]:
     try:
         normalized_config = normalize_job_search_config(config.filters).model_dump(
             by_alias=True,
@@ -360,13 +384,55 @@ def build_config_snapshot(config: JobSearchConfigRecord) -> dict[str, Any]:
         )
     except ValidationError:
         normalized_config = deepcopy(config.filters)
-    return {
+    snapshot = {
         "id": config.id,
         "name": config.name,
         "filters": normalized_config,
         "createdAt": serialize_datetime(config.created_at),
         "updatedAt": serialize_datetime(config.updated_at),
     }
+    if source_configs:
+        snapshot["sourceConfigs"] = build_source_config_snapshots(source_configs)
+    return snapshot
+
+
+def build_source_config_snapshots(
+    source_configs: dict[str, JobSourceConfigRecord],
+) -> dict[str, dict[str, Any]]:
+    return {
+        source: {
+            "id": record.id,
+            "name": record.name,
+            "source": record.source,
+            "filters": deepcopy(record.filters),
+            "createdAt": serialize_datetime(record.created_at),
+            "updatedAt": serialize_datetime(record.updated_at),
+        }
+        for source, record in source_configs.items()
+    }
+
+
+def source_requests_from_snapshot(
+    snapshot: dict[str, Any],
+) -> dict[str, LinkedInSearchRequest]:
+    raw_source_configs = snapshot.get("sourceConfigs")
+    if not isinstance(raw_source_configs, dict):
+        return {}
+    requests: dict[str, LinkedInSearchRequest] = {}
+    for source, raw_config in raw_source_configs.items():
+        if not isinstance(source, str) or not isinstance(raw_config, dict):
+            continue
+        filters = raw_config.get("filters")
+        if not isinstance(filters, dict):
+            raise TypeError(f"Source config for {source} has invalid filters")
+        normalized = SearchFilters.model_validate(filters)
+        parser_fields = {
+            key: value
+            for key, value in normalized.model_dump().items()
+            if key in LinkedInSearchRequest.model_fields
+        }
+        requests[source] = LinkedInSearchRequest.model_validate(parser_fields)
+    return requests
 
 
 def prepare_new_job_candidates(
@@ -791,11 +857,12 @@ def parsed_job_to_stored_job(
     added_at: datetime,
 ) -> dict[str, Any]:
     source = normalize_source(job.source)
+    company_definition = direct_company_definition(source)
     source_label = {
         "linkedin": "LinkedIn",
         "indeed": "Indeed",
         "jobs_ch": "jobs.ch",
-    }[source]
+    }.get(source, company_definition.name if company_definition else source)
     company = normalized_text(job.company, source_label)
     title = normalized_text(job.title, f"{source_label} vacancy")
     location = normalized_text(job.location, "Not specified")
@@ -822,7 +889,7 @@ def parsed_job_to_stored_job(
         "experience": experience,
         "department": f"{source_label} import",
         "match": 50,
-        "logo": source,
+        "logo": source if source in AGGREGATOR_SOURCE_IDS else "company",
         "overview": overview,
         "responsibilities": [
             f"Review the {source_label} vacancy details",
@@ -875,10 +942,9 @@ def stored_job_identity(data: dict[str, Any]) -> str:
 
 
 def normalize_source(value: str) -> str:
-    if value in {"jobs_ch", "jobs.ch"}:
-        return "jobs_ch"
-    if value == "indeed":
-        return "indeed"
+    normalized = "jobs_ch" if value in {"jobs_ch", "jobs.ch"} else value
+    if normalized in SUPPORTED_VACANCY_SOURCE_IDS:
+        return normalized
     return "linkedin"
 
 

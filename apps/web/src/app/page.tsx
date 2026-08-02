@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
+import Image from "next/image";
 import {
   Archive,
   ArchiveRestore,
@@ -75,7 +76,10 @@ import { ResumeTemplateManager } from "@/components/resume-template-manager";
 import { getAiMatchAnalysisStatus, legacyAiMatchVersion } from "@/lib/ai-match";
 import { getAiSourceLabel, type AiBackend, type AiSource } from "@/lib/ai-source";
 import { findWorkspaceApplication, getHashForView, getRouteFromHash, type View } from "@/lib/app-route";
-import { directCompanyCatalog } from "@/lib/direct-company-catalog";
+import {
+  directCompanyCatalog,
+  getDirectCompanyByJobId,
+} from "@/lib/direct-company-catalog";
 import { cn } from "@/lib/utils";
 
 type AiMatchMetadata = {
@@ -167,7 +171,7 @@ type Job = {
   experience: string;
   department: string;
   match: number;
-  logo: "stripe" | "figma" | "linkedin" | "indeed" | "jobs_ch" | "manual";
+  logo: "stripe" | "figma" | "linkedin" | "indeed" | "jobs_ch" | "company" | "manual";
   overview: string;
   responsibilities: string[];
   requirements: string[];
@@ -336,7 +340,7 @@ const defaultAppSettings: AppSettings = {
   ai_match_batch_size: 1,
   ai_match_timeout_seconds: 120,
   ai_match_max_attempts: 2,
-  job_screening_model: "openai/gpt-5-mini",
+  job_screening_model: "openai/gpt-5.6-luna",
   job_screening_reasoning: "off",
   job_screening_batch_size: 10,
   job_screening_timeout_seconds: 60,
@@ -396,6 +400,26 @@ type JobSearchConfigPayload = {
   id: string;
   name: string;
   filters: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type JobSourceConfigPayload = {
+  id: string;
+  name: string;
+  configId: string;
+  source: ParserId;
+  filters: Record<string, unknown>;
+  createdAt: string;
+  updatedAt: string;
+};
+
+type JobSearchPresetPayload = {
+  id: string;
+  name: string;
+  configId: string;
+  sources: string[];
+  sourceConfigIds: Partial<Record<ParserId, string>>;
   createdAt: string;
   updatedAt: string;
 };
@@ -1735,18 +1759,12 @@ function getProfileCompletion(profile: CandidateProfile) {
 function getParserLabel(parser: string | undefined) {
   if (parser === "indeed") return "Indeed";
   if (parser === "jobs_ch" || parser === "jobs.ch") return "jobs.ch";
-  return "LinkedIn";
-}
-
-function getParsersLabel(parsers: ParserId[]) {
-  return parsers.map(getParserLabel).join(" + ");
+  if (!parser || parser === "linkedin") return "LinkedIn";
+  return directCompanyCatalog.find((company) => company.id === parser)?.name ?? parser;
 }
 
 function getSearchSourcesLabel(form: ParserSearchForm) {
-  return [
-    ...form.parsers.map(getParserLabel),
-    ...(form.directCompaniesEnabled ? ["Direct Companies"] : []),
-  ].join(" + ");
+  return parserSearchSourceIds(form).map(getParserLabel).join(" + ");
 }
 
 function normalizeParserIds(form: ParserSearchForm): ParserId[] {
@@ -2011,6 +2029,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+function parserSearchSourceIds(form: ParserSearchForm): string[] {
+  return Array.from(
+    new Set([
+      ...normalizeParserIds(form),
+      ...(form.directCompaniesEnabled
+        ? normalizeDirectCompanyIds(form.directCompanyIds)
+        : []),
+    ]),
+  );
+}
+
 function normalizeParserSearchConfigs(configs: ParserSearchConfig[]) {
   const normalizedConfigs = configs
     .filter((config) => config.id && config.name && config.form)
@@ -2072,10 +2101,14 @@ function parserSearchFiltersFromForm(
       deduplicate: form.deduplicate,
       searchName: form.searchName.trim(),
       folder: form.folder,
-      sources: normalizeParserIds(form),
-      directCompaniesEnabled: form.directCompaniesEnabled === true,
-      directCompanyIds: normalizeDirectCompanyIds(form.directCompanyIds),
+      sources: undefined,
+      parsers: undefined,
+      directCompaniesEnabled: undefined,
+      direct_companies_enabled: undefined,
+      directCompanyIds: undefined,
+      direct_company_ids: undefined,
       directCompanies: undefined,
+      direct_companies: undefined,
     },
     screening: currentScreening ?? {
       enabled: true,
@@ -2086,6 +2119,13 @@ function parserSearchFiltersFromForm(
       hardRules: [],
     },
   };
+}
+
+function sourceSearchFiltersFromForm(
+  form: ParserSearchForm,
+): Record<string, unknown> {
+  const filters = parserSearchFiltersFromForm(form);
+  return isRecord(filters.search) ? filters.search : {};
 }
 
 function parserSearchConfigFromApi(
@@ -2350,7 +2390,10 @@ function buildRecommendationPlan(job: Job): JobRecommendation[] {
 }
 
 function isImportedJob(job: Job) {
-  return job.id.startsWith("linkedin-") || job.id.startsWith("indeed-") || job.id.startsWith("jobs_ch-");
+  return job.id.startsWith("linkedin-") ||
+    job.id.startsWith("indeed-") ||
+    job.id.startsWith("jobs_ch-") ||
+    directCompanyCatalog.some((company) => job.id.startsWith(`${company.id}-`));
 }
 
 function isManualJob(job: Job) {
@@ -2410,6 +2453,7 @@ function normalizeStoredJobs(value: unknown) {
         candidate.logo === "linkedin" ||
         candidate.logo === "indeed" ||
         candidate.logo === "jobs_ch" ||
+        candidate.logo === "company" ||
         candidate.logo === "manual"
       ) &&
       typeof candidate.overview === "string" &&
@@ -2434,6 +2478,7 @@ function normalizeStoredJobLogo(job: Job): Job["logo"] {
   if (job.id.startsWith("linkedin-")) return "linkedin";
   if (job.id.startsWith("indeed-")) return "indeed";
   if (job.id.startsWith("jobs_ch-")) return "jobs_ch";
+  if (directCompanyCatalog.some((company) => job.id.startsWith(`${company.id}-`))) return "company";
   return job.logo;
 }
 
@@ -2966,6 +3011,10 @@ export default function HomePage() {
   const [parserSearchForm, setParserSearchForm] = useState<ParserSearchForm>(defaultParserSearchForm);
   const [parserSearchConfigs, setParserSearchConfigs] = useState<ParserSearchConfig[]>([]);
   const [selectedParserSearchConfigId, setSelectedParserSearchConfigId] = useState("");
+  const [sourceSearchConfigs, setSourceSearchConfigs] = useState<JobSourceConfigPayload[]>([]);
+  const [searchPresets, setSearchPresets] = useState<JobSearchPresetPayload[]>([]);
+  const [selectedSourceConfigIds, setSelectedSourceConfigIds] = useState<Partial<Record<ParserId, string>>>({});
+  const [selectedSearchPresetId, setSelectedSearchPresetId] = useState("");
   const [profile, setProfile] = useState<CandidateProfile>(defaultCandidateProfile);
   const [profileDraft, setProfileDraft] = useState<CandidateProfile>(defaultCandidateProfile);
   const [isProfileLoaded, setIsProfileLoaded] = useState(false);
@@ -3255,8 +3304,21 @@ export default function HomePage() {
           window.localStorage.removeItem(parserSearchConfigsStorageKey);
         }
 
+        const [sourceConfigsResponse, presetsResponse] = await Promise.all([
+          fetch(`${apiBaseUrl}/job-search/source-configs`, { cache: "no-store" }).catch(() => null),
+          fetch(`${apiBaseUrl}/job-search/presets`, { cache: "no-store" }).catch(() => null),
+        ]);
+        const loadedSourceConfigs = sourceConfigsResponse?.ok
+          ? (await sourceConfigsResponse.json()) as JobSourceConfigPayload[]
+          : [];
+        const loadedPresets = presetsResponse?.ok
+          ? (await presetsResponse.json()) as JobSearchPresetPayload[]
+          : [];
+
         if (!isMounted) return;
         setParserSearchConfigs(serverConfigs.map(parserSearchConfigFromApi));
+        setSourceSearchConfigs(loadedSourceConfigs);
+        setSearchPresets(loadedPresets);
       } catch (error) {
         if (!isMounted) return;
         setParserSearchStatus("error");
@@ -4149,6 +4211,7 @@ export default function HomePage() {
           : [...current.parsers, parser],
       };
     });
+    setSelectedSearchPresetId("");
     setParserSearchStatus("idle");
     setParserSearchMessage("");
   }
@@ -4165,6 +4228,7 @@ export default function HomePage() {
             : current.parsers,
       };
     });
+    setSelectedSearchPresetId("");
     setParserSearchStatus("idle");
     setParserSearchMessage("");
   }
@@ -4174,8 +4238,162 @@ export default function HomePage() {
       ...current,
       directCompanyIds: normalizeDirectCompanyIds(companyIds),
     }));
+    setSelectedSearchPresetId("");
     setParserSearchStatus("idle");
     setParserSearchMessage("");
+  }
+
+  function defaultSourceConfigMapping(
+    configId: string,
+    sources: ParserId[],
+  ): Partial<Record<ParserId, string>> {
+    return Object.fromEntries(
+      sources.flatMap((source) => {
+        const sourceConfig = sourceSearchConfigs.find(
+          (config) => config.configId === configId && config.source === source,
+        );
+        return sourceConfig ? [[source, sourceConfig.id]] : [];
+      }),
+    );
+  }
+
+  function selectSourceSearchConfig(source: ParserId, configId: string) {
+    setSelectedSourceConfigIds((current) => ({
+      ...current,
+      [source]: configId || undefined,
+    }));
+    setSelectedSearchPresetId("");
+    setParserSearchStatus("idle");
+    setParserSearchMessage("");
+  }
+
+  async function saveSourceSearchConfig(source: ParserId) {
+    if (!selectedParserSearchConfigId) {
+      setParserSearchStatus("error");
+      setParserSearchMessage("Save or select the common profile first");
+      return;
+    }
+    const existingId = selectedSourceConfigIds[source];
+    const commonConfig = parserSearchConfigs.find(
+      (config) => config.id === selectedParserSearchConfigId,
+    );
+    const sourceLabel = getParserLabel(source);
+    setParserSearchStatus("loading");
+    setParserSearchMessage(
+      `${existingId ? "Updating" : "Creating"} ${sourceLabel} query config...`,
+    );
+    try {
+      const response = await fetch(
+        `${apiBaseUrl}/job-search/source-configs${
+          existingId ? `/${encodeURIComponent(existingId)}` : ""
+        }`,
+        {
+          method: existingId ? "PATCH" : "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name: `${commonConfig?.name ?? (parserSearchForm.searchName || "Search")} · ${sourceLabel}`,
+            ...(!existingId
+              ? {
+                  configId: selectedParserSearchConfigId,
+                  source,
+                }
+              : {}),
+            filters: sourceSearchFiltersFromForm(parserSearchForm),
+          }),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(
+          await readApiErrorMessage(response, `${sourceLabel} config save failed`),
+        );
+      }
+      const saved = (await response.json()) as JobSourceConfigPayload;
+      setSourceSearchConfigs((current) =>
+        current.some((config) => config.id === saved.id)
+          ? current.map((config) => (config.id === saved.id ? saved : config))
+          : [saved, ...current],
+      );
+      setSelectedSourceConfigIds((current) => ({ ...current, [source]: saved.id }));
+      setSelectedSearchPresetId("");
+      setParserSearchStatus("ready");
+      setParserSearchMessage(`Saved ${sourceLabel} query config`);
+    } catch (error) {
+      setParserSearchStatus("error");
+      setParserSearchMessage(
+        error instanceof Error ? error.message : `${sourceLabel} config save failed`,
+      );
+    }
+  }
+
+  function loadSearchPreset(presetId: string) {
+    const preset = searchPresets.find((item) => item.id === presetId);
+    if (!preset) {
+      setSelectedSearchPresetId("");
+      return;
+    }
+    loadParserSearchConfig(preset.configId);
+    const parserIds = preset.sources.filter(
+      (source): source is ParserId =>
+        source === "linkedin" || source === "indeed" || source === "jobs_ch",
+    );
+    const directCompanyIds = normalizeDirectCompanyIds(preset.sources);
+    setParserSearchForm((current) => ({
+      ...current,
+      parsers: parserIds,
+      directCompaniesEnabled: directCompanyIds.length > 0,
+      directCompanyIds,
+    }));
+    setSelectedSourceConfigIds(preset.sourceConfigIds);
+    setSelectedSearchPresetId(presetId);
+    setParserSearchStatus("ready");
+    setParserSearchMessage(`Loaded preset: ${preset.name}`);
+  }
+
+  async function saveSearchPreset() {
+    if (!selectedParserSearchConfigId) {
+      setParserSearchStatus("error");
+      setParserSearchMessage("Select a saved common profile first");
+      return;
+    }
+    const sources = parserSearchSourceIds(parserSearchForm);
+    const missingSource = parserSearchForm.parsers.find(
+      (source) => !selectedSourceConfigIds[source],
+    );
+    if (missingSource) {
+      setParserSearchStatus("error");
+      setParserSearchMessage(`Select a query config for ${getParserLabel(missingSource)}`);
+      return;
+    }
+    const commonConfig = parserSearchConfigs.find(
+      (config) => config.id === selectedParserSearchConfigId,
+    );
+    setParserSearchStatus("loading");
+    setParserSearchMessage("Saving source preset...");
+    try {
+      const response = await fetch(`${apiBaseUrl}/job-search/presets`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: `${commonConfig?.name ?? "Search"} · ${sources.length} sources`,
+          configId: selectedParserSearchConfigId,
+          sources,
+          sourceConfigIds: Object.fromEntries(
+            parserSearchForm.parsers.map((source) => [source, selectedSourceConfigIds[source]]),
+          ),
+        }),
+      });
+      if (!response.ok) {
+        throw new Error(await readApiErrorMessage(response, "Preset save failed"));
+      }
+      const saved = (await response.json()) as JobSearchPresetPayload;
+      setSearchPresets((current) => [saved, ...current]);
+      setSelectedSearchPresetId(saved.id);
+      setParserSearchStatus("ready");
+      setParserSearchMessage(`Saved preset: ${saved.name}`);
+    } catch (error) {
+      setParserSearchStatus("error");
+      setParserSearchMessage(error instanceof Error ? error.message : "Preset save failed");
+    }
   }
 
   async function saveAppSettings(apiKey = brightDataApiKeyDraft) {
@@ -4302,7 +4520,18 @@ export default function HomePage() {
           : [savedConfig, ...currentConfigs],
       );
       setSelectedParserSearchConfigId(savedConfig.id);
-      setParserSearchForm(savedConfig.form);
+      setSelectedSourceConfigIds(
+        defaultSourceConfigMapping(savedConfig.id, parserSearchForm.parsers),
+      );
+      setSelectedSearchPresetId("");
+      setParserSearchForm((currentForm) => ({
+        ...defaultParserSearchForm,
+        ...savedConfig.form,
+        parsers: currentForm.parsers,
+        directCompaniesEnabled: currentForm.directCompaniesEnabled,
+        directCompanyIds: currentForm.directCompanyIds,
+        searchName: savedConfig.name,
+      }));
       setParserSearchStatus("ready");
       setParserSearchMessage(`Saved config: ${configName}`);
     } catch (error) {
@@ -4319,7 +4548,19 @@ export default function HomePage() {
 
     if (!config) return;
 
-    setParserSearchForm({ ...defaultParserSearchForm, ...config.form, searchName: config.name });
+    setSelectedSourceConfigIds(
+      defaultSourceConfigMapping(config.id, parserSearchForm.parsers),
+    );
+    setSelectedSearchPresetId("");
+
+    setParserSearchForm((currentForm) => ({
+      ...defaultParserSearchForm,
+      ...config.form,
+      parsers: currentForm.parsers,
+      directCompaniesEnabled: currentForm.directCompaniesEnabled,
+      directCompanyIds: currentForm.directCompanyIds,
+      searchName: config.name,
+    }));
     setParserSearchStatus("ready");
     setParserSearchMessage(`Loaded config: ${config.name}`);
   }
@@ -4348,6 +4589,8 @@ export default function HomePage() {
         ),
       );
       setSelectedParserSearchConfigId("");
+      setSelectedSourceConfigIds({});
+      setSelectedSearchPresetId("");
       setParserSearchStatus("ready");
       setParserSearchMessage(
         deletedConfig ? `Deleted config: ${deletedConfig.name}` : "Deleted config",
@@ -5517,10 +5760,9 @@ export default function HomePage() {
   }
 
   async function runParsers() {
-    const parsers = normalizeParserIds(parserSearchForm);
-    if (parsers.length === 0) {
-      const message =
-        "Direct Companies is configured, but its parser is not connected yet. Save this config to use it when the parser is added.";
+    const sources = parserSearchSourceIds(parserSearchForm);
+    if (sources.length === 0) {
+      const message = "Select at least one parser or direct company.";
       setParserSearchStatus("ready");
       setParserSearchMessage(message);
       appendAppLog({
@@ -5530,7 +5772,7 @@ export default function HomePage() {
       });
       return;
     }
-    const parsersLabel = getParsersLabel(parsers);
+    const parsersLabel = sources.map(getParserLabel).join(" + ");
     setParserSearchStatus("loading");
     setParserSearchMessage(`Searching ${parsersLabel}...`);
     appendAppLog({
@@ -5538,6 +5780,7 @@ export default function HomePage() {
       area: "Vacancy search",
       message: `${parsersLabel} vacancy search started`,
       details: [
+        "Common source config",
         `Keywords: ${parserSearchForm.keywords || "Any"}`,
         `Location: ${parserSearchForm.location || parserSearchForm.country || "Any"}`,
         `Remote: ${parserSearchForm.remote}`,
@@ -5548,6 +5791,12 @@ export default function HomePage() {
     try {
       const selectedConfig = parserSearchConfigs.find(
         (config) => config.id === selectedParserSearchConfigId,
+      );
+      const sourceConfigIds = Object.fromEntries(
+        parserSearchForm.parsers.flatMap((source) => {
+          const sourceConfigId = selectedSourceConfigIds[source];
+          return sourceConfigId ? [[source, sourceConfigId]] : [];
+        }),
       );
       const response = await fetch(`${apiBaseUrl}/job-search/run`, {
         method: "POST",
@@ -5564,7 +5813,8 @@ export default function HomePage() {
                     parserSearchFiltersFromForm(parserSearchForm),
                 },
               }),
-          sources: parsers,
+          sources,
+          sourceConfigIds,
           aiAnalysisEnabled: true,
         }),
       });
@@ -5591,9 +5841,7 @@ export default function HomePage() {
       const parserMessage = run.warning
         ? `${finalMessage} · ${run.warning}`
         : finalMessage;
-      const message = parserSearchForm.directCompaniesEnabled
-        ? `${parserMessage} · Direct Companies skipped; parser not connected yet`
-        : parserMessage;
+      const message = parserMessage;
 
       setParserSearchStatus("ready");
       setParserSearchMessage(message);
@@ -6306,13 +6554,20 @@ export default function HomePage() {
 
                   <section className="p-4 lg:border-l lg:border-border 2xl:p-5">
                     <div className="flex items-center justify-between gap-3">
-                      <h3 className="text-sm font-bold text-white">2. Configure parser settings</h3>
+                      <div>
+                        <h3 className="text-sm font-bold text-white">2. Configure common profile</h3>
+                        <p className="mt-1 text-xs font-medium text-muted">
+                          Shared screening rules and the fallback query for direct company pages.
+                        </p>
+                      </div>
                       <button
                         type="button"
                         className="inline-flex items-center gap-2 text-xs font-bold text-muted transition hover:text-white"
                         onClick={() => {
                           setParserSearchForm(defaultParserSearchForm);
                           setSelectedParserSearchConfigId("");
+                          setSelectedSourceConfigIds({});
+                          setSelectedSearchPresetId("");
                           setParserSearchStatus("idle");
                           setParserSearchMessage("");
                         }}
@@ -6479,7 +6734,88 @@ export default function HomePage() {
                 </div>
 
                 <section className="border-t border-border p-4 2xl:p-5">
-                  <h3 className="text-sm font-bold text-white">3. Search configs</h3>
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <h3 className="text-sm font-bold text-white">3. Source query configs</h3>
+                      <p className="mt-1 text-xs font-medium text-muted">
+                        LinkedIn, Indeed and jobs.ch each use their own query. Direct companies use the common profile.
+                      </p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      className="h-9 rounded-md border border-border bg-transparent px-4 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
+                      disabled={!selectedParserSearchConfigId || parserSearchForm.parsers.length === 0}
+                      onClick={() => void saveSearchPreset()}
+                    >
+                      <Save className="h-4 w-4" />
+                      Save source preset
+                    </Button>
+                  </div>
+
+                  <label className="mt-4 grid gap-2">
+                    <span className="text-xs font-bold text-[#d8dee8]">Saved run preset</span>
+                    <select
+                      aria-label="Saved run preset"
+                      value={selectedSearchPresetId}
+                      onChange={(event) => loadSearchPreset(event.target.value)}
+                      className="h-9 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-muted outline-none focus:border-accent/70"
+                    >
+                      <option value="">Choose profile + source mapping</option>
+                      {searchPresets.map((preset) => (
+                        <option key={preset.id} value={preset.id}>
+                          {preset.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-3">
+                    {parserSearchForm.parsers.map((source) => {
+                      const compatibleConfigs = sourceSearchConfigs.filter(
+                        (config) =>
+                          config.source === source &&
+                          config.configId === selectedParserSearchConfigId,
+                      );
+                      return (
+                        <div key={source} className="rounded-md border border-border bg-white/[0.018] p-3">
+                          <p className="text-sm font-bold text-white">{getParserLabel(source)}</p>
+                          <select
+                            aria-label={`${getParserLabel(source)} query config`}
+                            value={selectedSourceConfigIds[source] ?? ""}
+                            onChange={(event) => selectSourceSearchConfig(source, event.target.value)}
+                            className="mt-3 h-9 w-full rounded-md border border-border bg-[#0d131a] px-3 text-xs font-semibold text-muted outline-none focus:border-accent/70"
+                          >
+                            <option value="">Select query config</option>
+                            {compatibleConfigs.map((config) => (
+                              <option key={config.id} value={config.id}>{config.name}</option>
+                            ))}
+                          </select>
+                          <button
+                            type="button"
+                            className="mt-3 text-xs font-bold text-accent hover:text-[#ff8a4c]"
+                            onClick={() => void saveSourceSearchConfig(source)}
+                          >
+                            {selectedSourceConfigIds[source]
+                              ? "Update from fields above"
+                              : "Create from fields above"}
+                          </button>
+                        </div>
+                      );
+                    })}
+                    {parserSearchForm.directCompaniesEnabled && parserSearchForm.directCompanyIds.length > 0 && (
+                      <div className="rounded-md border border-[#8b5cf6]/30 bg-[#8b5cf6]/[0.06] p-3">
+                        <p className="text-sm font-bold text-white">Direct companies</p>
+                        <p className="mt-2 text-xs font-medium text-muted">
+                          {parserSearchForm.directCompanyIds.map(getParserLabel).join(", ")} use the common profile; no query config is needed.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                </section>
+
+                <section className="border-t border-border p-4 2xl:p-5">
+                  <h3 className="text-sm font-bold text-white">4. Common profiles</h3>
                   <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
                     <label className="grid gap-2 md:col-span-2">
                       <span className="text-xs font-bold text-[#d8dee8]">Existing configs</span>
@@ -6553,6 +6889,8 @@ export default function HomePage() {
                       onClick={() => {
                         setParserSearchForm(defaultParserSearchForm);
                         setSelectedParserSearchConfigId("");
+                        setSelectedSourceConfigIds({});
+                        setSelectedSearchPresetId("");
                         setParserSearchStatus("idle");
                         setParserSearchMessage("");
                       }}
@@ -9139,7 +9477,7 @@ function SettingsView({
                     aria-label="Vacancy pre-screening model"
                     value={screeningModelDraft}
                     onChange={(event) => setScreeningModelDraft(event.target.value)}
-                    placeholder="openai/gpt-5-mini"
+                    placeholder="openai/gpt-5.6-luna"
                     className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/60 focus:border-amber-300/60"
                   />
                 </label>
@@ -12829,13 +13167,14 @@ const jobSourceBadges: Record<Job["logo"], { label: string; text: string; classN
   linkedin: { label: "LinkedIn", text: "in", className: "bg-[#0a66c2] text-white" },
   indeed: { label: "Indeed", text: "indeed", className: "bg-white text-[#2557a7] tracking-[-0.08em]" },
   jobs_ch: { label: "jobs.ch", text: "jobs.ch", className: "bg-white text-[#e30613] tracking-[-0.08em]" },
+  company: { label: "Direct company", text: "DC", className: "bg-[#6d45c8] text-white tracking-[-0.04em]" },
   manual: { label: "Manually added", text: "+", className: "bg-[#2a323d] text-[#dce2ea]" },
   figma: { label: "Figma", text: "F", className: "bg-black text-white" },
   stripe: { label: "Stripe", text: "S", className: "bg-[#635bff] text-white" },
 };
 
 function getJobSourceLabel(job: Job) {
-  return jobSourceBadges[job.logo].label;
+  return getDirectCompanyByJobId(job.id)?.name ?? jobSourceBadges[job.logo].label;
 }
 
 function getSpecializedJobRoleCategory(value: string): JobRoleCategory | null {
@@ -12875,6 +13214,7 @@ function getJobRoleCategory(job: Job): JobRoleCategory {
 function JobRoleIcon({ job, large = false, compact = false }: { job: Job; large?: boolean; compact?: boolean }) {
   const role = jobRoleVisuals[getJobRoleCategory(job)];
   const source = jobSourceBadges[job.logo];
+  const directCompany = getDirectCompanyByJobId(job.id);
   const Icon = role.icon;
   const sizeClass = compact ? "h-9 w-9 2xl:h-11 2xl:w-11" : large ? "h-16 w-16 2xl:h-[88px] 2xl:w-[88px]" : "h-11 w-11 2xl:h-14 2xl:w-14";
   const iconSizeClass = compact ? "h-4 w-4 2xl:h-5 2xl:w-5" : large ? "h-8 w-8 2xl:h-11 2xl:w-11" : "h-5 w-5 2xl:h-6 2xl:w-6";
@@ -12883,6 +13223,33 @@ function JobRoleIcon({ job, large = false, compact = false }: { job: Job; large?
     : large
       ? "-bottom-1 -right-1 h-6 min-w-6 px-1 text-[9px] 2xl:h-7 2xl:min-w-7 2xl:text-[10px]"
       : "-bottom-0.5 -right-0.5 h-4 min-w-4 px-0.5 text-[7px] 2xl:h-5 2xl:min-w-5 2xl:text-[8px]";
+
+  if (directCompany) {
+    const logoPaddingClass = compact
+      ? "p-1.5 2xl:p-2"
+      : large
+        ? "p-2.5 2xl:p-3.5"
+        : "p-2 2xl:p-2.5";
+
+    return (
+      <div
+        title={`${directCompany.name} · Direct company`}
+        className={cn(
+          "grid shrink-0 place-items-center overflow-hidden rounded-lg border border-white/20 bg-white",
+          sizeClass,
+          logoPaddingClass,
+        )}
+      >
+        <Image
+          src={directCompany.logoSrc}
+          alt={directCompany.logoAlt}
+          width={59}
+          height={21}
+          className="block h-auto w-full"
+        />
+      </div>
+    );
+  }
 
   return (
     <div

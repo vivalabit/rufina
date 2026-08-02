@@ -117,7 +117,7 @@ def test_ai_backend_uses_canonical_env_and_direct_api_parameters(monkeypatch) ->
 def test_job_screening_settings_have_independent_defaults() -> None:
     settings = Settings()
 
-    assert settings.job_screening_model == "openai/gpt-5-mini"
+    assert settings.job_screening_model == "openai/gpt-5.6-luna"
     assert settings.job_screening_reasoning == "off"
     assert settings.job_screening_batch_size == 10
     assert settings.job_screening_timeout_seconds == 60

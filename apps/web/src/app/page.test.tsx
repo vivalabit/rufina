@@ -35,13 +35,19 @@ function importedJobData({
 }: {
   id: string;
   title: string;
-  source?: "linkedin" | "indeed" | "jobs_ch";
+  source?: "linkedin" | "indeed" | "jobs_ch" | "sbb";
 }) {
   const sourceLabel =
-    source === "indeed" ? "Indeed" : source === "jobs_ch" ? "jobs.ch" : "LinkedIn";
+    source === "indeed"
+      ? "Indeed"
+      : source === "jobs_ch"
+        ? "jobs.ch"
+        : source === "sbb"
+          ? "SBB CFF FFS"
+          : "LinkedIn";
   return {
     id,
-    company: "Example AG",
+    company: source === "sbb" ? "SBB CFF FFS" : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -50,7 +56,7 @@ function importedJobData({
     experience: "Entry level",
     department: `${sourceLabel} import`,
     match: 50,
-    logo: source,
+    logo: source === "sbb" ? "company" : source,
     overview: `Imported ${title}`,
     responsibilities: ["Review vacancy"],
     requirements: ["Entry level"],
@@ -333,7 +339,10 @@ it("validates OpenAI API mode before saving", async () => {
 
   render(<HomePage />);
 
-  fireEvent.click(await screen.findByRole("radio", { name: /OpenAI API/ }));
+  await screen.findByDisplayValue("openai/gpt-5-mini");
+  const openAiMode = screen.getByRole("radio", { name: /OpenAI API/ });
+  fireEvent.click(openAiMode);
+  await waitFor(() => expect(openAiMode).toBeChecked());
   const saveButton = screen.getByRole("button", { name: "Save AI settings" });
   expect(screen.getByRole("alert")).toHaveTextContent("Add an OpenAI API key before enabling this mode.");
   expect(saveButton).toBeDisabled();
@@ -500,6 +509,15 @@ it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selecte
   expect(linkedinSource).toHaveAttribute("aria-pressed", "true");
   expect(indeedSource).toHaveAttribute("aria-pressed", "true");
   expect(jobsChSource).toHaveAttribute("aria-pressed", "true");
+  expect(
+    screen.getByText(
+      "Shared screening rules and the fallback query for direct company pages.",
+    ),
+  ).toBeInTheDocument();
+  fireEvent.change(
+    screen.getByPlaceholderText("e.g. Product Designer, UX Designer, Design System"),
+    { target: { value: "platform" } },
+  );
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
 
   await waitFor(() => {
@@ -513,12 +531,20 @@ it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selecte
         schemaVersion: 2,
         screening: {
           enabled: true,
-          targetRoles: [],
+          targetRoles: ["platform"],
+        },
+        search: {
+          keywords: "platform",
         },
       },
     },
   });
   expect(runBodies[0]).toHaveProperty("config");
+  expect(
+    ((runBodies[0].config as Record<string, unknown>).filters as {
+      search: Record<string, unknown>;
+    }).search,
+  ).not.toHaveProperty("sources");
   expect(
     await screen.findByText(
       "Added 1 of 1 vacancies from LinkedIn + Indeed + jobs.ch",
@@ -698,6 +724,99 @@ it("loads a server config and refreshes backend-persisted search results", async
   ).toBeGreaterThan(0);
 });
 
+it("loads a run preset with a separate query config for every aggregator", async () => {
+  window.history.replaceState(null, "", "#jobs");
+  const runBodies: Array<Record<string, unknown>> = [];
+  const entryItConfig = {
+    id: "entry-it",
+    name: "Entry IT",
+    createdAt: "2026-07-21T00:00:00.000Z",
+    updatedAt: "2026-07-21T00:00:00.000Z",
+    filters: {
+      schemaVersion: 2,
+      search: { keywords: "common company query", resultsLimit: 50 },
+      screening: { enabled: true, targetRoles: ["Entry IT"] },
+    },
+  };
+  const sourceConfigIds = {
+    linkedin: "entry-it-linkedin",
+    indeed: "entry-it-indeed",
+    jobs_ch: "entry-it-jobs-ch",
+  };
+  const sourceConfigs = Object.entries(sourceConfigIds).map(([source, id]) => ({
+    id,
+    name: `Entry IT · ${source}`,
+    configId: "entry-it",
+    source,
+    filters: { keywords: `${source} query`, resultsLimit: 50 },
+    createdAt: "2026-07-21T00:00:00.000Z",
+    updatedAt: "2026-07-21T00:00:00.000Z",
+  }));
+  const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+    const requestUrl = typeof input === "string"
+      ? input
+      : input instanceof URL
+        ? input.href
+        : input.url;
+    const url = new URL(requestUrl, "http://localhost");
+    const method = init?.method ?? "GET";
+    if (url.pathname === "/job-search/configs" && method === "GET") {
+      return Response.json([entryItConfig]);
+    }
+    if (url.pathname === "/job-search/source-configs" && method === "GET") {
+      return Response.json(sourceConfigs);
+    }
+    if (url.pathname === "/job-search/presets" && method === "GET") {
+      return Response.json([{
+        id: "entry-it-all-sources",
+        name: "Entry IT · all sources",
+        configId: "entry-it",
+        sources: ["linkedin", "indeed", "jobs_ch"],
+        sourceConfigIds,
+        createdAt: "2026-07-21T00:00:00.000Z",
+        updatedAt: "2026-07-21T00:00:00.000Z",
+      }]);
+    }
+    if (url.pathname === "/job-search/run" && method === "POST") {
+      runBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return Response.json({
+        status: "completed",
+        jobsFound: 0,
+        jobsAdded: 0,
+        sourceErrors: {},
+        warning: null,
+      });
+    }
+    if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
+    if (url.pathname === "/applications" && method === "GET") return Response.json([]);
+    if (url.pathname === "/applications/events" && method === "GET") return Response.json([]);
+    if (url.pathname === "/profile" && method === "GET") return Response.json({});
+    if (url.pathname === "/settings" && method === "GET") {
+      return Response.json({ has_brightdata_api_key: true });
+    }
+    throw new Error(`Unhandled request: ${method} ${url.pathname}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<HomePage />);
+  fireEvent.click(await screen.findByRole("button", { name: "Search vacancies" }));
+  fireEvent.change(await screen.findByLabelText("Saved run preset"), {
+    target: { value: "entry-it-all-sources" },
+  });
+
+  expect(screen.getByLabelText("LinkedIn query config")).toHaveValue("entry-it-linkedin");
+  expect(screen.getByLabelText("Indeed query config")).toHaveValue("entry-it-indeed");
+  expect(screen.getByLabelText("jobs.ch query config")).toHaveValue("entry-it-jobs-ch");
+  fireEvent.click(screen.getByRole("button", { name: "Start search" }));
+
+  expect(await screen.findByText("No vacancies returned from LinkedIn + Indeed + jobs.ch")).toBeInTheDocument();
+  expect(runBodies[0]).toMatchObject({
+    configId: "entry-it",
+    sources: ["linkedin", "indeed", "jobs_ch"],
+    sourceConfigIds,
+  });
+});
+
 it("imports legacy local search configs to the server only once", async () => {
   window.history.replaceState(null, "", "#jobs");
   window.localStorage.setItem(
@@ -783,7 +902,6 @@ it("imports legacy local search configs to the server only once", async () => {
     filters: {
       schemaVersion: 2,
       search: {
-        sources: ["linkedin", "indeed"],
         keywords: "Platform Engineer",
         location: "Zurich",
         resultsLimit: 25,
@@ -795,6 +913,12 @@ it("imports legacy local search configs to the server only once", async () => {
       },
     },
   });
+  expect(
+    ((configWrites[0].filters as Record<string, unknown>).search as Record<
+      string,
+      unknown
+    >),
+  ).not.toHaveProperty("sources");
   expect(
     window.localStorage.getItem("tasko.parserSearchConfigs.v2"),
   ).toBeNull();
@@ -916,7 +1040,6 @@ it("saves and deletes manual-search configs through the API", async () => {
         schemaVersion: 2,
         search: {
           keywords: "Platform Engineer",
-          sources: ["linkedin"],
           resultsLimit: 10,
           deduplicate: true,
         },
@@ -927,6 +1050,12 @@ it("saves and deletes manual-search configs through the API", async () => {
       },
     },
   });
+  expect(
+    (((configRequests[0].body as Record<string, unknown>).filters as Record<
+      string,
+      unknown
+    >).search as Record<string, unknown>),
+  ).not.toHaveProperty("sources");
 
   fireEvent.click(screen.getByRole("button", { name: "Delete" }));
   expect(
@@ -941,10 +1070,11 @@ it("saves and deletes manual-search configs through the API", async () => {
   ).toBeNull();
 });
 
-it("shows an empty direct-company catalog without invoking a parser", async () => {
+it("saves and runs the configured SBB direct-company parser", async () => {
   window.history.replaceState(null, "", "#jobs");
   const configWrites: Array<Record<string, unknown>> = [];
   const runRequests: Array<Record<string, unknown>> = [];
+  let storedJobs: Array<{ id: string; data: unknown }> = [];
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
     const requestUrl =
       typeof input === "string"
@@ -973,9 +1103,21 @@ it("shows an empty direct-company catalog without invoking a parser", async () =
     }
     if (url.pathname === "/job-search/run" && method === "POST") {
       runRequests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
-      throw new Error("Direct Companies must not invoke an unavailable parser");
+      const job = importedJobData({
+        id: "sbb-junior-software-engineer",
+        title: "Junior Software Engineer",
+        source: "sbb",
+      });
+      storedJobs = [{ id: job.id, data: job }];
+      return Response.json({
+        status: "completed",
+        jobsFound: 1,
+        jobsAdded: 1,
+        sourceErrors: {},
+        warning: null,
+      });
     }
-    if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
+    if (url.pathname === "/jobs" && method === "GET") return Response.json(storedJobs);
     if (url.pathname === "/jobs/dismissed-ids" && method === "GET") {
       return Response.json([]);
     }
@@ -1006,12 +1148,13 @@ it("shows an empty direct-company catalog without invoking a parser", async () =
   fireEvent.click(screen.getByRole("button", { name: /LinkedIn/ }));
 
   expect(screen.getByText("Direct company pages")).toBeInTheDocument();
-  expect(screen.getByText("Company catalog is empty")).toBeInTheDocument();
+  expect(screen.getByText("SBB CFF FFS")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
-  expect(screen.getByRole("button", { name: "Select all" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "Select all" })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Add company" })).toBeNull();
+  fireEvent.click(screen.getByRole("checkbox", { name: /SBB CFF FFS/ }));
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1026,24 +1169,26 @@ it("shows an empty direct-company catalog without invoking a parser", async () =
     name: "Direct companies",
     filters: {
       schemaVersion: 2,
-      search: {
-        sources: [],
-        directCompaniesEnabled: true,
-        directCompanyIds: [],
-      },
     },
   });
   const savedFilters = configWrites[0].filters as Record<string, unknown>;
   const savedSearch = savedFilters.search as Record<string, unknown>;
+  expect(savedSearch).not.toHaveProperty("sources");
+  expect(savedSearch).not.toHaveProperty("directCompaniesEnabled");
+  expect(savedSearch).not.toHaveProperty("directCompanyIds");
   expect(savedSearch).not.toHaveProperty("directCompanies");
 
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
-    await screen.findByText(
-      /Direct Companies is configured, but its parser is not connected yet/,
-    ),
+    await screen.findByText("Added 1 of 1 vacancies from SBB CFF FFS"),
   ).toBeInTheDocument();
-  expect(runRequests).toHaveLength(0);
+  expect(runRequests).toHaveLength(1);
+  expect(runRequests[0]).toMatchObject({
+    sources: ["sbb"],
+    aiAnalysisEnabled: true,
+  });
+  expect(screen.getAllByRole("img", { name: "SBB CFF FFS logo" })).toHaveLength(2);
+  expect(screen.getAllByText("Source: SBB CFF FFS")).toHaveLength(2);
 });
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {
