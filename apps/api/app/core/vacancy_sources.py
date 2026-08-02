@@ -58,6 +58,19 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "galaxus_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="die_post",
+        name="Die Post",
+        careers_url="https://job.post.ch/search?locale=en_US",
+        parser_path="app.services.parsers.companies.die_post:DiePostJobsParser",
+        settings_map=(
+            ("base_url", "die_post_jobs_base_url"),
+            ("timeout_seconds", "die_post_jobs_timeout_seconds"),
+            ("max_pages", "die_post_jobs_max_pages"),
+            ("max_catalog_passes", "die_post_jobs_max_catalog_passes"),
+            ("detail_workers", "die_post_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

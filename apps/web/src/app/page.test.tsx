@@ -35,7 +35,14 @@ function importedJobData({
 }: {
   id: string;
   title: string;
-  source?: "linkedin" | "indeed" | "jobs_ch" | "sbb" | "swisscom";
+  source?:
+    | "linkedin"
+    | "indeed"
+    | "jobs_ch"
+    | "sbb"
+    | "swisscom"
+    | "galaxus"
+    | "die_post";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -46,7 +53,11 @@ function importedJobData({
           ? "SBB CFF FFS"
           : source === "swisscom"
             ? "Swisscom"
-          : "LinkedIn";
+            : source === "galaxus"
+              ? "Galaxus"
+              : source === "die_post"
+                ? "Die Post"
+                : "LinkedIn";
   return {
     id,
     company:
@@ -54,7 +65,11 @@ function importedJobData({
         ? "SBB CFF FFS"
         : source === "swisscom"
           ? "Swisscom (Schweiz) AG"
-          : "Example AG",
+          : source === "galaxus"
+            ? "Galaxus"
+            : source === "die_post"
+              ? "Swiss Post Ltd"
+              : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -63,7 +78,13 @@ function importedJobData({
     experience: "Entry level",
     department: `${sourceLabel} import`,
     match: 50,
-    logo: source === "sbb" || source === "swisscom" ? "company" : source,
+    logo:
+      source === "sbb" ||
+      source === "swisscom" ||
+      source === "galaxus" ||
+      source === "die_post"
+        ? "company"
+        : source,
     overview: `Imported ${title}`,
     responsibilities: ["Review vacancy"],
     requirements: ["Entry level"],
@@ -1077,7 +1098,7 @@ it("saves and deletes manual-search configs through the API", async () => {
   ).toBeNull();
 });
 
-it("shows Swisscom vacancies with the company logo", async () => {
+it("shows Die Post vacancies with the company logo", async () => {
   window.history.replaceState(null, "", "#jobs");
   const configWrites: Array<Record<string, unknown>> = [];
   const runRequests: Array<Record<string, unknown>> = [];
@@ -1111,9 +1132,9 @@ it("shows Swisscom vacancies with the company logo", async () => {
     if (url.pathname === "/job-search/run" && method === "POST") {
       runRequests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
       const job = importedJobData({
-        id: "swisscom-junior-software-engineer",
-        title: "Junior Software Engineer at Swisscom",
-        source: "swisscom",
+        id: "die_post-platform-engineer",
+        title: "Platform Engineer at Die Post",
+        source: "die_post",
       });
       storedJobs = [{ id: job.id, data: job }];
       return Response.json({
@@ -1158,12 +1179,13 @@ it("shows Swisscom vacancies with the company logo", async () => {
   expect(screen.getByText("SBB CFF FFS")).toBeInTheDocument();
   expect(screen.getByText("Swisscom")).toBeInTheDocument();
   expect(screen.getByText("Galaxus")).toBeInTheDocument();
+  expect(screen.getByText("Die Post")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Select all" })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Add company" })).toBeNull();
-  fireEvent.click(screen.getByRole("checkbox", { name: /Swisscom/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /Die Post/ }));
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1189,15 +1211,15 @@ it("shows Swisscom vacancies with the company logo", async () => {
 
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
-    await screen.findByText("Added 1 of 1 vacancies from Swisscom"),
+    await screen.findByText("Added 1 of 1 vacancies from Die Post"),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
   expect(runRequests[0]).toMatchObject({
-    sources: ["swisscom"],
+    sources: ["die_post"],
     aiAnalysisEnabled: true,
   });
-  expect(screen.getAllByRole("img", { name: "Swisscom logo" })).toHaveLength(2);
-  expect(screen.getAllByText("Source: Swisscom")).toHaveLength(2);
+  expect(screen.getAllByRole("img", { name: "Die Post logo" })).toHaveLength(2);
+  expect(screen.getAllByText("Source: Die Post")).toHaveLength(2);
 });
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

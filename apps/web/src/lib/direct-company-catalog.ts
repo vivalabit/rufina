@@ -39,6 +39,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 24,
     logoHeight: 24,
   },
+  {
+    id: "die_post",
+    name: "Die Post",
+    careersUrl: "https://job.post.ch/search?locale=en_US",
+    logoSrc: "/company-logos/die_post.svg",
+    logoAlt: "Die Post logo",
+    logoWidth: 24,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
