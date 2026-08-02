@@ -46,6 +46,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "swisscom_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="galaxus",
+        name="Galaxus",
+        careers_url="https://jobs.migros.ch/de/unsere-unternehmen/galaxus/",
+        parser_path="app.services.parsers.companies.galaxus:GalaxusJobsParser",
+        settings_map=(
+            ("base_url", "galaxus_jobs_base_url"),
+            ("timeout_seconds", "galaxus_jobs_timeout_seconds"),
+            ("detail_workers", "galaxus_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

@@ -1157,6 +1157,7 @@ it("shows Swisscom vacancies with the company logo", async () => {
   expect(screen.getByText("Direct company pages")).toBeInTheDocument();
   expect(screen.getByText("SBB CFF FFS")).toBeInTheDocument();
   expect(screen.getByText("Swisscom")).toBeInTheDocument();
+  expect(screen.getByText("Galaxus")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();

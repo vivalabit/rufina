@@ -17,8 +17,8 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
       "https://company.sbb.ch/de/jobs-karriere/jobs/offene-stellen.html?startItem=1",
     logoSrc: "/company-logos/sbb.svg",
     logoAlt: "SBB CFF FFS logo",
-    logoWidth: 59,
-    logoHeight: 21,
+    logoWidth: 32,
+    logoHeight: 24,
   },
   {
     id: "swisscom",
@@ -27,8 +27,17 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
       "https://swisscom.wd103.myworkdayjobs.com/en-US/SwisscomExternalCareers",
     logoSrc: "/company-logos/swisscom.svg",
     logoAlt: "Swisscom logo",
-    logoWidth: 180,
-    logoHeight: 48,
+    logoWidth: 24,
+    logoHeight: 24,
+  },
+  {
+    id: "galaxus",
+    name: "Galaxus",
+    careersUrl: "https://jobs.migros.ch/de/unsere-unternehmen/galaxus/",
+    logoSrc: "/company-logos/galaxus.svg",
+    logoAlt: "Galaxus logo",
+    logoWidth: 24,
+    logoHeight: 24,
   },
 ];
 

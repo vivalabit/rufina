@@ -1,5 +1,6 @@
-<svg viewBox="0 0 59.233 20.603" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title">
-  <title id="title">SBB CFF FFS</title>
-  <path d="M0 0h59.233v20.603H0z" fill="#EC0000"/>
-  <path d="M35.186 17.02h3.75l-5.047-5.163h6.265v5.163h2.96v-5.163h6.267l-5.05 5.163h3.752l6.427-6.708-6.426-6.73h-3.752l5.05 5.185h-6.266V3.583h-2.96v5.184h-6.267l5.047-5.184h-3.75l-6.43 6.73 6.43 6.707" fill="#fff"/>
+<svg role="img" aria-labelledby="title" xmlns="http://www.w3.org/2000/svg" width="96" height="72" viewBox="0 0 96 72"><title id="title">SBB</title>
+  <g fill="none" fill-rule="evenodd">
+    <rect width="96" height="72" fill="#EB0000"/>
+    <polyline fill="#FFF" points="34.86 49.876 42.36 49.876 32.266 39.55 44.796 39.55 44.796 49.876 50.716 49.876 50.716 39.55 63.25 39.55 53.15 49.876 60.654 49.876 73.508 36.46 60.656 23 53.152 23 63.252 33.37 50.72 33.37 50.72 23.002 44.8 23.002 44.8 33.37 32.266 33.37 42.36 23.002 34.86 23.002 22 36.462 34.86 49.876"/>
+  </g>
 </svg>
