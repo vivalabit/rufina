@@ -169,7 +169,8 @@ Rufina reads configuration from the `.env` file in the repository root.
 - `OPENAI_API_KEY` — required when using the OpenAI API directly.
 - `BRIGHTDATA_API_KEY` — required for LinkedIn and Indeed vacancy search.
 - `DEMO_MODE=1` — shows the Stripe/Figma example vacancies and sample calendar events. Demo data is disabled by default.
-- jobs.ch and manually added vacancies do not require an API key.
+- jobs.ch, [Direct Companies](docs/direct-companies.md), and manually added
+  vacancies do not require an API key.
 
 ### AI Providers
 
@@ -203,6 +204,7 @@ pnpm openclaw:setup
 - LinkedIn — through Bright Data
 - Indeed — through Bright Data
 - jobs.ch — direct public search
+- [Direct Companies](docs/direct-companies.md) — official company career pages
 - Manual vacancy entry
 
 ## Stack

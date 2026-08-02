@@ -35,7 +35,7 @@ function importedJobData({
 }: {
   id: string;
   title: string;
-  source?: "linkedin" | "indeed" | "jobs_ch" | "sbb";
+  source?: "linkedin" | "indeed" | "jobs_ch" | "sbb" | "swisscom";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -44,10 +44,17 @@ function importedJobData({
         ? "jobs.ch"
         : source === "sbb"
           ? "SBB CFF FFS"
+          : source === "swisscom"
+            ? "Swisscom"
           : "LinkedIn";
   return {
     id,
-    company: source === "sbb" ? "SBB CFF FFS" : "Example AG",
+    company:
+      source === "sbb"
+        ? "SBB CFF FFS"
+        : source === "swisscom"
+          ? "Swisscom (Schweiz) AG"
+          : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -56,7 +63,7 @@ function importedJobData({
     experience: "Entry level",
     department: `${sourceLabel} import`,
     match: 50,
-    logo: source === "sbb" ? "company" : source,
+    logo: source === "sbb" || source === "swisscom" ? "company" : source,
     overview: `Imported ${title}`,
     responsibilities: ["Review vacancy"],
     requirements: ["Entry level"],
@@ -1070,7 +1077,7 @@ it("saves and deletes manual-search configs through the API", async () => {
   ).toBeNull();
 });
 
-it("saves and runs the configured SBB direct-company parser", async () => {
+it("shows Swisscom vacancies with the company logo", async () => {
   window.history.replaceState(null, "", "#jobs");
   const configWrites: Array<Record<string, unknown>> = [];
   const runRequests: Array<Record<string, unknown>> = [];
@@ -1104,9 +1111,9 @@ it("saves and runs the configured SBB direct-company parser", async () => {
     if (url.pathname === "/job-search/run" && method === "POST") {
       runRequests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
       const job = importedJobData({
-        id: "sbb-junior-software-engineer",
-        title: "Junior Software Engineer",
-        source: "sbb",
+        id: "swisscom-junior-software-engineer",
+        title: "Junior Software Engineer at Swisscom",
+        source: "swisscom",
       });
       storedJobs = [{ id: job.id, data: job }];
       return Response.json({
@@ -1149,12 +1156,13 @@ it("saves and runs the configured SBB direct-company parser", async () => {
 
   expect(screen.getByText("Direct company pages")).toBeInTheDocument();
   expect(screen.getByText("SBB CFF FFS")).toBeInTheDocument();
+  expect(screen.getByText("Swisscom")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Select all" })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Add company" })).toBeNull();
-  fireEvent.click(screen.getByRole("checkbox", { name: /SBB CFF FFS/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /Swisscom/ }));
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1180,15 +1188,15 @@ it("saves and runs the configured SBB direct-company parser", async () => {
 
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
-    await screen.findByText("Added 1 of 1 vacancies from SBB CFF FFS"),
+    await screen.findByText("Added 1 of 1 vacancies from Swisscom"),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
   expect(runRequests[0]).toMatchObject({
-    sources: ["sbb"],
+    sources: ["swisscom"],
     aiAnalysisEnabled: true,
   });
-  expect(screen.getAllByRole("img", { name: "SBB CFF FFS logo" })).toHaveLength(2);
-  expect(screen.getAllByText("Source: SBB CFF FFS")).toHaveLength(2);
+  expect(screen.getAllByRole("img", { name: "Swisscom logo" })).toHaveLength(2);
+  expect(screen.getAllByText("Source: Swisscom")).toHaveLength(2);
 });
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

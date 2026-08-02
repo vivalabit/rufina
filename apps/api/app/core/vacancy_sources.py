@@ -29,6 +29,23 @@ DIRECT_COMPANY_PARSERS = (
             ("timeout_seconds", "sbb_jobs_timeout_seconds"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="swisscom",
+        name="Swisscom",
+        careers_url=(
+            "https://swisscom.wd103.myworkdayjobs.com/en-US/"
+            "SwisscomExternalCareers"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.swisscom:SwisscomJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "swisscom_jobs_base_url"),
+            ("timeout_seconds", "swisscom_jobs_timeout_seconds"),
+            ("max_pages", "swisscom_jobs_max_pages"),
+            ("detail_workers", "swisscom_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

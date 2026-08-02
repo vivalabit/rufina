@@ -1,0 +1,7 @@
+<svg viewBox="0 0 180 48" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title">
+  <title id="title">Swisscom</title>
+  <rect width="180" height="48" rx="6" fill="#fff"/>
+  <path d="M18 9c8 3 14 10 15 18-3 6-8 10-15 12 3-5 5-10 5-15S21 14 18 9Z" fill="#0B74C9"/>
+  <path d="M18 9c-5 7-7 13-7 18 0 4 2 8 7 12-8-2-13-7-15-14C5 18 10 12 18 9Z" fill="#D7195A"/>
+  <text x="41" y="31" fill="#162B49" font-family="Arial, Helvetica, sans-serif" font-size="24" font-weight="700">Swisscom</text>
+</svg>

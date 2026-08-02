@@ -13243,9 +13243,9 @@ function JobRoleIcon({ job, large = false, compact = false }: { job: Job; large?
         <Image
           src={directCompany.logoSrc}
           alt={directCompany.logoAlt}
-          width={59}
-          height={21}
-          className="block h-auto w-full"
+          width={directCompany.logoWidth ?? 180}
+          height={directCompany.logoHeight ?? 48}
+          className="block max-h-full w-full object-contain"
         />
       </div>
     );
