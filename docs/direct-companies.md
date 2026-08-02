@@ -18,7 +18,9 @@ vacancy-search API key.
 
 During a search, Rufina scans all vacancies exposed by the selected company
 source. Every result is saved in the private `discovered_vacancies` inventory
-before screening. Unchanged vacancies reuse screening decisions, while only
-`keep` vacancies are materialized in the user-facing job list. After a
-successful complete scan, inventory vacancies no longer present in the company
+before screening. The common experience-level filter applies to Direct
+Companies in the same way as LinkedIn, Indeed, and jobs.ch. Unchanged vacancies
+reuse screening decisions, while only `keep` vacancies are materialized in the
+user-facing job list. After a successful complete scan, inventory vacancies no
+longer present in the company
 catalog are marked inactive; failed or partial scans never mark them missing.

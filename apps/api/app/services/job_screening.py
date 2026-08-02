@@ -20,7 +20,7 @@ from pydantic import (
 )
 
 from app.core.settings import Settings
-from app.models.job_search import ScreeningConfig
+from app.models.job_search import ScreeningConfig, ScreeningSeniority
 from app.services.ai_backend import (
     AIBackend,
     AIBackendError,
@@ -33,7 +33,7 @@ from app.services.resume_import import (
     summarize_openclaw_error,
 )
 
-JOB_SCREENING_PROMPT_VERSION = "job-screening-prompt-v1"
+JOB_SCREENING_PROMPT_VERSION = "job-screening-prompt-v2"
 MAX_SCREENING_REASON_CHARS = 500
 MAX_COMPACT_TEXT_CHARS = 1_000
 MAX_SCREENING_JOBS_PER_RESPONSE = 100
@@ -95,6 +95,81 @@ UNTRUSTED_VACANCY_PATTERNS = (
     ),
 )
 
+SENIORITY_TEXT_PATTERNS: tuple[
+    tuple[ScreeningSeniority, tuple[re.Pattern[str], ...]], ...
+] = (
+    (
+        "executive",
+        (
+            re.compile(
+                r"\b(?:chief|c[etf]o|coo|cpo|cio|vice[ -]president|vp)\b",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                r"\b(?:geschäftsführer(?:in)?|directeur général)\b",
+                re.IGNORECASE,
+            ),
+        ),
+    ),
+    (
+        "director",
+        (
+            re.compile(
+                r"\b(?:director|direktor(?:in)?|directeur|directrice)\b",
+                re.IGNORECASE,
+            ),
+            re.compile(r"\bhead\s+of\b", re.IGNORECASE),
+        ),
+    ),
+    (
+        "lead",
+        (
+            re.compile(r"\b(?:lead|principal|staff)\b", re.IGNORECASE),
+            re.compile(
+                r"\b(?:teamleiter(?:in)?|responsable)\b",
+                re.IGNORECASE,
+            ),
+        ),
+    ),
+    ("senior", (re.compile(r"\b(?:senior|sr\.?)\b", re.IGNORECASE),)),
+    (
+        "intern",
+        (
+            re.compile(
+                r"\b(?:intern(?:ship)?|trainee|praktikant(?:in)?|praktikum)\b",
+                re.IGNORECASE,
+            ),
+            re.compile(
+                r"\b(?:stagiaire|apprenti(?:e)?|lehrstelle)\b",
+                re.IGNORECASE,
+            ),
+        ),
+    ),
+    ("junior", (re.compile(r"\b(?:junior|jr\.?)\b", re.IGNORECASE),)),
+    (
+        "entry",
+        (
+            re.compile(r"\bentry[ -]level\b", re.IGNORECASE),
+            re.compile(
+                r"\b(?:graduate|absolvent(?:in)?|berufseinsteiger(?:in)?)\b",
+                re.IGNORECASE,
+            ),
+        ),
+    ),
+    ("associate", (re.compile(r"\bassociate\b", re.IGNORECASE),)),
+    ("mid", (re.compile(r"\b(?:mid[ -]level|medior)\b", re.IGNORECASE),)),
+)
+
+EXPLICIT_SENIORITY_ALIASES: dict[str, ScreeningSeniority] = {
+    "internship": "intern",
+    "entry level": "entry",
+    "entry-level": "entry",
+    "mid senior level": "senior",
+    "mid-senior level": "senior",
+    "mid senior": "senior",
+    "mid-senior": "senior",
+}
+
 
 class JobScreeningError(RuntimeError):
     pass
@@ -102,6 +177,60 @@ class JobScreeningError(RuntimeError):
 
 class JobScreeningResponseError(JobScreeningError):
     pass
+
+
+def infer_job_seniority(
+    job: CompactScreeningJob | dict[str, Any],
+) -> ScreeningSeniority | None:
+    """Return only a seniority level explicitly supported by structured data/title."""
+    if isinstance(job, CompactScreeningJob):
+        explicit = job.seniority
+        title = job.title
+    else:
+        explicit = str(job.get("seniority") or "")
+        title = str(job.get("title") or "")
+
+    normalized_explicit = re.sub(r"\s+", " ", explicit.strip().lower())
+    if normalized_explicit in EXPLICIT_SENIORITY_ALIASES:
+        return EXPLICIT_SENIORITY_ALIASES[normalized_explicit]
+    for level, patterns in SENIORITY_TEXT_PATTERNS:
+        if any(pattern.search(normalized_explicit) for pattern in patterns):
+            return level
+    for level, patterns in SENIORITY_TEXT_PATTERNS:
+        if any(pattern.search(title) for pattern in patterns):
+            return level
+    return None
+
+
+def deterministic_seniority_decision(
+    screening_config: ScreeningConfig,
+    job: CompactScreeningJob | dict[str, Any],
+    *,
+    job_id: str,
+) -> JobScreeningDecision | None:
+    """Reject explicit seniority mismatches before AI screening for every source."""
+    level = infer_job_seniority(job)
+    if level is None:
+        return None
+
+    if level in screening_config.excluded_seniority:
+        reason = f"Vacancy seniority '{level}' is explicitly excluded"
+    elif (
+        screening_config.allowed_seniority
+        and level not in screening_config.allowed_seniority
+    ):
+        allowed = ", ".join(screening_config.allowed_seniority)
+        reason = f"Vacancy seniority '{level}' is outside allowed levels: {allowed}"
+    else:
+        return None
+
+    return JobScreeningDecision(
+        id=job_id,
+        decision="reject",
+        reasonCode="seniority_mismatch",
+        matchedRuleIds=[],
+        reason=reason,
+    )
 
 
 class StrictScreeningModel(BaseModel):
@@ -495,6 +624,9 @@ def build_job_screening_prompt(
         "- keep: the vacancy passes the configured criteria.\n"
         "- reject: the vacancy clearly contradicts the configured criteria.\n"
         "- uncertain: the vacancy lacks enough evidence to establish that it passes.\n"
+        "- allowedSeniority is a strict allow-list and excludedSeniority is a strict "
+        "deny-list. Explicit vacancy seniority and role-title markers are evidence; "
+        "when seniority is required but cannot be established, return uncertain.\n"
         "Use matchedRuleIds only for hard-rule IDs that directly affected the decision. "
         "Use [] when no hard rule matched.\n"
         "reasonCode must be a stable lowercase snake_case token. reason must be a "

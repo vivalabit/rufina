@@ -29,6 +29,7 @@ from app.services.job_search_execution import (
     JobImportProvenance,
     NewJobCandidate,
     apply_job_import_provenance,
+    effective_screening_config,
     persist_new_jobs,
     screen_new_job_candidates,
 )
@@ -75,13 +76,17 @@ def recheck_screening_decision(
         raise JobScreeningAuditActionUnavailable(
             "The screening config is invalid"
         ) from exc
-    if not normalized_config.screening.enabled:
+    screening = effective_screening_config(
+        normalized_config,
+        screening_required=False,
+    )
+    if not screening.enabled:
         raise JobScreeningAuditActionUnavailable(
             "Screening is disabled in this config"
         )
 
     candidate = audit_candidate(record)
-    config_hash = build_screening_config_hash(normalized_config.screening)
+    config_hash = build_screening_config_hash(screening)
     now = datetime.now(UTC)
     cached_records = db.scalars(
         select(JobScreeningDecisionRecord).where(
@@ -101,7 +106,7 @@ def recheck_screening_decision(
     result = screen_new_job_candidates(
         db,
         candidates=[candidate],
-        screening_config=normalized_config.screening,
+        screening_config=screening,
         settings=settings,
         search_config_id=config.id,
     )
@@ -120,7 +125,7 @@ def recheck_screening_decision(
             search_config_version=as_version(config.updated_at),
             screening_config_hash=config_hash,
             screening_config_snapshot=(
-                normalized_config.screening.model_dump(
+                screening.model_dump(
                     by_alias=True,
                     exclude_none=True,
                 )

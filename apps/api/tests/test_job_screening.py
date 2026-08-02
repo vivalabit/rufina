@@ -16,6 +16,8 @@ from app.services.job_screening import (
     JobScreeningError,
     build_job_screening_prompt,
     create_job_screening_ai_facade,
+    deterministic_seniority_decision,
+    infer_job_seniority,
     screen_jobs,
 )
 
@@ -90,6 +92,55 @@ def job(job_id: str, **overrides: object) -> dict[str, object]:
         "source": "linkedin",
         **overrides,
     }
+
+
+@pytest.mark.parametrize(
+    ("title", "explicit", "expected"),
+    [
+        ("Senior Software Engineer", "", "senior"),
+        ("Junior Data Analyst", "", "junior"),
+        ("Head of Product", "", "director"),
+        ("Software Engineer", "Mid-Senior level", "senior"),
+        ("Software Engineer", "", None),
+    ],
+)
+def test_infer_job_seniority_uses_structured_value_and_title_only(
+    title: str,
+    explicit: str,
+    expected: str | None,
+) -> None:
+    assert infer_job_seniority(
+        {
+            "title": title,
+            "seniority": explicit,
+            "description": "Collaborate with senior stakeholders",
+        }
+    ) == expected
+
+
+@pytest.mark.parametrize(
+    "source",
+    ["linkedin", "indeed", "jobs_ch", "swisscom", "die_post"],
+)
+def test_deterministic_seniority_rejection_is_source_independent(
+    source: str,
+) -> None:
+    result = deterministic_seniority_decision(
+        ScreeningConfig(
+            enabled=True,
+            allowedSeniority=["intern", "entry", "junior"],
+        ),
+        {
+            "title": "Senior Software Engineer",
+            "seniority": "",
+            "source": source,
+        },
+        job_id=f"{source}-job",
+    )
+
+    assert result is not None
+    assert result.decision == "reject"
+    assert result.reason_code == "seniority_mismatch"
 
 
 def test_screening_returns_strict_decisions_in_input_order() -> None:

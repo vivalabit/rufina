@@ -6641,7 +6641,7 @@ export default function HomePage() {
                             <option>Mid-Senior level</option>
                             <option>Director</option>
                           </select>
-                          <span className="text-xs font-medium text-muted">Filter by experience level</span>
+                          <span className="text-xs font-medium text-muted">Applied to vacancies from every selected source</span>
                         </label>
 
                         <label className="grid gap-2">

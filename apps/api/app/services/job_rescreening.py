@@ -31,6 +31,7 @@ from app.services.job_search_execution import (
     apply_job_import_provenance,
     combine_warnings,
     compact_screening_job,
+    effective_screening_config,
     screen_new_job_candidates,
     serialize_datetime,
 )
@@ -261,20 +262,24 @@ def build_rescreen_context(
         normalized_config = normalize_job_search_config(config.filters)
     except ValidationError:
         return None, "source_config_invalid"
-    if not normalized_config.screening.enabled:
+    screening = effective_screening_config(
+        normalized_config,
+        screening_required=False,
+    )
+    if not screening.enabled:
         return None, "source_config_screening_disabled"
-    config_hash = build_screening_config_hash(normalized_config.screening)
+    config_hash = build_screening_config_hash(screening)
     return (
         RescreenConfigContext(
             config_id=config.id,
-            screening=normalized_config.screening,
+            screening=screening,
             config_hash=config_hash,
             provenance=JobImportProvenance(
                 search_config_id=config.id,
                 search_config_version=serialize_datetime(config.updated_at),
                 screening_config_hash=config_hash,
                 screening_config_snapshot=(
-                    normalized_config.screening.model_dump(
+                    screening.model_dump(
                         by_alias=True,
                         exclude_none=True,
                     )

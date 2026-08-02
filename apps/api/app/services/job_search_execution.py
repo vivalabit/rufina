@@ -50,6 +50,7 @@ from app.services.job_screening import (
     JobScreeningDecision,
     JobScreeningPayload,
     create_job_screening_ai_facade,
+    deterministic_seniority_decision,
     normalize_screening_decisions,
     screening_rule_ids,
     uncertain_or_keep_decision,
@@ -73,6 +74,13 @@ AI_CONSENT_WARNING = "AI Match was skipped because current AI data-processing co
 SCREENING_CONSENT_WARNING = (
     "Vacancy screening was skipped because current AI data-processing consent is missing"
 )
+
+EXPERIENCE_LEVEL_SENIORITY = {
+    "Entry level": ["intern", "entry", "junior"],
+    "Associate": ["associate"],
+    "Mid-Senior level": ["mid", "senior", "lead"],
+    "Director": ["director", "executive"],
+}
 
 
 class JobSearchExecutionError(RuntimeError):
@@ -111,6 +119,40 @@ class ScreeningPipelineResult:
     screening_errors: int = 0
     jobs_screening_ai_calls: int = 0
     warning: str | None = None
+
+
+def effective_screening_config(
+    config: JobSearchConfigV2,
+    *,
+    screening_required: bool,
+) -> ScreeningConfig:
+    screening = config.screening
+    derived_levels = EXPERIENCE_LEVEL_SENIORITY.get(
+        config.search.experience_level,
+        [],
+    )
+    allowed_seniority = list(screening.allowed_seniority)
+    if not allowed_seniority and derived_levels:
+        allowed_seniority = [
+            level
+            for level in derived_levels
+            if level not in screening.excluded_seniority
+        ]
+
+    target_roles = list(screening.target_roles)
+    if screening_required and not target_roles and config.search.keywords:
+        target_roles = [config.search.keywords]
+
+    return ScreeningConfig.model_validate(
+        {
+            **screening.model_dump(by_alias=True),
+            "enabled": bool(
+                screening.enabled or screening_required or derived_levels
+            ),
+            "targetRoles": target_roles,
+            "allowedSeniority": allowed_seniority,
+        }
+    )
 
 
 def execute_job_search(
@@ -190,19 +232,14 @@ def execute_job_search(
             config.filters if config is not None else {},
         )
         normalized_config = normalize_job_search_config(config_data)
-        if screening_required and not normalized_config.screening.enabled:
-            normalized_config = normalized_config.model_copy(
-                update={
-                    "screening": ScreeningConfig(
-                        enabled=True,
-                        targetRoles=(
-                            [normalized_config.search.keywords]
-                            if normalized_config.search.keywords
-                            else []
-                        ),
-                    )
-                }
-            )
+        normalized_config = normalized_config.model_copy(
+            update={
+                "screening": effective_screening_config(
+                    normalized_config,
+                    screening_required=screening_required,
+                )
+            }
+        )
         run.config_snapshot = {
             **run.config_snapshot,
             "filters": normalized_config.model_dump(
@@ -568,9 +605,19 @@ def screen_new_job_candidates(
         for candidate in candidates
     }
     decisions_by_id: dict[str, JobScreeningDecision] = {}
+    deterministic: list[NewJobCandidate] = []
     uncached: list[NewJobCandidate] = []
 
     for candidate in candidates:
+        seniority_decision = deterministic_seniority_decision(
+            screening_config,
+            compact_jobs[candidate.job_id],
+            job_id=candidate.job_id,
+        )
+        if seniority_decision is not None:
+            decisions_by_id[candidate.job_id] = seniority_decision
+            deterministic.append(candidate)
+            continue
         cached = latest_screening_decision(
             db,
             vacancy_hash=vacancy_hashes[candidate.job_id],
@@ -665,7 +712,7 @@ def screen_new_job_candidates(
         )
         consent.updated_at = activity_at
 
-    for candidate in uncached:
+    for candidate in [*deterministic, *uncached]:
         persist_screening_decision(
             db,
             vacancy_hash=vacancy_hashes[candidate.job_id],

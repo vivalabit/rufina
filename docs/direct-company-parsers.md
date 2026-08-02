@@ -54,8 +54,11 @@ is added.
 7. `prepare_new_job_candidates()` compares inventory vacancies with
    `StoredJobRecord` entries by stable job ID, canonical URL, and identity.
    Active and dismissed user records are not processed further.
-8. When screening is enabled, only candidates without a reusable decision are
-   sent to AI in batches.
+8. `search.experienceLevel` is converted into the common screening seniority
+   allow-list for every selected source, including Direct Companies. Explicit
+   mismatches found in structured seniority or the vacancy title are rejected
+   deterministically before AI. Remaining candidates without a reusable
+   decision are sent to AI in batches.
    Decisions are cached by vacancy hash, configuration hash, model, and prompt
    version. A cached `keep` can materialize a missing user record, while cached
    `reject` and `uncertain` decisions remain inventory-only. Screening errors

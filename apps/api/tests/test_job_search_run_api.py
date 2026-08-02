@@ -216,6 +216,78 @@ def test_manual_run_uses_explicit_direct_company_source_with_common_config(
     assert runner.requests[0]["request"].keywords == "lokführer"
 
 
+def test_experience_level_rejects_senior_jobs_from_every_source_before_ai(
+    api_context: ApiContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    sources = ["linkedin", "indeed", "jobs_ch", "swisscom", "die_post"]
+    jobs = [
+        ParsedJob(
+            source=source,
+            title=f"Senior Software Engineer {source}",
+            company="Rufina Test AG",
+            location="Zurich",
+            url=f"https://example.test/{source}/senior-engineer",
+            description="Build reliable backend services",
+        )
+        for source in sources
+    ]
+    runner = FakeRunner(
+        VacancySearchRunResult(
+            jobs=jobs,
+            source_results={
+                source: completed_response(
+                    source,
+                    [job for job in jobs if job.source == source],
+                )
+                for source in sources
+            },
+            source_errors={},
+        )
+    )
+    monkeypatch.setattr(
+        job_search_api,
+        "create_vacancy_search_runner",
+        lambda _settings: runner,
+    )
+    monkeypatch.setattr(
+        job_search_execution,
+        "create_job_screening_ai_facade",
+        Mock(side_effect=AssertionError("explicit senior jobs must not reach AI")),
+    )
+
+    response = api_context.client.post(
+        "/job-search/run",
+        headers={"X-Rufina-Owner-Id": "all-source-seniority-owner"},
+        json={
+            "config": {
+                "name": "Entry-level search",
+                "filters": {
+                    "schemaVersion": 2,
+                    "search": {"experienceLevel": "Entry level"},
+                    "screening": {"enabled": False},
+                },
+            },
+            "sources": sources,
+            "aiAnalysisEnabled": False,
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["jobsScreened"] == len(sources)
+    assert response.json()["jobsRejected"] == len(sources)
+    assert response.json()["jobsAdded"] == 0
+    assert response.json()["jobsScreeningAiCalls"] == 0
+    assert response.json()["configSnapshot"]["filters"]["screening"] == {
+        "enabled": True,
+        "targetRoles": [],
+        "excludedRoles": [],
+        "allowedSeniority": ["intern", "entry", "junior"],
+        "excludedSeniority": [],
+        "hardRules": [],
+    }
+
+
 def test_manual_run_accepts_inline_config_without_creating_schedule(
     api_context: ApiContext,
     monkeypatch: pytest.MonkeyPatch,
