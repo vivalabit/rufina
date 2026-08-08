@@ -49,7 +49,8 @@ function importedJobData({
     | "axa_schweiz"
     | "sunrise"
     | "iss"
-    | "accenture";
+    | "accenture"
+    | "csem";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -78,7 +79,9 @@ function importedJobData({
                           ? "ISS Schweiz"
                           : source === "accenture"
                             ? "Accenture"
-                            : "LinkedIn";
+                            : source === "csem"
+                              ? "CSEM"
+                              : "LinkedIn";
   return {
     id,
     company:
@@ -104,7 +107,9 @@ function importedJobData({
                         ? "ISS Facility Services AG"
                         : source === "accenture"
                           ? "Accenture"
-                          : "Example AG",
+                          : source === "csem"
+                            ? "CSEM"
+                            : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -124,7 +129,8 @@ function importedJobData({
       source === "axa_schweiz" ||
       source === "sunrise" ||
       source === "iss" ||
-      source === "accenture"
+      source === "accenture" ||
+      source === "csem"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -1213,6 +1219,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Cloud Platform Engineer at Accenture",
         source: "accenture",
       });
+      const csemJob = importedJobData({
+        id: "csem-senior-software-engineer",
+        title: "Senior Software Engineer at CSEM",
+        source: "csem",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -1222,11 +1233,12 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: sunriseJob.id, data: sunriseJob },
         { id: issJob.id, data: issJob },
         { id: accentureJob.id, data: accentureJob },
+        { id: csemJob.id, data: csemJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 8,
-        jobsAdded: 8,
+        jobsFound: 9,
+        jobsAdded: 9,
         sourceErrors: {},
         warning: null,
       });
@@ -1273,6 +1285,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Sunrise")).toBeInTheDocument();
   expect(screen.getByText("ISS Schweiz")).toBeInTheDocument();
   expect(screen.getByText("Accenture")).toBeInTheDocument();
+  expect(screen.getByText("CSEM")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -1286,6 +1299,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("checkbox", { name: /Sunrise/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /ISS Schweiz/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Accenture/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /CSEM/ }));
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1312,7 +1326,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 8 of 8 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture",
+      "Added 9 of 9 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -1326,6 +1340,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "sunrise",
       "iss",
       "accenture",
+      "csem",
     ],
     aiAnalysisEnabled: true,
   });
@@ -1353,6 +1368,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Accenture logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "CSEM logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -1363,6 +1381,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getAllByText("Source: Sunrise").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: ISS Schweiz").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Accenture").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: CSEM").length).toBeGreaterThan(0);
 });
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

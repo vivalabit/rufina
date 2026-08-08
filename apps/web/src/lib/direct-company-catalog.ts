@@ -113,6 +113,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 32,
     logoHeight: 24,
   },
+  {
+    id: "csem",
+    name: "CSEM",
+    careersUrl: "https://www.csem.ch/en/jobs/",
+    logoSrc: "/company-logos/csem.svg",
+    logoAlt: "CSEM logo",
+    logoWidth: 40,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

@@ -186,6 +186,17 @@ DIRECT_COMPANY_PARSERS = (
             ("max_pages", "accenture_jobs_max_pages"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="csem",
+        name="CSEM",
+        careers_url="https://www.csem.ch/en/jobs/",
+        parser_path="app.services.parsers.companies.csem:CsemJobsParser",
+        settings_map=(
+            ("base_url", "csem_jobs_base_url"),
+            ("timeout_seconds", "csem_jobs_timeout_seconds"),
+            ("detail_workers", "csem_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
