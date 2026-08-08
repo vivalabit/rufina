@@ -30,6 +30,7 @@ vacancy-search API key.
 | ABB Schweiz | [Switzerland careers](https://careers.abb/global/en/search-results?rk=l-abb-switzerland-careers&sortBy=Most%20relevant) | Phenom paginated catalog with Swiss multi-location filtering |
 | Huawei Switzerland | [Current job openings](https://careers.huaweirc.ch/jobs) | Teamtailor full-catalog HTML and JobPosting detail pages |
 | BDO Switzerland | [Open positions](https://www.bdo.ch/en-gb/careers/open-jobs) | Abacus Job Portal full-catalog JSON API |
+| EY Switzerland | [Swiss career opportunities](https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch=&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1=) | SuccessFactors paginated HTML catalog and JobPosting detail pages |
 
 During a search, Rufina scans all vacancies exposed by the selected company
 source. Every result is saved in the private `discovered_vacancies` inventory

@@ -188,6 +188,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 48,
     logoHeight: 19,
   },
+  {
+    id: "ey_switzerland",
+    name: "EY Switzerland",
+    careersUrl:
+      "https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch=&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1=",
+    logoSrc: "/company-logos/ey.svg",
+    logoAlt: "EY Switzerland logo",
+    logoWidth: 24,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

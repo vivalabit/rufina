@@ -312,6 +312,26 @@ DIRECT_COMPANY_PARSERS = (
             ("timeout_seconds", "bdo_switzerland_jobs_timeout_seconds"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="ey_switzerland",
+        name="EY Switzerland",
+        careers_url=(
+            "https://careers.ey.com/ey/search/?createNewAlert=false&q="
+            "&locationsearch=&optionsFacetsDD_country=CH"
+            "&optionsFacetsDD_customfield1="
+        ),
+        parser_path=(
+            "app.services.parsers.companies.ey_switzerland:"
+            "EySwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "ey_switzerland_jobs_base_url"),
+            ("timeout_seconds", "ey_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "ey_switzerland_jobs_max_pages"),
+            ("max_catalog_passes", "ey_switzerland_jobs_max_catalog_passes"),
+            ("detail_workers", "ey_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
