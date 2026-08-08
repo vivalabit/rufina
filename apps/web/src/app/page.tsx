@@ -425,6 +425,9 @@ type JobSearchPresetPayload = {
 };
 
 type JobSearchRunPayload = {
+  id: string;
+  runType: "manual" | "automatic";
+  sources: string[];
   status: string;
   jobsFound: number;
   jobsAlreadyKnown: number;
@@ -440,6 +443,8 @@ type JobSearchRunPayload = {
   screeningErrors: number;
   jobsScreeningAiCalls: number;
   sourceErrors: Record<string, string>;
+  startedAt: string;
+  completedAt?: string | null;
   warning?: string | null;
 };
 
@@ -5792,6 +5797,12 @@ export default function HomePage() {
       ].join("\n"),
     });
 
+    const progressPolling = startJobSearchProgressPolling(
+      sources,
+      parsersLabel,
+      Date.now(),
+    );
+
     try {
       const selectedConfig = parserSearchConfigs.find(
         (config) => config.id === selectedParserSearchConfigId,
@@ -5857,13 +5868,20 @@ export default function HomePage() {
               ? "success"
               : "warning",
         area: "Vacancy search",
-        message,
+        message: `${parsersLabel} search finished: ${run.jobsFound} found, ${run.jobsPassed} matched config, ${run.jobsAdded} added`,
         details:
           failedSources.length > 0
             ? Object.entries(run.sourceErrors)
                 .map(([source, error]) => `${getParserLabel(source)}: ${error}`)
                 .join("\n")
-            : undefined,
+            : [
+                `Screened: ${run.jobsScreened}`,
+                `Matched config: ${run.jobsPassed}`,
+                `Rejected: ${run.jobsRejected}`,
+                `Uncertain: ${run.jobsUncertain}`,
+                `New inventory vacancies: ${run.jobsDiscoveredNew}`,
+                `Added to Jobs: ${run.jobsAdded}`,
+              ].join("\n"),
       });
     } catch (error) {
       const message =
@@ -5875,7 +5893,96 @@ export default function HomePage() {
         area: "Vacancy search",
         message,
       });
+    } finally {
+      progressPolling.stop();
     }
+  }
+
+  function startJobSearchProgressPolling(
+    sources: string[],
+    parsersLabel: string,
+    startedAfterMs: number,
+  ) {
+    let stopped = false;
+    let timeoutId: number | null = null;
+    let trackedRunId: string | null = null;
+    let previousJobsFound = 0;
+    let previousJobsScreened = 0;
+
+    const sameSources = (candidateSources: string[]) =>
+      candidateSources.length === sources.length &&
+      [...candidateSources].sort().every(
+        (source, index) => source === [...sources].sort()[index],
+      );
+
+    const poll = async () => {
+      if (stopped) return;
+      try {
+        const response = await fetch(`${apiBaseUrl}/job-search/runs?limit=20`, {
+          cache: "no-store",
+        });
+        if (response.ok) {
+          const runs = (await response.json()) as JobSearchRunPayload[];
+          const run = trackedRunId
+            ? runs.find((candidate) => candidate.id === trackedRunId)
+            : runs.find((candidate) => {
+                const startedAt = Date.parse(candidate.startedAt);
+                return (
+                  candidate.runType === "manual" &&
+                  Number.isFinite(startedAt) &&
+                  startedAt >= startedAfterMs - 5_000 &&
+                  sameSources(candidate.sources)
+                );
+              });
+
+          if (run) {
+            trackedRunId = run.id;
+            if (run.jobsFound > 0 && previousJobsFound === 0) {
+              appendAppLog({
+                level: "info",
+                area: "Vacancy search",
+                message: `${parsersLabel} parsing finished: ${run.jobsFound} unique vacancies found`,
+                details: [
+                  `New inventory vacancies: ${run.jobsDiscoveredNew}`,
+                  `Updated inventory vacancies: ${run.jobsDiscoveredUpdated}`,
+                  `Already observed: ${run.jobsAlreadyObserved}`,
+                ].join("\n"),
+              });
+            }
+            if (run.jobsScreened > previousJobsScreened) {
+              appendAppLog({
+                level: "info",
+                area: "Vacancy screening",
+                message: `${parsersLabel}: ${run.jobsScreened} screened, ${run.jobsPassed} matched config`,
+                details: [
+                  `Rejected: ${run.jobsRejected}`,
+                  `Uncertain: ${run.jobsUncertain}`,
+                  `Screening errors: ${run.screeningErrors}`,
+                  `AI calls: ${run.jobsScreeningAiCalls}`,
+                ].join("\n"),
+              });
+            }
+            previousJobsFound = Math.max(previousJobsFound, run.jobsFound);
+            previousJobsScreened = Math.max(
+              previousJobsScreened,
+              run.jobsScreened,
+            );
+          }
+        }
+      } catch {
+        // Progress polling is best-effort; the main POST still owns the result.
+      } finally {
+        if (!stopped) timeoutId = window.setTimeout(poll, 2_000);
+      }
+    };
+
+    timeoutId = window.setTimeout(poll, 1_000);
+    return {
+      stop() {
+        stopped = true;
+        if (timeoutId !== null) window.clearTimeout(timeoutId);
+      },
+    };
   }
 
   return (

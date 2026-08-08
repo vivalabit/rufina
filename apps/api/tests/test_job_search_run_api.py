@@ -233,6 +233,21 @@ def test_manual_run_uses_explicit_direct_company_source_with_common_config(
         "status": "completed",
         "runId": response.json()["id"],
     }
+    persisted_event = next(
+        json.loads(record.message)
+        for record in caplog.records
+        if '"event":"job_search.results_persisted"' in record.message
+    )
+    assert persisted_event == {
+        "event": "job_search.results_persisted",
+        "message": "Job search finished; new vacancies persisted",
+        "sources": ["LinkedIn", "SBB CFF FFS"],
+        "sourceIds": ["linkedin", "sbb"],
+        "newVacancies": 0,
+        "jobsFound": 0,
+        "status": "completed",
+        "runId": response.json()["id"],
+    }
 
 
 def test_experience_level_rejects_senior_jobs_from_every_source_before_ai(
@@ -310,6 +325,7 @@ def test_experience_level_rejects_senior_jobs_from_every_source_before_ai(
 def test_manual_run_accepts_inline_config_without_creating_schedule(
     api_context: ApiContext,
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     headers = {"X-Rufina-Owner-Id": "manual-owner"}
     job = parsed_job(
@@ -335,6 +351,7 @@ def test_manual_run_accepts_inline_config_without_creating_schedule(
         lambda _settings: screening,
     )
     grant_ai_consent(api_context, owner_id="manual-owner")
+    caplog.set_level(logging.INFO, logger="uvicorn.error")
 
     response = api_context.client.post(
         "/job-search/run",
@@ -381,6 +398,15 @@ def test_manual_run_accepts_inline_config_without_creating_schedule(
         api_context.sessions,
         owner_id="manual-owner",
     )] == ["Manual Backend Engineer"]
+    progress_event = next(
+        json.loads(record.message)
+        for record in caplog.records
+        if '"event":"job_screening.progress"' in record.message
+    )
+    assert progress_event["processed"] == 1
+    assert progress_event["total"] == 1
+    assert progress_event["matchedConfig"] == 1
+    assert progress_event["rejected"] == 0
 
 
 def test_manual_parser_run_persists_and_analyzes_only_accepted_vacancies(

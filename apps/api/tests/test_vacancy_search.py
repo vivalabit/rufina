@@ -1,3 +1,8 @@
+import json
+import logging
+
+import pytest
+
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.linkedin import BrightDataRequestError
 from app.services.vacancy_search import VacancySearchRunner
@@ -145,7 +150,9 @@ def test_runner_returns_latest_snapshot_status_after_polling_timeout() -> None:
     assert parser.snapshot_calls == 3
 
 
-def test_runner_merges_deduplicates_and_preserves_partial_results() -> None:
+def test_runner_merges_deduplicates_and_preserves_partial_results(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     linkedin_job = ParsedJob(
         source="linkedin",
         title="Platform Engineer",
@@ -177,6 +184,7 @@ def test_runner_merges_deduplicates_and_preserves_partial_results() -> None:
             ),
         }
     )
+    caplog.set_level(logging.INFO, logger="uvicorn.error")
 
     result = runner.run(
         sources=["linkedin", "indeed", "jobs_ch", "linkedin"],
@@ -189,6 +197,21 @@ def test_runner_merges_deduplicates_and_preserves_partial_results() -> None:
     ]
     assert set(result.source_results) == {"linkedin", "jobs_ch"}
     assert result.source_errors == {"indeed": "Indeed upstream failed"}
+    events = [
+        json.loads(record.message)
+        for record in caplog.records
+        if '"event":"vacancy_parser.' in record.message
+    ]
+    assert [event["event"] for event in events] == [
+        "vacancy_parser.finished",
+        "vacancy_parser.failed",
+        "vacancy_parser.finished",
+    ]
+    assert [(event["source"], event["vacanciesParsed"]) for event in events] == [
+        ("linkedin", 1),
+        ("indeed", 0),
+        ("jobs_ch", 2),
+    ]
 
 
 def test_runner_applies_one_common_config_to_every_source() -> None:

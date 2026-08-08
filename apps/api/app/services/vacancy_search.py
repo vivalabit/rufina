@@ -1,3 +1,5 @@
+import json
+import logging
 import re
 import time
 from collections.abc import Callable, Mapping, Sequence
@@ -35,6 +37,8 @@ SOURCE_ERRORS = (
     JobsChRequestError,
     DirectCompanyRequestError,
 )
+
+logger = logging.getLogger("uvicorn.error")
 
 
 @dataclass(frozen=True)
@@ -143,6 +147,7 @@ class VacancySearchRunner:
         jobs: list[ParsedJob] = []
 
         for source in unique_sources(sources):
+            source_started_at = time.monotonic()
             try:
                 selected_request = (
                     source_requests.get(source, request)
@@ -156,12 +161,22 @@ class VacancySearchRunner:
                 )
                 source_results[source] = result
                 jobs.extend(result.jobs)
+                log_source_finished(
+                    source=source,
+                    result=result,
+                    duration_seconds=time.monotonic() - source_started_at,
+                )
                 if wait_for_snapshots and result.status != "completed":
                     source_errors[source] = (
                         f"{source} snapshot polling timed out with status {result.status}"
                     )
             except SOURCE_ERRORS as exc:
                 source_errors[source] = str(exc)
+                log_source_failed(
+                    source=source,
+                    error=str(exc),
+                    duration_seconds=time.monotonic() - source_started_at,
+                )
 
         return VacancySearchRunResult(
             jobs=deduplicate_jobs(jobs) if request.deduplicate else jobs,
@@ -175,6 +190,50 @@ class VacancySearchRunner:
             raise ValueError(f"Unsupported vacancy source: {source}")
         return parser
 
+
+def log_source_finished(
+    *,
+    source: str,
+    result: ParserSearchResponse,
+    duration_seconds: float,
+) -> None:
+    logger.info(
+        json.dumps(
+            {
+                "event": "vacancy_parser.finished",
+                "message": "Vacancy parsing finished",
+                "source": source,
+                "vacanciesParsed": len(result.jobs),
+                "status": result.status,
+                "durationSeconds": round(duration_seconds, 3),
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    )
+
+
+def log_source_failed(
+    *,
+    source: str,
+    error: str,
+    duration_seconds: float,
+) -> None:
+    logger.warning(
+        json.dumps(
+            {
+                "event": "vacancy_parser.failed",
+                "message": "Vacancy parsing failed",
+                "source": source,
+                "vacanciesParsed": 0,
+                "status": "failed",
+                "durationSeconds": round(duration_seconds, 3),
+                "error": error[:500],
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    )
 
 def create_vacancy_search_runner(settings: Settings) -> VacancySearchRunner:
     parsers = {

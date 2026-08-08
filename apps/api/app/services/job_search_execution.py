@@ -3,7 +3,7 @@ import logging
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Any, Literal
+from typing import Any, Callable, Literal
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -123,6 +123,17 @@ class ScreeningPipelineResult:
     screening_errors: int = 0
     jobs_screening_ai_calls: int = 0
     warning: str | None = None
+
+
+@dataclass(frozen=True)
+class ScreeningProgress:
+    total: int
+    processed: int
+    passed: int
+    rejected: int
+    uncertain: int
+    errors: int
+    ai_calls: int
 
 
 def effective_screening_config(
@@ -326,6 +337,11 @@ def execute_job_search(
             if config is not None
             else str(run.config_snapshot.get("id") or "") or None
         ),
+        progress_callback=lambda progress: update_run_screening_progress(
+            db,
+            run=run,
+            progress=progress,
+        ),
     )
     persisted_at = datetime.now(UTC)
     new_jobs = persist_new_jobs(
@@ -367,6 +383,7 @@ def execute_job_search(
         else run_status(search_result)
     )
     db.commit()
+    log_job_search_results_persisted(run)
 
     analysis_enabled = (
         ai_analysis_enabled
@@ -413,6 +430,62 @@ def log_job_search_finished(run: JobSearchRunRecord) -> None:
                 "newVacancies": run.jobs_added,
                 "jobsFound": run.jobs_found,
                 "status": run.status,
+                "runId": run.id,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    )
+
+
+def log_job_search_results_persisted(run: JobSearchRunRecord) -> None:
+    """Log parser/search results before optional AI Match processing begins."""
+
+    source_ids = list(run.sources)
+    logger.info(
+        json.dumps(
+            {
+                "event": "job_search.results_persisted",
+                "message": "Job search finished; new vacancies persisted",
+                "sources": [source_display_name(source) for source in source_ids],
+                "sourceIds": source_ids,
+                "newVacancies": run.jobs_added,
+                "jobsFound": run.jobs_found,
+                "status": run.status,
+                "runId": run.id,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    )
+
+
+def update_run_screening_progress(
+    db: Session,
+    *,
+    run: JobSearchRunRecord,
+    progress: ScreeningProgress,
+) -> None:
+    run.jobs_screened = progress.processed
+    run.jobs_passed = progress.passed
+    run.jobs_rejected = progress.rejected
+    run.jobs_uncertain = progress.uncertain
+    run.screening_errors = progress.errors
+    run.jobs_screening_ai_calls = progress.ai_calls
+    db.commit()
+    logger.info(
+        json.dumps(
+            {
+                "event": "job_screening.progress",
+                "message": "Vacancy screening progress",
+                "sources": [source_display_name(source) for source in run.sources],
+                "processed": progress.processed,
+                "total": progress.total,
+                "matchedConfig": progress.passed,
+                "rejected": progress.rejected,
+                "uncertain": progress.uncertain,
+                "errors": progress.errors,
+                "aiCalls": progress.ai_calls,
                 "runId": run.id,
             },
             ensure_ascii=False,
@@ -627,6 +700,7 @@ def screen_new_job_candidates(
     screening_config: ScreeningConfig,
     settings: Settings,
     search_config_id: str | None = None,
+    progress_callback: Callable[[ScreeningProgress], None] | None = None,
 ) -> ScreeningPipelineResult:
     if not candidates:
         return ScreeningPipelineResult(keep=[])
@@ -681,6 +755,13 @@ def screen_new_job_candidates(
         except ValidationError:
             uncached.append(candidate)
 
+    emit_screening_progress(
+        progress_callback,
+        total=len(candidates),
+        decisions=decisions_by_id,
+        ai_calls=0,
+    )
+
     consent = privacy_settings_record(db, get_bound_owner_id())
     external_screening_attempted = False
     ai_calls = 0
@@ -696,6 +777,12 @@ def screen_new_job_candidates(
                     reason="Current AI data-processing consent is missing",
                 )
             )
+        emit_screening_progress(
+            progress_callback,
+            total=len(candidates),
+            decisions=decisions_by_id,
+            ai_calls=ai_calls,
+        )
     elif uncached:
         external_screening_attempted = True
         allowed_rule_ids = screening_rule_ids(screening_config)
@@ -708,6 +795,12 @@ def screen_new_job_candidates(
                     candidate.job_id,
                     exc,
                 )
+            emit_screening_progress(
+                progress_callback,
+                total=len(candidates),
+                decisions=decisions_by_id,
+                ai_calls=ai_calls,
+            )
         else:
             for offset in range(0, len(uncached), batch_size):
                 batch = uncached[offset : offset + batch_size]
@@ -745,6 +838,12 @@ def screen_new_job_candidates(
                             for candidate in batch
                         }
                     )
+                emit_screening_progress(
+                    progress_callback,
+                    total=len(candidates),
+                    decisions=decisions_by_id,
+                    ai_calls=ai_calls,
+                )
 
     if external_screening_attempted and consent is not None:
         activity_at = datetime.now(UTC)
@@ -813,6 +912,32 @@ def screen_new_job_candidates(
         screening_errors=error_count,
         jobs_screening_ai_calls=ai_calls,
         warning=warning,
+    )
+
+
+def emit_screening_progress(
+    callback: Callable[[ScreeningProgress], None] | None,
+    *,
+    total: int,
+    decisions: dict[str, JobScreeningDecision],
+    ai_calls: int,
+) -> None:
+    if callback is None or not decisions:
+        return
+    values = list(decisions.values())
+    callback(
+        ScreeningProgress(
+            total=total,
+            processed=len(values),
+            passed=sum(decision.decision == "keep" for decision in values),
+            rejected=sum(decision.decision == "reject" for decision in values),
+            uncertain=sum(decision.decision == "uncertain" for decision in values),
+            errors=sum(
+                decision.reason_code == "screening_error"
+                for decision in values
+            ),
+            ai_calls=ai_calls,
+        )
     )
 
 
