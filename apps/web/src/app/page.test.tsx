@@ -43,7 +43,8 @@ function importedJobData({
     | "swisscom"
     | "galaxus"
     | "die_post"
-    | "raiffeisen";
+    | "raiffeisen"
+    | "bundesverwaltung";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -60,7 +61,9 @@ function importedJobData({
                 ? "Die Post"
                 : source === "raiffeisen"
                   ? "Raiffeisen"
-                  : "LinkedIn";
+                  : source === "bundesverwaltung"
+                    ? "Bundesverwaltung"
+                    : "LinkedIn";
   return {
     id,
     company:
@@ -74,7 +77,9 @@ function importedJobData({
               ? "Swiss Post Ltd"
               : source === "raiffeisen"
                 ? "Raiffeisen"
-                : "Example AG",
+                : source === "bundesverwaltung"
+                  ? "Bundesamt für Informatik BIT"
+                  : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -88,7 +93,8 @@ function importedJobData({
       source === "swisscom" ||
       source === "galaxus" ||
       source === "die_post" ||
-      source === "raiffeisen"
+      source === "raiffeisen" ||
+      source === "bundesverwaltung"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -1104,7 +1110,7 @@ it("saves and deletes manual-search configs through the API", async () => {
   ).toBeNull();
 });
 
-it("shows Die Post and Raiffeisen vacancies with their company logos", async () => {
+it("shows Prospective direct-company vacancies with their company logos", async () => {
   window.history.replaceState(null, "", "#jobs");
   const configWrites: Array<Record<string, unknown>> = [];
   const runRequests: Array<Record<string, unknown>> = [];
@@ -1147,14 +1153,20 @@ it("shows Die Post and Raiffeisen vacancies with their company logos", async () 
         title: "Platform Engineer at Raiffeisen",
         source: "raiffeisen",
       });
+      const bundesverwaltungJob = importedJobData({
+        id: "bundesverwaltung-platform-engineer",
+        title: "Platform Engineer at Bundesverwaltung",
+        source: "bundesverwaltung",
+      });
       storedJobs = [
         { id: diePostJob.id, data: diePostJob },
         { id: raiffeisenJob.id, data: raiffeisenJob },
+        { id: bundesverwaltungJob.id, data: bundesverwaltungJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 2,
-        jobsAdded: 2,
+        jobsFound: 3,
+        jobsAdded: 3,
         sourceErrors: {},
         warning: null,
       });
@@ -1195,6 +1207,7 @@ it("shows Die Post and Raiffeisen vacancies with their company logos", async () 
   expect(screen.getByText("Galaxus")).toBeInTheDocument();
   expect(screen.getByText("Die Post")).toBeInTheDocument();
   expect(screen.getByText("Raiffeisen")).toBeInTheDocument();
+  expect(screen.getByText("Bundesverwaltung")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -1202,6 +1215,7 @@ it("shows Die Post and Raiffeisen vacancies with their company logos", async () 
   expect(screen.queryByRole("button", { name: "Add company" })).toBeNull();
   fireEvent.click(screen.getByRole("checkbox", { name: /Die Post/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Raiffeisen/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /Bundesverwaltung/ }));
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1228,18 +1242,22 @@ it("shows Die Post and Raiffeisen vacancies with their company logos", async () 
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 2 of 2 vacancies from Die Post + Raiffeisen",
+      "Added 3 of 3 vacancies from Die Post + Raiffeisen + Bundesverwaltung",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
   expect(runRequests[0]).toMatchObject({
-    sources: ["die_post", "raiffeisen"],
+    sources: ["die_post", "raiffeisen", "bundesverwaltung"],
     aiAnalysisEnabled: true,
   });
   expect(screen.getAllByRole("img", { name: "Die Post logo" })).toHaveLength(2);
   expect(screen.getAllByRole("img", { name: "Raiffeisen logo" })).toHaveLength(1);
+  expect(
+    screen.getAllByRole("img", { name: "Bundesverwaltung logo" }),
+  ).toHaveLength(1);
   expect(screen.getAllByText("Source: Die Post")).toHaveLength(2);
   expect(screen.getAllByText("Source: Raiffeisen")).toHaveLength(1);
+  expect(screen.getAllByText("Source: Bundesverwaltung")).toHaveLength(1);
 });
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

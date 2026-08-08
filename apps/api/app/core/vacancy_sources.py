@@ -86,6 +86,25 @@ DIRECT_COMPANY_PARSERS = (
             ("max_catalog_passes", "raiffeisen_jobs_max_catalog_passes"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="bundesverwaltung",
+        name="Bundesverwaltung",
+        careers_url="https://jobs.admin.ch/?lang=de",
+        parser_path=(
+            "app.services.parsers.companies.bundesverwaltung:"
+            "BundesverwaltungJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "bundesverwaltung_jobs_base_url"),
+            ("api_url", "bundesverwaltung_jobs_api_url"),
+            ("timeout_seconds", "bundesverwaltung_jobs_timeout_seconds"),
+            ("max_pages", "bundesverwaltung_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "bundesverwaltung_jobs_max_catalog_passes",
+            ),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

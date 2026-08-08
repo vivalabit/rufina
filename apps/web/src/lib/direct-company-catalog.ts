@@ -57,6 +57,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 24,
     logoHeight: 32,
   },
+  {
+    id: "bundesverwaltung",
+    name: "Bundesverwaltung",
+    careersUrl: "https://jobs.admin.ch/?lang=de",
+    logoSrc: "/company-logos/bundesverwaltung.svg",
+    logoAlt: "Bundesverwaltung logo",
+    logoWidth: 32,
+    logoHeight: 32,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
