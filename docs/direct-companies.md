@@ -19,6 +19,7 @@ vacancy-search API key.
 | Raiffeisen       | [Job search](https://jobs.raiffeisen.ch/)                                                      | Prospective JSON API, 96 per page        |
 | Bundesverwaltung | [Stellenportal Bund](https://jobs.admin.ch/?lang=de)                                           | Prospective JSON API, 96 per page        |
 | AXA Schweiz      | [Swiss vacancies](https://careers.axa.com/careers-home/jobs?country=Switzerland&page=1)        | iCIMS/Jibe JSON API, 100 per page        |
+| Sunrise          | [Job openings](https://careers.sunrise.ch/gb/en/search-results)                                | Phenom server-rendered catalog, 10/page  |
 
 During a search, Rufina scans all vacancies exposed by the selected company
 source. Every result is saved in the private `discovered_vacancies` inventory

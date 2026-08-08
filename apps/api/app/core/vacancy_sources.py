@@ -142,6 +142,22 @@ DIRECT_COMPANY_PARSERS = (
             ),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="sunrise",
+        name="Sunrise",
+        careers_url="https://careers.sunrise.ch/gb/en/search-results",
+        parser_path="app.services.parsers.companies.sunrise:SunriseJobsParser",
+        settings_map=(
+            ("base_url", "sunrise_jobs_base_url"),
+            ("timeout_seconds", "sunrise_jobs_timeout_seconds"),
+            ("max_pages", "sunrise_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "sunrise_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "sunrise_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

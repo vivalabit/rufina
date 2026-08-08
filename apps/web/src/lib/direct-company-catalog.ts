@@ -86,6 +86,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 32,
     logoHeight: 32,
   },
+  {
+    id: "sunrise",
+    name: "Sunrise",
+    careersUrl: "https://careers.sunrise.ch/gb/en/search-results",
+    logoSrc: "/company-logos/sunrise.png",
+    logoAlt: "Sunrise logo",
+    logoWidth: 32,
+    logoHeight: 16,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
