@@ -76,6 +76,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 32,
     logoHeight: 32,
   },
+  {
+    id: "axa_schweiz",
+    name: "AXA Schweiz",
+    careersUrl:
+      "https://careers.axa.com/careers-home/jobs?country=Switzerland&page=1",
+    logoSrc: "/company-logos/axa_schweiz.svg",
+    logoAlt: "AXA Schweiz logo",
+    logoWidth: 32,
+    logoHeight: 32,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

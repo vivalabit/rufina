@@ -18,6 +18,7 @@ vacancy-search API key.
 | Die Post         | [Job search](https://job.post.ch/search?locale=en_US)                                          | Multilingual recruiting API, 10 per page |
 | Raiffeisen       | [Job search](https://jobs.raiffeisen.ch/)                                                      | Prospective JSON API, 96 per page        |
 | Bundesverwaltung | [Stellenportal Bund](https://jobs.admin.ch/?lang=de)                                           | Prospective JSON API, 96 per page        |
+| AXA Schweiz      | [Swiss vacancies](https://careers.axa.com/careers-home/jobs?country=Switzerland&page=1)        | iCIMS/Jibe JSON API, 100 per page        |
 
 During a search, Rufina scans all vacancies exposed by the selected company
 source. Every result is saved in the private `discovered_vacancies` inventory

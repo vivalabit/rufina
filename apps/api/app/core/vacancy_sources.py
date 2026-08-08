@@ -121,6 +121,27 @@ DIRECT_COMPANY_PARSERS = (
             ),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="axa_schweiz",
+        name="AXA Schweiz",
+        careers_url=(
+            "https://careers.axa.com/careers-home/jobs?"
+            "country=Switzerland&page=1"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.axa_schweiz:AxaSchweizJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "axa_schweiz_jobs_base_url"),
+            ("api_url", "axa_schweiz_jobs_api_url"),
+            ("timeout_seconds", "axa_schweiz_jobs_timeout_seconds"),
+            ("max_pages", "axa_schweiz_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "axa_schweiz_jobs_max_catalog_passes",
+            ),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

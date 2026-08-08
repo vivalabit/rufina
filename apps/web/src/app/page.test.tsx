@@ -45,7 +45,8 @@ function importedJobData({
     | "migros_bank"
     | "die_post"
     | "raiffeisen"
-    | "bundesverwaltung";
+    | "bundesverwaltung"
+    | "axa_schweiz";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -66,7 +67,9 @@ function importedJobData({
                   ? "Raiffeisen"
                   : source === "bundesverwaltung"
                     ? "Bundesverwaltung"
-                    : "LinkedIn";
+                    : source === "axa_schweiz"
+                      ? "AXA Schweiz"
+                      : "LinkedIn";
   return {
     id,
     company:
@@ -84,7 +87,9 @@ function importedJobData({
                 ? "Raiffeisen"
                 : source === "bundesverwaltung"
                   ? "Bundesamt für Informatik BIT"
-                  : "Example AG",
+                  : source === "axa_schweiz"
+                    ? "AXA Switzerland"
+                    : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -100,7 +105,8 @@ function importedJobData({
       source === "migros_bank" ||
       source === "die_post" ||
       source === "raiffeisen" ||
-      source === "bundesverwaltung"
+      source === "bundesverwaltung" ||
+      source === "axa_schweiz"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -1169,16 +1175,22 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Platform Engineer at Bundesverwaltung",
         source: "bundesverwaltung",
       });
+      const axaSchweizJob = importedJobData({
+        id: "axa_schweiz-platform-engineer",
+        title: "Platform Engineer at AXA Schweiz",
+        source: "axa_schweiz",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
         { id: raiffeisenJob.id, data: raiffeisenJob },
         { id: bundesverwaltungJob.id, data: bundesverwaltungJob },
+        { id: axaSchweizJob.id, data: axaSchweizJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 4,
-        jobsAdded: 4,
+        jobsFound: 5,
+        jobsAdded: 5,
         sourceErrors: {},
         warning: null,
       });
@@ -1221,6 +1233,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Die Post")).toBeInTheDocument();
   expect(screen.getByText("Raiffeisen")).toBeInTheDocument();
   expect(screen.getByText("Bundesverwaltung")).toBeInTheDocument();
+  expect(screen.getByText("AXA Schweiz")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -1230,6 +1243,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("checkbox", { name: /Die Post/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Raiffeisen/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Bundesverwaltung/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /AXA Schweiz/ }));
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1256,12 +1270,18 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 4 of 4 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung",
+      "Added 5 of 5 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
   expect(runRequests[0]).toMatchObject({
-    sources: ["migros_bank", "die_post", "raiffeisen", "bundesverwaltung"],
+    sources: [
+      "migros_bank",
+      "die_post",
+      "raiffeisen",
+      "bundesverwaltung",
+      "axa_schweiz",
+    ],
     aiAnalysisEnabled: true,
   });
   expect(
@@ -1276,12 +1296,16 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Bundesverwaltung logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "AXA Schweiz logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
   expect(
     screen.getAllByText("Source: Bundesverwaltung").length,
   ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: AXA Schweiz").length).toBeGreaterThan(0);
 });
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {
