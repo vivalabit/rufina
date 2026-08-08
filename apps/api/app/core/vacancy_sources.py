@@ -158,6 +158,20 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "sunrise_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="iss",
+        name="ISS Schweiz",
+        careers_url=(
+            "https://www.ch.issworld.com/de-ch/karriere/offene-stellen"
+        ),
+        parser_path="app.services.parsers.companies.iss:IssJobsParser",
+        settings_map=(
+            ("base_url", "iss_jobs_base_url"),
+            ("api_url", "iss_jobs_api_url"),
+            ("timeout_seconds", "iss_jobs_timeout_seconds"),
+            ("detail_workers", "iss_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

@@ -95,6 +95,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 32,
     logoHeight: 16,
   },
+  {
+    id: "iss",
+    name: "ISS Schweiz",
+    careersUrl: "https://www.ch.issworld.com/de-ch/karriere/offene-stellen",
+    logoSrc: "/company-logos/iss.svg",
+    logoAlt: "ISS Schweiz logo",
+    logoWidth: 32,
+    logoHeight: 28,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

@@ -47,7 +47,8 @@ function importedJobData({
     | "raiffeisen"
     | "bundesverwaltung"
     | "axa_schweiz"
-    | "sunrise";
+    | "sunrise"
+    | "iss";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -72,6 +73,8 @@ function importedJobData({
                       ? "AXA Schweiz"
                       : source === "sunrise"
                         ? "Sunrise"
+                        : source === "iss"
+                          ? "ISS Schweiz"
                       : "LinkedIn";
   return {
     id,
@@ -94,6 +97,8 @@ function importedJobData({
                     ? "AXA Switzerland"
                     : source === "sunrise"
                       ? "Sunrise Communications AG"
+                      : source === "iss"
+                        ? "ISS Facility Services AG"
                     : "Example AG",
     title,
     location: "Zurich",
@@ -112,7 +117,8 @@ function importedJobData({
       source === "raiffeisen" ||
       source === "bundesverwaltung" ||
       source === "axa_schweiz" ||
-      source === "sunrise"
+      source === "sunrise" ||
+      source === "iss"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -1191,6 +1197,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Platform Engineer at Sunrise",
         source: "sunrise",
       });
+      const issJob = importedJobData({
+        id: "iss-facility-engineer",
+        title: "Facility Engineer at ISS Schweiz",
+        source: "iss",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -1198,11 +1209,12 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: bundesverwaltungJob.id, data: bundesverwaltungJob },
         { id: axaSchweizJob.id, data: axaSchweizJob },
         { id: sunriseJob.id, data: sunriseJob },
+        { id: issJob.id, data: issJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 6,
-        jobsAdded: 6,
+        jobsFound: 7,
+        jobsAdded: 7,
         sourceErrors: {},
         warning: null,
       });
@@ -1247,6 +1259,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Bundesverwaltung")).toBeInTheDocument();
   expect(screen.getByText("AXA Schweiz")).toBeInTheDocument();
   expect(screen.getByText("Sunrise")).toBeInTheDocument();
+  expect(screen.getByText("ISS Schweiz")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -1258,6 +1271,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("checkbox", { name: /Bundesverwaltung/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /AXA Schweiz/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Sunrise/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /ISS Schweiz/ }));
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1284,7 +1298,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 6 of 6 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise",
+      "Added 7 of 7 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -1296,6 +1310,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "bundesverwaltung",
       "axa_schweiz",
       "sunrise",
+      "iss",
     ],
     aiAnalysisEnabled: true,
   });
@@ -1317,6 +1332,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Sunrise logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "ISS Schweiz logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -1325,6 +1343,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: AXA Schweiz").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Sunrise").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: ISS Schweiz").length).toBeGreaterThan(0);
 });
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {
