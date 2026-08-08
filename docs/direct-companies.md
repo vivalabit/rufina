@@ -29,6 +29,7 @@ vacancy-search API key.
 | UBS Students & Graduates | [Switzerland opportunities](https://jobs.ubs.com/TGnewUI/Search/home/HomeWithPreLoad?partnerid=25008&siteid=5131&PageType=searchResults&SearchType=linkquery&LinkID=15232#keyWordSearch=&locationSearch=Switzerland) | Infinite Talent paginated JSON catalog |
 | ABB Schweiz | [Switzerland careers](https://careers.abb/global/en/search-results?rk=l-abb-switzerland-careers&sortBy=Most%20relevant) | Phenom paginated catalog with Swiss multi-location filtering |
 | Huawei Switzerland | [Current job openings](https://careers.huaweirc.ch/jobs) | Teamtailor full-catalog HTML and JobPosting detail pages |
+| BDO Switzerland | [Open positions](https://www.bdo.ch/en-gb/careers/open-jobs) | Abacus Job Portal full-catalog JSON API |
 
 During a search, Rufina scans all vacancies exposed by the selected company
 source. Every result is saved in the private `discovered_vacancies` inventory

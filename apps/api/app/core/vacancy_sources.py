@@ -298,6 +298,20 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "huawei_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="bdo_switzerland",
+        name="BDO Switzerland",
+        careers_url="https://www.bdo.ch/en-gb/careers/open-jobs",
+        parser_path=(
+            "app.services.parsers.companies.bdo_switzerland:"
+            "BdoSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "bdo_switzerland_jobs_base_url"),
+            ("api_url", "bdo_switzerland_jobs_api_url"),
+            ("timeout_seconds", "bdo_switzerland_jobs_timeout_seconds"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

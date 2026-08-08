@@ -179,6 +179,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 32,
     logoHeight: 24,
   },
+  {
+    id: "bdo_switzerland",
+    name: "BDO Switzerland",
+    careersUrl: "https://www.bdo.ch/en-gb/careers/open-jobs",
+    logoSrc: "/company-logos/bdo.svg",
+    logoAlt: "BDO Switzerland logo",
+    logoWidth: 48,
+    logoHeight: 19,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

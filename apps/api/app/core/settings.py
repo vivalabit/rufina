@@ -264,6 +264,18 @@ class Settings(BaseSettings):
         ge=1,
         le=20,
     )
+    bdo_switzerland_jobs_base_url: str = (
+        "https://www.bdo.ch/en-gb/careers/open-jobs"
+    )
+    bdo_switzerland_jobs_api_url: str = (
+        "https://api.jobportal.abaservices.ch/api/extern/v1/job-portal/"
+        "3505fa5b-0c08-49ef-852b-1a20eab2630e/publications"
+    )
+    bdo_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

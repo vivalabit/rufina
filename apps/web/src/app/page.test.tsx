@@ -62,7 +62,8 @@ function importedJobData({
     | "flughafen_zuerich"
     | "ubs_students_graduates"
     | "abb_switzerland"
-    | "huawei_switzerland";
+    | "huawei_switzerland"
+    | "bdo_switzerland";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -105,7 +106,9 @@ function importedJobData({
                                           ? "ABB Schweiz"
                                           : source === "huawei_switzerland"
                                             ? "Huawei Switzerland"
-                                            : "LinkedIn";
+                                            : source === "bdo_switzerland"
+                                              ? "BDO Switzerland"
+                                              : "LinkedIn";
   return {
     id,
     company:
@@ -145,7 +148,9 @@ function importedJobData({
                                         ? "ABB"
                                         : source === "huawei_switzerland"
                                           ? "Huawei Switzerland"
-                                          : "Example AG",
+                                          : source === "bdo_switzerland"
+                                            ? "BDO AG"
+                                            : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -172,7 +177,8 @@ function importedJobData({
       source === "flughafen_zuerich" ||
       source === "ubs_students_graduates" ||
       source === "abb_switzerland" ||
-      source === "huawei_switzerland"
+      source === "huawei_switzerland" ||
+      source === "bdo_switzerland"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -1567,6 +1573,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Research Engineer at Huawei",
         source: "huawei_switzerland",
       });
+      const bdoSwitzerlandJob = importedJobData({
+        id: "bdo_switzerland-abacus-consultant",
+        title: "Abacus Consultant at BDO",
+        source: "bdo_switzerland",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -1586,11 +1597,12 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: ubsStudentsGraduatesJob.id, data: ubsStudentsGraduatesJob },
         { id: abbSwitzerlandJob.id, data: abbSwitzerlandJob },
         { id: huaweiSwitzerlandJob.id, data: huaweiSwitzerlandJob },
+        { id: bdoSwitzerlandJob.id, data: bdoSwitzerlandJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 15,
-        jobsAdded: 15,
+        jobsFound: 16,
+        jobsAdded: 16,
         sourceErrors: {},
         warning: null,
       });
@@ -1648,6 +1660,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("UBS Students & Graduates")).toBeInTheDocument();
   expect(screen.getByText("ABB Schweiz")).toBeInTheDocument();
   expect(screen.getByText("Huawei Switzerland")).toBeInTheDocument();
+  expect(screen.getByText("BDO Switzerland")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -1672,6 +1685,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   );
   fireEvent.click(screen.getByRole("checkbox", { name: /ABB Schweiz/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Huawei Switzerland/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /BDO Switzerland/ }));
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1698,7 +1712,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 15 of 15 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland",
+      "Added 16 of 16 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -1719,6 +1733,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "ubs_students_graduates",
       "abb_switzerland",
       "huawei_switzerland",
+      "bdo_switzerland",
     ],
     aiAnalysisEnabled: true,
   });
@@ -1767,6 +1782,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Huawei Switzerland logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "BDO Switzerland logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -1792,6 +1810,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByText("Source: Huawei Switzerland").length,
   ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: BDO Switzerland").length).toBeGreaterThan(
+    0,
+  );
 });
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {
