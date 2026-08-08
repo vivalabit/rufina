@@ -284,6 +284,20 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "abb_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="huawei_switzerland",
+        name="Huawei Switzerland",
+        careers_url="https://careers.huaweirc.ch/jobs",
+        parser_path=(
+            "app.services.parsers.companies.huawei_switzerland:"
+            "HuaweiSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "huawei_switzerland_jobs_base_url"),
+            ("timeout_seconds", "huawei_switzerland_jobs_timeout_seconds"),
+            ("detail_workers", "huawei_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

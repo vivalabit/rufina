@@ -170,6 +170,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 64,
     logoHeight: 24,
   },
+  {
+    id: "huawei_switzerland",
+    name: "Huawei Switzerland",
+    careersUrl: "https://careers.huaweirc.ch/jobs",
+    logoSrc: "/company-logos/huawei.svg",
+    logoAlt: "Huawei Switzerland logo",
+    logoWidth: 32,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
