@@ -59,6 +59,22 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="migros_bank",
+        name="Migros Bank",
+        careers_url=(
+            "https://jobs.migros.ch/de/unsere-unternehmen/"
+            "migros-bank/offene-stellen"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.migros_bank:MigrosBankJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "migros_bank_jobs_base_url"),
+            ("timeout_seconds", "migros_bank_jobs_timeout_seconds"),
+            ("detail_workers", "migros_bank_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="die_post",
         name="Die Post",
         careers_url="https://job.post.ch/search?locale=en_US",

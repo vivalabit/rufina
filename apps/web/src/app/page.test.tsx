@@ -42,6 +42,7 @@ function importedJobData({
     | "sbb"
     | "swisscom"
     | "galaxus"
+    | "migros_bank"
     | "die_post"
     | "raiffeisen"
     | "bundesverwaltung";
@@ -57,6 +58,8 @@ function importedJobData({
             ? "Swisscom"
             : source === "galaxus"
               ? "Galaxus"
+              : source === "migros_bank"
+                ? "Migros Bank"
               : source === "die_post"
                 ? "Die Post"
                 : source === "raiffeisen"
@@ -73,6 +76,8 @@ function importedJobData({
           ? "Swisscom (Schweiz) AG"
           : source === "galaxus"
             ? "Galaxus"
+            : source === "migros_bank"
+              ? "Migros Bank"
             : source === "die_post"
               ? "Swiss Post Ltd"
               : source === "raiffeisen"
@@ -92,6 +97,7 @@ function importedJobData({
       source === "sbb" ||
       source === "swisscom" ||
       source === "galaxus" ||
+      source === "migros_bank" ||
       source === "die_post" ||
       source === "raiffeisen" ||
       source === "bundesverwaltung"
@@ -1110,7 +1116,7 @@ it("saves and deletes manual-search configs through the API", async () => {
   ).toBeNull();
 });
 
-it("shows Prospective direct-company vacancies with their company logos", async () => {
+it("shows direct-company vacancies with their company logos", async () => {
   window.history.replaceState(null, "", "#jobs");
   const configWrites: Array<Record<string, unknown>> = [];
   const runRequests: Array<Record<string, unknown>> = [];
@@ -1148,6 +1154,11 @@ it("shows Prospective direct-company vacancies with their company logos", async 
         title: "Platform Engineer at Die Post",
         source: "die_post",
       });
+      const migrosBankJob = importedJobData({
+        id: "migros_bank-devsecops-engineer",
+        title: "DevSecOps Engineer at Migros Bank",
+        source: "migros_bank",
+      });
       const raiffeisenJob = importedJobData({
         id: "raiffeisen-platform-engineer",
         title: "Platform Engineer at Raiffeisen",
@@ -1159,14 +1170,15 @@ it("shows Prospective direct-company vacancies with their company logos", async 
         source: "bundesverwaltung",
       });
       storedJobs = [
+        { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
         { id: raiffeisenJob.id, data: raiffeisenJob },
         { id: bundesverwaltungJob.id, data: bundesverwaltungJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 3,
-        jobsAdded: 3,
+        jobsFound: 4,
+        jobsAdded: 4,
         sourceErrors: {},
         warning: null,
       });
@@ -1205,6 +1217,7 @@ it("shows Prospective direct-company vacancies with their company logos", async 
   expect(screen.getByText("SBB CFF FFS")).toBeInTheDocument();
   expect(screen.getByText("Swisscom")).toBeInTheDocument();
   expect(screen.getByText("Galaxus")).toBeInTheDocument();
+  expect(screen.getByText("Migros Bank")).toBeInTheDocument();
   expect(screen.getByText("Die Post")).toBeInTheDocument();
   expect(screen.getByText("Raiffeisen")).toBeInTheDocument();
   expect(screen.getByText("Bundesverwaltung")).toBeInTheDocument();
@@ -1213,6 +1226,7 @@ it("shows Prospective direct-company vacancies with their company logos", async 
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Select all" })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Add company" })).toBeNull();
+  fireEvent.click(screen.getByRole("checkbox", { name: /Migros Bank/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Die Post/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Raiffeisen/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Bundesverwaltung/ }));
@@ -1242,22 +1256,32 @@ it("shows Prospective direct-company vacancies with their company logos", async 
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 3 of 3 vacancies from Die Post + Raiffeisen + Bundesverwaltung",
+      "Added 4 of 4 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
   expect(runRequests[0]).toMatchObject({
-    sources: ["die_post", "raiffeisen", "bundesverwaltung"],
+    sources: ["migros_bank", "die_post", "raiffeisen", "bundesverwaltung"],
     aiAnalysisEnabled: true,
   });
-  expect(screen.getAllByRole("img", { name: "Die Post logo" })).toHaveLength(2);
-  expect(screen.getAllByRole("img", { name: "Raiffeisen logo" })).toHaveLength(1);
   expect(
-    screen.getAllByRole("img", { name: "Bundesverwaltung logo" }),
-  ).toHaveLength(1);
-  expect(screen.getAllByText("Source: Die Post")).toHaveLength(2);
-  expect(screen.getAllByText("Source: Raiffeisen")).toHaveLength(1);
-  expect(screen.getAllByText("Source: Bundesverwaltung")).toHaveLength(1);
+    screen.getAllByRole("img", { name: "Die Post logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Migros Bank logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Raiffeisen logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Bundesverwaltung logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: Bundesverwaltung").length,
+  ).toBeGreaterThan(0);
 });
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

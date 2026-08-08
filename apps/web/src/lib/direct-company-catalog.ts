@@ -40,6 +40,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "migros_bank",
+    name: "Migros Bank",
+    careersUrl:
+      "https://jobs.migros.ch/de/unsere-unternehmen/migros-bank/offene-stellen",
+    logoSrc: "/company-logos/migros_bank.svg",
+    logoAlt: "Migros Bank logo",
+    logoWidth: 36,
+    logoHeight: 32,
+  },
+  {
     id: "die_post",
     name: "Die Post",
     careersUrl: "https://job.post.ch/search?locale=en_US",

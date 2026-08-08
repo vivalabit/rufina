@@ -136,9 +136,17 @@ class GalaxusJobsParser:
         )
 
 
-def parse_listing_html(page_html: str, *, page_url: str) -> list[dict[str, Any]]:
+def parse_listing_html(
+    page_html: str,
+    *,
+    page_url: str,
+    company_slug: str = "galaxus",
+    company_name: str = "Galaxus",
+) -> list[dict[str, Any]]:
     page = Selector(page_html)
-    cards = page.css('li.search-layout-list-item a[href*="/job/galaxus/"]')
+    cards = page.css(
+        f'li.search-layout-list-item a[href*="/job/{company_slug}/"]'
+    )
     records: list[dict[str, Any]] = []
 
     for card in cards:
@@ -154,7 +162,7 @@ def parse_listing_html(page_html: str, *, page_url: str) -> list[dict[str, Any]]
             {
                 "id": path.rstrip("/").rsplit("/", 1)[-1],
                 "title": title,
-                "company": first_text(card.css("p::text").getall()) or "Galaxus",
+                "company": first_text(card.css("p::text").getall()) or company_name,
                 "location": attributes[0] if attributes else None,
                 "employment_type": attributes[1] if len(attributes) > 1 else None,
                 "workload": workload,
@@ -189,8 +197,13 @@ def parse_detail_html(page_html: str) -> dict[str, Any]:
         "description": "\n\n".join(part for part in parts if part).strip() or None,
         "tasks": tasks,
         "skills": skills,
-        "apply_url": optional_text(
-            page.css('a[href*="joboffer/apply"]::attr(href)').get()
+        "apply_url": first_text(
+            (
+                page.css('a[href*="joboffer/apply"]::attr(href)').get(),
+                page.css(
+                    'a[href*="career_ns=job_application"]::attr(href)'
+                ).get(),
+            )
         ),
     }
 

@@ -14,6 +14,7 @@ vacancy-search API key.
 | SBB CFF FFS      | [Open vacancies](https://company.sbb.ch/de/jobs-karriere/jobs/offene-stellen.html?startItem=1) | SBB job-filter API                       |
 | Swisscom         | [External careers](https://swisscom.wd103.myworkdayjobs.com/en-US/SwisscomExternalCareers)     | Workday API, paginated in batches of 20  |
 | Galaxus          | [Career page](https://jobs.migros.ch/de/unsere-unternehmen/galaxus/)                           | Migros Jobs server-rendered vacancy page |
+| Migros Bank      | [Open vacancies](https://jobs.migros.ch/de/unsere-unternehmen/migros-bank/offene-stellen)      | Migros Jobs server-rendered vacancy page |
 | Die Post         | [Job search](https://job.post.ch/search?locale=en_US)                                          | Multilingual recruiting API, 10 per page |
 | Raiffeisen       | [Job search](https://jobs.raiffeisen.ch/)                                                      | Prospective JSON API, 96 per page        |
 | Bundesverwaltung | [Stellenportal Bund](https://jobs.admin.ch/?lang=de)                                           | Prospective JSON API, 96 per page        |

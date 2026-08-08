@@ -118,6 +118,11 @@ class Settings(BaseSettings):
     )
     galaxus_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     galaxus_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    migros_bank_jobs_base_url: str = (
+        "https://jobs.migros.ch/de/unsere-unternehmen/migros-bank/offene-stellen"
+    )
+    migros_bank_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    migros_bank_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     die_post_jobs_base_url: str = "https://job.post.ch/search?locale=en_US"
     die_post_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     die_post_jobs_max_pages: int = Field(default=100, ge=1, le=500)
