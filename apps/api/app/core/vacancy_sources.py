@@ -243,6 +243,27 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "flughafen_zuerich_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="ubs_students_graduates",
+        name="UBS Students & Graduates",
+        careers_url=(
+            "https://jobs.ubs.com/TGnewUI/Search/home/HomeWithPreLoad?"
+            "partnerid=25008&siteid=5131&PageType=searchResults&"
+            "SearchType=linkquery&LinkID=15232"
+            "#keyWordSearch=&locationSearch=Switzerland"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.ubs_students_graduates:"
+            "UbsStudentsGraduatesJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "ubs_students_graduates_jobs_base_url"),
+            ("api_url", "ubs_students_graduates_jobs_api_url"),
+            ("timeout_seconds", "ubs_students_graduates_jobs_timeout_seconds"),
+            ("max_pages", "ubs_students_graduates_jobs_max_pages"),
+            ("detail_workers", "ubs_students_graduates_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

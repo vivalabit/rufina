@@ -150,6 +150,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 96,
     logoHeight: 12,
   },
+  {
+    id: "ubs_students_graduates",
+    name: "UBS Students & Graduates",
+    careersUrl:
+      "https://jobs.ubs.com/TGnewUI/Search/home/HomeWithPreLoad?partnerid=25008&siteid=5131&PageType=searchResults&SearchType=linkquery&LinkID=15232#keyWordSearch=&locationSearch=Switzerland",
+    logoSrc: "/company-logos/ubs.svg",
+    logoAlt: "UBS logo",
+    logoWidth: 64,
+    logoHeight: 23,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

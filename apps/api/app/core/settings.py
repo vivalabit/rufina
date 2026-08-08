@@ -220,6 +220,26 @@ class Settings(BaseSettings):
         le=120,
     )
     flughafen_zuerich_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    ubs_students_graduates_jobs_base_url: str = (
+        "https://jobs.ubs.com/TGnewUI/Search/home/HomeWithPreLoad?"
+        "partnerid=25008&siteid=5131&PageType=searchResults&"
+        "SearchType=linkquery&LinkID=15232"
+        "#keyWordSearch=&locationSearch=Switzerland"
+    )
+    ubs_students_graduates_jobs_api_url: str = (
+        "https://jobs.ubs.com/TgNewUI/Search/Ajax/ProcessSortAndShowMoreJobs"
+    )
+    ubs_students_graduates_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    ubs_students_graduates_jobs_max_pages: int = Field(default=10, ge=1, le=100)
+    ubs_students_graduates_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

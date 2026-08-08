@@ -53,7 +53,8 @@ function importedJobData({
     | "csem"
     | "deloitte"
     | "zuercher_kantonalbank"
-    | "flughafen_zuerich";
+    | "flughafen_zuerich"
+    | "ubs_students_graduates";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -90,6 +91,8 @@ function importedJobData({
                                   ? "Zürcher Kantonalbank"
                                   : source === "flughafen_zuerich"
                                     ? "Flughafen Zürich"
+                                    : source === "ubs_students_graduates"
+                                      ? "UBS Students & Graduates"
                                 : "LinkedIn";
   return {
     id,
@@ -124,6 +127,8 @@ function importedJobData({
                                 ? "Zürcher Kantonalbank"
                                 : source === "flughafen_zuerich"
                                   ? "Flughafen Zürich AG"
+                                  : source === "ubs_students_graduates"
+                                    ? "UBS"
                               : "Example AG",
     title,
     location: "Zurich",
@@ -148,7 +153,8 @@ function importedJobData({
       source === "csem" ||
       source === "deloitte" ||
       source === "zuercher_kantonalbank" ||
-      source === "flughafen_zuerich"
+      source === "flughafen_zuerich" ||
+      source === "ubs_students_graduates"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -1257,6 +1263,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "System Engineer at Flughafen Zürich",
         source: "flughafen_zuerich",
       });
+      const ubsStudentsGraduatesJob = importedJobData({
+        id: "ubs_students_graduates-internship",
+        title: "Off-cycle Internship at UBS",
+        source: "ubs_students_graduates",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -1273,11 +1284,12 @@ it("shows direct-company vacancies with their company logos", async () => {
           data: zuercherKantonalbankJob,
         },
         { id: flughafenZuerichJob.id, data: flughafenZuerichJob },
+        { id: ubsStudentsGraduatesJob.id, data: ubsStudentsGraduatesJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 12,
-        jobsAdded: 12,
+        jobsFound: 13,
+        jobsAdded: 13,
         sourceErrors: {},
         warning: null,
       });
@@ -1328,6 +1340,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Deloitte")).toBeInTheDocument();
   expect(screen.getByText("Zürcher Kantonalbank")).toBeInTheDocument();
   expect(screen.getByText("Flughafen Zürich")).toBeInTheDocument();
+  expect(screen.getByText("UBS Students & Graduates")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -1347,6 +1360,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getByRole("checkbox", { name: /Zürcher Kantonalbank/ }),
   );
   fireEvent.click(screen.getByRole("checkbox", { name: /Flughafen Zürich/ }));
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: /UBS Students & Graduates/ }),
+  );
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1373,7 +1389,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 12 of 12 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich",
+      "Added 13 of 13 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -1391,6 +1407,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "deloitte",
       "zuercher_kantonalbank",
       "flughafen_zuerich",
+      "ubs_students_graduates",
     ],
     aiAnalysisEnabled: true,
   });
@@ -1430,6 +1447,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Flughafen Zürich logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "UBS logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -1447,6 +1467,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   ).toBeGreaterThan(0);
   expect(
     screen.getAllByText("Source: Flughafen Zürich").length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: UBS Students & Graduates").length,
   ).toBeGreaterThan(0);
 });
 
