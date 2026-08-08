@@ -122,6 +122,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 40,
     logoHeight: 24,
   },
+  {
+    id: "deloitte",
+    name: "Deloitte",
+    careersUrl: "https://apply.deloitte.ch/CHCareers/",
+    logoSrc: "/company-logos/deloitte.svg",
+    logoAlt: "Deloitte logo",
+    logoWidth: 40,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

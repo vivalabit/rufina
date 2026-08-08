@@ -197,6 +197,19 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "csem_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="deloitte",
+        name="Deloitte",
+        careers_url="https://apply.deloitte.ch/CHCareers/",
+        parser_path="app.services.parsers.companies.deloitte:DeloitteJobsParser",
+        settings_map=(
+            ("base_url", "deloitte_jobs_base_url"),
+            ("timeout_seconds", "deloitte_jobs_timeout_seconds"),
+            ("max_pages", "deloitte_jobs_max_pages"),
+            ("max_catalog_passes", "deloitte_jobs_max_catalog_passes"),
+            ("detail_workers", "deloitte_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
