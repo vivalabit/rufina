@@ -140,6 +140,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 48,
     logoHeight: 24,
   },
+  {
+    id: "flughafen_zuerich",
+    name: "Flughafen Zürich",
+    careersUrl:
+      "https://www.flughafen-zuerich.ch/de/unternehmen/jobs/karriere/stellenangebote",
+    logoSrc: "/company-logos/flughafen_zuerich.svg",
+    logoAlt: "Flughafen Zürich logo",
+    logoWidth: 96,
+    logoHeight: 12,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

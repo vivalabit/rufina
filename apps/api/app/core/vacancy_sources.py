@@ -224,6 +224,25 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "zuercher_kantonalbank_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="flughafen_zuerich",
+        name="Flughafen Zürich",
+        careers_url=(
+            "https://www.flughafen-zuerich.ch/de/unternehmen/jobs/karriere/"
+            "stellenangebote"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.flughafen_zuerich:"
+            "FlughafenZuerichJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "flughafen_zuerich_jobs_base_url"),
+            ("api_url", "flughafen_zuerich_jobs_api_url"),
+            ("api_key", "flughafen_zuerich_jobs_api_key"),
+            ("timeout_seconds", "flughafen_zuerich_jobs_timeout_seconds"),
+            ("detail_workers", "flughafen_zuerich_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

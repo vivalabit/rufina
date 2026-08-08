@@ -203,6 +203,23 @@ class Settings(BaseSettings):
         ge=1,
         le=20,
     )
+    flughafen_zuerich_jobs_base_url: str = (
+        "https://www.flughafen-zuerich.ch/de/unternehmen/jobs/karriere/stellenangebote"
+    )
+    flughafen_zuerich_jobs_api_url: str = (
+        "https://www.flughafen-zuerich.ch/api/jobs/jobs?"
+        "sc_site=dxp-portal&sc_lang=de&"
+        "sc_itemid=%7b264461F0-4A00-4CF0-8B38-D24541D30C92%7d"
+    )
+    flughafen_zuerich_jobs_api_key: str = (
+        "{3DCC43C7-A5C3-4A72-8CA5-A343CFD63F34}"
+    )
+    flughafen_zuerich_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    flughafen_zuerich_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

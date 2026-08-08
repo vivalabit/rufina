@@ -52,7 +52,8 @@ function importedJobData({
     | "accenture"
     | "csem"
     | "deloitte"
-    | "zuercher_kantonalbank";
+    | "zuercher_kantonalbank"
+    | "flughafen_zuerich";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -87,6 +88,8 @@ function importedJobData({
                                 ? "Deloitte"
                                 : source === "zuercher_kantonalbank"
                                   ? "Zürcher Kantonalbank"
+                                  : source === "flughafen_zuerich"
+                                    ? "Flughafen Zürich"
                                 : "LinkedIn";
   return {
     id,
@@ -119,6 +122,8 @@ function importedJobData({
                               ? "Deloitte"
                               : source === "zuercher_kantonalbank"
                                 ? "Zürcher Kantonalbank"
+                                : source === "flughafen_zuerich"
+                                  ? "Flughafen Zürich AG"
                               : "Example AG",
     title,
     location: "Zurich",
@@ -142,7 +147,8 @@ function importedJobData({
       source === "accenture" ||
       source === "csem" ||
       source === "deloitte" ||
-      source === "zuercher_kantonalbank"
+      source === "zuercher_kantonalbank" ||
+      source === "flughafen_zuerich"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -1246,6 +1252,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "DevOps Engineer at Zürcher Kantonalbank",
         source: "zuercher_kantonalbank",
       });
+      const flughafenZuerichJob = importedJobData({
+        id: "flughafen_zuerich-system-engineer",
+        title: "System Engineer at Flughafen Zürich",
+        source: "flughafen_zuerich",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -1261,11 +1272,12 @@ it("shows direct-company vacancies with their company logos", async () => {
           id: zuercherKantonalbankJob.id,
           data: zuercherKantonalbankJob,
         },
+        { id: flughafenZuerichJob.id, data: flughafenZuerichJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 11,
-        jobsAdded: 11,
+        jobsFound: 12,
+        jobsAdded: 12,
         sourceErrors: {},
         warning: null,
       });
@@ -1315,6 +1327,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("CSEM")).toBeInTheDocument();
   expect(screen.getByText("Deloitte")).toBeInTheDocument();
   expect(screen.getByText("Zürcher Kantonalbank")).toBeInTheDocument();
+  expect(screen.getByText("Flughafen Zürich")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -1333,6 +1346,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(
     screen.getByRole("checkbox", { name: /Zürcher Kantonalbank/ }),
   );
+  fireEvent.click(screen.getByRole("checkbox", { name: /Flughafen Zürich/ }));
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1359,7 +1373,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 11 of 11 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank",
+      "Added 12 of 12 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -1376,6 +1390,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "csem",
       "deloitte",
       "zuercher_kantonalbank",
+      "flughafen_zuerich",
     ],
     aiAnalysisEnabled: true,
   });
@@ -1412,6 +1427,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Zürcher Kantonalbank logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Flughafen Zürich logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -1426,6 +1444,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getAllByText("Source: Deloitte").length).toBeGreaterThan(0);
   expect(
     screen.getAllByText("Source: Zürcher Kantonalbank").length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: Flughafen Zürich").length,
   ).toBeGreaterThan(0);
 });
 
