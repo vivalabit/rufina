@@ -172,6 +172,20 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "iss_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="accenture",
+        name="Accenture",
+        careers_url="https://www.accenture.com/ch-en/careers/jobsearch",
+        parser_path=(
+            "app.services.parsers.companies.accenture:AccentureJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "accenture_jobs_base_url"),
+            ("api_url", "accenture_jobs_api_url"),
+            ("timeout_seconds", "accenture_jobs_timeout_seconds"),
+            ("max_pages", "accenture_jobs_max_pages"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

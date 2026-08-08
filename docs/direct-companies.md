@@ -21,6 +21,7 @@ vacancy-search API key.
 | AXA Schweiz      | [Swiss vacancies](https://careers.axa.com/careers-home/jobs?country=Switzerland&page=1)        | iCIMS/Jibe JSON API, 100 per page        |
 | Sunrise          | [Job openings](https://careers.sunrise.ch/gb/en/search-results)                                | Phenom server-rendered catalog, 10/page  |
 | ISS Schweiz      | [Open positions](https://www.ch.issworld.com/de-ch/karriere/offene-stellen)                    | Solique full-catalog JSON API            |
+| Accenture        | [Job search](https://www.accenture.com/ch-en/careers/jobsearch)                                | Accenture Elastic Jobs API, 100/page     |
 
 During a search, Rufina scans all vacancies exposed by the selected company
 source. Every result is saved in the private `discovered_vacancies` inventory

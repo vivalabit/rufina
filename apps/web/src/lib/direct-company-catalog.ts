@@ -104,6 +104,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 32,
     logoHeight: 28,
   },
+  {
+    id: "accenture",
+    name: "Accenture",
+    careersUrl: "https://www.accenture.com/ch-en/careers/jobsearch",
+    logoSrc: "/company-logos/accenture.svg",
+    logoAlt: "Accenture logo",
+    logoWidth: 32,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
