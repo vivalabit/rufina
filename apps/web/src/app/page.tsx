@@ -5988,7 +5988,7 @@ export default function HomePage() {
   return (
     <main className="h-screen overflow-hidden bg-background text-foreground">
       <div className="fixed inset-0 bg-[radial-gradient(circle_at_80%_0%,rgba(52,120,246,0.10),transparent_28%)]" />
-      <div className="relative mx-auto flex h-full max-w-[1536px] overflow-hidden rounded-none border-border bg-[#0a0f15]/96 shadow-panel lg:rounded-[14px] lg:border">
+      <div className="relative flex h-full w-full overflow-hidden rounded-none border-border bg-[#0a0f15]/96 shadow-panel lg:rounded-[14px] lg:border">
         <AppSidebar activeView={activeView} onChangeView={changeView} profile={profile} showLogs={uiSettings.showLogs} />
 
         {activeView === "Dashboard" ? (
