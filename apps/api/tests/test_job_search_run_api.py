@@ -1,3 +1,5 @@
+import json
+import logging
 from collections.abc import Generator
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -177,6 +179,7 @@ def test_manual_run_uses_source_specific_queries_from_preset(
 def test_manual_run_uses_explicit_direct_company_source_with_common_config(
     api_context: ApiContext,
     monkeypatch: pytest.MonkeyPatch,
+    caplog: pytest.LogCaptureFixture,
 ) -> None:
     runner = FakeRunner(
         VacancySearchRunResult(
@@ -190,6 +193,7 @@ def test_manual_run_uses_explicit_direct_company_source_with_common_config(
         "create_vacancy_search_runner",
         lambda _settings: runner,
     )
+    caplog.set_level(logging.INFO, logger="uvicorn.error")
 
     response = api_context.client.post(
         "/job-search/run",
@@ -214,6 +218,21 @@ def test_manual_run_uses_explicit_direct_company_source_with_common_config(
     assert response.json()["sources"] == ["linkedin", "sbb"]
     assert runner.requests[0]["sources"] == ["linkedin", "sbb"]
     assert runner.requests[0]["request"].keywords == "lokführer"
+    event = next(
+        json.loads(record.message)
+        for record in caplog.records
+        if '"event":"job_search.finished"' in record.message
+    )
+    assert event == {
+        "event": "job_search.finished",
+        "message": "Job search finished",
+        "sources": ["LinkedIn", "SBB CFF FFS"],
+        "sourceIds": ["linkedin", "sbb"],
+        "newVacancies": 0,
+        "jobsFound": 0,
+        "status": "completed",
+        "runId": response.json()["id"],
+    }
 
 
 def test_experience_level_rejects_senior_jobs_from_every_source_before_ai(

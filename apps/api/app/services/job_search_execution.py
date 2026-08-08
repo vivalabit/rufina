@@ -1,3 +1,5 @@
+import json
+import logging
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -69,6 +71,8 @@ from app.services.vacancy_search import (
     job_identity,
     normalize_identity_part,
 )
+
+logger = logging.getLogger("uvicorn.error")
 
 AI_CONSENT_WARNING = "AI Match was skipped because current AI data-processing consent is missing"
 SCREENING_CONSENT_WARNING = (
@@ -269,6 +273,7 @@ def execute_job_search(
             recalculate_schedule=recalculate_schedule,
         )
         db.commit()
+        log_job_search_finished(run)
         raise JobSearchExecutionError("Stored job search config is invalid") from exc
     except Exception as exc:
         completed_at = datetime.now(UTC)
@@ -280,6 +285,7 @@ def execute_job_search(
             recalculate_schedule=recalculate_schedule,
         )
         db.commit()
+        log_job_search_finished(run)
         raise
 
     discovered_at = datetime.now(UTC)
@@ -389,7 +395,43 @@ def execute_job_search(
         schedule.updated_at = completed_at
     db.commit()
     db.refresh(run)
+    log_job_search_finished(run)
     return JobSearchExecutionResult(run=run, warning=run.warning)
+
+
+def log_job_search_finished(run: JobSearchRunRecord) -> None:
+    """Emit one final, machine-readable summary after a search stops running."""
+
+    source_ids = list(run.sources)
+    logger.info(
+        json.dumps(
+            {
+                "event": "job_search.finished",
+                "message": "Job search finished",
+                "sources": [source_display_name(source) for source in source_ids],
+                "sourceIds": source_ids,
+                "newVacancies": run.jobs_added,
+                "jobsFound": run.jobs_found,
+                "status": run.status,
+                "runId": run.id,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    )
+
+
+def source_display_name(source: str) -> str:
+    normalized = "jobs_ch" if source in {"jobs_ch", "jobs.ch"} else source
+    aggregator_name = {
+        "linkedin": "LinkedIn",
+        "indeed": "Indeed",
+        "jobs_ch": "jobs.ch",
+    }.get(normalized)
+    if aggregator_name:
+        return aggregator_name
+    company = direct_company_definition(normalized)
+    return company.name if company else source
 
 
 def finish_failed_run(

@@ -15,6 +15,7 @@ vacancy-search API key.
 | Swisscom    | [External careers](https://swisscom.wd103.myworkdayjobs.com/en-US/SwisscomExternalCareers)     | Workday API, paginated in batches of 20  |
 | Galaxus     | [Career page](https://jobs.migros.ch/de/unsere-unternehmen/galaxus/)                           | Migros Jobs server-rendered vacancy page |
 | Die Post    | [Job search](https://job.post.ch/search?locale=en_US)                                          | Multilingual recruiting API, 10 per page |
+| Raiffeisen  | [Job search](https://jobs.raiffeisen.ch/)                                                      | Prospective JSON API, 96 per page         |
 
 During a search, Rufina scans all vacancies exposed by the selected company
 source. Every result is saved in the private `discovered_vacancies` inventory

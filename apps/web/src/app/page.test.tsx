@@ -42,7 +42,8 @@ function importedJobData({
     | "sbb"
     | "swisscom"
     | "galaxus"
-    | "die_post";
+    | "die_post"
+    | "raiffeisen";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -57,7 +58,9 @@ function importedJobData({
               ? "Galaxus"
               : source === "die_post"
                 ? "Die Post"
-                : "LinkedIn";
+                : source === "raiffeisen"
+                  ? "Raiffeisen"
+                  : "LinkedIn";
   return {
     id,
     company:
@@ -69,7 +72,9 @@ function importedJobData({
             ? "Galaxus"
             : source === "die_post"
               ? "Swiss Post Ltd"
-              : "Example AG",
+              : source === "raiffeisen"
+                ? "Raiffeisen"
+                : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -82,7 +87,8 @@ function importedJobData({
       source === "sbb" ||
       source === "swisscom" ||
       source === "galaxus" ||
-      source === "die_post"
+      source === "die_post" ||
+      source === "raiffeisen"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -1098,7 +1104,7 @@ it("saves and deletes manual-search configs through the API", async () => {
   ).toBeNull();
 });
 
-it("shows Die Post vacancies with the company logo", async () => {
+it("shows Die Post and Raiffeisen vacancies with their company logos", async () => {
   window.history.replaceState(null, "", "#jobs");
   const configWrites: Array<Record<string, unknown>> = [];
   const runRequests: Array<Record<string, unknown>> = [];
@@ -1131,16 +1137,24 @@ it("shows Die Post vacancies with the company logo", async () => {
     }
     if (url.pathname === "/job-search/run" && method === "POST") {
       runRequests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
-      const job = importedJobData({
+      const diePostJob = importedJobData({
         id: "die_post-platform-engineer",
         title: "Platform Engineer at Die Post",
         source: "die_post",
       });
-      storedJobs = [{ id: job.id, data: job }];
+      const raiffeisenJob = importedJobData({
+        id: "raiffeisen-platform-engineer",
+        title: "Platform Engineer at Raiffeisen",
+        source: "raiffeisen",
+      });
+      storedJobs = [
+        { id: diePostJob.id, data: diePostJob },
+        { id: raiffeisenJob.id, data: raiffeisenJob },
+      ];
       return Response.json({
         status: "completed",
-        jobsFound: 1,
-        jobsAdded: 1,
+        jobsFound: 2,
+        jobsAdded: 2,
         sourceErrors: {},
         warning: null,
       });
@@ -1180,12 +1194,14 @@ it("shows Die Post vacancies with the company logo", async () => {
   expect(screen.getByText("Swisscom")).toBeInTheDocument();
   expect(screen.getByText("Galaxus")).toBeInTheDocument();
   expect(screen.getByText("Die Post")).toBeInTheDocument();
+  expect(screen.getByText("Raiffeisen")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Select all" })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Add company" })).toBeNull();
   fireEvent.click(screen.getByRole("checkbox", { name: /Die Post/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /Raiffeisen/ }));
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1211,15 +1227,19 @@ it("shows Die Post vacancies with the company logo", async () => {
 
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
-    await screen.findByText("Added 1 of 1 vacancies from Die Post"),
+    await screen.findByText(
+      "Added 2 of 2 vacancies from Die Post + Raiffeisen",
+    ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
   expect(runRequests[0]).toMatchObject({
-    sources: ["die_post"],
+    sources: ["die_post", "raiffeisen"],
     aiAnalysisEnabled: true,
   });
   expect(screen.getAllByRole("img", { name: "Die Post logo" })).toHaveLength(2);
+  expect(screen.getAllByRole("img", { name: "Raiffeisen logo" })).toHaveLength(1);
   expect(screen.getAllByText("Source: Die Post")).toHaveLength(2);
+  expect(screen.getAllByText("Source: Raiffeisen")).toHaveLength(1);
 });
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

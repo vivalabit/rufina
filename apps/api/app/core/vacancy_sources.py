@@ -71,6 +71,21 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "die_post_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="raiffeisen",
+        name="Raiffeisen",
+        careers_url="https://jobs.raiffeisen.ch/",
+        parser_path=(
+            "app.services.parsers.companies.raiffeisen:RaiffeisenJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "raiffeisen_jobs_base_url"),
+            ("api_url", "raiffeisen_jobs_api_url"),
+            ("timeout_seconds", "raiffeisen_jobs_timeout_seconds"),
+            ("max_pages", "raiffeisen_jobs_max_pages"),
+            ("max_catalog_passes", "raiffeisen_jobs_max_catalog_passes"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

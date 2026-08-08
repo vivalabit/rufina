@@ -40,7 +40,9 @@ class Settings(BaseSettings):
     )
     openclaw_ai_match_enabled: bool = True
     openclaw_ai_match_model: str = "openai/gpt-5.6-terra"
-    openclaw_ai_match_thinking: str = "low"
+    # The default OpenClaw matching model does not expose reasoning levels.
+    # Passing "low" makes OpenClaw reject the request before generation starts.
+    openclaw_ai_match_thinking: str = "off"
     openclaw_ai_match_timeout_seconds: int = 120
     openclaw_ai_match_max_jobs: int = 1
     openclaw_ai_match_max_attempts: int = Field(default=2, ge=1, le=4)
@@ -121,6 +123,13 @@ class Settings(BaseSettings):
     die_post_jobs_max_pages: int = Field(default=100, ge=1, le=500)
     die_post_jobs_max_catalog_passes: int = Field(default=6, ge=1, le=20)
     die_post_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    raiffeisen_jobs_base_url: str = "https://jobs.raiffeisen.ch/"
+    raiffeisen_jobs_api_url: str = (
+        "https://ohws.prospective.ch/public/v1/medium/1950/jobs"
+    )
+    raiffeisen_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    raiffeisen_jobs_max_pages: int = Field(default=100, ge=1, le=500)
+    raiffeisen_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

@@ -125,7 +125,7 @@ def test_job_screening_settings_have_independent_defaults() -> None:
     assert settings.job_screening_max_description_chars == 12_000
     assert settings.openclaw_ai_match_model == "openai/gpt-5.6-terra"
     assert settings.ai_match_model_value() == "openai/gpt-5.6-terra"
-    assert settings.ai_match_reasoning_value() == "low"
+    assert settings.ai_match_reasoning_value() == "off"
     assert settings.ai_match_batch_size_value() == 1
 
 

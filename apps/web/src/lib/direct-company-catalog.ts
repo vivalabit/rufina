@@ -48,6 +48,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 24,
     logoHeight: 24,
   },
+  {
+    id: "raiffeisen",
+    name: "Raiffeisen",
+    careersUrl: "https://jobs.raiffeisen.ch/",
+    logoSrc: "/company-logos/raiffeisen.svg",
+    logoAlt: "Raiffeisen logo",
+    logoWidth: 24,
+    logoHeight: 32,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
