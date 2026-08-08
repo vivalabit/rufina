@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
 import HomePage from "@/app/page";
@@ -54,7 +60,8 @@ function importedJobData({
     | "deloitte"
     | "zuercher_kantonalbank"
     | "flughafen_zuerich"
-    | "ubs_students_graduates";
+    | "ubs_students_graduates"
+    | "abb_switzerland";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -69,31 +76,33 @@ function importedJobData({
               ? "Galaxus"
               : source === "migros_bank"
                 ? "Migros Bank"
-              : source === "die_post"
-                ? "Die Post"
-                : source === "raiffeisen"
-                  ? "Raiffeisen"
-                  : source === "bundesverwaltung"
-                    ? "Bundesverwaltung"
-                    : source === "axa_schweiz"
-                      ? "AXA Schweiz"
-                      : source === "sunrise"
-                        ? "Sunrise"
-                        : source === "iss"
-                          ? "ISS Schweiz"
-                          : source === "accenture"
-                            ? "Accenture"
-                            : source === "csem"
-                              ? "CSEM"
-                              : source === "deloitte"
-                                ? "Deloitte"
-                                : source === "zuercher_kantonalbank"
-                                  ? "Zürcher Kantonalbank"
-                                  : source === "flughafen_zuerich"
-                                    ? "Flughafen Zürich"
-                                    : source === "ubs_students_graduates"
-                                      ? "UBS Students & Graduates"
-                                : "LinkedIn";
+                : source === "die_post"
+                  ? "Die Post"
+                  : source === "raiffeisen"
+                    ? "Raiffeisen"
+                    : source === "bundesverwaltung"
+                      ? "Bundesverwaltung"
+                      : source === "axa_schweiz"
+                        ? "AXA Schweiz"
+                        : source === "sunrise"
+                          ? "Sunrise"
+                          : source === "iss"
+                            ? "ISS Schweiz"
+                            : source === "accenture"
+                              ? "Accenture"
+                              : source === "csem"
+                                ? "CSEM"
+                                : source === "deloitte"
+                                  ? "Deloitte"
+                                  : source === "zuercher_kantonalbank"
+                                    ? "Zürcher Kantonalbank"
+                                    : source === "flughafen_zuerich"
+                                      ? "Flughafen Zürich"
+                                      : source === "ubs_students_graduates"
+                                        ? "UBS Students & Graduates"
+                                        : source === "abb_switzerland"
+                                          ? "ABB Schweiz"
+                                          : "LinkedIn";
   return {
     id,
     company:
@@ -105,31 +114,33 @@ function importedJobData({
             ? "Galaxus"
             : source === "migros_bank"
               ? "Migros Bank"
-            : source === "die_post"
-              ? "Swiss Post Ltd"
-              : source === "raiffeisen"
-                ? "Raiffeisen"
-                : source === "bundesverwaltung"
-                  ? "Bundesamt für Informatik BIT"
-                  : source === "axa_schweiz"
-                    ? "AXA Switzerland"
-                    : source === "sunrise"
-                      ? "Sunrise Communications AG"
-                      : source === "iss"
-                        ? "ISS Facility Services AG"
-                        : source === "accenture"
-                          ? "Accenture"
-                          : source === "csem"
-                            ? "CSEM"
-                            : source === "deloitte"
-                              ? "Deloitte"
-                              : source === "zuercher_kantonalbank"
-                                ? "Zürcher Kantonalbank"
-                                : source === "flughafen_zuerich"
-                                  ? "Flughafen Zürich AG"
-                                  : source === "ubs_students_graduates"
-                                    ? "UBS"
-                              : "Example AG",
+              : source === "die_post"
+                ? "Swiss Post Ltd"
+                : source === "raiffeisen"
+                  ? "Raiffeisen"
+                  : source === "bundesverwaltung"
+                    ? "Bundesamt für Informatik BIT"
+                    : source === "axa_schweiz"
+                      ? "AXA Switzerland"
+                      : source === "sunrise"
+                        ? "Sunrise Communications AG"
+                        : source === "iss"
+                          ? "ISS Facility Services AG"
+                          : source === "accenture"
+                            ? "Accenture"
+                            : source === "csem"
+                              ? "CSEM"
+                              : source === "deloitte"
+                                ? "Deloitte"
+                                : source === "zuercher_kantonalbank"
+                                  ? "Zürcher Kantonalbank"
+                                  : source === "flughafen_zuerich"
+                                    ? "Flughafen Zürich AG"
+                                    : source === "ubs_students_graduates"
+                                      ? "UBS"
+                                      : source === "abb_switzerland"
+                                        ? "ABB"
+                                        : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -154,7 +165,8 @@ function importedJobData({
       source === "deloitte" ||
       source === "zuercher_kantonalbank" ||
       source === "flughafen_zuerich" ||
-      source === "ubs_students_graduates"
+      source === "ubs_students_graduates" ||
+      source === "abb_switzerland"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -182,9 +194,11 @@ it("deletes a legacy supporting document and hides stored cover letters", async 
         language: "English",
         file_name: "legacy-cv.docx",
         file_size: "60 KB",
-        file_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        file_type:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         uploaded_at: "2026-07-20T10:00:00.000Z",
-        data_url: "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,cv",
+        data_url:
+          "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,cv",
       },
       {
         title: "Legacy Cover Letter",
@@ -192,29 +206,45 @@ it("deletes a legacy supporting document and hides stored cover letters", async 
         language: "German",
         file_name: "legacy-cover.docx",
         file_size: "37 KB",
-        file_type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        file_type:
+          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
         uploaded_at: "2026-07-20T10:00:00.000Z",
-        data_url: "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,cover",
+        data_url:
+          "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,cover",
       },
     ]),
   };
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
-    const requestUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
     const url = new URL(requestUrl, "http://localhost");
     const method = init?.method ?? "GET";
 
-    if (url.pathname === "/job-search/configs" && method === "GET") return Response.json([]);
+    if (url.pathname === "/job-search/configs" && method === "GET")
+      return Response.json([]);
     if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
-    if (url.pathname === "/applications" && method === "GET") return Response.json([]);
-    if (url.pathname === "/applications/events" && method === "GET") return Response.json([]);
-    if (url.pathname === "/profile" && method === "GET") return Response.json(storedProfile);
+    if (url.pathname === "/applications" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/applications/events" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/profile" && method === "GET")
+      return Response.json(storedProfile);
     if (url.pathname === "/profile" && method === "PUT") {
       storedProfile = JSON.parse(String(init?.body)) as Record<string, unknown>;
       profileUpdates.push(storedProfile);
       return Response.json(storedProfile);
     }
-    if (url.pathname === "/settings" && method === "GET") return Response.json(configuredAppSettings);
-    if ((url.pathname === "/applications" || url.pathname === "/applications/events") && method === "PUT") {
+    if (url.pathname === "/settings" && method === "GET")
+      return Response.json(configuredAppSettings);
+    if (
+      (url.pathname === "/applications" ||
+        url.pathname === "/applications/events") &&
+      method === "PUT"
+    ) {
       return Response.json([]);
     }
     throw new Error(`Unhandled request: ${method} ${url.pathname}`);
@@ -226,14 +256,23 @@ it("deletes a legacy supporting document and hides stored cover letters", async 
   const legacyCv = await screen.findByText("Legacy CV");
   const legacyCvCard = legacyCv.closest("article");
   expect(legacyCvCard).not.toBeNull();
-  fireEvent.click(within(legacyCvCard!).getByRole("button", { name: "Delete document" }));
+  fireEvent.click(
+    within(legacyCvCard!).getByRole("button", { name: "Delete document" }),
+  );
 
-  await waitFor(() => expect(screen.queryByText("Legacy CV")).not.toBeInTheDocument());
+  await waitFor(() =>
+    expect(screen.queryByText("Legacy CV")).not.toBeInTheDocument(),
+  );
   expect(screen.queryByText("Legacy Cover Letter")).not.toBeInTheDocument();
   expect(profileUpdates).toHaveLength(1);
-  const savedDocuments = JSON.parse(String(profileUpdates[0].documents)) as Array<{ id: string; title: string }>;
+  const savedDocuments = JSON.parse(
+    String(profileUpdates[0].documents),
+  ) as Array<{ id: string; title: string }>;
   expect(savedDocuments).toEqual([
-    expect.objectContaining({ id: "legacy-document-1", title: "Legacy Cover Letter" }),
+    expect.objectContaining({
+      id: "legacy-document-1",
+      title: "Legacy Cover Letter",
+    }),
   ]);
 });
 
@@ -249,10 +288,13 @@ it("offers CV / Resume as a supporting document type", async () => {
     const url = new URL(requestUrl, "http://localhost");
     const method = init?.method ?? "GET";
 
-    if (url.pathname === "/job-search/configs" && method === "GET") return Response.json([]);
+    if (url.pathname === "/job-search/configs" && method === "GET")
+      return Response.json([]);
     if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
-    if (url.pathname === "/applications" && method === "GET") return Response.json([]);
-    if (url.pathname === "/applications/events" && method === "GET") return Response.json([]);
+    if (url.pathname === "/applications" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/applications/events" && method === "GET")
+      return Response.json([]);
     if (url.pathname === "/profile" && method === "GET") {
       return Response.json({ name: "Eduard Ishchenko", documents: "" });
     }
@@ -273,9 +315,7 @@ it("offers CV / Resume as a supporting document type", async () => {
 
   render(<HomePage />);
 
-  fireEvent.click(
-    await screen.findByRole("button", { name: "Add document" }),
-  );
+  fireEvent.click(await screen.findByRole("button", { name: "Add document" }));
   const typeSelect = screen.getByRole("combobox", { name: "Type" });
   expect(
     within(typeSelect).getByRole("option", { name: "CV / Resume" }),
@@ -289,32 +329,42 @@ it("offers CV / Resume as a supporting document type", async () => {
     .getByText("Document language", { exact: true })
     .closest("label");
   expect(languageLabel).not.toBeNull();
-  expect(
-    within(languageLabel!).getByRole("combobox"),
-  ).toBeInTheDocument();
+  expect(within(languageLabel!).getByRole("combobox")).toBeInTheDocument();
   expect(screen.getByText(/DOCX under 5MB/)).toBeInTheDocument();
 });
 
 it("saves a selectable AI backend without overwriting unrelated settings", async () => {
   window.history.replaceState(null, "", "#settings");
-  const requests: Array<{ path: string; method: string; body?: Record<string, unknown> }> = [];
+  const requests: Array<{
+    path: string;
+    method: string;
+    body?: Record<string, unknown>;
+  }> = [];
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
-    const requestUrl = typeof input === "string"
-      ? input
-      : input instanceof URL
-        ? input.href
-        : input.url;
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
     const url = new URL(requestUrl, "http://localhost");
     const method = init?.method ?? "GET";
-    const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : undefined;
+    const body = init?.body
+      ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+      : undefined;
     requests.push({ path: url.pathname, method, body });
 
-    if (url.pathname === "/job-search/configs" && method === "GET") return Response.json([]);
+    if (url.pathname === "/job-search/configs" && method === "GET")
+      return Response.json([]);
     if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
-    if (url.pathname === "/applications" && method === "GET") return Response.json([]);
-    if (url.pathname === "/applications/events" && method === "GET") return Response.json([]);
-    if (url.pathname === "/profile" && method === "GET") return Response.json({});
-    if (url.pathname === "/settings" && method === "GET") return Response.json(configuredAppSettings);
+    if (url.pathname === "/applications" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/applications/events" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/profile" && method === "GET")
+      return Response.json({});
+    if (url.pathname === "/settings" && method === "GET")
+      return Response.json(configuredAppSettings);
     if (url.pathname === "/settings" && method === "PUT") {
       return Response.json({ ...configuredAppSettings, ...body });
     }
@@ -325,37 +375,65 @@ it("saves a selectable AI backend without overwriting unrelated settings", async
 
   render(<HomePage />);
 
-  expect(await screen.findByText("OpenAI API key saved but not in use")).toBeInTheDocument();
-  expect(screen.getByText(/sk-e\*\*\*\*-key remains stored/)).toBeInTheDocument();
+  expect(
+    await screen.findByText("OpenAI API key saved but not in use"),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByText(/sk-e\*\*\*\*-key remains stored/),
+  ).toBeInTheDocument();
   expect(screen.getByText("brig****-key")).toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Show current key" })).not.toBeInTheDocument();
-  expect(screen.queryByRole("button", { name: "Copy" })).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Show current key" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Copy" }),
+  ).not.toBeInTheDocument();
   const openAiMode = screen.getByRole("radio", { name: /OpenAI API/ });
-  const openClawMode = screen.getByRole("radio", { name: /Codex credits via OpenClaw/ });
+  const openClawMode = screen.getByRole("radio", {
+    name: /Codex credits via OpenClaw/,
+  });
   expect(openClawMode).toBeChecked();
   fireEvent.click(openAiMode);
   expect(openAiMode).toBeChecked();
-  expect(screen.getByText("Saved key: sk-e****-key. Leave blank to keep it.")).toBeInTheDocument();
+  expect(
+    screen.getByText("Saved key: sk-e****-key. Leave blank to keep it."),
+  ).toBeInTheDocument();
   fireEvent.click(openClawMode);
   expect(screen.queryByLabelText("OpenAI API key")).not.toBeInTheDocument();
-  expect(screen.getByText("OpenAI API key saved but not in use")).toBeInTheDocument();
+  expect(
+    screen.getByText("OpenAI API key saved but not in use"),
+  ).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Vacancy pre-screening model"), {
     target: { value: "openai/gpt-5-mini-fast" },
   });
-  fireEvent.change(screen.getByRole("combobox", { name: "Vacancy pre-screening reasoning" }), {
-    target: { value: "low" },
-  });
+  fireEvent.change(
+    screen.getByRole("combobox", { name: "Vacancy pre-screening reasoning" }),
+    {
+      target: { value: "low" },
+    },
+  );
   fireEvent.change(screen.getByLabelText("Full AI Match model"), {
     target: { value: "openai/gpt-5.6-sol" },
   });
-  fireEvent.change(screen.getByRole("spinbutton", { name: "Full AI Match batch size" }), {
-    target: { value: "4" },
-  });
+  fireEvent.change(
+    screen.getByRole("spinbutton", { name: "Full AI Match batch size" }),
+    {
+      target: { value: "4" },
+    },
+  );
   fireEvent.click(screen.getByRole("button", { name: "Save AI settings" }));
   await waitFor(() => {
-    expect(requests.filter((request) => request.path === "/settings" && request.method === "PUT")).toHaveLength(1);
+    expect(
+      requests.filter(
+        (request) => request.path === "/settings" && request.method === "PUT",
+      ),
+    ).toHaveLength(1);
   });
-  const openClawUpdate = requests.filter((request) => request.path === "/settings" && request.method === "PUT").at(-1)?.body;
+  const openClawUpdate = requests
+    .filter(
+      (request) => request.path === "/settings" && request.method === "PUT",
+    )
+    .at(-1)?.body;
   expect(openClawUpdate).toMatchObject({
     ai_backend: "openclaw_codex",
     ai_match_model: "openai/gpt-5.6-sol",
@@ -366,18 +444,32 @@ it("saves a selectable AI backend without overwriting unrelated settings", async
   expect(openClawUpdate).not.toHaveProperty("openai_api_key");
   await screen.findByText("AI backend settings saved and activated");
   fireEvent.click(screen.getByRole("radio", { name: /OpenAI API/ }));
-  fireEvent.change(screen.getByRole("combobox", { name: "OpenAI reasoning effort" }), {
-    target: { value: "high" },
-  });
-  fireEvent.change(screen.getByRole("spinbutton", { name: "OpenAI timeout seconds" }), {
-    target: { value: "90" },
-  });
+  fireEvent.change(
+    screen.getByRole("combobox", { name: "OpenAI reasoning effort" }),
+    {
+      target: { value: "high" },
+    },
+  );
+  fireEvent.change(
+    screen.getByRole("spinbutton", { name: "OpenAI timeout seconds" }),
+    {
+      target: { value: "90" },
+    },
+  );
   fireEvent.click(screen.getByRole("button", { name: "Save AI settings" }));
 
   await waitFor(() => {
-    expect(requests.filter((request) => request.path === "/settings" && request.method === "PUT")).toHaveLength(2);
+    expect(
+      requests.filter(
+        (request) => request.path === "/settings" && request.method === "PUT",
+      ),
+    ).toHaveLength(2);
   });
-  const update = requests.filter((request) => request.path === "/settings" && request.method === "PUT").at(-1)?.body;
+  const update = requests
+    .filter(
+      (request) => request.path === "/settings" && request.method === "PUT",
+    )
+    .at(-1)?.body;
   expect(update).toMatchObject({
     ai_backend: "openai_api",
     openai_api_model: "gpt-5.6-terra",
@@ -400,11 +492,21 @@ it("saves a selectable AI backend without overwriting unrelated settings", async
   expect(update).not.toHaveProperty("openai_api_key");
   expect(update).not.toHaveProperty("brightdata_api_key");
 
-  fireEvent.click(screen.getByRole("button", { name: "Delete saved OpenAI API key" }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Delete saved OpenAI API key" }),
+  );
   await waitFor(() => {
-    expect(requests.filter((request) => request.path === "/settings" && request.method === "PUT")).toHaveLength(3);
+    expect(
+      requests.filter(
+        (request) => request.path === "/settings" && request.method === "PUT",
+      ),
+    ).toHaveLength(3);
   });
-  const deleteUpdate = requests.filter((request) => request.path === "/settings" && request.method === "PUT").at(-1)?.body;
+  const deleteUpdate = requests
+    .filter(
+      (request) => request.path === "/settings" && request.method === "PUT",
+    )
+    .at(-1)?.body;
   expect(deleteUpdate).toEqual({
     ai_backend: "openclaw_codex",
     openai_api_key: "",
@@ -413,26 +515,48 @@ it("saves a selectable AI backend without overwriting unrelated settings", async
 
 it("validates OpenAI API mode before saving", async () => {
   window.history.replaceState(null, "", "#settings");
-  const requests: Array<{ path: string; method: string; body?: Record<string, unknown> }> = [];
+  const requests: Array<{
+    path: string;
+    method: string;
+    body?: Record<string, unknown>;
+  }> = [];
   const unconfiguredSettings = {
     ...configuredAppSettings,
     openai_api_key_configured: false,
     openai_api_key_preview: "",
   };
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
-    const requestUrl = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
     const url = new URL(requestUrl, "http://localhost");
     const method = init?.method ?? "GET";
-    const body = init?.body ? JSON.parse(String(init.body)) as Record<string, unknown> : undefined;
+    const body = init?.body
+      ? (JSON.parse(String(init.body)) as Record<string, unknown>)
+      : undefined;
     requests.push({ path: url.pathname, method, body });
 
-    if (url.pathname === "/job-search/configs" && method === "GET") return Response.json([]);
+    if (url.pathname === "/job-search/configs" && method === "GET")
+      return Response.json([]);
     if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
-    if (url.pathname === "/applications" && method === "GET") return Response.json([]);
-    if (url.pathname === "/applications/events" && method === "GET") return Response.json([]);
-    if (url.pathname === "/profile" && method === "GET") return Response.json({});
-    if (url.pathname === "/settings" && method === "GET") return Response.json(unconfiguredSettings);
-    if (url.pathname === "/settings" && method === "PUT") return Response.json({ ...unconfiguredSettings, ...body, openai_api_key_configured: true, openai_api_key_preview: "sk-t****-key" });
+    if (url.pathname === "/applications" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/applications/events" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/profile" && method === "GET")
+      return Response.json({});
+    if (url.pathname === "/settings" && method === "GET")
+      return Response.json(unconfiguredSettings);
+    if (url.pathname === "/settings" && method === "PUT")
+      return Response.json({
+        ...unconfiguredSettings,
+        ...body,
+        openai_api_key_configured: true,
+        openai_api_key_preview: "sk-t****-key",
+      });
     throw new Error(`Unhandled request: ${method} ${url.pathname}`);
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -444,21 +568,41 @@ it("validates OpenAI API mode before saving", async () => {
   fireEvent.click(openAiMode);
   await waitFor(() => expect(openAiMode).toBeChecked());
   const saveButton = screen.getByRole("button", { name: "Save AI settings" });
-  expect(screen.getByRole("alert")).toHaveTextContent("Add an OpenAI API key before enabling this mode.");
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Add an OpenAI API key before enabling this mode.",
+  );
   expect(saveButton).toBeDisabled();
 
-  fireEvent.change(screen.getByLabelText("OpenAI API key"), { target: { value: "sk-test-key" } });
-  fireEvent.change(screen.getByRole("spinbutton", { name: "OpenAI timeout seconds" }), { target: { value: "5" } });
-  expect(screen.getByRole("alert")).toHaveTextContent("OpenAI timeout must be between 10 and 600 seconds.");
+  fireEvent.change(screen.getByLabelText("OpenAI API key"), {
+    target: { value: "sk-test-key" },
+  });
+  fireEvent.change(
+    screen.getByRole("spinbutton", { name: "OpenAI timeout seconds" }),
+    { target: { value: "5" } },
+  );
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "OpenAI timeout must be between 10 and 600 seconds.",
+  );
   expect(saveButton).toBeDisabled();
 
-  fireEvent.change(screen.getByRole("spinbutton", { name: "OpenAI timeout seconds" }), { target: { value: "90" } });
+  fireEvent.change(
+    screen.getByRole("spinbutton", { name: "OpenAI timeout seconds" }),
+    { target: { value: "90" } },
+  );
   expect(screen.queryByRole("alert")).not.toBeInTheDocument();
   expect(saveButton).toBeEnabled();
   fireEvent.click(saveButton);
 
-  await waitFor(() => expect(requests.some((request) => request.path === "/settings" && request.method === "PUT")).toBe(true));
-  const update = requests.find((request) => request.path === "/settings" && request.method === "PUT")?.body;
+  await waitFor(() =>
+    expect(
+      requests.some(
+        (request) => request.path === "/settings" && request.method === "PUT",
+      ),
+    ).toBe(true),
+  );
+  const update = requests.find(
+    (request) => request.path === "/settings" && request.method === "PUT",
+  )?.body;
   expect(update).toMatchObject({
     ai_backend: "openai_api",
     openai_api_key: "sk-test-key",
@@ -470,33 +614,46 @@ it("adds a manual vacancy to Jobs, persists it, and starts AI analysis", async (
   window.history.replaceState(null, "", "#jobs");
   const requests: Array<{ path: string; method: string; body?: unknown }> = [];
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
-    const requestUrl = typeof input === "string"
-      ? input
-      : input instanceof URL
-        ? input.href
-        : input.url;
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
     const url = new URL(requestUrl, "http://localhost");
     const method = init?.method ?? "GET";
-    const body = init?.body ? JSON.parse(String(init.body)) as unknown : undefined;
+    const body = init?.body
+      ? (JSON.parse(String(init.body)) as unknown)
+      : undefined;
     requests.push({ path: url.pathname, method, body });
 
-    if (url.pathname === "/job-search/configs" && method === "GET") return Response.json([]);
+    if (url.pathname === "/job-search/configs" && method === "GET")
+      return Response.json([]);
     if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
     if (url.pathname === "/jobs" && method === "PUT") return Response.json([]);
-    if (url.pathname === "/applications" && method === "GET") return Response.json([]);
-    if (url.pathname === "/applications/events" && method === "GET") return Response.json([]);
-    if (url.pathname === "/profile" && method === "GET") return Response.json({});
+    if (url.pathname === "/applications" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/applications/events" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/profile" && method === "GET")
+      return Response.json({});
     if (url.pathname === "/settings" && method === "GET") {
-      return Response.json({ has_brightdata_api_key: false, brightdata_api_key_preview: "" });
+      return Response.json({
+        has_brightdata_api_key: false,
+        brightdata_api_key_preview: "",
+      });
     }
     if (url.pathname === "/jobs/ai-match/run" && method === "POST") {
-      return Response.json({
-        runId: "manual-match-run",
-        status: "queued",
-        total: 1,
-        processed: 0,
-        updatedJobs: [],
-      }, { status: 202 });
+      return Response.json(
+        {
+          runId: "manual-match-run",
+          status: "queued",
+          total: 1,
+          processed: 0,
+          updatedJobs: [],
+        },
+        { status: 202 },
+      );
     }
 
     throw new Error(`Unhandled request: ${method} ${url.pathname}`);
@@ -519,30 +676,65 @@ it("adds a manual vacancy to Jobs, persists it, and starts AI analysis", async (
     target: { value: "Zurich / Remote" },
   });
   fireEvent.change(within(dialog).getByLabelText("Vacancy description *"), {
-    target: { value: "Build Python services and maintain PostgreSQL systems. Five years of backend experience required." },
+    target: {
+      value:
+        "Build Python services and maintain PostgreSQL systems. Five years of backend experience required.",
+    },
   });
-  fireEvent.click(within(dialog).getByRole("button", { name: "Add and analyze" }));
+  fireEvent.click(
+    within(dialog).getByRole("button", { name: "Add and analyze" }),
+  );
 
   expect(await screen.findAllByText("Backend Engineer")).not.toHaveLength(0);
-  expect(screen.getByRole("button", { name: "Force AI match rerun" })).toBeDisabled();
+  expect(
+    screen.getByRole("button", { name: "Force AI match rerun" }),
+  ).toBeDisabled();
 
   await waitFor(() => {
-    expect(requests.some((request) => request.path === "/jobs" && request.method === "PUT")).toBe(true);
-    expect(requests.some((request) => request.path === "/jobs/ai-match/run" && request.method === "POST")).toBe(true);
+    expect(
+      requests.some(
+        (request) => request.path === "/jobs" && request.method === "PUT",
+      ),
+    ).toBe(true);
+    expect(
+      requests.some(
+        (request) =>
+          request.path === "/jobs/ai-match/run" && request.method === "POST",
+      ),
+    ).toBe(true);
   });
+  expect(requests.some((request) => request.path === "/job-search/run")).toBe(
+    false,
+  );
+
+  const persistedRequest = requests.find(
+    (request) => request.path === "/jobs" && request.method === "PUT",
+  );
+  const persistedJob = (
+    persistedRequest?.body as {
+      jobs: Array<{ data: { title: string; logo: string } }>;
+    }
+  ).jobs[0].data;
+  expect(persistedJob).toMatchObject({
+    title: "Backend Engineer",
+    logo: "manual",
+  });
+
+  const analysisRequest = requests.find(
+    (request) =>
+      request.path === "/jobs/ai-match/run" && request.method === "POST",
+  );
   expect(
-    requests.some((request) => request.path === "/job-search/run"),
-  ).toBe(false);
+    (analysisRequest?.body as { jobs: Array<{ data: { overview: string } }> })
+      .jobs[0].data.overview,
+  ).toContain("Python services");
 
-  const persistedRequest = requests.find((request) => request.path === "/jobs" && request.method === "PUT");
-  const persistedJob = (persistedRequest?.body as { jobs: Array<{ data: { title: string; logo: string } }> }).jobs[0].data;
-  expect(persistedJob).toMatchObject({ title: "Backend Engineer", logo: "manual" });
-
-  const analysisRequest = requests.find((request) => request.path === "/jobs/ai-match/run" && request.method === "POST");
-  expect((analysisRequest?.body as { jobs: Array<{ data: { overview: string } }> }).jobs[0].data.overview).toContain("Python services");
-
-  const locallyStoredJobs = JSON.parse(window.localStorage.getItem("tasko.importedJobs.v1") ?? "[]") as Array<{ title: string }>;
-  expect(locallyStoredJobs.some((job) => job.title === "Backend Engineer")).toBe(true);
+  const locallyStoredJobs = JSON.parse(
+    window.localStorage.getItem("tasko.importedJobs.v1") ?? "[]",
+  ) as Array<{ title: string }>;
+  expect(
+    locallyStoredJobs.some((job) => job.title === "Backend Engineer"),
+  ).toBe(true);
 });
 
 it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selected", async () => {
@@ -552,23 +744,32 @@ it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selecte
   const runBodies: Array<Record<string, unknown>> = [];
   let storedJobs: Array<{ id: string; data: unknown }> = [];
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
-    const requestUrl = typeof input === "string"
-      ? input
-      : input instanceof URL
-        ? input.href
-        : input.url;
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
     const url = new URL(requestUrl, "http://localhost");
     const method = init?.method ?? "GET";
     requests.push({ path: url.pathname, method });
     requestUrls.push(`${url.pathname}${url.search}`);
 
-    if (url.pathname === "/job-search/configs" && method === "GET") return Response.json([]);
-    if (url.pathname === "/jobs" && method === "GET") return Response.json(storedJobs);
-    if (url.pathname === "/applications" && method === "GET") return Response.json([]);
-    if (url.pathname === "/applications/events" && method === "GET") return Response.json([]);
-    if (url.pathname === "/profile" && method === "GET") return Response.json({});
+    if (url.pathname === "/job-search/configs" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/jobs" && method === "GET")
+      return Response.json(storedJobs);
+    if (url.pathname === "/applications" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/applications/events" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/profile" && method === "GET")
+      return Response.json({});
     if (url.pathname === "/settings" && method === "GET") {
-      return Response.json({ has_brightdata_api_key: true, brightdata_api_key_preview: "test...key" });
+      return Response.json({
+        has_brightdata_api_key: true,
+        brightdata_api_key_preview: "test...key",
+      });
     }
     if (url.pathname === "/job-search/run" && method === "POST") {
       runBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
@@ -587,7 +788,10 @@ it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selecte
       });
     }
     if (url.pathname === "/jobs/ai-match/run" && method === "POST") {
-      return Response.json({ detail: "AI match disabled in test" }, { status: 403 });
+      return Response.json(
+        { detail: "AI match disabled in test" },
+        { status: 403 },
+      );
     }
 
     throw new Error(`Unhandled request: ${method} ${url.pathname}`);
@@ -596,7 +800,9 @@ it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selecte
 
   render(<HomePage />);
 
-  fireEvent.click(await screen.findByRole("button", { name: "Search vacancies" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Search vacancies" }),
+  );
   const linkedinSource = screen.getByRole("button", { name: /LinkedIn/ });
   const indeedSource = screen.getByRole("button", { name: /Indeed/ });
   const jobsChSource = screen.getByRole("button", { name: /jobs\.ch/ });
@@ -615,13 +821,18 @@ it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selecte
     ),
   ).toBeInTheDocument();
   fireEvent.change(
-    screen.getByPlaceholderText("e.g. Product Designer, UX Designer, Design System"),
+    screen.getByPlaceholderText(
+      "e.g. Product Designer, UX Designer, Design System",
+    ),
     { target: { value: "platform" } },
   );
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
 
   await waitFor(() => {
-    expect(requests).toContainEqual({ path: "/job-search/run", method: "POST" });
+    expect(requests).toContainEqual({
+      path: "/job-search/run",
+      method: "POST",
+    });
   });
   expect(runBodies[0]).toMatchObject({
     sources: ["linkedin", "indeed", "jobs_ch"],
@@ -641,9 +852,11 @@ it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selecte
   });
   expect(runBodies[0]).toHaveProperty("config");
   expect(
-    ((runBodies[0].config as Record<string, unknown>).filters as {
-      search: Record<string, unknown>;
-    }).search,
+    (
+      (runBodies[0].config as Record<string, unknown>).filters as {
+        search: Record<string, unknown>;
+      }
+    ).search,
   ).not.toHaveProperty("sources");
   expect(
     await screen.findByText(
@@ -655,41 +868,64 @@ it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selecte
       (request) => request.path === "/jobs" && request.method === "GET",
     ).length,
   ).toBeGreaterThanOrEqual(2);
-  expect(screen.getAllByRole("img", { name: "Data Engineering role · Indeed" })).toHaveLength(2);
+  expect(
+    screen.getAllByRole("img", { name: "Data Engineering role · Indeed" }),
+  ).toHaveLength(2);
   expect(screen.getAllByText("Source: Indeed")).toHaveLength(2);
 
   fireEvent.click(screen.getByRole("button", { name: "Analysis" }));
   const analysisMenu = screen.getByRole("menu", { name: "Bulk AI analysis" });
-  expect(within(analysisMenu).getByRole("menuitem", { name: /Vacancies added in the last 24 hours/ })).toBeEnabled();
-  fireEvent.click(within(analysisMenu).getByRole("menuitem", { name: /Vacancies without current analysis/ }));
-  await waitFor(() => expect(requestUrls).toContain("/jobs/ai-match/run?force=true"));
+  expect(
+    within(analysisMenu).getByRole("menuitem", {
+      name: /Vacancies added in the last 24 hours/,
+    }),
+  ).toBeEnabled();
+  fireEvent.click(
+    within(analysisMenu).getByRole("menuitem", {
+      name: /Vacancies without current analysis/,
+    }),
+  );
+  await waitFor(() =>
+    expect(requestUrls).toContain("/jobs/ai-match/run?force=true"),
+  );
 });
 
 it("does not re-add a vacancy whose deleted id was synchronized with the server", async () => {
   window.history.replaceState(null, "", "#jobs");
   const dismissedId = "linkedin-https-www-linkedin-com-jobs-view-123";
-  window.localStorage.setItem("tasko.deletedJobIds.v1", JSON.stringify([dismissedId]));
+  window.localStorage.setItem(
+    "tasko.deletedJobIds.v1",
+    JSON.stringify([dismissedId]),
+  );
   const requests: Array<{ path: string; method: string }> = [];
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
-    const requestUrl = typeof input === "string"
-      ? input
-      : input instanceof URL
-        ? input.href
-        : input.url;
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
     const url = new URL(requestUrl, "http://localhost");
     const method = init?.method ?? "GET";
     requests.push({ path: url.pathname, method });
 
-    if (url.pathname === "/job-search/configs" && method === "GET") return Response.json([]);
+    if (url.pathname === "/job-search/configs" && method === "GET")
+      return Response.json([]);
     if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
     if (url.pathname === "/jobs/dismissed-ids" && method === "PUT") {
       return Response.json([dismissedId]);
     }
-    if (url.pathname === "/applications" && method === "GET") return Response.json([]);
-    if (url.pathname === "/applications/events" && method === "GET") return Response.json([]);
-    if (url.pathname === "/profile" && method === "GET") return Response.json({});
+    if (url.pathname === "/applications" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/applications/events" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/profile" && method === "GET")
+      return Response.json({});
     if (url.pathname === "/settings" && method === "GET") {
-      return Response.json({ has_brightdata_api_key: true, brightdata_api_key_preview: "test...key" });
+      return Response.json({
+        has_brightdata_api_key: true,
+        brightdata_api_key_preview: "test...key",
+      });
     }
     if (url.pathname === "/job-search/run" && method === "POST") {
       return Response.json({
@@ -708,9 +944,14 @@ it("does not re-add a vacancy whose deleted id was synchronized with the server"
   render(<HomePage />);
 
   await waitFor(() => {
-    expect(requests).toContainEqual({ path: "/jobs/dismissed-ids", method: "PUT" });
+    expect(requests).toContainEqual({
+      path: "/jobs/dismissed-ids",
+      method: "PUT",
+    });
   });
-  fireEvent.click(await screen.findByRole("button", { name: "Search vacancies" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Search vacancies" }),
+  );
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
 
   expect(
@@ -720,7 +961,10 @@ it("does not re-add a vacancy whose deleted id was synchronized with the server"
   ).toBeInTheDocument();
   expect(requests).toContainEqual({ path: "/job-search/run", method: "POST" });
   expect(requests).not.toContainEqual({ path: "/jobs", method: "PUT" });
-  expect(requests).not.toContainEqual({ path: "/jobs/ai-match/run", method: "POST" });
+  expect(requests).not.toContainEqual({
+    path: "/jobs/ai-match/run",
+    method: "POST",
+  });
 });
 
 it("loads a server config and refreshes backend-persisted search results", async () => {
@@ -759,23 +1003,31 @@ it("loads a server config and refreshes backend-persisted search results", async
     },
   };
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
-    const requestUrl = typeof input === "string"
-      ? input
-      : input instanceof URL
-        ? input.href
-        : input.url;
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
     const url = new URL(requestUrl, "http://localhost");
     const method = init?.method ?? "GET";
 
     if (url.pathname === "/job-search/configs" && method === "GET") {
       return Response.json([entryItConfig]);
     }
-    if (url.pathname === "/jobs" && method === "GET") return Response.json(storedJobs);
-    if (url.pathname === "/applications" && method === "GET") return Response.json([]);
-    if (url.pathname === "/applications/events" && method === "GET") return Response.json([]);
-    if (url.pathname === "/profile" && method === "GET") return Response.json({});
+    if (url.pathname === "/jobs" && method === "GET")
+      return Response.json(storedJobs);
+    if (url.pathname === "/applications" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/applications/events" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/profile" && method === "GET")
+      return Response.json({});
     if (url.pathname === "/settings" && method === "GET") {
-      return Response.json({ has_brightdata_api_key: true, brightdata_api_key_preview: "test...key" });
+      return Response.json({
+        has_brightdata_api_key: true,
+        brightdata_api_key_preview: "test...key",
+      });
     }
     if (url.pathname === "/job-search/run" && method === "POST") {
       runBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
@@ -806,8 +1058,12 @@ it("loads a server config and refreshes backend-persisted search results", async
 
   render(<HomePage />);
 
-  fireEvent.click(await screen.findByRole("button", { name: "Search vacancies" }));
-  fireEvent.change(await screen.findByLabelText("Existing configs"), { target: { value: "entry-it" } });
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Search vacancies" }),
+  );
+  fireEvent.change(await screen.findByLabelText("Existing configs"), {
+    target: { value: "entry-it" },
+  });
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
 
   expect(
@@ -818,7 +1074,9 @@ it("loads a server config and refreshes backend-persisted search results", async
     configId: "entry-it",
   });
   expect(runBodies[0]).not.toHaveProperty("config");
-  expect(screen.getAllByText("Junior Python Developer").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Junior Python Developer").length).toBeGreaterThan(
+    0,
+  );
   expect(
     screen.getAllByText("Werkstudent Embedded-Software-Entwicklung").length,
   ).toBeGreaterThan(0);
@@ -853,11 +1111,12 @@ it("loads a run preset with a separate query config for every aggregator", async
     updatedAt: "2026-07-21T00:00:00.000Z",
   }));
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
-    const requestUrl = typeof input === "string"
-      ? input
-      : input instanceof URL
-        ? input.href
-        : input.url;
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
     const url = new URL(requestUrl, "http://localhost");
     const method = init?.method ?? "GET";
     if (url.pathname === "/job-search/configs" && method === "GET") {
@@ -867,15 +1126,17 @@ it("loads a run preset with a separate query config for every aggregator", async
       return Response.json(sourceConfigs);
     }
     if (url.pathname === "/job-search/presets" && method === "GET") {
-      return Response.json([{
-        id: "entry-it-all-sources",
-        name: "Entry IT · all sources",
-        configId: "entry-it",
-        sources: ["linkedin", "indeed", "jobs_ch"],
-        sourceConfigIds,
-        createdAt: "2026-07-21T00:00:00.000Z",
-        updatedAt: "2026-07-21T00:00:00.000Z",
-      }]);
+      return Response.json([
+        {
+          id: "entry-it-all-sources",
+          name: "Entry IT · all sources",
+          configId: "entry-it",
+          sources: ["linkedin", "indeed", "jobs_ch"],
+          sourceConfigIds,
+          createdAt: "2026-07-21T00:00:00.000Z",
+          updatedAt: "2026-07-21T00:00:00.000Z",
+        },
+      ]);
     }
     if (url.pathname === "/job-search/run" && method === "POST") {
       runBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
@@ -888,9 +1149,12 @@ it("loads a run preset with a separate query config for every aggregator", async
       });
     }
     if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
-    if (url.pathname === "/applications" && method === "GET") return Response.json([]);
-    if (url.pathname === "/applications/events" && method === "GET") return Response.json([]);
-    if (url.pathname === "/profile" && method === "GET") return Response.json({});
+    if (url.pathname === "/applications" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/applications/events" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/profile" && method === "GET")
+      return Response.json({});
     if (url.pathname === "/settings" && method === "GET") {
       return Response.json({ has_brightdata_api_key: true });
     }
@@ -899,17 +1163,29 @@ it("loads a run preset with a separate query config for every aggregator", async
   vi.stubGlobal("fetch", fetchMock);
 
   render(<HomePage />);
-  fireEvent.click(await screen.findByRole("button", { name: "Search vacancies" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Search vacancies" }),
+  );
   fireEvent.change(await screen.findByLabelText("Saved run preset"), {
     target: { value: "entry-it-all-sources" },
   });
 
-  expect(screen.getByLabelText("LinkedIn query config")).toHaveValue("entry-it-linkedin");
-  expect(screen.getByLabelText("Indeed query config")).toHaveValue("entry-it-indeed");
-  expect(screen.getByLabelText("jobs.ch query config")).toHaveValue("entry-it-jobs-ch");
+  expect(screen.getByLabelText("LinkedIn query config")).toHaveValue(
+    "entry-it-linkedin",
+  );
+  expect(screen.getByLabelText("Indeed query config")).toHaveValue(
+    "entry-it-indeed",
+  );
+  expect(screen.getByLabelText("jobs.ch query config")).toHaveValue(
+    "entry-it-jobs-ch",
+  );
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
 
-  expect(await screen.findByText("No vacancies returned from LinkedIn + Indeed + jobs.ch")).toBeInTheDocument();
+  expect(
+    await screen.findByText(
+      "No vacancies returned from LinkedIn + Indeed + jobs.ch",
+    ),
+  ).toBeInTheDocument();
   expect(runBodies[0]).toMatchObject({
     configId: "entry-it",
     sources: ["linkedin", "indeed", "jobs_ch"],
@@ -980,7 +1256,8 @@ it("imports legacy local search configs to the server only once", async () => {
     if (url.pathname === "/applications/events" && method === "GET") {
       return Response.json([]);
     }
-    if (url.pathname === "/profile" && method === "GET") return Response.json({});
+    if (url.pathname === "/profile" && method === "GET")
+      return Response.json({});
     if (url.pathname === "/settings" && method === "GET") {
       return Response.json(configuredAppSettings);
     }
@@ -1014,10 +1291,10 @@ it("imports legacy local search configs to the server only once", async () => {
     },
   });
   expect(
-    ((configWrites[0].filters as Record<string, unknown>).search as Record<
+    (configWrites[0].filters as Record<string, unknown>).search as Record<
       string,
       unknown
-    >),
+    >,
   ).not.toHaveProperty("sources");
   expect(
     window.localStorage.getItem("tasko.parserSearchConfigs.v2"),
@@ -1036,8 +1313,7 @@ it("imports legacy local search configs to the server only once", async () => {
               : input.url;
         return (
           new URL(requestUrl, "http://localhost").pathname ===
-            "/job-search/configs" &&
-          (init?.method ?? "GET") === "GET"
+            "/job-search/configs" && (init?.method ?? "GET") === "GET"
         );
       }).length,
     ).toBeGreaterThanOrEqual(2);
@@ -1095,7 +1371,8 @@ it("saves and deletes manual-search configs through the API", async () => {
     if (url.pathname === "/applications/events" && method === "GET") {
       return Response.json([]);
     }
-    if (url.pathname === "/profile" && method === "GET") return Response.json({});
+    if (url.pathname === "/profile" && method === "GET")
+      return Response.json({});
     if (url.pathname === "/settings" && method === "GET") {
       return Response.json(configuredAppSettings);
     }
@@ -1111,11 +1388,13 @@ it("saves and deletes manual-search configs through the API", async () => {
   vi.stubGlobal("fetch", fetchMock);
 
   render(<HomePage />);
-  fireEvent.click(await screen.findByRole("button", { name: "Search vacancies" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Search vacancies" }),
+  );
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     {
-    target: { value: "Remote platform roles" },
+      target: { value: "Remote platform roles" },
     },
   );
   fireEvent.change(
@@ -1123,7 +1402,7 @@ it("saves and deletes manual-search configs through the API", async () => {
       "e.g. Product Designer, UX Designer, Design System",
     ),
     {
-    target: { value: "Platform Engineer" },
+      target: { value: "Platform Engineer" },
     },
   );
   fireEvent.click(screen.getByRole("button", { name: "Save config" }));
@@ -1151,10 +1430,12 @@ it("saves and deletes manual-search configs through the API", async () => {
     },
   });
   expect(
-    (((configRequests[0].body as Record<string, unknown>).filters as Record<
-      string,
-      unknown
-    >).search as Record<string, unknown>),
+    (
+      (configRequests[0].body as Record<string, unknown>).filters as Record<
+        string,
+        unknown
+      >
+    ).search as Record<string, unknown>,
   ).not.toHaveProperty("sources");
 
   fireEvent.click(screen.getByRole("button", { name: "Delete" }));
@@ -1202,7 +1483,9 @@ it("shows direct-company vacancies with their company logos", async () => {
       );
     }
     if (url.pathname === "/job-search/run" && method === "POST") {
-      runRequests.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      runRequests.push(
+        JSON.parse(String(init?.body)) as Record<string, unknown>,
+      );
       const diePostJob = importedJobData({
         id: "die_post-platform-engineer",
         title: "Platform Engineer at Die Post",
@@ -1268,6 +1551,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Off-cycle Internship at UBS",
         source: "ubs_students_graduates",
       });
+      const abbSwitzerlandJob = importedJobData({
+        id: "abb_switzerland-service-engineer",
+        title: "Service Engineer at ABB",
+        source: "abb_switzerland",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -1285,16 +1573,18 @@ it("shows direct-company vacancies with their company logos", async () => {
         },
         { id: flughafenZuerichJob.id, data: flughafenZuerichJob },
         { id: ubsStudentsGraduatesJob.id, data: ubsStudentsGraduatesJob },
+        { id: abbSwitzerlandJob.id, data: abbSwitzerlandJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 13,
-        jobsAdded: 13,
+        jobsFound: 14,
+        jobsAdded: 14,
         sourceErrors: {},
         warning: null,
       });
     }
-    if (url.pathname === "/jobs" && method === "GET") return Response.json(storedJobs);
+    if (url.pathname === "/jobs" && method === "GET")
+      return Response.json(storedJobs);
     if (url.pathname === "/jobs/dismissed-ids" && method === "GET") {
       return Response.json([]);
     }
@@ -1304,7 +1594,8 @@ it("shows direct-company vacancies with their company logos", async () => {
     if (url.pathname === "/applications/events" && method === "GET") {
       return Response.json([]);
     }
-    if (url.pathname === "/profile" && method === "GET") return Response.json({});
+    if (url.pathname === "/profile" && method === "GET")
+      return Response.json({});
     if (url.pathname === "/settings" && method === "GET") {
       return Response.json(configuredAppSettings);
     }
@@ -1320,7 +1611,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   vi.stubGlobal("fetch", fetchMock);
 
   render(<HomePage />);
-  fireEvent.click(await screen.findByRole("button", { name: "Search vacancies" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Search vacancies" }),
+  );
   fireEvent.click(screen.getByRole("button", { name: /Direct Companies/ }));
   fireEvent.click(screen.getByRole("button", { name: /LinkedIn/ }));
 
@@ -1341,6 +1634,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Zürcher Kantonalbank")).toBeInTheDocument();
   expect(screen.getByText("Flughafen Zürich")).toBeInTheDocument();
   expect(screen.getByText("UBS Students & Graduates")).toBeInTheDocument();
+  expect(screen.getByText("ABB Schweiz")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -1363,6 +1657,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(
     screen.getByRole("checkbox", { name: /UBS Students & Graduates/ }),
   );
+  fireEvent.click(screen.getByRole("checkbox", { name: /ABB Schweiz/ }));
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1389,7 +1684,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 13 of 13 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates",
+      "Added 14 of 14 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -1408,6 +1703,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "zuercher_kantonalbank",
       "flughafen_zuerich",
       "ubs_students_graduates",
+      "abb_switzerland",
     ],
     aiAnalysisEnabled: true,
   });
@@ -1450,6 +1746,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "UBS logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "ABB Schweiz logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -1471,20 +1770,32 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByText("Source: UBS Students & Graduates").length,
   ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: ABB Schweiz").length).toBeGreaterThan(0);
 });
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {
   window.history.replaceState(null, "", "#jobs");
   installApplicationWorkspaceApiMock({
     requestHandler: async (url, method) => {
-      if (url.pathname === "/job-search/configs" && method === "GET") return Response.json([]);
-      if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
-      if (url.pathname === "/jobs/dismissed-ids" && method === "GET") return Response.json([]);
-      if (url.pathname === "/applications" && method === "GET") return Response.json([]);
-      if (url.pathname === "/applications/events" && method === "GET") return Response.json([]);
-      if (url.pathname === "/profile" && method === "GET") return Response.json({});
-      if (url.pathname === "/settings" && method === "GET") return Response.json(configuredAppSettings);
-      if ((url.pathname === "/applications" || url.pathname === "/applications/events") && method === "PUT") {
+      if (url.pathname === "/job-search/configs" && method === "GET")
+        return Response.json([]);
+      if (url.pathname === "/jobs" && method === "GET")
+        return Response.json([]);
+      if (url.pathname === "/jobs/dismissed-ids" && method === "GET")
+        return Response.json([]);
+      if (url.pathname === "/applications" && method === "GET")
+        return Response.json([]);
+      if (url.pathname === "/applications/events" && method === "GET")
+        return Response.json([]);
+      if (url.pathname === "/profile" && method === "GET")
+        return Response.json({});
+      if (url.pathname === "/settings" && method === "GET")
+        return Response.json(configuredAppSettings);
+      if (
+        (url.pathname === "/applications" ||
+          url.pathname === "/applications/events") &&
+        method === "PUT"
+      ) {
         return Response.json([]);
       }
       return undefined;
@@ -1499,7 +1810,9 @@ it("shows seeded vacancies and calendar events only in demo mode", async () => {
   expect(screen.queryByText("Figma")).not.toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("link", { name: "Calendar" }));
-  expect(await screen.findByRole("heading", { name: "Calendar" })).toBeInTheDocument();
+  expect(
+    await screen.findByRole("heading", { name: "Calendar" }),
+  ).toBeInTheDocument();
   expect(screen.queryByText("Technical Assessment")).not.toBeInTheDocument();
   expect(screen.queryByText("Future Wealth Group")).not.toBeInTheDocument();
 
@@ -1513,7 +1826,9 @@ it("shows seeded vacancies and calendar events only in demo mode", async () => {
   expect(screen.getAllByText("Figma").length).toBeGreaterThan(0);
 
   fireEvent.click(screen.getByRole("link", { name: "Calendar" }));
-  expect(await screen.findByRole("heading", { name: "Calendar" })).toBeInTheDocument();
+  expect(
+    await screen.findByRole("heading", { name: "Calendar" }),
+  ).toBeInTheDocument();
   expect(screen.getAllByText("Technical Assessment").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Future Wealth Group").length).toBeGreaterThan(0);
 });
@@ -1525,31 +1840,46 @@ it("keeps preparation drafts out of Applications until they are marked as applie
 
   installApplicationWorkspaceApiMock({
     requestHandler: async (url, method, init) => {
-      if (url.pathname === "/job-search/configs" && method === "GET") return Response.json([]);
-      if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
-      if (url.pathname === "/applications" && method === "GET") return Response.json([]);
-      if (url.pathname === "/applications/events" && method === "GET") return Response.json([]);
-      if (url.pathname === "/profile" && method === "GET") return Response.json({});
+      if (url.pathname === "/job-search/configs" && method === "GET")
+        return Response.json([]);
+      if (url.pathname === "/jobs" && method === "GET")
+        return Response.json([]);
+      if (url.pathname === "/applications" && method === "GET")
+        return Response.json([]);
+      if (url.pathname === "/applications/events" && method === "GET")
+        return Response.json([]);
+      if (url.pathname === "/profile" && method === "GET")
+        return Response.json({});
       if (url.pathname === "/settings" && method === "GET") {
-        return Response.json({ has_brightdata_api_key: false, brightdata_api_key_preview: "" });
+        return Response.json({
+          has_brightdata_api_key: false,
+          brightdata_api_key_preview: "",
+        });
       }
       if (url.pathname === "/applications" && method === "PUT") {
         const payload = JSON.parse(String(init?.body)) as {
           applications: Array<{ data: { status: string } }>;
         };
-        savedApplicationStatuses.push(...payload.applications.map((application) => application.data.status));
+        savedApplicationStatuses.push(
+          ...payload.applications.map((application) => application.data.status),
+        );
         return Response.json(payload.applications);
       }
-      if (url.pathname === "/applications/events" && method === "PUT") return Response.json([]);
+      if (url.pathname === "/applications/events" && method === "PUT")
+        return Response.json([]);
       return undefined;
     },
   });
 
   render(<HomePage />);
 
-  fireEvent.click(await screen.findByRole("button", { name: "Prepare application" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Prepare application" }),
+  );
   expect(await screen.findByText("Application prep")).toBeInTheDocument();
-  expect(await screen.findByRole("button", { name: "Jobs" })).toBeInTheDocument();
+  expect(
+    await screen.findByRole("button", { name: "Jobs" }),
+  ).toBeInTheDocument();
   await waitFor(() => expect(savedApplicationStatuses).toContain("draft"));
 
   fireEvent.click(screen.getByRole("button", { name: "Jobs" }));
@@ -1557,9 +1887,13 @@ it("keeps preparation drafts out of Applications until they are marked as applie
   expect(await screen.findByText("No applications yet")).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("link", { name: "Jobs" }));
-  const continuePreparation = await screen.findByRole("button", { name: "Continue preparation" });
+  const continuePreparation = await screen.findByRole("button", {
+    name: "Continue preparation",
+  });
   fireEvent.click(continuePreparation);
-  fireEvent.click(await screen.findByRole("button", { name: "Mark as applied" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Mark as applied" }),
+  );
   fireEvent.click(await screen.findByRole("button", { name: "Applications" }));
 
   expect(await screen.findByText("Applications (1)")).toBeInTheDocument();
@@ -1581,11 +1915,16 @@ it("offers decision-focused assistant questions on the Jobs page", async () => {
       hasCurrentConsent: true,
     },
     requestHandler: async (url, method, init) => {
-      if (url.pathname === "/job-search/configs" && method === "GET") return Response.json([]);
-      if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
-      if (url.pathname === "/applications" && method === "GET") return Response.json([]);
-      if (url.pathname === "/applications/events" && method === "GET") return Response.json([]);
-      if (url.pathname === "/profile" && method === "GET") return Response.json({});
+      if (url.pathname === "/job-search/configs" && method === "GET")
+        return Response.json([]);
+      if (url.pathname === "/jobs" && method === "GET")
+        return Response.json([]);
+      if (url.pathname === "/applications" && method === "GET")
+        return Response.json([]);
+      if (url.pathname === "/applications/events" && method === "GET")
+        return Response.json([]);
+      if (url.pathname === "/profile" && method === "GET")
+        return Response.json({});
       if (url.pathname === "/assistant/conversations" && method === "GET") {
         return Response.json([]);
       }
@@ -1596,8 +1935,8 @@ it("offers decision-focused assistant questions on the Jobs page", async () => {
         return new Response(
           [
             "event: connected\ndata: {}",
-            "event: delta\ndata: {\"text\":\"Why 92% explanation\",\"offset\":19}",
-            "event: done\ndata: {\"metadata\":{\"backend\":\"openclaw_codex\"}}",
+            'event: delta\ndata: {"text":"Why 92% explanation","offset":19}',
+            'event: done\ndata: {"metadata":{"backend":"openclaw_codex"}}',
             "",
           ].join("\n\n"),
           { headers: { "Content-Type": "text/event-stream" } },

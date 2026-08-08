@@ -160,6 +160,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 64,
     logoHeight: 23,
   },
+  {
+    id: "abb_switzerland",
+    name: "ABB Schweiz",
+    careersUrl:
+      "https://careers.abb/global/en/search-results?rk=l-abb-switzerland-careers&sortBy=Most%20relevant",
+    logoSrc: "/company-logos/abb.svg",
+    logoAlt: "ABB Schweiz logo",
+    logoWidth: 64,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

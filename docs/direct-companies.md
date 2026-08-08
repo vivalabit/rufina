@@ -27,6 +27,7 @@ vacancy-search API key.
 | Zürcher Kantonalbank | [Open positions](https://apply.refline.ch/792841/search.html)                              | Refline full-catalog HTML table          |
 | Flughafen Zürich | [Open positions](https://www.flughafen-zuerich.ch/de/unternehmen/jobs/karriere/stellenangebote) | Sitecore full-catalog JSON API         |
 | UBS Students & Graduates | [Switzerland opportunities](https://jobs.ubs.com/TGnewUI/Search/home/HomeWithPreLoad?partnerid=25008&siteid=5131&PageType=searchResults&SearchType=linkquery&LinkID=15232#keyWordSearch=&locationSearch=Switzerland) | Infinite Talent paginated JSON catalog |
+| ABB Schweiz | [Switzerland careers](https://careers.abb/global/en/search-results?rk=l-abb-switzerland-careers&sortBy=Most%20relevant) | Phenom paginated catalog with Swiss multi-location filtering |
 
 During a search, Rufina scans all vacancies exposed by the selected company
 source. Every result is saved in the private `discovered_vacancies` inventory

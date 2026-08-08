@@ -264,6 +264,26 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "ubs_students_graduates_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="abb_switzerland",
+        name="ABB Schweiz",
+        careers_url=(
+            "https://careers.abb/global/en/search-results?"
+            "rk=l-abb-switzerland-careers&sortBy=Most%20relevant"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.abb_switzerland:"
+            "AbbSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "abb_switzerland_jobs_base_url"),
+            ("timeout_seconds", "abb_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "abb_switzerland_jobs_max_pages"),
+            ("max_catalog_passes", "abb_switzerland_jobs_max_catalog_passes"),
+            ("page_workers", "abb_switzerland_jobs_page_workers"),
+            ("detail_workers", "abb_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
