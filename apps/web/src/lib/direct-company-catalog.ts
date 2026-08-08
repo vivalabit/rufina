@@ -131,6 +131,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 40,
     logoHeight: 24,
   },
+  {
+    id: "zuercher_kantonalbank",
+    name: "Zürcher Kantonalbank",
+    careersUrl: "https://apply.refline.ch/792841/search.html",
+    logoSrc: "/company-logos/zuercher_kantonalbank.svg",
+    logoAlt: "Zürcher Kantonalbank logo",
+    logoWidth: 48,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

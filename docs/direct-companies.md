@@ -24,6 +24,7 @@ vacancy-search API key.
 | Accenture        | [Job search](https://www.accenture.com/ch-en/careers/jobsearch)                                | Accenture Elastic Jobs API, 100/page     |
 | CSEM             | [Jobs](https://www.csem.ch/en/jobs/)                                                           | Server-rendered HTML and detail pages    |
 | Deloitte         | [CH Careers](https://apply.deloitte.ch/CHCareers/)                                             | Avature server-rendered catalog, 6/page  |
+| Zürcher Kantonalbank | [Open positions](https://apply.refline.ch/792841/search.html)                              | Refline full-catalog HTML table          |
 
 During a search, Rufina scans all vacancies exposed by the selected company
 source. Every result is saved in the private `discovered_vacancies` inventory

@@ -210,6 +210,20 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "deloitte_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="zuercher_kantonalbank",
+        name="Zürcher Kantonalbank",
+        careers_url="https://apply.refline.ch/792841/search.html",
+        parser_path=(
+            "app.services.parsers.companies.zuercher_kantonalbank:"
+            "ZuercherKantonalbankJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "zuercher_kantonalbank_jobs_base_url"),
+            ("timeout_seconds", "zuercher_kantonalbank_jobs_timeout_seconds"),
+            ("detail_workers", "zuercher_kantonalbank_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

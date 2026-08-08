@@ -51,7 +51,8 @@ function importedJobData({
     | "iss"
     | "accenture"
     | "csem"
-    | "deloitte";
+    | "deloitte"
+    | "zuercher_kantonalbank";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -84,7 +85,9 @@ function importedJobData({
                               ? "CSEM"
                               : source === "deloitte"
                                 ? "Deloitte"
-                              : "LinkedIn";
+                                : source === "zuercher_kantonalbank"
+                                  ? "Zürcher Kantonalbank"
+                                : "LinkedIn";
   return {
     id,
     company:
@@ -114,7 +117,9 @@ function importedJobData({
                             ? "CSEM"
                             : source === "deloitte"
                               ? "Deloitte"
-                            : "Example AG",
+                              : source === "zuercher_kantonalbank"
+                                ? "Zürcher Kantonalbank"
+                              : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -136,7 +141,8 @@ function importedJobData({
       source === "iss" ||
       source === "accenture" ||
       source === "csem" ||
-      source === "deloitte"
+      source === "deloitte" ||
+      source === "zuercher_kantonalbank"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -1235,6 +1241,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Assistant Manager at Deloitte",
         source: "deloitte",
       });
+      const zuercherKantonalbankJob = importedJobData({
+        id: "zuercher_kantonalbank-devops-engineer",
+        title: "DevOps Engineer at Zürcher Kantonalbank",
+        source: "zuercher_kantonalbank",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -1246,11 +1257,15 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: accentureJob.id, data: accentureJob },
         { id: csemJob.id, data: csemJob },
         { id: deloitteJob.id, data: deloitteJob },
+        {
+          id: zuercherKantonalbankJob.id,
+          data: zuercherKantonalbankJob,
+        },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 10,
-        jobsAdded: 10,
+        jobsFound: 11,
+        jobsAdded: 11,
         sourceErrors: {},
         warning: null,
       });
@@ -1299,6 +1314,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Accenture")).toBeInTheDocument();
   expect(screen.getByText("CSEM")).toBeInTheDocument();
   expect(screen.getByText("Deloitte")).toBeInTheDocument();
+  expect(screen.getByText("Zürcher Kantonalbank")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -1314,6 +1330,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("checkbox", { name: /Accenture/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /CSEM/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Deloitte/ }));
+  fireEvent.click(
+    screen.getByRole("checkbox", { name: /Zürcher Kantonalbank/ }),
+  );
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1340,7 +1359,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 10 of 10 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte",
+      "Added 11 of 11 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -1356,6 +1375,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "accenture",
       "csem",
       "deloitte",
+      "zuercher_kantonalbank",
     ],
     aiAnalysisEnabled: true,
   });
@@ -1389,6 +1409,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Deloitte logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Zürcher Kantonalbank logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -1401,6 +1424,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getAllByText("Source: Accenture").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: CSEM").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Deloitte").length).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: Zürcher Kantonalbank").length,
+  ).toBeGreaterThan(0);
 });
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {
