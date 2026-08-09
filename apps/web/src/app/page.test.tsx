@@ -78,6 +78,7 @@ function importedJobData({
     | "google"
     | "buhler_switzerland"
     | "oracle_switzerland"
+    | "adnovum"
     | "ey_switzerland"
     | "eth_zurich"
     | "siemens_switzerland"
@@ -168,18 +169,21 @@ function importedJobData({
                                                                               "ey_switzerland"
                                                                             ? "EY Switzerland"
                                                                             : source ===
-                                                                                "eth_zurich"
-                                                                              ? "ETH Zürich"
+                                                                                "adnovum"
+                                                                              ? "Adnovum"
                                                                               : source ===
-                                                                                  "siemens_switzerland"
-                                                                                ? "Siemens Schweiz"
+                                                                                  "eth_zurich"
+                                                                                ? "ETH Zürich"
                                                                                 : source ===
-                                                                                    "kpmg_switzerland"
-                                                                                  ? "KPMG Switzerland"
+                                                                                    "siemens_switzerland"
+                                                                                  ? "Siemens Schweiz"
                                                                                   : source ===
-                                                                                      "swissgrid"
-                                                                                    ? "Swissgrid"
-                                                                                    : "LinkedIn";
+                                                                                      "kpmg_switzerland"
+                                                                                    ? "KPMG Switzerland"
+                                                                                    : source ===
+                                                                                        "swissgrid"
+                                                                                      ? "Swissgrid"
+                                                                                      : "LinkedIn";
   return {
     id,
     company:
@@ -262,18 +266,21 @@ function importedJobData({
                                                                             "ey_switzerland"
                                                                           ? "EY"
                                                                           : source ===
-                                                                              "eth_zurich"
-                                                                            ? "ETH Zürich"
+                                                                              "adnovum"
+                                                                            ? "Adnovum AG"
                                                                             : source ===
-                                                                                "siemens_switzerland"
-                                                                              ? "Siemens Schweiz AG"
+                                                                                "eth_zurich"
+                                                                              ? "ETH Zürich"
                                                                               : source ===
-                                                                                  "kpmg_switzerland"
-                                                                                ? "KPMG AG"
+                                                                                  "siemens_switzerland"
+                                                                                ? "Siemens Schweiz AG"
                                                                                 : source ===
-                                                                                    "swissgrid"
-                                                                                  ? "Swissgrid"
-                                                                                  : "Example AG",
+                                                                                    "kpmg_switzerland"
+                                                                                  ? "KPMG AG"
+                                                                                  : source ===
+                                                                                      "swissgrid"
+                                                                                    ? "Swissgrid"
+                                                                                    : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -316,6 +323,7 @@ function importedJobData({
       source === "google" ||
       source === "buhler_switzerland" ||
       source === "oracle_switzerland" ||
+      source === "adnovum" ||
       source === "ey_switzerland" ||
       source === "eth_zurich" ||
       source === "siemens_switzerland" ||
@@ -1790,6 +1798,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Cloud Engineer at Oracle",
         source: "oracle_switzerland",
       });
+      const adnovumJob = importedJobData({
+        id: "adnovum-1164795855",
+        title: "Senior Solution Architect at Adnovum",
+        source: "adnovum",
+      });
       const eySwitzerlandJob = importedJobData({
         id: "ey_switzerland-technology-consultant",
         title: "Technology Consultant at EY",
@@ -1855,6 +1868,7 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: googleJob.id, data: googleJob },
         { id: buhlerSwitzerlandJob.id, data: buhlerSwitzerlandJob },
         { id: oracleSwitzerlandJob.id, data: oracleSwitzerlandJob },
+        { id: adnovumJob.id, data: adnovumJob },
         { id: eySwitzerlandJob.id, data: eySwitzerlandJob },
         { id: ethZurichJob.id, data: ethZurichJob },
         { id: siemensSwitzerlandJob.id, data: siemensSwitzerlandJob },
@@ -1863,8 +1877,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 35,
-        jobsAdded: 35,
+        jobsFound: 36,
+        jobsAdded: 36,
         sourceErrors: {},
         warning: null,
       });
@@ -1937,6 +1951,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Google")).toBeInTheDocument();
   expect(screen.getByText("Bühler Schweiz")).toBeInTheDocument();
   expect(screen.getByText("Oracle Switzerland")).toBeInTheDocument();
+  expect(screen.getByText("Adnovum")).toBeInTheDocument();
   expect(screen.getByText("EY Switzerland")).toBeInTheDocument();
   expect(screen.getByText("ETH Zürich")).toBeInTheDocument();
   expect(screen.getByText("Siemens Schweiz")).toBeInTheDocument();
@@ -1985,6 +2000,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("checkbox", { name: /Google/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Bühler Schweiz/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Oracle Switzerland/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /Adnovum/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /EY Switzerland/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /ETH Zürich/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Siemens Schweiz/ }));
@@ -2016,7 +2032,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 35 of 35 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
+      "Added 36 of 36 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2052,6 +2068,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "google",
       "buhler_switzerland",
       "oracle_switzerland",
+      "adnovum",
       "ey_switzerland",
       "eth_zurich",
       "siemens_switzerland",
@@ -2152,6 +2169,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getAllByRole("img", { name: "Oracle Switzerland logo" }).length,
   ).toBeGreaterThan(0);
   expect(
+    screen.getAllByRole("img", { name: "Adnovum logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
     screen.getAllByRole("img", { name: "EY Switzerland logo" }).length,
   ).toBeGreaterThan(0);
   expect(
@@ -2220,6 +2240,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByText("Source: Oracle Switzerland").length,
   ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Adnovum").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: EY Switzerland").length).toBeGreaterThan(
     0,
   );

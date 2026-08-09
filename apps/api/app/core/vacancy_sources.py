@@ -553,6 +553,19 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="adnovum",
+        name="Adnovum",
+        careers_url="https://careers.adnovum.com/search/",
+        parser_path="app.services.parsers.companies.adnovum:AdnovumJobsParser",
+        settings_map=(
+            ("base_url", "adnovum_jobs_base_url"),
+            ("timeout_seconds", "adnovum_jobs_timeout_seconds"),
+            ("max_pages", "adnovum_jobs_max_pages"),
+            ("max_catalog_passes", "adnovum_jobs_max_catalog_passes"),
+            ("detail_workers", "adnovum_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="ey_switzerland",
         name="EY Switzerland",
         careers_url=(

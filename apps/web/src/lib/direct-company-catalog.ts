@@ -323,6 +323,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 20,
   },
   {
+    id: "adnovum",
+    name: "Adnovum",
+    careersUrl: "https://careers.adnovum.com/search/",
+    logoSrc: "/company-logos/adnovum.svg",
+    logoAlt: "Adnovum logo",
+    logoWidth: 96,
+    logoHeight: 20,
+  },
+  {
     id: "ey_switzerland",
     name: "EY Switzerland",
     careersUrl:
