@@ -477,6 +477,22 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="ibm",
+        name="IBM",
+        careers_url=(
+            "https://www.ibm.com/de-de/careers/search?"
+            "field_keyword_05[0]=Switzerland"
+        ),
+        parser_path="app.services.parsers.companies.ibm:IbmJobsParser",
+        settings_map=(
+            ("base_url", "ibm_jobs_base_url"),
+            ("api_url", "ibm_jobs_api_url"),
+            ("timeout_seconds", "ibm_jobs_timeout_seconds"),
+            ("max_pages", "ibm_jobs_max_pages"),
+            ("max_catalog_passes", "ibm_jobs_max_catalog_passes"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="ey_switzerland",
         name="EY Switzerland",
         careers_url=(

@@ -284,6 +284,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "ibm",
+    name: "IBM",
+    careersUrl:
+      "https://www.ibm.com/de-de/careers/search?field_keyword_05[0]=Switzerland",
+    logoSrc: "/company-logos/ibm.svg",
+    logoAlt: "IBM logo",
+    logoWidth: 61,
+    logoHeight: 24,
+  },
+  {
     id: "ey_switzerland",
     name: "EY Switzerland",
     careersUrl:

@@ -40,6 +40,7 @@ vacancy-search API key.
 | Siegfried | [Open positions](https://siegfried.wd103.myworkdayjobs.com/external) | Workday paginated JSON API with stable catalog retries and enriched vacancy details |
 | MSD | [Switzerland opportunities](https://jobs.msd.com/gb/en/search-results?rk=page-targeted-jobs-page172-prod-DZJ1ve) | Phenom paginated Swiss catalog with enriched vacancy details |
 | SRG SSR | [Jobs](https://www.srgssr.ch/en/jobs-career/jobs) | Prospective full-catalog HTML with SRG filter and enriched JobPosting detail pages |
+| IBM | [Switzerland opportunities](https://www.ibm.com/de-de/careers/search?field_keyword_05%5B0%5D=Switzerland) | IBM Search paginated JSON API with full vacancy descriptions |
 | EY Switzerland | [Swiss career opportunities](https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch=&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1=) | SuccessFactors paginated HTML catalog and JobPosting detail pages |
 | ETH Zürich | [Open positions](https://jobs.ethz.ch/) | Full-catalog HTML page with enriched vacancy detail pages |
 | Siemens Schweiz | [Swiss vacancies](https://jobs.siemens.com/de_DE/externaljobs/SearchJobs/?42386=%5B812129%5D&42386_format=17546&listFilterMode=1&folderRecordsPerPage=6) | Avature paginated HTML catalog and enriched vacancy detail pages |

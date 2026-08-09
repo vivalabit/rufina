@@ -393,6 +393,17 @@ class Settings(BaseSettings):
     )
     srg_ssr_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     srg_ssr_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    ibm_jobs_base_url: str = (
+        "https://www.ibm.com/de-de/careers/search?"
+        "field_keyword_05[0]=Switzerland"
+    )
+    ibm_jobs_api_url: str = (
+        "https://www-api.ibm.com/search/api/v1/ibmcom/appid/careers/"
+        "responseFormat/json"
+    )
+    ibm_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    ibm_jobs_max_pages: int = Field(default=100, ge=1, le=500)
+    ibm_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
     ey_switzerland_jobs_base_url: str = (
         "https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch="
         "&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1="
