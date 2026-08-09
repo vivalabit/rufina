@@ -274,6 +274,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "swiss_re",
+    name: "Swiss Re",
+    careersUrl: "https://www.swissre.com/careers/switzerland-careers.html",
+    logoSrc: "/company-logos/swiss_re.svg",
+    logoAlt: "Swiss Re logo",
+    logoWidth: 24,
+    logoHeight: 24,
+  },
+  {
     id: "msd",
     name: "MSD",
     careersUrl:

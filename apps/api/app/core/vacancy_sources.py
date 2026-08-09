@@ -462,6 +462,22 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="swiss_re",
+        name="Swiss Re",
+        careers_url=(
+            "https://www.swissre.com/careers/switzerland-careers.html"
+        ),
+        parser_path="app.services.parsers.companies.swiss_re:SwissReJobsParser",
+        settings_map=(
+            ("base_url", "swiss_re_jobs_base_url"),
+            ("search_url", "swiss_re_jobs_search_url"),
+            ("timeout_seconds", "swiss_re_jobs_timeout_seconds"),
+            ("max_pages", "swiss_re_jobs_max_pages"),
+            ("max_catalog_passes", "swiss_re_jobs_max_catalog_passes"),
+            ("detail_workers", "swiss_re_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="msd",
         name="MSD",
         careers_url=(

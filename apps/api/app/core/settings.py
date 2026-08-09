@@ -383,6 +383,14 @@ class Settings(BaseSettings):
     switch_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     switch_jobs_max_pages: int = Field(default=50, ge=1, le=200)
     switch_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    swiss_re_jobs_base_url: str = (
+        "https://www.swissre.com/careers/switzerland-careers.html"
+    )
+    swiss_re_jobs_search_url: str = "https://careers.swissre.com/search/"
+    swiss_re_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    swiss_re_jobs_max_pages: int = Field(default=20, ge=1, le=100)
+    swiss_re_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
+    swiss_re_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     msd_jobs_base_url: str = (
         "https://jobs.msd.com/gb/en/search-results?"
         "rk=page-targeted-jobs-page172-prod-DZJ1ve"
