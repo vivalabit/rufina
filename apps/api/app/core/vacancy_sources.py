@@ -493,6 +493,22 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="google",
+        name="Google",
+        careers_url=(
+            "https://www.google.com/about/careers/applications/jobs/results/"
+            "?location=Zurich%2C%20Switzerland"
+        ),
+        parser_path="app.services.parsers.companies.google:GoogleJobsParser",
+        settings_map=(
+            ("base_url", "google_jobs_base_url"),
+            ("timeout_seconds", "google_jobs_timeout_seconds"),
+            ("max_pages", "google_jobs_max_pages"),
+            ("max_catalog_passes", "google_jobs_max_catalog_passes"),
+            ("detail_workers", "google_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="ey_switzerland",
         name="EY Switzerland",
         careers_url=(

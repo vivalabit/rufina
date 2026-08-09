@@ -294,6 +294,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "google",
+    name: "Google",
+    careersUrl:
+      "https://www.google.com/about/careers/applications/jobs/results/?location=Zurich%2C%20Switzerland",
+    logoSrc: "/company-logos/google.svg",
+    logoAlt: "Google logo",
+    logoWidth: 74,
+    logoHeight: 24,
+  },
+  {
     id: "ey_switzerland",
     name: "EY Switzerland",
     careersUrl:
