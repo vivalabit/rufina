@@ -448,6 +448,23 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="msd",
+        name="MSD",
+        careers_url=(
+            "https://jobs.msd.com/gb/en/search-results?"
+            "rk=page-targeted-jobs-page172-prod-DZJ1ve"
+        ),
+        parser_path="app.services.parsers.companies.msd:MsdJobsParser",
+        settings_map=(
+            ("base_url", "msd_jobs_base_url"),
+            ("timeout_seconds", "msd_jobs_timeout_seconds"),
+            ("max_pages", "msd_jobs_max_pages"),
+            ("max_catalog_passes", "msd_jobs_max_catalog_passes"),
+            ("page_workers", "msd_jobs_page_workers"),
+            ("detail_workers", "msd_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="ey_switzerland",
         name="EY Switzerland",
         careers_url=(

@@ -377,6 +377,15 @@ class Settings(BaseSettings):
     siegfried_jobs_max_pages: int = Field(default=100, ge=1, le=500)
     siegfried_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
     siegfried_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    msd_jobs_base_url: str = (
+        "https://jobs.msd.com/gb/en/search-results?"
+        "rk=page-targeted-jobs-page172-prod-DZJ1ve"
+    )
+    msd_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    msd_jobs_max_pages: int = Field(default=100, ge=1, le=500)
+    msd_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
+    msd_jobs_page_workers: int = Field(default=4, ge=1, le=20)
+    msd_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     ey_switzerland_jobs_base_url: str = (
         "https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch="
         "&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1="

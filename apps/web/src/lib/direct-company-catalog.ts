@@ -265,6 +265,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "msd",
+    name: "MSD",
+    careersUrl:
+      "https://jobs.msd.com/gb/en/search-results?rk=page-targeted-jobs-page172-prod-DZJ1ve",
+    logoSrc: "/company-logos/msd.svg",
+    logoAlt: "MSD logo",
+    logoWidth: 64,
+    logoHeight: 24,
+  },
+  {
     id: "ey_switzerland",
     name: "EY Switzerland",
     careersUrl:
