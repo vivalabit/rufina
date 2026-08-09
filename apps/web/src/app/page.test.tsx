@@ -66,7 +66,8 @@ function importedJobData({
     | "bdo_switzerland"
     | "ey_switzerland"
     | "eth_zurich"
-    | "siemens_switzerland";
+    | "siemens_switzerland"
+    | "kpmg_switzerland";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -118,7 +119,10 @@ function importedJobData({
                                                   : source ===
                                                       "siemens_switzerland"
                                                     ? "Siemens Schweiz"
-                                                    : "LinkedIn";
+                                                    : source ===
+                                                        "kpmg_switzerland"
+                                                      ? "KPMG Switzerland"
+                                                      : "LinkedIn";
   return {
     id,
     company:
@@ -167,7 +171,10 @@ function importedJobData({
                                                 : source ===
                                                     "siemens_switzerland"
                                                   ? "Siemens Schweiz AG"
-                                                  : "Example AG",
+                                                  : source ===
+                                                      "kpmg_switzerland"
+                                                    ? "KPMG AG"
+                                                    : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -198,7 +205,8 @@ function importedJobData({
       source === "bdo_switzerland" ||
       source === "ey_switzerland" ||
       source === "eth_zurich" ||
-      source === "siemens_switzerland"
+      source === "siemens_switzerland" ||
+      source === "kpmg_switzerland"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -1613,6 +1621,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Automation Engineer at Siemens",
         source: "siemens_switzerland",
       });
+      const kpmgSwitzerlandJob = importedJobData({
+        id: "kpmg_switzerland-technology-consultant",
+        title: "Technology Consultant at KPMG",
+        source: "kpmg_switzerland",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -1636,11 +1649,12 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: eySwitzerlandJob.id, data: eySwitzerlandJob },
         { id: ethZurichJob.id, data: ethZurichJob },
         { id: siemensSwitzerlandJob.id, data: siemensSwitzerlandJob },
+        { id: kpmgSwitzerlandJob.id, data: kpmgSwitzerlandJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 19,
-        jobsAdded: 19,
+        jobsFound: 20,
+        jobsAdded: 20,
         sourceErrors: {},
         warning: null,
       });
@@ -1702,6 +1716,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("EY Switzerland")).toBeInTheDocument();
   expect(screen.getByText("ETH Zürich")).toBeInTheDocument();
   expect(screen.getByText("Siemens Schweiz")).toBeInTheDocument();
+  expect(screen.getByText("KPMG Switzerland")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -1730,6 +1745,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("checkbox", { name: /EY Switzerland/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /ETH Zürich/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Siemens Schweiz/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /KPMG Switzerland/ }));
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1756,7 +1772,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 19 of 19 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + EY Switzerland + ETH Zürich + Siemens Schweiz",
+      "Added 20 of 20 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -1781,6 +1797,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "ey_switzerland",
       "eth_zurich",
       "siemens_switzerland",
+      "kpmg_switzerland",
     ],
     aiAnalysisEnabled: true,
   });
@@ -1841,6 +1858,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Siemens Schweiz logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "KPMG Switzerland logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -1876,6 +1896,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getAllByText("Source: Siemens Schweiz").length).toBeGreaterThan(
     0,
   );
+  expect(
+    screen.getAllByText("Source: KPMG Switzerland").length,
+  ).toBeGreaterThan(0);
 });
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

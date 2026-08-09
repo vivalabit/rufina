@@ -368,6 +368,25 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "siemens_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="kpmg_switzerland",
+        name="KPMG Switzerland",
+        careers_url="https://kpmg.com/ch/de/karriere/offene-stellen.html",
+        parser_path=(
+            "app.services.parsers.companies.kpmg_switzerland:"
+            "KpmgSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "kpmg_switzerland_jobs_base_url"),
+            ("api_url", "kpmg_switzerland_jobs_api_url"),
+            ("timeout_seconds", "kpmg_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "kpmg_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "kpmg_switzerland_jobs_max_catalog_passes",
+            ),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

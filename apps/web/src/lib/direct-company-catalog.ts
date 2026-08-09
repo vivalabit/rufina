@@ -217,6 +217,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 88,
     logoHeight: 14,
   },
+  {
+    id: "kpmg_switzerland",
+    name: "KPMG Switzerland",
+    careersUrl: "https://kpmg.com/ch/de/karriere/offene-stellen.html",
+    logoSrc: "/company-logos/kpmg.svg",
+    logoAlt: "KPMG Switzerland logo",
+    logoWidth: 64,
+    logoHeight: 25,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
