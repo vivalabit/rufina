@@ -236,6 +236,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "emmi",
+    name: "Emmi",
+    careersUrl:
+      "https://group.emmi.com/che/de/arbeiten-bei-emmi/offene-stellen",
+    logoSrc: "/company-logos/emmi.svg",
+    logoAlt: "Emmi logo",
+    logoWidth: 47,
+    logoHeight: 24,
+  },
+  {
     id: "ey_switzerland",
     name: "EY Switzerland",
     careersUrl:

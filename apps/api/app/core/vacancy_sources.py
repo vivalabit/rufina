@@ -400,6 +400,21 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="emmi",
+        name="Emmi",
+        careers_url=(
+            "https://group.emmi.com/che/de/arbeiten-bei-emmi/offene-stellen"
+        ),
+        parser_path="app.services.parsers.companies.emmi:EmmiJobsParser",
+        settings_map=(
+            ("base_url", "emmi_jobs_base_url"),
+            ("api_url", "emmi_jobs_api_url"),
+            ("timeout_seconds", "emmi_jobs_timeout_seconds"),
+            ("max_pages", "emmi_jobs_max_pages"),
+            ("max_catalog_passes", "emmi_jobs_max_catalog_passes"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="ey_switzerland",
         name="EY Switzerland",
         careers_url=(
