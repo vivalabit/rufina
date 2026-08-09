@@ -299,6 +299,33 @@ class Settings(BaseSettings):
         ge=1,
         le=500,
     )
+    microsoft_switzerland_jobs_base_url: str = (
+        "https://apply.careers.microsoft.com/careers?start=0&"
+        "location=Switzerland%2C+Z%C3%BCrich%2C+Z%C3%BCrich&"
+        "pid=1970393556942270&sort_by=distance&filter_distance=160&"
+        "filter_include_remote=1&filter_include_relocation=0"
+    )
+    microsoft_switzerland_jobs_api_url: str = (
+        "https://apply.careers.microsoft.com/api/pcsx/search"
+    )
+    microsoft_switzerland_jobs_detail_api_url: str = (
+        "https://apply.careers.microsoft.com/api/pcsx/position_details"
+    )
+    microsoft_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    microsoft_switzerland_jobs_max_pages: int = Field(
+        default=100,
+        ge=1,
+        le=500,
+    )
+    microsoft_switzerland_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+    )
     ey_switzerland_jobs_base_url: str = (
         "https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch="
         "&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1="

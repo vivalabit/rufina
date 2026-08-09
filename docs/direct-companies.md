@@ -31,6 +31,7 @@ vacancy-search API key.
 | Huawei Switzerland | [Current job openings](https://careers.huaweirc.ch/jobs) | Teamtailor full-catalog HTML and JobPosting detail pages |
 | BDO Switzerland | [Open positions](https://www.bdo.ch/en-gb/careers/open-jobs) | Abacus Job Portal full-catalog JSON API |
 | Endress+Hauser Switzerland | [Swiss vacancies](https://careers.endress.com/Switzerland/content/search/?locale=en_US&currentPage=1&pageSize=20&addresses%2Fcountry=Switzerland&orderBy=datePosted&isDesc=true) | Recruiting Solutions paginated JSON API, 20 per page |
+| Microsoft Switzerland | [Swiss vacancies](https://apply.careers.microsoft.com/careers?start=0&location=Switzerland%2C+Z%C3%BCrich%2C+Z%C3%BCrich&pid=1970393556942270&sort_by=distance&filter_distance=160&filter_include_remote=1&filter_include_relocation=0) | Eightfold PCS paginated JSON API with enriched vacancy details |
 | EY Switzerland | [Swiss career opportunities](https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch=&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1=) | SuccessFactors paginated HTML catalog and JobPosting detail pages |
 | ETH Zürich | [Open positions](https://jobs.ethz.ch/) | Full-catalog HTML page with enriched vacancy detail pages |
 | Siemens Schweiz | [Swiss vacancies](https://jobs.siemens.com/de_DE/externaljobs/SearchJobs/?42386=%5B812129%5D&42386_format=17546&listFilterMode=1&folderRecordsPerPage=6) | Avature paginated HTML catalog and enriched vacancy detail pages |

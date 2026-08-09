@@ -337,6 +337,28 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="microsoft_switzerland",
+        name="Microsoft Switzerland",
+        careers_url=(
+            "https://apply.careers.microsoft.com/careers?start=0&"
+            "location=Switzerland%2C+Z%C3%BCrich%2C+Z%C3%BCrich&"
+            "pid=1970393556942270&sort_by=distance&filter_distance=160&"
+            "filter_include_remote=1&filter_include_relocation=0"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.microsoft_switzerland:"
+            "MicrosoftSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "microsoft_switzerland_jobs_base_url"),
+            ("api_url", "microsoft_switzerland_jobs_api_url"),
+            ("detail_api_url", "microsoft_switzerland_jobs_detail_api_url"),
+            ("timeout_seconds", "microsoft_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "microsoft_switzerland_jobs_max_pages"),
+            ("detail_workers", "microsoft_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="ey_switzerland",
         name="EY Switzerland",
         careers_url=(

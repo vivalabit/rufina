@@ -199,6 +199,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 23,
   },
   {
+    id: "microsoft_switzerland",
+    name: "Microsoft Switzerland",
+    careersUrl:
+      "https://apply.careers.microsoft.com/careers?start=0&location=Switzerland%2C+Z%C3%BCrich%2C+Z%C3%BCrich&pid=1970393556942270&sort_by=distance&filter_distance=160&filter_include_remote=1&filter_include_relocation=0",
+    logoSrc: "/company-logos/microsoft.svg",
+    logoAlt: "Microsoft Switzerland logo",
+    logoWidth: 23,
+    logoHeight: 23,
+  },
+  {
     id: "ey_switzerland",
     name: "EY Switzerland",
     careersUrl:
