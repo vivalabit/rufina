@@ -391,6 +391,14 @@ class Settings(BaseSettings):
     swiss_re_jobs_max_pages: int = Field(default=20, ge=1, le=100)
     swiss_re_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
     swiss_re_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    baloise_jobs_base_url: str = "https://www.baloise.com/de/CH/jobs.html"
+    baloise_jobs_catalog_url: str = (
+        "https://www.baloise.com/baloise-com/jobs/de/CH/main/"
+        "jobSearchWidget/jobSearchWidget.json"
+    )
+    baloise_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    baloise_jobs_max_jobs: int = Field(default=1000, ge=1, le=5000)
+    baloise_jobs_detail_workers: int = Field(default=8, ge=1, le=8)
     msd_jobs_base_url: str = (
         "https://jobs.msd.com/gb/en/search-results?"
         "rk=page-targeted-jobs-page172-prod-DZJ1ve"

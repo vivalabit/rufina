@@ -478,6 +478,19 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="baloise",
+        name="Baloise",
+        careers_url="https://www.baloise.com/de/CH/jobs.html",
+        parser_path="app.services.parsers.companies.baloise:BaloiseJobsParser",
+        settings_map=(
+            ("base_url", "baloise_jobs_base_url"),
+            ("catalog_url", "baloise_jobs_catalog_url"),
+            ("timeout_seconds", "baloise_jobs_timeout_seconds"),
+            ("max_jobs", "baloise_jobs_max_jobs"),
+            ("detail_workers", "baloise_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="msd",
         name="MSD",
         careers_url=(

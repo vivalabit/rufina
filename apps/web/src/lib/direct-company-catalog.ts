@@ -283,6 +283,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "baloise",
+    name: "Baloise",
+    careersUrl: "https://www.baloise.com/de/CH/jobs.html",
+    logoSrc: "/company-logos/baloise.svg",
+    logoAlt: "Baloise logo",
+    logoWidth: 24,
+    logoHeight: 24,
+  },
+  {
     id: "msd",
     name: "MSD",
     careersUrl:
