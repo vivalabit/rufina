@@ -66,6 +66,7 @@ function importedJobData({
     | "bdo_switzerland"
     | "endress_hauser_switzerland"
     | "microsoft_switzerland"
+    | "sap_switzerland"
     | "ey_switzerland"
     | "eth_zurich"
     | "siemens_switzerland"
@@ -121,20 +122,23 @@ function importedJobData({
                                                 : source ===
                                                     "microsoft_switzerland"
                                                   ? "Microsoft Switzerland"
-                                                  : source === "ey_switzerland"
-                                                    ? "EY Switzerland"
-                                                    : source === "eth_zurich"
-                                                      ? "ETH Zürich"
-                                                      : source ===
-                                                          "siemens_switzerland"
-                                                        ? "Siemens Schweiz"
+                                                  : source === "sap_switzerland"
+                                                    ? "SAP Switzerland"
+                                                    : source ===
+                                                        "ey_switzerland"
+                                                      ? "EY Switzerland"
+                                                      : source === "eth_zurich"
+                                                        ? "ETH Zürich"
                                                         : source ===
-                                                            "kpmg_switzerland"
-                                                          ? "KPMG Switzerland"
+                                                            "siemens_switzerland"
+                                                          ? "Siemens Schweiz"
                                                           : source ===
-                                                              "swissgrid"
-                                                            ? "Swissgrid"
-                                                            : "LinkedIn";
+                                                              "kpmg_switzerland"
+                                                            ? "KPMG Switzerland"
+                                                            : source ===
+                                                                "swissgrid"
+                                                              ? "Swissgrid"
+                                                              : "LinkedIn";
   return {
     id,
     company:
@@ -182,19 +186,22 @@ function importedJobData({
                                               : source ===
                                                   "microsoft_switzerland"
                                                 ? "Microsoft"
-                                                : source === "ey_switzerland"
-                                                  ? "EY"
-                                                  : source === "eth_zurich"
-                                                    ? "ETH Zürich"
-                                                    : source ===
-                                                        "siemens_switzerland"
-                                                      ? "Siemens Schweiz AG"
+                                                : source === "sap_switzerland"
+                                                  ? "SAP"
+                                                  : source === "ey_switzerland"
+                                                    ? "EY"
+                                                    : source === "eth_zurich"
+                                                      ? "ETH Zürich"
                                                       : source ===
-                                                          "kpmg_switzerland"
-                                                        ? "KPMG AG"
-                                                        : source === "swissgrid"
-                                                          ? "Swissgrid"
-                                                          : "Example AG",
+                                                          "siemens_switzerland"
+                                                        ? "Siemens Schweiz AG"
+                                                        : source ===
+                                                            "kpmg_switzerland"
+                                                          ? "KPMG AG"
+                                                          : source ===
+                                                              "swissgrid"
+                                                            ? "Swissgrid"
+                                                            : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -225,6 +232,7 @@ function importedJobData({
       source === "bdo_switzerland" ||
       source === "endress_hauser_switzerland" ||
       source === "microsoft_switzerland" ||
+      source === "sap_switzerland" ||
       source === "ey_switzerland" ||
       source === "eth_zurich" ||
       source === "siemens_switzerland" ||
@@ -1639,6 +1647,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Software Engineer II at Microsoft",
         source: "microsoft_switzerland",
       });
+      const sapSwitzerlandJob = importedJobData({
+        id: "sap_switzerland-1392727333",
+        title: "Account Executive at SAP",
+        source: "sap_switzerland",
+      });
       const eySwitzerlandJob = importedJobData({
         id: "ey_switzerland-technology-consultant",
         title: "Technology Consultant at EY",
@@ -1692,6 +1705,7 @@ it("shows direct-company vacancies with their company logos", async () => {
           id: microsoftSwitzerlandJob.id,
           data: microsoftSwitzerlandJob,
         },
+        { id: sapSwitzerlandJob.id, data: sapSwitzerlandJob },
         { id: eySwitzerlandJob.id, data: eySwitzerlandJob },
         { id: ethZurichJob.id, data: ethZurichJob },
         { id: siemensSwitzerlandJob.id, data: siemensSwitzerlandJob },
@@ -1700,8 +1714,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 23,
-        jobsAdded: 23,
+        jobsFound: 24,
+        jobsAdded: 24,
         sourceErrors: {},
         warning: null,
       });
@@ -1762,6 +1776,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("BDO Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Endress+Hauser Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Microsoft Switzerland")).toBeInTheDocument();
+  expect(screen.getByText("SAP Switzerland")).toBeInTheDocument();
   expect(screen.getByText("EY Switzerland")).toBeInTheDocument();
   expect(screen.getByText("ETH Zürich")).toBeInTheDocument();
   expect(screen.getByText("Siemens Schweiz")).toBeInTheDocument();
@@ -1798,6 +1813,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(
     screen.getByRole("checkbox", { name: /Microsoft Switzerland/ }),
   );
+  fireEvent.click(screen.getByRole("checkbox", { name: /SAP Switzerland/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /EY Switzerland/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /ETH Zürich/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Siemens Schweiz/ }));
@@ -1829,7 +1845,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 23 of 23 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
+      "Added 24 of 24 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -1853,6 +1869,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "bdo_switzerland",
       "endress_hauser_switzerland",
       "microsoft_switzerland",
+      "sap_switzerland",
       "ey_switzerland",
       "eth_zurich",
       "siemens_switzerland",
@@ -1917,6 +1934,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getAllByRole("img", { name: "Microsoft Switzerland logo" }).length,
   ).toBeGreaterThan(0);
   expect(
+    screen.getAllByRole("img", { name: "SAP Switzerland logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
     screen.getAllByRole("img", { name: "EY Switzerland logo" }).length,
   ).toBeGreaterThan(0);
   expect(
@@ -1965,6 +1985,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByText("Source: Microsoft Switzerland").length,
   ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: SAP Switzerland").length).toBeGreaterThan(
+    0,
+  );
   expect(screen.getAllByText("Source: EY Switzerland").length).toBeGreaterThan(
     0,
   );

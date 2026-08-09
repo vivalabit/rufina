@@ -209,6 +209,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 23,
   },
   {
+    id: "sap_switzerland",
+    name: "SAP Switzerland",
+    careersUrl: "https://jobs.sap.com/go/SAP-Jobs-in-Switzerland/915101/",
+    logoSrc: "/company-logos/sap.svg",
+    logoAlt: "SAP Switzerland logo",
+    logoWidth: 49,
+    logoHeight: 24,
+  },
+  {
     id: "ey_switzerland",
     name: "EY Switzerland",
     careersUrl:

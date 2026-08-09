@@ -359,6 +359,22 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="sap_switzerland",
+        name="SAP Switzerland",
+        careers_url="https://jobs.sap.com/go/SAP-Jobs-in-Switzerland/915101/",
+        parser_path=(
+            "app.services.parsers.companies.sap_switzerland:"
+            "SapSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "sap_switzerland_jobs_base_url"),
+            ("timeout_seconds", "sap_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "sap_switzerland_jobs_max_pages"),
+            ("max_catalog_passes", "sap_switzerland_jobs_max_catalog_passes"),
+            ("detail_workers", "sap_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="ey_switzerland",
         name="EY Switzerland",
         careers_url=(
