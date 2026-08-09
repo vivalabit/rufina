@@ -528,6 +528,31 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="oracle_switzerland",
+        name="Oracle Switzerland",
+        careers_url=(
+            "https://careers.oracle.com/en/sites/jobsearch/jobs?"
+            "lastSelectedFacet=locations&location=Switzerland&"
+            "locationId=300000000106764&locationLevel=country&mode=location&"
+            "selectedLocationsFacet=300000000106764"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.oracle_switzerland:"
+            "OracleSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "oracle_switzerland_jobs_base_url"),
+            ("api_url", "oracle_switzerland_jobs_api_url"),
+            ("timeout_seconds", "oracle_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "oracle_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "oracle_switzerland_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "oracle_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="ey_switzerland",
         name="EY Switzerland",
         careers_url=(

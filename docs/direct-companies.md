@@ -43,6 +43,7 @@ vacancy-search API key.
 | IBM | [Switzerland opportunities](https://www.ibm.com/de-de/careers/search?field_keyword_05%5B0%5D=Switzerland) | IBM Search paginated JSON API with full vacancy descriptions |
 | Google | [Zürich opportunities](https://www.google.com/about/careers/applications/jobs/results/?location=Zurich%2C%20Switzerland) | Server-rendered paginated catalog with enriched Google Careers detail pages |
 | Bühler Schweiz | [Open positions](https://jobs.buhlergroup.com/?lang=de) | Prospective paginated JSON API with a strict Switzerland country filter and full vacancy descriptions |
+| Oracle Switzerland | [Swiss vacancies](https://careers.oracle.com/en/sites/jobsearch/jobs?lastSelectedFacet=locations&location=Switzerland&locationId=300000000106764&locationLevel=country&mode=location&selectedLocationsFacet=300000000106764) | Oracle HCM paginated JSON API with a strict Switzerland location filter and enriched vacancy details |
 | EY Switzerland | [Swiss career opportunities](https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch=&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1=) | SuccessFactors paginated HTML catalog and JobPosting detail pages |
 | ETH Zürich | [Open positions](https://jobs.ethz.ch/) | Full-catalog HTML page with enriched vacancy detail pages |
 | Siemens Schweiz | [Swiss vacancies](https://jobs.siemens.com/de_DE/externaljobs/SearchJobs/?42386=%5B812129%5D&42386_format=17546&listFilterMode=1&folderRecordsPerPage=6) | Avature paginated HTML catalog and enriched vacancy detail pages |

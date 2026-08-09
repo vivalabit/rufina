@@ -313,6 +313,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "oracle_switzerland",
+    name: "Oracle Switzerland",
+    careersUrl:
+      "https://careers.oracle.com/en/sites/jobsearch/jobs?lastSelectedFacet=locations&location=Switzerland&locationId=300000000106764&locationLevel=country&mode=location&selectedLocationsFacet=300000000106764",
+    logoSrc: "/company-logos/oracle.svg",
+    logoAlt: "Oracle Switzerland logo",
+    logoWidth: 95,
+    logoHeight: 20,
+  },
+  {
     id: "ey_switzerland",
     name: "EY Switzerland",
     careersUrl:

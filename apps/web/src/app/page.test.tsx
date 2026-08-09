@@ -77,6 +77,7 @@ function importedJobData({
     | "ibm"
     | "google"
     | "buhler_switzerland"
+    | "oracle_switzerland"
     | "ey_switzerland"
     | "eth_zurich"
     | "siemens_switzerland"
@@ -161,21 +162,24 @@ function importedJobData({
                                                                           "buhler_switzerland"
                                                                         ? "Bühler Schweiz"
                                                                         : source ===
-                                                                            "ey_switzerland"
-                                                                          ? "EY Switzerland"
+                                                                            "oracle_switzerland"
+                                                                          ? "Oracle Switzerland"
                                                                           : source ===
-                                                                              "eth_zurich"
-                                                                            ? "ETH Zürich"
+                                                                              "ey_switzerland"
+                                                                            ? "EY Switzerland"
                                                                             : source ===
-                                                                                "siemens_switzerland"
-                                                                              ? "Siemens Schweiz"
+                                                                                "eth_zurich"
+                                                                              ? "ETH Zürich"
                                                                               : source ===
-                                                                                  "kpmg_switzerland"
-                                                                                ? "KPMG Switzerland"
+                                                                                  "siemens_switzerland"
+                                                                                ? "Siemens Schweiz"
                                                                                 : source ===
-                                                                                    "swissgrid"
-                                                                                  ? "Swissgrid"
-                                                                                  : "LinkedIn";
+                                                                                    "kpmg_switzerland"
+                                                                                  ? "KPMG Switzerland"
+                                                                                  : source ===
+                                                                                      "swissgrid"
+                                                                                    ? "Swissgrid"
+                                                                                    : "LinkedIn";
   return {
     id,
     company:
@@ -252,21 +256,24 @@ function importedJobData({
                                                                         "buhler_switzerland"
                                                                       ? "Bühler AG"
                                                                       : source ===
-                                                                          "ey_switzerland"
-                                                                        ? "EY"
+                                                                          "oracle_switzerland"
+                                                                        ? "Oracle"
                                                                         : source ===
-                                                                            "eth_zurich"
-                                                                          ? "ETH Zürich"
+                                                                            "ey_switzerland"
+                                                                          ? "EY"
                                                                           : source ===
-                                                                              "siemens_switzerland"
-                                                                            ? "Siemens Schweiz AG"
+                                                                              "eth_zurich"
+                                                                            ? "ETH Zürich"
                                                                             : source ===
-                                                                                "kpmg_switzerland"
-                                                                              ? "KPMG AG"
+                                                                                "siemens_switzerland"
+                                                                              ? "Siemens Schweiz AG"
                                                                               : source ===
-                                                                                  "swissgrid"
-                                                                                ? "Swissgrid"
-                                                                                : "Example AG",
+                                                                                  "kpmg_switzerland"
+                                                                                ? "KPMG AG"
+                                                                                : source ===
+                                                                                    "swissgrid"
+                                                                                  ? "Swissgrid"
+                                                                                  : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -308,6 +315,7 @@ function importedJobData({
       source === "ibm" ||
       source === "google" ||
       source === "buhler_switzerland" ||
+      source === "oracle_switzerland" ||
       source === "ey_switzerland" ||
       source === "eth_zurich" ||
       source === "siemens_switzerland" ||
@@ -1777,6 +1785,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Case Manager:in at Bühler",
         source: "buhler_switzerland",
       });
+      const oracleSwitzerlandJob = importedJobData({
+        id: "oracle_switzerland-335070",
+        title: "Cloud Engineer at Oracle",
+        source: "oracle_switzerland",
+      });
       const eySwitzerlandJob = importedJobData({
         id: "ey_switzerland-technology-consultant",
         title: "Technology Consultant at EY",
@@ -1841,6 +1854,7 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: ibmJob.id, data: ibmJob },
         { id: googleJob.id, data: googleJob },
         { id: buhlerSwitzerlandJob.id, data: buhlerSwitzerlandJob },
+        { id: oracleSwitzerlandJob.id, data: oracleSwitzerlandJob },
         { id: eySwitzerlandJob.id, data: eySwitzerlandJob },
         { id: ethZurichJob.id, data: ethZurichJob },
         { id: siemensSwitzerlandJob.id, data: siemensSwitzerlandJob },
@@ -1849,8 +1863,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 34,
-        jobsAdded: 34,
+        jobsFound: 35,
+        jobsAdded: 35,
         sourceErrors: {},
         warning: null,
       });
@@ -1922,6 +1936,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("IBM")).toBeInTheDocument();
   expect(screen.getByText("Google")).toBeInTheDocument();
   expect(screen.getByText("Bühler Schweiz")).toBeInTheDocument();
+  expect(screen.getByText("Oracle Switzerland")).toBeInTheDocument();
   expect(screen.getByText("EY Switzerland")).toBeInTheDocument();
   expect(screen.getByText("ETH Zürich")).toBeInTheDocument();
   expect(screen.getByText("Siemens Schweiz")).toBeInTheDocument();
@@ -1969,6 +1984,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("checkbox", { name: /IBM/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Google/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Bühler Schweiz/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /Oracle Switzerland/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /EY Switzerland/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /ETH Zürich/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Siemens Schweiz/ }));
@@ -2000,7 +2016,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 34 of 34 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + MSD + SRG SSR + IBM + Google + Bühler Schweiz + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
+      "Added 35 of 35 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2035,6 +2051,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "ibm",
       "google",
       "buhler_switzerland",
+      "oracle_switzerland",
       "ey_switzerland",
       "eth_zurich",
       "siemens_switzerland",
@@ -2132,6 +2149,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getAllByRole("img", { name: "Bühler Schweiz logo" }).length,
   ).toBeGreaterThan(0);
   expect(
+    screen.getAllByRole("img", { name: "Oracle Switzerland logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
     screen.getAllByRole("img", { name: "EY Switzerland logo" }).length,
   ).toBeGreaterThan(0);
   expect(
@@ -2197,6 +2217,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getAllByText("Source: Bühler Schweiz").length).toBeGreaterThan(
     0,
   );
+  expect(
+    screen.getAllByText("Source: Oracle Switzerland").length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: EY Switzerland").length).toBeGreaterThan(
     0,
   );
