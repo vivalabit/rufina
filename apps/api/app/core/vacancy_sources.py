@@ -332,6 +332,19 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "ey_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="eth_zurich",
+        name="ETH Zürich",
+        careers_url="https://jobs.ethz.ch/",
+        parser_path=(
+            "app.services.parsers.companies.eth_zurich:EthZurichJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "eth_zurich_jobs_base_url"),
+            ("timeout_seconds", "eth_zurich_jobs_timeout_seconds"),
+            ("detail_workers", "eth_zurich_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

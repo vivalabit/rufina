@@ -198,6 +198,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 24,
     logoHeight: 24,
   },
+  {
+    id: "eth_zurich",
+    name: "ETH Zürich",
+    careersUrl: "https://jobs.ethz.ch/",
+    logoSrc: "/company-logos/eth_zurich.svg",
+    logoAlt: "ETH Zürich logo",
+    logoWidth: 96,
+    logoHeight: 16,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
