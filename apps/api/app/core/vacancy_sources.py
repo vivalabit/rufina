@@ -465,6 +465,18 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="srg_ssr",
+        name="SRG SSR",
+        careers_url="https://www.srgssr.ch/en/jobs-career/jobs",
+        parser_path="app.services.parsers.companies.srg_ssr:SrgSsrJobsParser",
+        settings_map=(
+            ("base_url", "srg_ssr_jobs_base_url"),
+            ("catalog_url", "srg_ssr_jobs_catalog_url"),
+            ("timeout_seconds", "srg_ssr_jobs_timeout_seconds"),
+            ("detail_workers", "srg_ssr_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="ey_switzerland",
         name="EY Switzerland",
         careers_url=(

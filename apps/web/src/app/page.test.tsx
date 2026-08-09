@@ -73,6 +73,7 @@ function importedJobData({
     | "sulzer_switzerland"
     | "siegfried"
     | "msd"
+    | "srg_ssr"
     | "ey_switzerland"
     | "eth_zurich"
     | "siemens_switzerland"
@@ -144,11 +145,13 @@ function importedJobData({
                                                               ? "Siegfried"
                                                               : source === "msd"
                                                                 ? "MSD"
-                                                                : source ===
-                                                                    "ey_switzerland"
-                                                                  ? "EY Switzerland"
+                                                                : source === "srg_ssr"
+                                                                  ? "SRG SSR"
                                                                   : source ===
-                                                                      "eth_zurich"
+                                                                      "ey_switzerland"
+                                                                    ? "EY Switzerland"
+                                                                    : source ===
+                                                                        "eth_zurich"
                                                                     ? "ETH Zürich"
                                                                     : source ===
                                                                         "siemens_switzerland"
@@ -223,11 +226,13 @@ function importedJobData({
                                                             ? "Siegfried AG"
                                                             : source === "msd"
                                                               ? "MSD"
-                                                              : source ===
-                                                                  "ey_switzerland"
-                                                                ? "EY"
+                                                              : source === "srg_ssr"
+                                                                ? "SRG SSR"
                                                                 : source ===
-                                                                    "eth_zurich"
+                                                                    "ey_switzerland"
+                                                                  ? "EY"
+                                                                  : source ===
+                                                                      "eth_zurich"
                                                                   ? "ETH Zürich"
                                                                   : source ===
                                                                       "siemens_switzerland"
@@ -276,6 +281,7 @@ function importedJobData({
       source === "sulzer_switzerland" ||
       source === "siegfried" ||
       source === "msd" ||
+      source === "srg_ssr" ||
       source === "ey_switzerland" ||
       source === "eth_zurich" ||
       source === "siemens_switzerland" ||
@@ -1725,6 +1731,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "HR Intern Switzerland at MSD",
         source: "msd",
       });
+      const srgSsrJob = importedJobData({
+        id: "srg_ssr-ba2e34a8-f6d3-4190-9557-30f463c1420d",
+        title: "Prozessanalyst:in at SRG SSR",
+        source: "srg_ssr",
+      });
       const eySwitzerlandJob = importedJobData({
         id: "ey_switzerland-technology-consultant",
         title: "Technology Consultant at EY",
@@ -1785,6 +1796,7 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: sulzerSwitzerlandJob.id, data: sulzerSwitzerlandJob },
         { id: siegfriedJob.id, data: siegfriedJob },
         { id: msdJob.id, data: msdJob },
+        { id: srgSsrJob.id, data: srgSsrJob },
         { id: eySwitzerlandJob.id, data: eySwitzerlandJob },
         { id: ethZurichJob.id, data: ethZurichJob },
         { id: siemensSwitzerlandJob.id, data: siemensSwitzerlandJob },
@@ -1793,8 +1805,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 30,
-        jobsAdded: 30,
+        jobsFound: 31,
+        jobsAdded: 31,
         sourceErrors: {},
         warning: null,
       });
@@ -1862,6 +1874,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Sulzer Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Siegfried")).toBeInTheDocument();
   expect(screen.getByText("MSD")).toBeInTheDocument();
+  expect(screen.getByText("SRG SSR")).toBeInTheDocument();
   expect(screen.getByText("EY Switzerland")).toBeInTheDocument();
   expect(screen.getByText("ETH Zürich")).toBeInTheDocument();
   expect(screen.getByText("Siemens Schweiz")).toBeInTheDocument();
@@ -1905,6 +1918,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("checkbox", { name: /Sulzer Switzerland/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Siegfried/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /MSD/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /SRG SSR/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /EY Switzerland/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /ETH Zürich/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Siemens Schweiz/ }));
@@ -1936,7 +1950,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 30 of 30 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + MSD + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
+      "Added 31 of 31 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + MSD + SRG SSR + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -1967,6 +1981,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "sulzer_switzerland",
       "siegfried",
       "msd",
+      "srg_ssr",
       "ey_switzerland",
       "eth_zurich",
       "siemens_switzerland",
@@ -2052,6 +2067,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getAllByRole("img", { name: "MSD logo" }).length,
   ).toBeGreaterThan(0);
   expect(
+    screen.getAllByRole("img", { name: "SRG SSR logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
     screen.getAllByRole("img", { name: "EY Switzerland logo" }).length,
   ).toBeGreaterThan(0);
   expect(
@@ -2111,6 +2129,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Siegfried").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: MSD").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: SRG SSR").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: EY Switzerland").length).toBeGreaterThan(
     0,
   );

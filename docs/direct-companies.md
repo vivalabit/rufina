@@ -15,7 +15,7 @@ vacancy-search API key.
 | Swisscom         | [External careers](https://swisscom.wd103.myworkdayjobs.com/en-US/SwisscomExternalCareers)     | Workday API, paginated in batches of 20  |
 | Galaxus          | [Career page](https://jobs.migros.ch/de/unsere-unternehmen/galaxus/)                           | Migros Jobs server-rendered vacancy page |
 | Migros Bank      | [Open vacancies](https://jobs.migros.ch/de/unsere-unternehmen/migros-bank/offene-stellen)      | Migros Jobs server-rendered vacancy page |
-| Die Post         | [Job search](https://job.post.ch/search?locale=en_US)                                          | Multilingual recruiting API, 10 per page |
+| Die Post / PostFinance | [Job search](https://job.post.ch/search?locale=en_US)                                          | Multilingual recruiting API, 10 per page |
 | Raiffeisen       | [Job search](https://jobs.raiffeisen.ch/)                                                      | Prospective JSON API, 96 per page        |
 | Bundesverwaltung | [Stellenportal Bund](https://jobs.admin.ch/?lang=de)                                           | Prospective JSON API, 96 per page        |
 | AXA Schweiz      | [Swiss vacancies](https://careers.axa.com/careers-home/jobs?country=Switzerland&page=1)        | iCIMS/Jibe JSON API, 100 per page        |
@@ -39,6 +39,7 @@ vacancy-search API key.
 | Sulzer Switzerland | [Swiss vacancies](https://sulzer.wd502.myworkdayjobs.com/SulzerJobs?locationcountry=187134fccb084a0ea9b4b95f23890dbe) | Workday paginated JSON API with enriched vacancy details |
 | Siegfried | [Open positions](https://siegfried.wd103.myworkdayjobs.com/external) | Workday paginated JSON API with stable catalog retries and enriched vacancy details |
 | MSD | [Switzerland opportunities](https://jobs.msd.com/gb/en/search-results?rk=page-targeted-jobs-page172-prod-DZJ1ve) | Phenom paginated Swiss catalog with enriched vacancy details |
+| SRG SSR | [Jobs](https://www.srgssr.ch/en/jobs-career/jobs) | Prospective full-catalog HTML with SRG filter and enriched JobPosting detail pages |
 | EY Switzerland | [Swiss career opportunities](https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch=&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1=) | SuccessFactors paginated HTML catalog and JobPosting detail pages |
 | ETH Zürich | [Open positions](https://jobs.ethz.ch/) | Full-catalog HTML page with enriched vacancy detail pages |
 | Siemens Schweiz | [Swiss vacancies](https://jobs.siemens.com/de_DE/externaljobs/SearchJobs/?42386=%5B812129%5D&42386_format=17546&listFilterMode=1&folderRecordsPerPage=6) | Avature paginated HTML catalog and enriched vacancy detail pages |

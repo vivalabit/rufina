@@ -275,6 +275,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "srg_ssr",
+    name: "SRG SSR",
+    careersUrl: "https://www.srgssr.ch/en/jobs-career/jobs",
+    logoSrc: "/company-logos/srg-ssr.svg",
+    logoAlt: "SRG SSR logo",
+    logoWidth: 70,
+    logoHeight: 24,
+  },
+  {
     id: "ey_switzerland",
     name: "EY Switzerland",
     careersUrl:
