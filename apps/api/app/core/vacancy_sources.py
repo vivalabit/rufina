@@ -375,6 +375,17 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="s_peers",
+        name="s-peers",
+        careers_url="https://s-peers.com/karriere-jobs/stellenausschreibungen/",
+        parser_path="app.services.parsers.companies.s_peers:SPeersJobsParser",
+        settings_map=(
+            ("base_url", "s_peers_jobs_base_url"),
+            ("timeout_seconds", "s_peers_jobs_timeout_seconds"),
+            ("detail_workers", "s_peers_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="ey_switzerland",
         name="EY Switzerland",
         careers_url=(

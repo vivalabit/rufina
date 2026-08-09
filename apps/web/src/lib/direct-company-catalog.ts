@@ -218,6 +218,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "s_peers",
+    name: "s-peers",
+    careersUrl: "https://s-peers.com/karriere-jobs/stellenausschreibungen/",
+    logoSrc: "/company-logos/s_peers.svg",
+    logoAlt: "s-peers logo",
+    logoWidth: 112,
+    logoHeight: 24,
+  },
+  {
     id: "ey_switzerland",
     name: "EY Switzerland",
     careersUrl:

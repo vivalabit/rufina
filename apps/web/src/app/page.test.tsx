@@ -67,6 +67,7 @@ function importedJobData({
     | "endress_hauser_switzerland"
     | "microsoft_switzerland"
     | "sap_switzerland"
+    | "s_peers"
     | "ey_switzerland"
     | "eth_zurich"
     | "siemens_switzerland"
@@ -124,21 +125,24 @@ function importedJobData({
                                                   ? "Microsoft Switzerland"
                                                   : source === "sap_switzerland"
                                                     ? "SAP Switzerland"
-                                                    : source ===
-                                                        "ey_switzerland"
-                                                      ? "EY Switzerland"
-                                                      : source === "eth_zurich"
-                                                        ? "ETH Zürich"
+                                                    : source === "s_peers"
+                                                      ? "s-peers"
+                                                      : source ===
+                                                          "ey_switzerland"
+                                                        ? "EY Switzerland"
                                                         : source ===
-                                                            "siemens_switzerland"
-                                                          ? "Siemens Schweiz"
+                                                            "eth_zurich"
+                                                          ? "ETH Zürich"
                                                           : source ===
-                                                              "kpmg_switzerland"
-                                                            ? "KPMG Switzerland"
+                                                              "siemens_switzerland"
+                                                            ? "Siemens Schweiz"
                                                             : source ===
-                                                                "swissgrid"
-                                                              ? "Swissgrid"
-                                                              : "LinkedIn";
+                                                                "kpmg_switzerland"
+                                                              ? "KPMG Switzerland"
+                                                              : source ===
+                                                                  "swissgrid"
+                                                                ? "Swissgrid"
+                                                                : "LinkedIn";
   return {
     id,
     company:
@@ -188,20 +192,23 @@ function importedJobData({
                                                 ? "Microsoft"
                                                 : source === "sap_switzerland"
                                                   ? "SAP"
-                                                  : source === "ey_switzerland"
-                                                    ? "EY"
-                                                    : source === "eth_zurich"
-                                                      ? "ETH Zürich"
-                                                      : source ===
-                                                          "siemens_switzerland"
-                                                        ? "Siemens Schweiz AG"
+                                                  : source === "s_peers"
+                                                    ? "s-peers AG"
+                                                    : source ===
+                                                        "ey_switzerland"
+                                                      ? "EY"
+                                                      : source === "eth_zurich"
+                                                        ? "ETH Zürich"
                                                         : source ===
-                                                            "kpmg_switzerland"
-                                                          ? "KPMG AG"
+                                                            "siemens_switzerland"
+                                                          ? "Siemens Schweiz AG"
                                                           : source ===
-                                                              "swissgrid"
-                                                            ? "Swissgrid"
-                                                            : "Example AG",
+                                                              "kpmg_switzerland"
+                                                            ? "KPMG AG"
+                                                            : source ===
+                                                                "swissgrid"
+                                                              ? "Swissgrid"
+                                                              : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -233,6 +240,7 @@ function importedJobData({
       source === "endress_hauser_switzerland" ||
       source === "microsoft_switzerland" ||
       source === "sap_switzerland" ||
+      source === "s_peers" ||
       source === "ey_switzerland" ||
       source === "eth_zurich" ||
       source === "siemens_switzerland" ||
@@ -1652,6 +1660,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Account Executive at SAP",
         source: "sap_switzerland",
       });
+      const sPeersJob = importedJobData({
+        id: "s_peers-48262",
+        title: "Senior Data Engineer at s-peers",
+        source: "s_peers",
+      });
       const eySwitzerlandJob = importedJobData({
         id: "ey_switzerland-technology-consultant",
         title: "Technology Consultant at EY",
@@ -1706,6 +1719,7 @@ it("shows direct-company vacancies with their company logos", async () => {
           data: microsoftSwitzerlandJob,
         },
         { id: sapSwitzerlandJob.id, data: sapSwitzerlandJob },
+        { id: sPeersJob.id, data: sPeersJob },
         { id: eySwitzerlandJob.id, data: eySwitzerlandJob },
         { id: ethZurichJob.id, data: ethZurichJob },
         { id: siemensSwitzerlandJob.id, data: siemensSwitzerlandJob },
@@ -1714,8 +1728,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 24,
-        jobsAdded: 24,
+        jobsFound: 25,
+        jobsAdded: 25,
         sourceErrors: {},
         warning: null,
       });
@@ -1777,6 +1791,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Endress+Hauser Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Microsoft Switzerland")).toBeInTheDocument();
   expect(screen.getByText("SAP Switzerland")).toBeInTheDocument();
+  expect(screen.getByText("s-peers")).toBeInTheDocument();
   expect(screen.getByText("EY Switzerland")).toBeInTheDocument();
   expect(screen.getByText("ETH Zürich")).toBeInTheDocument();
   expect(screen.getByText("Siemens Schweiz")).toBeInTheDocument();
@@ -1814,6 +1829,7 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getByRole("checkbox", { name: /Microsoft Switzerland/ }),
   );
   fireEvent.click(screen.getByRole("checkbox", { name: /SAP Switzerland/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /s-peers/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /EY Switzerland/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /ETH Zürich/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Siemens Schweiz/ }));
@@ -1845,7 +1861,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 24 of 24 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
+      "Added 25 of 25 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -1870,6 +1886,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "endress_hauser_switzerland",
       "microsoft_switzerland",
       "sap_switzerland",
+      "s_peers",
       "ey_switzerland",
       "eth_zurich",
       "siemens_switzerland",
@@ -1937,6 +1954,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getAllByRole("img", { name: "SAP Switzerland logo" }).length,
   ).toBeGreaterThan(0);
   expect(
+    screen.getAllByRole("img", { name: "s-peers logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
     screen.getAllByRole("img", { name: "EY Switzerland logo" }).length,
   ).toBeGreaterThan(0);
   expect(
@@ -1988,6 +2008,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getAllByText("Source: SAP Switzerland").length).toBeGreaterThan(
     0,
   );
+  expect(screen.getAllByText("Source: s-peers").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: EY Switzerland").length).toBeGreaterThan(
     0,
   );
