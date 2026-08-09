@@ -32,6 +32,7 @@ vacancy-search API key.
 | BDO Switzerland | [Open positions](https://www.bdo.ch/en-gb/careers/open-jobs) | Abacus Job Portal full-catalog JSON API |
 | EY Switzerland | [Swiss career opportunities](https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch=&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1=) | SuccessFactors paginated HTML catalog and JobPosting detail pages |
 | ETH Zürich | [Open positions](https://jobs.ethz.ch/) | Full-catalog HTML page with enriched vacancy detail pages |
+| Siemens Schweiz | [Swiss vacancies](https://jobs.siemens.com/de_DE/externaljobs/SearchJobs/?42386=%5B812129%5D&42386_format=17546&listFilterMode=1&folderRecordsPerPage=6) | Avature paginated HTML catalog and enriched vacancy detail pages |
 
 During a search, Rufina scans all vacancies exposed by the selected company
 source. Every result is saved in the private `discovered_vacancies` inventory

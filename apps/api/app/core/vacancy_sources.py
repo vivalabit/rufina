@@ -345,6 +345,29 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "eth_zurich_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="siemens_switzerland",
+        name="Siemens Schweiz",
+        careers_url=(
+            "https://jobs.siemens.com/de_DE/externaljobs/SearchJobs/"
+            "?42386=%5B812129%5D&42386_format=17546&listFilterMode=1"
+            "&folderRecordsPerPage=6"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.siemens_switzerland:"
+            "SiemensSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "siemens_switzerland_jobs_base_url"),
+            ("timeout_seconds", "siemens_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "siemens_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "siemens_switzerland_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "siemens_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

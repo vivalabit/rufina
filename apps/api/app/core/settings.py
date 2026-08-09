@@ -295,6 +295,27 @@ class Settings(BaseSettings):
         le=120,
     )
     eth_zurich_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    siemens_switzerland_jobs_base_url: str = (
+        "https://jobs.siemens.com/de_DE/externaljobs/SearchJobs/"
+        "?42386=%5B812129%5D&42386_format=17546&listFilterMode=1"
+        "&folderRecordsPerPage=6"
+    )
+    siemens_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    siemens_switzerland_jobs_max_pages: int = Field(default=50, ge=1, le=200)
+    siemens_switzerland_jobs_max_catalog_passes: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+    )
+    siemens_switzerland_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

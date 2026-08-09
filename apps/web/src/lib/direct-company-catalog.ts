@@ -207,6 +207,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 96,
     logoHeight: 16,
   },
+  {
+    id: "siemens_switzerland",
+    name: "Siemens Schweiz",
+    careersUrl:
+      "https://jobs.siemens.com/de_DE/externaljobs/SearchJobs/?42386=%5B812129%5D&42386_format=17546&listFilterMode=1&folderRecordsPerPage=6",
+    logoSrc: "/company-logos/siemens.svg",
+    logoAlt: "Siemens Schweiz logo",
+    logoWidth: 88,
+    logoHeight: 14,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

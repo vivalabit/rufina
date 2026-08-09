@@ -65,7 +65,8 @@ function importedJobData({
     | "huawei_switzerland"
     | "bdo_switzerland"
     | "ey_switzerland"
-    | "eth_zurich";
+    | "eth_zurich"
+    | "siemens_switzerland";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -114,7 +115,10 @@ function importedJobData({
                                                 ? "EY Switzerland"
                                                 : source === "eth_zurich"
                                                   ? "ETH Zürich"
-                                                  : "LinkedIn";
+                                                  : source ===
+                                                      "siemens_switzerland"
+                                                    ? "Siemens Schweiz"
+                                                    : "LinkedIn";
   return {
     id,
     company:
@@ -160,7 +164,10 @@ function importedJobData({
                                               ? "EY"
                                               : source === "eth_zurich"
                                                 ? "ETH Zürich"
-                                                : "Example AG",
+                                                : source ===
+                                                    "siemens_switzerland"
+                                                  ? "Siemens Schweiz AG"
+                                                  : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -190,7 +197,8 @@ function importedJobData({
       source === "huawei_switzerland" ||
       source === "bdo_switzerland" ||
       source === "ey_switzerland" ||
-      source === "eth_zurich"
+      source === "eth_zurich" ||
+      source === "siemens_switzerland"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -1600,6 +1608,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Platform Engineer at ETH Zürich",
         source: "eth_zurich",
       });
+      const siemensSwitzerlandJob = importedJobData({
+        id: "siemens_switzerland-automation-engineer",
+        title: "Automation Engineer at Siemens",
+        source: "siemens_switzerland",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -1622,11 +1635,12 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: bdoSwitzerlandJob.id, data: bdoSwitzerlandJob },
         { id: eySwitzerlandJob.id, data: eySwitzerlandJob },
         { id: ethZurichJob.id, data: ethZurichJob },
+        { id: siemensSwitzerlandJob.id, data: siemensSwitzerlandJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 18,
-        jobsAdded: 18,
+        jobsFound: 19,
+        jobsAdded: 19,
         sourceErrors: {},
         warning: null,
       });
@@ -1687,6 +1701,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("BDO Switzerland")).toBeInTheDocument();
   expect(screen.getByText("EY Switzerland")).toBeInTheDocument();
   expect(screen.getByText("ETH Zürich")).toBeInTheDocument();
+  expect(screen.getByText("Siemens Schweiz")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -1714,6 +1729,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("checkbox", { name: /BDO Switzerland/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /EY Switzerland/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /ETH Zürich/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /Siemens Schweiz/ }));
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1740,7 +1756,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 18 of 18 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + EY Switzerland + ETH Zürich",
+      "Added 19 of 19 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + EY Switzerland + ETH Zürich + Siemens Schweiz",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -1764,6 +1780,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "bdo_switzerland",
       "ey_switzerland",
       "eth_zurich",
+      "siemens_switzerland",
     ],
     aiAnalysisEnabled: true,
   });
@@ -1821,6 +1838,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "ETH Zürich logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Siemens Schweiz logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -1853,6 +1873,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     0,
   );
   expect(screen.getAllByText("Source: ETH Zürich").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Siemens Schweiz").length).toBeGreaterThan(
+    0,
+  );
 });
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {
