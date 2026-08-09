@@ -415,6 +415,24 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="sulzer_switzerland",
+        name="Sulzer Switzerland",
+        careers_url=(
+            "https://sulzer.wd502.myworkdayjobs.com/SulzerJobs?"
+            "locationcountry=187134fccb084a0ea9b4b95f23890dbe"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.sulzer_switzerland:"
+            "SulzerSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "sulzer_switzerland_jobs_base_url"),
+            ("timeout_seconds", "sulzer_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "sulzer_switzerland_jobs_max_pages"),
+            ("detail_workers", "sulzer_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="ey_switzerland",
         name="EY Switzerland",
         careers_url=(

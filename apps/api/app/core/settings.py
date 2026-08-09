@@ -359,6 +359,17 @@ class Settings(BaseSettings):
     emmi_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     emmi_jobs_max_pages: int = Field(default=50, ge=1, le=200)
     emmi_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
+    sulzer_switzerland_jobs_base_url: str = (
+        "https://sulzer.wd502.myworkdayjobs.com/SulzerJobs?"
+        "locationcountry=187134fccb084a0ea9b4b95f23890dbe"
+    )
+    sulzer_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    sulzer_switzerland_jobs_max_pages: int = Field(default=100, ge=1, le=500)
+    sulzer_switzerland_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     ey_switzerland_jobs_base_url: str = (
         "https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch="
         "&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1="

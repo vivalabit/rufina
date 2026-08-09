@@ -36,6 +36,7 @@ vacancy-search API key.
 | s-peers | [Current vacancies](https://s-peers.com/karriere-jobs/stellenausschreibungen/) | WordPress full-catalog HTML page with enriched vacancy detail pages |
 | Mobiliar | [Current vacancies](https://jobs.mobiliar.ch/go/Jobs/506974/) | SuccessFactors paginated JSON API with enriched vacancy detail pages |
 | Emmi | [Open positions](https://group.emmi.com/che/de/arbeiten-bei-emmi/offene-stellen) | Prospective full-catalog JSON API, 96 per page |
+| Sulzer Switzerland | [Swiss vacancies](https://sulzer.wd502.myworkdayjobs.com/SulzerJobs?locationcountry=187134fccb084a0ea9b4b95f23890dbe) | Workday paginated JSON API with enriched vacancy details |
 | EY Switzerland | [Swiss career opportunities](https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch=&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1=) | SuccessFactors paginated HTML catalog and JobPosting detail pages |
 | ETH Zürich | [Open positions](https://jobs.ethz.ch/) | Full-catalog HTML page with enriched vacancy detail pages |
 | Siemens Schweiz | [Swiss vacancies](https://jobs.siemens.com/de_DE/externaljobs/SearchJobs/?42386=%5B812129%5D&42386_format=17546&listFilterMode=1&folderRecordsPerPage=6) | Avature paginated HTML catalog and enriched vacancy detail pages |

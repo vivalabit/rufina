@@ -246,6 +246,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "sulzer_switzerland",
+    name: "Sulzer Switzerland",
+    careersUrl:
+      "https://sulzer.wd502.myworkdayjobs.com/SulzerJobs?locationcountry=187134fccb084a0ea9b4b95f23890dbe",
+    logoSrc: "/company-logos/sulzer.svg",
+    logoAlt: "Sulzer Switzerland logo",
+    logoWidth: 142,
+    logoHeight: 24,
+  },
+  {
     id: "ey_switzerland",
     name: "EY Switzerland",
     careersUrl:
