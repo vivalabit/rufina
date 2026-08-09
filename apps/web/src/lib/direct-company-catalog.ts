@@ -189,6 +189,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 19,
   },
   {
+    id: "endress_hauser_switzerland",
+    name: "Endress+Hauser Switzerland",
+    careersUrl:
+      "https://careers.endress.com/Switzerland/content/search/?locale=en_US&currentPage=1&pageSize=20&addresses%2Fcountry=Switzerland&orderBy=datePosted&isDesc=true",
+    logoSrc: "/company-logos/endress_hauser.svg",
+    logoAlt: "Endress+Hauser Switzerland logo",
+    logoWidth: 96,
+    logoHeight: 23,
+  },
+  {
     id: "ey_switzerland",
     name: "EY Switzerland",
     careersUrl:

@@ -276,6 +276,29 @@ class Settings(BaseSettings):
         ge=1,
         le=120,
     )
+    endress_hauser_switzerland_jobs_base_url: str = (
+        "https://careers.endress.com/Switzerland/content/search/?locale=en_US&"
+        "currentPage=1&pageSize=20&addresses%2Fcountry=Switzerland&"
+        "orderBy=datePosted&isDesc=true"
+    )
+    endress_hauser_switzerland_jobs_api_url: str = (
+        "https://production.api.recruiting-solutions.org/search"
+    )
+    endress_hauser_switzerland_jobs_customer_id: str = "eh-prod"
+    endress_hauser_switzerland_jobs_api_key: str = (
+        "pk_eh-prod_jOlkBMdFBQyRACdPXssVQNAFmWJNbaNarAjCPCXrprNXxKZdIGEsSYHHT"
+        "ThgplaXCvIDHKCibUgkuzwiyqDiBazfQsNnrQRx"
+    )
+    endress_hauser_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    endress_hauser_switzerland_jobs_max_pages: int = Field(
+        default=100,
+        ge=1,
+        le=500,
+    )
     ey_switzerland_jobs_base_url: str = (
         "https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch="
         "&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1="

@@ -313,6 +313,30 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="endress_hauser_switzerland",
+        name="Endress+Hauser Switzerland",
+        careers_url=(
+            "https://careers.endress.com/Switzerland/content/search/?"
+            "locale=en_US&currentPage=1&pageSize=20&"
+            "addresses%2Fcountry=Switzerland&orderBy=datePosted&isDesc=true"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.endress_hauser_switzerland:"
+            "EndressHauserSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "endress_hauser_switzerland_jobs_base_url"),
+            ("api_url", "endress_hauser_switzerland_jobs_api_url"),
+            ("customer_id", "endress_hauser_switzerland_jobs_customer_id"),
+            ("api_key", "endress_hauser_switzerland_jobs_api_key"),
+            (
+                "timeout_seconds",
+                "endress_hauser_switzerland_jobs_timeout_seconds",
+            ),
+            ("max_pages", "endress_hauser_switzerland_jobs_max_pages"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="ey_switzerland",
         name="EY Switzerland",
         careers_url=(
