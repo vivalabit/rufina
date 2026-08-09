@@ -227,6 +227,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "mobiliar",
+    name: "Mobiliar",
+    careersUrl: "https://jobs.mobiliar.ch/go/Jobs/506974/",
+    logoSrc: "/company-logos/mobiliar.svg",
+    logoAlt: "Mobiliar logo",
+    logoWidth: 42,
+    logoHeight: 24,
+  },
+  {
     id: "ey_switzerland",
     name: "EY Switzerland",
     careersUrl:

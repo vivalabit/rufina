@@ -386,6 +386,20 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="mobiliar",
+        name="Mobiliar",
+        careers_url="https://jobs.mobiliar.ch/go/Jobs/506974/",
+        parser_path="app.services.parsers.companies.mobiliar:MobiliarJobsParser",
+        settings_map=(
+            ("base_url", "mobiliar_jobs_base_url"),
+            ("api_url", "mobiliar_jobs_api_url"),
+            ("timeout_seconds", "mobiliar_jobs_timeout_seconds"),
+            ("max_pages", "mobiliar_jobs_max_pages"),
+            ("max_catalog_passes", "mobiliar_jobs_max_catalog_passes"),
+            ("detail_workers", "mobiliar_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="ey_switzerland",
         name="EY Switzerland",
         careers_url=(

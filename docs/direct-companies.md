@@ -34,6 +34,7 @@ vacancy-search API key.
 | Microsoft Switzerland | [Swiss vacancies](https://apply.careers.microsoft.com/careers?start=0&location=Switzerland%2C+Z%C3%BCrich%2C+Z%C3%BCrich&pid=1970393556942270&sort_by=distance&filter_distance=160&filter_include_remote=1&filter_include_relocation=0) | Eightfold PCS paginated JSON API with enriched vacancy details |
 | SAP Switzerland | [SAP jobs in Switzerland](https://jobs.sap.com/go/SAP-Jobs-in-Switzerland/915101/) | SuccessFactors paginated HTML catalog and enriched JobPosting detail pages |
 | s-peers | [Current vacancies](https://s-peers.com/karriere-jobs/stellenausschreibungen/) | WordPress full-catalog HTML page with enriched vacancy detail pages |
+| Mobiliar | [Current vacancies](https://jobs.mobiliar.ch/go/Jobs/506974/) | SuccessFactors paginated JSON API with enriched vacancy detail pages |
 | EY Switzerland | [Swiss career opportunities](https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch=&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1=) | SuccessFactors paginated HTML catalog and JobPosting detail pages |
 | ETH Zürich | [Open positions](https://jobs.ethz.ch/) | Full-catalog HTML page with enriched vacancy detail pages |
 | Siemens Schweiz | [Swiss vacancies](https://jobs.siemens.com/de_DE/externaljobs/SearchJobs/?42386=%5B812129%5D&42386_format=17546&listFilterMode=1&folderRecordsPerPage=6) | Avature paginated HTML catalog and enriched vacancy detail pages |
