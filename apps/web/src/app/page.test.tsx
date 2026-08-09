@@ -67,7 +67,8 @@ function importedJobData({
     | "ey_switzerland"
     | "eth_zurich"
     | "siemens_switzerland"
-    | "kpmg_switzerland";
+    | "kpmg_switzerland"
+    | "swissgrid";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -122,7 +123,9 @@ function importedJobData({
                                                     : source ===
                                                         "kpmg_switzerland"
                                                       ? "KPMG Switzerland"
-                                                      : "LinkedIn";
+                                                      : source === "swissgrid"
+                                                        ? "Swissgrid"
+                                                        : "LinkedIn";
   return {
     id,
     company:
@@ -174,7 +177,9 @@ function importedJobData({
                                                   : source ===
                                                       "kpmg_switzerland"
                                                     ? "KPMG AG"
-                                                    : "Example AG",
+                                                    : source === "swissgrid"
+                                                      ? "Swissgrid"
+                                                      : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -206,7 +211,8 @@ function importedJobData({
       source === "ey_switzerland" ||
       source === "eth_zurich" ||
       source === "siemens_switzerland" ||
-      source === "kpmg_switzerland"
+      source === "kpmg_switzerland" ||
+      source === "swissgrid"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -1626,6 +1632,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Technology Consultant at KPMG",
         source: "kpmg_switzerland",
       });
+      const swissgridJob = importedJobData({
+        id: "swissgrid-cloud-engineer",
+        title: "Cloud Engineer at Swissgrid",
+        source: "swissgrid",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -1650,11 +1661,12 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: ethZurichJob.id, data: ethZurichJob },
         { id: siemensSwitzerlandJob.id, data: siemensSwitzerlandJob },
         { id: kpmgSwitzerlandJob.id, data: kpmgSwitzerlandJob },
+        { id: swissgridJob.id, data: swissgridJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 20,
-        jobsAdded: 20,
+        jobsFound: 21,
+        jobsAdded: 21,
         sourceErrors: {},
         warning: null,
       });
@@ -1717,6 +1729,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("ETH Zürich")).toBeInTheDocument();
   expect(screen.getByText("Siemens Schweiz")).toBeInTheDocument();
   expect(screen.getByText("KPMG Switzerland")).toBeInTheDocument();
+  expect(screen.getByText("Swissgrid")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -1746,6 +1759,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("checkbox", { name: /ETH Zürich/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Siemens Schweiz/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /KPMG Switzerland/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /Swissgrid/ }));
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -1772,7 +1786,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 20 of 20 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland",
+      "Added 21 of 21 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -1798,6 +1812,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "eth_zurich",
       "siemens_switzerland",
       "kpmg_switzerland",
+      "swissgrid",
     ],
     aiAnalysisEnabled: true,
   });
@@ -1861,6 +1876,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "KPMG Switzerland logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Swissgrid logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -1899,6 +1917,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByText("Source: KPMG Switzerland").length,
   ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Swissgrid").length).toBeGreaterThan(0);
 });
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

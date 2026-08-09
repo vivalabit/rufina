@@ -226,6 +226,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 64,
     logoHeight: 25,
   },
+  {
+    id: "swissgrid",
+    name: "Swissgrid",
+    careersUrl: "https://www.swissgrid.ch/en/home/career/jobs.html",
+    logoSrc: "/company-logos/swissgrid.svg",
+    logoAlt: "Swissgrid logo",
+    logoWidth: 88,
+    logoHeight: 22,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

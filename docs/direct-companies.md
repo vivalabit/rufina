@@ -34,6 +34,7 @@ vacancy-search API key.
 | ETH Zürich | [Open positions](https://jobs.ethz.ch/) | Full-catalog HTML page with enriched vacancy detail pages |
 | Siemens Schweiz | [Swiss vacancies](https://jobs.siemens.com/de_DE/externaljobs/SearchJobs/?42386=%5B812129%5D&42386_format=17546&listFilterMode=1&folderRecordsPerPage=6) | Avature paginated HTML catalog and enriched vacancy detail pages |
 | KPMG Switzerland | [Open positions](https://kpmg.com/ch/de/karriere/offene-stellen.html) | Prospective full-catalog JSON API, 96 per page |
+| Swissgrid | [Vacancies](https://www.swissgrid.ch/en/home/career/jobs.html) | Full-catalog Magnolia JSON endpoint with SuccessFactors detail pages |
 
 During a search, Rufina scans all vacancies exposed by the selected company
 source. Every result is saved in the private `discovered_vacancies` inventory

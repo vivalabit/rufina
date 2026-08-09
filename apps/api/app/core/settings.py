@@ -333,6 +333,16 @@ class Settings(BaseSettings):
         ge=1,
         le=20,
     )
+    swissgrid_jobs_base_url: str = (
+        "https://www.swissgrid.ch/en/home/career/jobs.html"
+    )
+    swissgrid_jobs_api_url: str = (
+        "https://www.swissgrid.ch/.rest/cloud/component-data"
+        "?path=%2Fswissgrid%2Fen%2Fhome%2Fcareer%2Fjobs%2Fmain%2F"
+        "joblist_transferred_11"
+    )
+    swissgrid_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    swissgrid_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

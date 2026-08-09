@@ -387,6 +387,18 @@ DIRECT_COMPANY_PARSERS = (
             ),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="swissgrid",
+        name="Swissgrid",
+        careers_url="https://www.swissgrid.ch/en/home/career/jobs.html",
+        parser_path="app.services.parsers.companies.swissgrid:SwissgridJobsParser",
+        settings_map=(
+            ("base_url", "swissgrid_jobs_base_url"),
+            ("api_url", "swissgrid_jobs_api_url"),
+            ("timeout_seconds", "swissgrid_jobs_timeout_seconds"),
+            ("detail_workers", "swissgrid_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
