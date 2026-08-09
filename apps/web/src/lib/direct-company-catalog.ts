@@ -265,6 +265,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "switch",
+    name: "Switch",
+    careersUrl: "https://recruitingapp-2563.umantis.com/Jobs/1?lang=ger",
+    logoSrc: "/company-logos/switch.svg",
+    logoAlt: "Switch logo",
+    logoWidth: 81,
+    logoHeight: 24,
+  },
+  {
     id: "msd",
     name: "MSD",
     careersUrl:

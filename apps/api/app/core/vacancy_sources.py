@@ -448,6 +448,20 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="switch",
+        name="Switch",
+        careers_url=(
+            "https://recruitingapp-2563.umantis.com/Jobs/1?lang=ger"
+        ),
+        parser_path="app.services.parsers.companies.switch:SwitchJobsParser",
+        settings_map=(
+            ("base_url", "switch_jobs_base_url"),
+            ("timeout_seconds", "switch_jobs_timeout_seconds"),
+            ("max_pages", "switch_jobs_max_pages"),
+            ("detail_workers", "switch_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="msd",
         name="MSD",
         careers_url=(
