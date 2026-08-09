@@ -509,6 +509,25 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="buhler_switzerland",
+        name="Bühler Schweiz",
+        careers_url="https://jobs.buhlergroup.com/?lang=de",
+        parser_path=(
+            "app.services.parsers.companies.buhler_switzerland:"
+            "BuhlerSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "buhler_switzerland_jobs_base_url"),
+            ("api_url", "buhler_switzerland_jobs_api_url"),
+            ("timeout_seconds", "buhler_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "buhler_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "buhler_switzerland_jobs_max_catalog_passes",
+            ),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="ey_switzerland",
         name="EY Switzerland",
         careers_url=(

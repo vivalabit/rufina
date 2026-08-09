@@ -412,6 +412,23 @@ class Settings(BaseSettings):
     google_jobs_max_pages: int = Field(default=100, ge=1, le=500)
     google_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
     google_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    buhler_switzerland_jobs_base_url: str = (
+        "https://jobs.buhlergroup.com/?lang=de"
+    )
+    buhler_switzerland_jobs_api_url: str = (
+        "https://ohws.prospective.ch/public/v1/medium/1008005/jobs"
+    )
+    buhler_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    buhler_switzerland_jobs_max_pages: int = Field(default=100, ge=1, le=500)
+    buhler_switzerland_jobs_max_catalog_passes: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+    )
     ey_switzerland_jobs_base_url: str = (
         "https://careers.ey.com/ey/search/?createNewAlert=false&q=&locationsearch="
         "&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1="

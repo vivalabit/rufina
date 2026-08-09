@@ -304,6 +304,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "buhler_switzerland",
+    name: "Bühler Schweiz",
+    careersUrl: "https://jobs.buhlergroup.com/?lang=de",
+    logoSrc: "/company-logos/buhler.svg",
+    logoAlt: "Bühler Schweiz logo",
+    logoWidth: 96,
+    logoHeight: 24,
+  },
+  {
     id: "ey_switzerland",
     name: "EY Switzerland",
     careersUrl:
