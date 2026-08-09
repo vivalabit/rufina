@@ -433,6 +433,21 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="siegfried",
+        name="Siegfried",
+        careers_url="https://siegfried.wd103.myworkdayjobs.com/external",
+        parser_path=(
+            "app.services.parsers.companies.siegfried:SiegfriedJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "siegfried_jobs_base_url"),
+            ("timeout_seconds", "siegfried_jobs_timeout_seconds"),
+            ("max_pages", "siegfried_jobs_max_pages"),
+            ("max_catalog_passes", "siegfried_jobs_max_catalog_passes"),
+            ("detail_workers", "siegfried_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="ey_switzerland",
         name="EY Switzerland",
         careers_url=(

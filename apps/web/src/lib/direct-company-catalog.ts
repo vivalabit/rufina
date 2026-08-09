@@ -256,6 +256,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "siegfried",
+    name: "Siegfried",
+    careersUrl: "https://siegfried.wd103.myworkdayjobs.com/external",
+    logoSrc: "/company-logos/siegfried.png",
+    logoAlt: "Siegfried logo",
+    logoWidth: 59,
+    logoHeight: 24,
+  },
+  {
     id: "ey_switzerland",
     name: "EY Switzerland",
     careersUrl:

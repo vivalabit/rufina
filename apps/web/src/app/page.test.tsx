@@ -71,6 +71,7 @@ function importedJobData({
     | "mobiliar"
     | "emmi"
     | "sulzer_switzerland"
+    | "siegfried"
     | "ey_switzerland"
     | "eth_zurich"
     | "siemens_switzerland"
@@ -138,21 +139,24 @@ function importedJobData({
                                                               "sulzer_switzerland"
                                                             ? "Sulzer Switzerland"
                                                             : source ===
-                                                                "ey_switzerland"
-                                                              ? "EY Switzerland"
+                                                                "siegfried"
+                                                              ? "Siegfried"
                                                               : source ===
-                                                                  "eth_zurich"
-                                                                ? "ETH Zürich"
+                                                                  "ey_switzerland"
+                                                                ? "EY Switzerland"
                                                                 : source ===
-                                                                    "siemens_switzerland"
-                                                                  ? "Siemens Schweiz"
+                                                                    "eth_zurich"
+                                                                  ? "ETH Zürich"
                                                                   : source ===
-                                                                      "kpmg_switzerland"
-                                                                    ? "KPMG Switzerland"
+                                                                      "siemens_switzerland"
+                                                                    ? "Siemens Schweiz"
                                                                     : source ===
-                                                                        "swissgrid"
-                                                                      ? "Swissgrid"
-                                                                      : "LinkedIn";
+                                                                        "kpmg_switzerland"
+                                                                      ? "KPMG Switzerland"
+                                                                      : source ===
+                                                                          "swissgrid"
+                                                                        ? "Swissgrid"
+                                                                        : "LinkedIn";
   return {
     id,
     company:
@@ -212,21 +216,24 @@ function importedJobData({
                                                             "sulzer_switzerland"
                                                           ? "Sulzer Management AG"
                                                           : source ===
-                                                              "ey_switzerland"
-                                                            ? "EY"
+                                                              "siegfried"
+                                                            ? "Siegfried AG"
                                                             : source ===
-                                                                "eth_zurich"
-                                                              ? "ETH Zürich"
+                                                                "ey_switzerland"
+                                                              ? "EY"
                                                               : source ===
-                                                                  "siemens_switzerland"
-                                                                ? "Siemens Schweiz AG"
+                                                                  "eth_zurich"
+                                                                ? "ETH Zürich"
                                                                 : source ===
-                                                                    "kpmg_switzerland"
-                                                                  ? "KPMG AG"
+                                                                    "siemens_switzerland"
+                                                                  ? "Siemens Schweiz AG"
                                                                   : source ===
-                                                                      "swissgrid"
-                                                                    ? "Swissgrid"
-                                                                    : "Example AG",
+                                                                      "kpmg_switzerland"
+                                                                    ? "KPMG AG"
+                                                                    : source ===
+                                                                        "swissgrid"
+                                                                      ? "Swissgrid"
+                                                                      : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -262,6 +269,7 @@ function importedJobData({
       source === "mobiliar" ||
       source === "emmi" ||
       source === "sulzer_switzerland" ||
+      source === "siegfried" ||
       source === "ey_switzerland" ||
       source === "eth_zurich" ||
       source === "siemens_switzerland" ||
@@ -1701,6 +1709,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Head of Product Marketing at Sulzer",
         source: "sulzer_switzerland",
       });
+      const siegfriedJob = importedJobData({
+        id: "siegfried-r26-655",
+        title: "Head Maintenance at Siegfried",
+        source: "siegfried",
+      });
       const eySwitzerlandJob = importedJobData({
         id: "ey_switzerland-technology-consultant",
         title: "Technology Consultant at EY",
@@ -1759,6 +1772,7 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: mobiliarJob.id, data: mobiliarJob },
         { id: emmiJob.id, data: emmiJob },
         { id: sulzerSwitzerlandJob.id, data: sulzerSwitzerlandJob },
+        { id: siegfriedJob.id, data: siegfriedJob },
         { id: eySwitzerlandJob.id, data: eySwitzerlandJob },
         { id: ethZurichJob.id, data: ethZurichJob },
         { id: siemensSwitzerlandJob.id, data: siemensSwitzerlandJob },
@@ -1767,8 +1781,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 28,
-        jobsAdded: 28,
+        jobsFound: 29,
+        jobsAdded: 29,
         sourceErrors: {},
         warning: null,
       });
@@ -1834,6 +1848,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Mobiliar")).toBeInTheDocument();
   expect(screen.getByText("Emmi")).toBeInTheDocument();
   expect(screen.getByText("Sulzer Switzerland")).toBeInTheDocument();
+  expect(screen.getByText("Siegfried")).toBeInTheDocument();
   expect(screen.getByText("EY Switzerland")).toBeInTheDocument();
   expect(screen.getByText("ETH Zürich")).toBeInTheDocument();
   expect(screen.getByText("Siemens Schweiz")).toBeInTheDocument();
@@ -1875,6 +1890,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("checkbox", { name: /Mobiliar/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Emmi/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Sulzer Switzerland/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /Siegfried/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /EY Switzerland/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /ETH Zürich/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Siemens Schweiz/ }));
@@ -1906,7 +1922,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 28 of 28 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
+      "Added 29 of 29 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -1935,6 +1951,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "mobiliar",
       "emmi",
       "sulzer_switzerland",
+      "siegfried",
       "ey_switzerland",
       "eth_zurich",
       "siemens_switzerland",
@@ -2014,6 +2031,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getAllByRole("img", { name: "Sulzer Switzerland logo" }).length,
   ).toBeGreaterThan(0);
   expect(
+    screen.getAllByRole("img", { name: "Siegfried logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
     screen.getAllByRole("img", { name: "EY Switzerland logo" }).length,
   ).toBeGreaterThan(0);
   expect(
@@ -2071,6 +2091,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByText("Source: Sulzer Switzerland").length,
   ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Siegfried").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: EY Switzerland").length).toBeGreaterThan(
     0,
   );
