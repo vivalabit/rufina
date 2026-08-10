@@ -302,6 +302,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "aveniq",
+    name: "Aveniq",
+    careersUrl: "https://aveniq.recruitee.com/",
+    logoSrc: "/company-logos/aveniq.svg",
+    logoAlt: "Aveniq logo",
+    logoWidth: 96,
+    logoHeight: 20,
+  },
+  {
     id: "msd",
     name: "MSD",
     careersUrl:

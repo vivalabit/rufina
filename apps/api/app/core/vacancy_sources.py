@@ -508,6 +508,18 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="aveniq",
+        name="Aveniq",
+        careers_url="https://aveniq.recruitee.com/",
+        parser_path="app.services.parsers.companies.aveniq:AveniqJobsParser",
+        settings_map=(
+            ("base_url", "aveniq_jobs_base_url"),
+            ("api_url", "aveniq_jobs_api_url"),
+            ("timeout_seconds", "aveniq_jobs_timeout_seconds"),
+            ("max_jobs", "aveniq_jobs_max_jobs"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="msd",
         name="MSD",
         careers_url=(
