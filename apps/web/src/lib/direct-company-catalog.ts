@@ -320,6 +320,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "unit8_switzerland",
+    name: "Unit8 Switzerland",
+    careersUrl: "https://unit8.com/career/",
+    logoSrc: "/company-logos/unit8.svg",
+    logoAlt: "Unit8 Switzerland logo",
+    logoWidth: 82,
+    logoHeight: 24,
+  },
+  {
     id: "msd",
     name: "MSD",
     careersUrl:

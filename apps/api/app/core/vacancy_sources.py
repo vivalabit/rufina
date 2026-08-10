@@ -532,6 +532,22 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="unit8_switzerland",
+        name="Unit8 Switzerland",
+        careers_url="https://unit8.com/career/",
+        parser_path=(
+            "app.services.parsers.companies.unit8_switzerland:"
+            "Unit8SwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "unit8_switzerland_jobs_base_url"),
+            ("api_url", "unit8_switzerland_jobs_api_url"),
+            ("timeout_seconds", "unit8_switzerland_jobs_timeout_seconds"),
+            ("max_jobs", "unit8_switzerland_jobs_max_jobs"),
+            ("detail_workers", "unit8_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="msd",
         name="MSD",
         careers_url=(

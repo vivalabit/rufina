@@ -418,6 +418,17 @@ class Settings(BaseSettings):
     mimacom_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     mimacom_jobs_max_jobs: int = Field(default=500, ge=1, le=5000)
     mimacom_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    unit8_switzerland_jobs_base_url: str = "https://unit8.com/career/"
+    unit8_switzerland_jobs_api_url: str = (
+        "https://apply.workable.com/api/v1/widget/accounts/unit8"
+    )
+    unit8_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    unit8_switzerland_jobs_max_jobs: int = Field(default=500, ge=1, le=5000)
+    unit8_switzerland_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     msd_jobs_base_url: str = (
         "https://jobs.msd.com/gb/en/search-results?"
         "rk=page-targeted-jobs-page172-prod-DZJ1ve"
