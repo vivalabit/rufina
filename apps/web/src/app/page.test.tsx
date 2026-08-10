@@ -101,7 +101,8 @@ function importedJobData({
     | "swatch_group"
     | "amazon_switzerland"
     | "cognizant_switzerland"
-    | "fisba";
+    | "fisba"
+    | "gritec";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -251,12 +252,15 @@ function importedJobData({
                                                                                                                         "fisba"
                                                                                                                       ? "FISBA"
                                                                                                                       : source ===
-                                                                                                                          "axpo_switzerland"
-                                                                                                                        ? "Axpo Switzerland"
+                                                                                                                          "gritec"
+                                                                                                                        ? "GRITEC"
                                                                                                                         : source ===
-                                                                                                                            "ringier"
-                                                                                                                          ? "Ringier"
-                                                                                                                          : "LinkedIn";
+                                                                                                                            "axpo_switzerland"
+                                                                                                                          ? "Axpo Switzerland"
+                                                                                                                          : source ===
+                                                                                                                              "ringier"
+                                                                                                                            ? "Ringier"
+                                                                                                                            : "LinkedIn";
   return {
     id,
     company:
@@ -403,12 +407,15 @@ function importedJobData({
                                                                                                                       "fisba"
                                                                                                                     ? "FISBA AG"
                                                                                                                     : source ===
-                                                                                                                        "axpo_switzerland"
-                                                                                                                      ? "Axpo Group"
+                                                                                                                        "gritec"
+                                                                                                                      ? "GRITEC AG"
                                                                                                                       : source ===
-                                                                                                                          "ringier"
-                                                                                                                        ? "Ringier AG"
-                                                                                                                        : "Example AG",
+                                                                                                                          "axpo_switzerland"
+                                                                                                                        ? "Axpo Group"
+                                                                                                                        : source ===
+                                                                                                                            "ringier"
+                                                                                                                          ? "Ringier AG"
+                                                                                                                          : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -474,7 +481,8 @@ function importedJobData({
       source === "swatch_group" ||
       source === "amazon_switzerland" ||
       source === "cognizant_switzerland" ||
-      source === "fisba"
+      source === "fisba" ||
+      source === "gritec"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -2064,6 +2072,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Einkäufer at FISBA",
         source: "fisba",
       });
+      const gritecJob = importedJobData({
+        id: "gritec-63f65b7f-9508-402d-aab7-5ff491cb5f0f",
+        title: "Software Engineer at GRITEC",
+        source: "gritec",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -2128,11 +2141,12 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: amazonSwitzerlandJob.id, data: amazonSwitzerlandJob },
         { id: cognizantSwitzerlandJob.id, data: cognizantSwitzerlandJob },
         { id: fisbaJob.id, data: fisbaJob },
+        { id: gritecJob.id, data: gritecJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 54,
-        jobsAdded: 54,
+        jobsFound: 55,
+        jobsAdded: 55,
         sourceErrors: {},
         warning: null,
       });
@@ -2231,6 +2245,7 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getByText("Cognizant Technology Solutions AG"),
   ).toBeInTheDocument();
   expect(screen.getByText("FISBA")).toBeInTheDocument();
+  expect(screen.getByText("GRITEC")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -2266,7 +2281,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 54 of 54 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA",
+      "Added 55 of 55 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2326,6 +2341,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "amazon_switzerland",
       "cognizant_switzerland",
       "fisba",
+      "gritec",
     ],
     aiAnalysisEnabled: true,
   });
@@ -2494,6 +2510,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "FISBA logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "GRITEC logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -2592,6 +2611,7 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getAllByText("Source: Cognizant Technology Solutions AG").length,
   ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: FISBA").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: GRITEC").length).toBeGreaterThan(0);
 }, 15_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

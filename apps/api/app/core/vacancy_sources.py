@@ -947,6 +947,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "fisba_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="gritec",
+        name="GRITEC",
+        careers_url="https://www.gritec.ch/en/career",
+        parser_path="app.services.parsers.companies.gritec:GritecJobsParser",
+        settings_map=(
+            ("base_url", "gritec_jobs_base_url"),
+            ("timeout_seconds", "gritec_jobs_timeout_seconds"),
+            ("detail_workers", "gritec_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

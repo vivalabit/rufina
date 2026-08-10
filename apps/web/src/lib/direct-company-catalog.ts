@@ -548,6 +548,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 84,
     logoHeight: 24,
   },
+  {
+    id: "gritec",
+    name: "GRITEC",
+    careersUrl: "https://www.gritec.ch/en/career",
+    logoSrc: "/company-logos/gritec.svg",
+    logoAlt: "GRITEC logo",
+    logoWidth: 81,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
