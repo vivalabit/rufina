@@ -913,6 +913,29 @@ DIRECT_COMPANY_PARSERS = (
             ),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="cognizant_switzerland",
+        name="Cognizant Technology Solutions AG",
+        careers_url=(
+            "https://careers.cognizant.com/global-en/jobs/?keyword="
+            "&location=Switzerland&lat=&lng=&cname=Switzerland&ccode=CH"
+            "&origin=global"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.cognizant_switzerland:"
+            "CognizantSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "cognizant_switzerland_jobs_base_url"),
+            ("timeout_seconds", "cognizant_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "cognizant_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "cognizant_switzerland_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "cognizant_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

@@ -529,6 +529,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 42,
     logoHeight: 24,
   },
+  {
+    id: "cognizant_switzerland",
+    name: "Cognizant Technology Solutions AG",
+    careersUrl:
+      "https://careers.cognizant.com/global-en/jobs/?keyword=&location=Switzerland&lat=&lng=&cname=Switzerland&ccode=CH&origin=global",
+    logoSrc: "/company-logos/cognizant.svg",
+    logoAlt: "Cognizant Technology Solutions AG logo",
+    logoWidth: 112,
+    logoHeight: 20,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
