@@ -958,6 +958,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "gritec_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="helbling",
+        name="Helbling",
+        careers_url="https://helbling.ch/de/karriere/jobs",
+        parser_path="app.services.parsers.companies.helbling:HelblingJobsParser",
+        settings_map=(
+            ("base_url", "helbling_jobs_base_url"),
+            ("timeout_seconds", "helbling_jobs_timeout_seconds"),
+            ("detail_workers", "helbling_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

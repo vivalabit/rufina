@@ -557,6 +557,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 81,
     logoHeight: 24,
   },
+  {
+    id: "helbling",
+    name: "Helbling",
+    careersUrl: "https://helbling.ch/de/karriere/jobs",
+    logoSrc: "/company-logos/helbling.svg",
+    logoAlt: "Helbling logo",
+    logoWidth: 100,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

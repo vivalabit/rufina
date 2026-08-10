@@ -702,6 +702,9 @@ class Settings(BaseSettings):
     gritec_jobs_base_url: str = "https://www.gritec.ch/en/career"
     gritec_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     gritec_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    helbling_jobs_base_url: str = "https://helbling.ch/de/karriere/jobs"
+    helbling_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    helbling_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,
