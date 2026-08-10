@@ -820,6 +820,19 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "ao_foundation_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="skyguide",
+        name="Skyguide",
+        careers_url="https://jobs.skyguide.ch/search?locale=en_US",
+        parser_path="app.services.parsers.companies.skyguide:SkyguideJobsParser",
+        settings_map=(
+            ("base_url", "skyguide_jobs_base_url"),
+            ("timeout_seconds", "skyguide_jobs_timeout_seconds"),
+            ("max_pages", "skyguide_jobs_max_pages"),
+            ("max_catalog_passes", "skyguide_jobs_max_catalog_passes"),
+            ("detail_workers", "skyguide_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

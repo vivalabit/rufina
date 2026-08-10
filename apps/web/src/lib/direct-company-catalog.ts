@@ -480,6 +480,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 45,
     logoHeight: 24,
   },
+  {
+    id: "skyguide",
+    name: "Skyguide",
+    careersUrl: "https://jobs.skyguide.ch/search?locale=en_US",
+    logoSrc: "/company-logos/skyguide.svg",
+    logoAlt: "Skyguide logo",
+    logoWidth: 24,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
