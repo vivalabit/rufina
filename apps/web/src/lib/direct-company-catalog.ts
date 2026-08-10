@@ -519,6 +519,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 84,
     logoHeight: 24,
   },
+  {
+    id: "amazon_switzerland",
+    name: "Amazon Switzerland",
+    careersUrl:
+      "https://www.amazon.jobs/content/en/locations/switzerland/zurich",
+    logoSrc: "/company-logos/amazon_jobs.svg",
+    logoAlt: "Amazon Switzerland logo",
+    logoWidth: 42,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

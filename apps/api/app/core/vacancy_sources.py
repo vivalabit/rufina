@@ -892,6 +892,27 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "swatch_group_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="amazon_switzerland",
+        name="Amazon Switzerland",
+        careers_url=(
+            "https://www.amazon.jobs/content/en/locations/switzerland/zurich"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.amazon_switzerland:"
+            "AmazonSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "amazon_switzerland_jobs_base_url"),
+            ("api_url", "amazon_switzerland_jobs_api_url"),
+            ("timeout_seconds", "amazon_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "amazon_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "amazon_switzerland_jobs_max_catalog_passes",
+            ),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
