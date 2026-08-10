@@ -833,6 +833,26 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "skyguide_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="roche_switzerland",
+        name="Roche Switzerland",
+        careers_url="https://careers.roche.com/global/en/search-results",
+        parser_path=(
+            "app.services.parsers.companies.roche_switzerland:"
+            "RocheSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "roche_switzerland_jobs_base_url"),
+            ("timeout_seconds", "roche_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "roche_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "roche_switzerland_jobs_max_catalog_passes",
+            ),
+            ("page_workers", "roche_switzerland_jobs_page_workers"),
+            ("detail_workers", "roche_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

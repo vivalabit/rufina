@@ -489,6 +489,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 24,
     logoHeight: 24,
   },
+  {
+    id: "roche_switzerland",
+    name: "Roche Switzerland",
+    careersUrl: "https://careers.roche.com/global/en/search-results",
+    logoSrc: "/company-logos/roche.svg",
+    logoAlt: "Roche Switzerland logo",
+    logoWidth: 46,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

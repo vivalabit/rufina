@@ -95,7 +95,8 @@ function importedJobData({
     | "swissgrid"
     | "suva"
     | "ao_foundation"
-    | "skyguide";
+    | "skyguide"
+    | "roche_switzerland";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -226,6 +227,9 @@ function importedJobData({
                                                                                                         : source ===
                                                                                                             "skyguide"
                                                                                                           ? "Skyguide"
+                                                                                                          : source ===
+                                                                                                              "roche_switzerland"
+                                                                                                            ? "Roche Switzerland"
                                                                                                     : source ===
                                                                                                         "axpo_switzerland"
                                                                                                       ? "Axpo Switzerland"
@@ -360,6 +364,9 @@ function importedJobData({
                                                                                                       : source ===
                                                                                                           "skyguide"
                                                                                                         ? "Skyguide"
+                                                                                                        : source ===
+                                                                                                            "roche_switzerland"
+                                                                                                          ? "Roche"
                                                                                                   : source ===
                                                                                                       "axpo_switzerland"
                                                                                                     ? "Axpo Group"
@@ -426,7 +433,8 @@ function importedJobData({
       source === "swissgrid" ||
       source === "suva" ||
       source === "ao_foundation" ||
-      source === "skyguide"
+      source === "skyguide" ||
+      source === "roche_switzerland"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -1986,6 +1994,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Network Architect at Skyguide",
         source: "skyguide",
       });
+      const rocheSwitzerlandJob = importedJobData({
+        id: "roche_switzerland-202603-108151",
+        title: "Computational Scientist at Roche",
+        source: "roche_switzerland",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -2044,11 +2057,12 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: suvaJob.id, data: suvaJob },
         { id: aoFoundationJob.id, data: aoFoundationJob },
         { id: skyguideJob.id, data: skyguideJob },
+        { id: rocheSwitzerlandJob.id, data: rocheSwitzerlandJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 48,
-        jobsAdded: 48,
+        jobsFound: 49,
+        jobsAdded: 49,
         sourceErrors: {},
         warning: null,
       });
@@ -2139,67 +2153,16 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Suva")).toBeInTheDocument();
   expect(screen.getByText("AO Foundation")).toBeInTheDocument();
   expect(screen.getByText("Skyguide")).toBeInTheDocument();
+  expect(screen.getByText("Roche Switzerland")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Select all" })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Add company" })).toBeNull();
-  fireEvent.click(screen.getByRole("checkbox", { name: /Migros Bank/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Die Post/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Raiffeisen/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Bundesverwaltung/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /AXA Schweiz/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Sunrise/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /ISS Schweiz/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Accenture/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /CSEM/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Deloitte/ }));
-  fireEvent.click(
-    screen.getByRole("checkbox", { name: /Zürcher Kantonalbank/ }),
-  );
-  fireEvent.click(screen.getByRole("checkbox", { name: /Flughafen Zürich/ }));
-  fireEvent.click(
-    screen.getByRole("checkbox", { name: /UBS Students & Graduates/ }),
-  );
-  fireEvent.click(screen.getByRole("checkbox", { name: /ABB Schweiz/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Huawei Switzerland/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /BDO Switzerland/ }));
-  fireEvent.click(
-    screen.getByRole("checkbox", { name: /Endress\+Hauser Switzerland/ }),
-  );
-  fireEvent.click(
-    screen.getByRole("checkbox", { name: /Microsoft Switzerland/ }),
-  );
-  fireEvent.click(screen.getByRole("checkbox", { name: /SAP Switzerland/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /s-peers/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Mobiliar/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Emmi/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Sulzer Switzerland/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Siegfried/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Switch/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Swiss Re/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Baloise/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /ELCA/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Aveniq/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Mimacom/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Unit8 Switzerland/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Axpo Switzerland/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Ringier/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /MSD/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /SRG SSR/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /IBM/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Google/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Bühler Schweiz/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Oracle Switzerland/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Adnovum/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /EY Switzerland/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /ETH Zürich/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Siemens Schweiz/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /KPMG Switzerland/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Swissgrid/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Suva/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /AO Foundation/ }));
-  fireEvent.click(screen.getByRole("checkbox", { name: /Skyguide/ }));
+  fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /SBB CFF FFS/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /Swisscom/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /Galaxus/ }));
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -2226,7 +2189,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 48 of 48 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide",
+      "Added 49 of 49 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2280,6 +2243,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "suva",
       "ao_foundation",
       "skyguide",
+      "roche_switzerland",
     ],
     aiAnalysisEnabled: true,
   });
@@ -2428,6 +2392,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Skyguide logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Roche Switzerland logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -2512,6 +2479,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     0,
   );
   expect(screen.getAllByText("Source: Skyguide").length).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: Roche Switzerland").length,
+  ).toBeGreaterThan(0);
 }, 15_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {
