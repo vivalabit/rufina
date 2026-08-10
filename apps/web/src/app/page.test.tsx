@@ -97,7 +97,8 @@ function importedJobData({
     | "ao_foundation"
     | "skyguide"
     | "roche_switzerland"
-    | "logitech_switzerland";
+    | "logitech_switzerland"
+    | "swatch_group";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -235,12 +236,15 @@ function importedJobData({
                                                                                                                 "logitech_switzerland"
                                                                                                               ? "Logitech Switzerland"
                                                                                                               : source ===
-                                                                                                                  "axpo_switzerland"
-                                                                                                                ? "Axpo Switzerland"
+                                                                                                                  "swatch_group"
+                                                                                                                ? "Swatch Group"
                                                                                                                 : source ===
-                                                                                                                    "ringier"
-                                                                                                                  ? "Ringier"
-                                                                                                                  : "LinkedIn";
+                                                                                                                    "axpo_switzerland"
+                                                                                                                  ? "Axpo Switzerland"
+                                                                                                                  : source ===
+                                                                                                                      "ringier"
+                                                                                                                    ? "Ringier"
+                                                                                                                    : "LinkedIn";
   return {
     id,
     company:
@@ -375,12 +379,15 @@ function importedJobData({
                                                                                                               "logitech_switzerland"
                                                                                                             ? "Logitech"
                                                                                                             : source ===
-                                                                                                                "axpo_switzerland"
-                                                                                                              ? "Axpo Group"
+                                                                                                                "swatch_group"
+                                                                                                              ? "Tissot Ltd"
                                                                                                               : source ===
-                                                                                                                  "ringier"
-                                                                                                                ? "Ringier AG"
-                                                                                                                : "Example AG",
+                                                                                                                  "axpo_switzerland"
+                                                                                                                ? "Axpo Group"
+                                                                                                                : source ===
+                                                                                                                    "ringier"
+                                                                                                                  ? "Ringier AG"
+                                                                                                                  : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -442,7 +449,8 @@ function importedJobData({
       source === "ao_foundation" ||
       source === "skyguide" ||
       source === "roche_switzerland" ||
-      source === "logitech_switzerland"
+      source === "logitech_switzerland" ||
+      source === "swatch_group"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -2012,6 +2020,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Finance Operations Director at Logitech",
         source: "logitech_switzerland",
       });
+      const swatchGroupJob = importedJobData({
+        id: "swatch_group-32458",
+        title: "IT Support Specialist at Swatch Group",
+        source: "swatch_group",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -2072,11 +2085,12 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: skyguideJob.id, data: skyguideJob },
         { id: rocheSwitzerlandJob.id, data: rocheSwitzerlandJob },
         { id: logitechSwitzerlandJob.id, data: logitechSwitzerlandJob },
+        { id: swatchGroupJob.id, data: swatchGroupJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 50,
-        jobsAdded: 50,
+        jobsFound: 51,
+        jobsAdded: 51,
         sourceErrors: {},
         warning: null,
       });
@@ -2169,6 +2183,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Skyguide")).toBeInTheDocument();
   expect(screen.getByText("Roche Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Logitech Switzerland")).toBeInTheDocument();
+  expect(screen.getByText("Swatch Group")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -2204,7 +2219,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 50 of 50 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland",
+      "Added 51 of 51 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2260,6 +2275,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "skyguide",
       "roche_switzerland",
       "logitech_switzerland",
+      "swatch_group",
     ],
     aiAnalysisEnabled: true,
   });
@@ -2414,6 +2430,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Logitech Switzerland logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Swatch Group logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -2504,6 +2523,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByText("Source: Logitech Switzerland").length,
   ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Swatch Group").length).toBeGreaterThan(0);
 }, 15_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

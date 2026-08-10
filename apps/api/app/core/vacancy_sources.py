@@ -871,6 +871,24 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "logitech_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="swatch_group",
+        name="Swatch Group",
+        careers_url=(
+            "https://www.swatchgroup.com/en/job-finder?jf_country=40&domain=59"
+            "&position=All&contract=All&time=All"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.swatch_group:"
+            "SwatchGroupJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "swatch_group_jobs_base_url"),
+            ("timeout_seconds", "swatch_group_jobs_timeout_seconds"),
+            ("max_pages", "swatch_group_jobs_max_pages"),
+            ("detail_workers", "swatch_group_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

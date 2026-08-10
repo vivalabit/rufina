@@ -508,6 +508,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 74,
     logoHeight: 24,
   },
+  {
+    id: "swatch_group",
+    name: "Swatch Group",
+    careersUrl:
+      "https://www.swatchgroup.com/en/job-finder?jf_country=40&domain=59&position=All&contract=All&time=All",
+    logoSrc: "/company-logos/swatch_group.svg",
+    logoAlt: "Swatch Group logo",
+    logoWidth: 84,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
