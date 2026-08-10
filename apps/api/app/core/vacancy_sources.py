@@ -520,6 +520,18 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="mimacom",
+        name="Mimacom",
+        careers_url="https://www.mimacom.com/jobs",
+        parser_path="app.services.parsers.companies.mimacom:MimacomJobsParser",
+        settings_map=(
+            ("base_url", "mimacom_jobs_base_url"),
+            ("timeout_seconds", "mimacom_jobs_timeout_seconds"),
+            ("max_jobs", "mimacom_jobs_max_jobs"),
+            ("detail_workers", "mimacom_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="msd",
         name="MSD",
         careers_url=(

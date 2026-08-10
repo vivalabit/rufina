@@ -311,6 +311,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 20,
   },
   {
+    id: "mimacom",
+    name: "Mimacom",
+    careersUrl: "https://www.mimacom.com/jobs",
+    logoSrc: "/company-logos/mimacom.svg",
+    logoAlt: "Mimacom logo",
+    logoWidth: 138,
+    logoHeight: 24,
+  },
+  {
     id: "msd",
     name: "MSD",
     careersUrl:

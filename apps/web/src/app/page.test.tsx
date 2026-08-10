@@ -77,6 +77,7 @@ function importedJobData({
     | "baloise"
     | "elca"
     | "aveniq"
+    | "mimacom"
     | "msd"
     | "srg_ssr"
     | "ibm"
@@ -169,42 +170,45 @@ function importedJobData({
                                                                           "aveniq"
                                                                         ? "Aveniq"
                                                                         : source ===
-                                                                            "msd"
-                                                                          ? "MSD"
+                                                                            "mimacom"
+                                                                          ? "Mimacom"
                                                                           : source ===
-                                                                              "srg_ssr"
-                                                                            ? "SRG SSR"
+                                                                              "msd"
+                                                                            ? "MSD"
                                                                             : source ===
-                                                                                "ibm"
-                                                                              ? "IBM"
+                                                                                "srg_ssr"
+                                                                              ? "SRG SSR"
                                                                               : source ===
-                                                                                  "google"
-                                                                                ? "Google"
+                                                                                  "ibm"
+                                                                                ? "IBM"
                                                                                 : source ===
-                                                                                    "buhler_switzerland"
-                                                                                  ? "Bühler Schweiz"
+                                                                                    "google"
+                                                                                  ? "Google"
                                                                                   : source ===
-                                                                                      "oracle_switzerland"
-                                                                                    ? "Oracle Switzerland"
+                                                                                      "buhler_switzerland"
+                                                                                    ? "Bühler Schweiz"
                                                                                     : source ===
-                                                                                        "ey_switzerland"
-                                                                                      ? "EY Switzerland"
+                                                                                        "oracle_switzerland"
+                                                                                      ? "Oracle Switzerland"
                                                                                       : source ===
-                                                                                          "adnovum"
-                                                                                        ? "Adnovum"
+                                                                                          "ey_switzerland"
+                                                                                        ? "EY Switzerland"
                                                                                         : source ===
-                                                                                            "eth_zurich"
-                                                                                          ? "ETH Zürich"
+                                                                                            "adnovum"
+                                                                                          ? "Adnovum"
                                                                                           : source ===
-                                                                                              "siemens_switzerland"
-                                                                                            ? "Siemens Schweiz"
+                                                                                              "eth_zurich"
+                                                                                            ? "ETH Zürich"
                                                                                             : source ===
-                                                                                                "kpmg_switzerland"
-                                                                                              ? "KPMG Switzerland"
+                                                                                                "siemens_switzerland"
+                                                                                              ? "Siemens Schweiz"
                                                                                               : source ===
-                                                                                                  "swissgrid"
-                                                                                                ? "Swissgrid"
-                                                                                                : "LinkedIn";
+                                                                                                  "kpmg_switzerland"
+                                                                                                ? "KPMG Switzerland"
+                                                                                                : source ===
+                                                                                                    "swissgrid"
+                                                                                                  ? "Swissgrid"
+                                                                                                  : "LinkedIn";
   return {
     id,
     company:
@@ -282,42 +286,45 @@ function importedJobData({
                                                                         "aveniq"
                                                                       ? "Aveniq AG"
                                                                       : source ===
-                                                                          "msd"
-                                                                        ? "MSD"
+                                                                          "mimacom"
+                                                                        ? "Mimacom"
                                                                         : source ===
-                                                                            "srg_ssr"
-                                                                          ? "SRG SSR"
+                                                                            "msd"
+                                                                          ? "MSD"
                                                                           : source ===
-                                                                              "ibm"
-                                                                            ? "IBM"
+                                                                              "srg_ssr"
+                                                                            ? "SRG SSR"
                                                                             : source ===
-                                                                                "google"
-                                                                              ? "Google"
+                                                                                "ibm"
+                                                                              ? "IBM"
                                                                               : source ===
-                                                                                  "buhler_switzerland"
-                                                                                ? "Bühler AG"
+                                                                                  "google"
+                                                                                ? "Google"
                                                                                 : source ===
-                                                                                    "oracle_switzerland"
-                                                                                  ? "Oracle"
+                                                                                    "buhler_switzerland"
+                                                                                  ? "Bühler AG"
                                                                                   : source ===
-                                                                                      "ey_switzerland"
-                                                                                    ? "EY"
+                                                                                      "oracle_switzerland"
+                                                                                    ? "Oracle"
                                                                                     : source ===
-                                                                                        "adnovum"
-                                                                                      ? "Adnovum AG"
+                                                                                        "ey_switzerland"
+                                                                                      ? "EY"
                                                                                       : source ===
-                                                                                          "eth_zurich"
-                                                                                        ? "ETH Zürich"
+                                                                                          "adnovum"
+                                                                                        ? "Adnovum AG"
                                                                                         : source ===
-                                                                                            "siemens_switzerland"
-                                                                                          ? "Siemens Schweiz AG"
+                                                                                            "eth_zurich"
+                                                                                          ? "ETH Zürich"
                                                                                           : source ===
-                                                                                              "kpmg_switzerland"
-                                                                                            ? "KPMG AG"
+                                                                                              "siemens_switzerland"
+                                                                                            ? "Siemens Schweiz AG"
                                                                                             : source ===
-                                                                                                "swissgrid"
-                                                                                              ? "Swissgrid"
-                                                                                              : "Example AG",
+                                                                                                "kpmg_switzerland"
+                                                                                              ? "KPMG AG"
+                                                                                              : source ===
+                                                                                                  "swissgrid"
+                                                                                                ? "Swissgrid"
+                                                                                                : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -359,6 +366,7 @@ function importedJobData({
       source === "baloise" ||
       source === "elca" ||
       source === "aveniq" ||
+      source === "mimacom" ||
       source === "msd" ||
       source === "srg_ssr" ||
       source === "ibm" ||
@@ -1835,6 +1843,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Technical Account Manager at Aveniq",
         source: "aveniq",
       });
+      const mimacomJob = importedJobData({
+        id: "mimacom-senior-java-spring-engineer-80-100-mfd",
+        title: "Senior Java Engineer at Mimacom",
+        source: "mimacom",
+      });
       const msdJob = importedJobData({
         id: "msd-r409018",
         title: "HR Intern Switzerland at MSD",
@@ -1934,6 +1947,7 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: baloiseJob.id, data: baloiseJob },
         { id: elcaJob.id, data: elcaJob },
         { id: aveniqJob.id, data: aveniqJob },
+        { id: mimacomJob.id, data: mimacomJob },
         { id: msdJob.id, data: msdJob },
         { id: srgSsrJob.id, data: srgSsrJob },
         { id: ibmJob.id, data: ibmJob },
@@ -1949,8 +1963,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 41,
-        jobsAdded: 41,
+        jobsFound: 42,
+        jobsAdded: 42,
         sourceErrors: {},
         warning: null,
       });
@@ -2022,6 +2036,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Baloise")).toBeInTheDocument();
   expect(screen.getByText("ELCA")).toBeInTheDocument();
   expect(screen.getByText("Aveniq")).toBeInTheDocument();
+  expect(screen.getByText("Mimacom")).toBeInTheDocument();
   expect(screen.getByText("MSD")).toBeInTheDocument();
   expect(screen.getByText("SRG SSR")).toBeInTheDocument();
   expect(screen.getByText("IBM")).toBeInTheDocument();
@@ -2076,6 +2091,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("checkbox", { name: /Baloise/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /ELCA/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Aveniq/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /Mimacom/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /MSD/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /SRG SSR/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /IBM/ }));
@@ -2114,7 +2130,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 41 of 41 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Swiss Re + Baloise + ELCA + Aveniq + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
+      "Added 42 of 42 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2149,6 +2165,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "baloise",
       "elca",
       "aveniq",
+      "mimacom",
       "msd",
       "srg_ssr",
       "ibm",
@@ -2253,6 +2270,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getAllByRole("img", { name: "Aveniq logo" }).length,
   ).toBeGreaterThan(0);
   expect(
+    screen.getAllByRole("img", { name: "Mimacom logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
     screen.getAllByRole("img", { name: "MSD logo" }).length,
   ).toBeGreaterThan(0);
   expect(
@@ -2337,6 +2357,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getAllByText("Source: Baloise").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: ELCA").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Aveniq").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Mimacom").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: MSD").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: SRG SSR").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: IBM").length).toBeGreaterThan(0);
