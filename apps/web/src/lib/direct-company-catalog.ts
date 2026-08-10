@@ -498,6 +498,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 46,
     logoHeight: 24,
   },
+  {
+    id: "logitech_switzerland",
+    name: "Logitech Switzerland",
+    careersUrl:
+      "https://logitech.wd5.myworkdayjobs.com/Logitech?locationCountry=187134fccb084a0ea9b4b95f23890dbe",
+    logoSrc: "/company-logos/logitech.svg",
+    logoAlt: "Logitech Switzerland logo",
+    logoWidth: 74,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
