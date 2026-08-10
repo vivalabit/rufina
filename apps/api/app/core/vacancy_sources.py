@@ -548,6 +548,25 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="axpo_switzerland",
+        name="Axpo Switzerland",
+        careers_url=(
+            "https://careers.axpo.com/jobs?"
+            "split_view=true&query=&country=Switzerland"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.axpo_switzerland:"
+            "AxpoSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "axpo_switzerland_jobs_base_url"),
+            ("feed_url", "axpo_switzerland_jobs_feed_url"),
+            ("timeout_seconds", "axpo_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "axpo_switzerland_jobs_max_pages"),
+            ("max_jobs", "axpo_switzerland_jobs_max_jobs"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="msd",
         name="MSD",
         careers_url=(

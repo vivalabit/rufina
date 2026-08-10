@@ -429,6 +429,18 @@ class Settings(BaseSettings):
     )
     unit8_switzerland_jobs_max_jobs: int = Field(default=500, ge=1, le=5000)
     unit8_switzerland_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    axpo_switzerland_jobs_base_url: str = (
+        "https://careers.axpo.com/jobs?"
+        "split_view=true&query=&country=Switzerland"
+    )
+    axpo_switzerland_jobs_feed_url: str = "https://careers.axpo.com/jobs.json"
+    axpo_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    axpo_switzerland_jobs_max_pages: int = Field(default=50, ge=1, le=200)
+    axpo_switzerland_jobs_max_jobs: int = Field(default=1000, ge=1, le=5000)
     msd_jobs_base_url: str = (
         "https://jobs.msd.com/gb/en/search-results?"
         "rk=page-targeted-jobs-page172-prod-DZJ1ve"

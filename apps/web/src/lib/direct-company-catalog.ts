@@ -329,6 +329,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "axpo_switzerland",
+    name: "Axpo Switzerland",
+    careersUrl:
+      "https://careers.axpo.com/jobs?split_view=true&query=&country=Switzerland",
+    logoSrc: "/company-logos/axpo.svg",
+    logoAlt: "Axpo Switzerland logo",
+    logoWidth: 50,
+    logoHeight: 24,
+  },
+  {
     id: "msd",
     name: "MSD",
     careersUrl:

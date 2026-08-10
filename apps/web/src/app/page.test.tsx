@@ -79,6 +79,7 @@ function importedJobData({
     | "aveniq"
     | "mimacom"
     | "unit8_switzerland"
+    | "axpo_switzerland"
     | "msd"
     | "srg_ssr"
     | "ibm"
@@ -212,7 +213,10 @@ function importedJobData({
                                                                                                   : source ===
                                                                                                       "swissgrid"
                                                                                                     ? "Swissgrid"
-                                                                                                    : "LinkedIn";
+                                                                                                    : source ===
+                                                                                                        "axpo_switzerland"
+                                                                                                      ? "Axpo Switzerland"
+                                                                                                      : "LinkedIn";
   return {
     id,
     company:
@@ -331,7 +335,10 @@ function importedJobData({
                                                                                                 : source ===
                                                                                                     "swissgrid"
                                                                                                   ? "Swissgrid"
-                                                                                                  : "Example AG",
+                                                                                                  : source ===
+                                                                                                      "axpo_switzerland"
+                                                                                                    ? "Axpo Group"
+                                                                                                    : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -375,6 +382,7 @@ function importedJobData({
       source === "aveniq" ||
       source === "mimacom" ||
       source === "unit8_switzerland" ||
+      source === "axpo_switzerland" ||
       source === "msd" ||
       source === "srg_ssr" ||
       source === "ibm" ||
@@ -1861,6 +1869,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Palantir Foundry Engineer at Unit8",
         source: "unit8_switzerland",
       });
+      const axpoSwitzerlandJob = importedJobData({
+        id: "axpo_switzerland-8196100",
+        title: "Mitarbeiter Betriebsdienst at Axpo",
+        source: "axpo_switzerland",
+      });
       const msdJob = importedJobData({
         id: "msd-r409018",
         title: "HR Intern Switzerland at MSD",
@@ -1962,6 +1975,7 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: aveniqJob.id, data: aveniqJob },
         { id: mimacomJob.id, data: mimacomJob },
         { id: unit8SwitzerlandJob.id, data: unit8SwitzerlandJob },
+        { id: axpoSwitzerlandJob.id, data: axpoSwitzerlandJob },
         { id: msdJob.id, data: msdJob },
         { id: srgSsrJob.id, data: srgSsrJob },
         { id: ibmJob.id, data: ibmJob },
@@ -1977,8 +1991,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 43,
-        jobsAdded: 43,
+        jobsFound: 44,
+        jobsAdded: 44,
         sourceErrors: {},
         warning: null,
       });
@@ -2052,6 +2066,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Aveniq")).toBeInTheDocument();
   expect(screen.getByText("Mimacom")).toBeInTheDocument();
   expect(screen.getByText("Unit8 Switzerland")).toBeInTheDocument();
+  expect(screen.getByText("Axpo Switzerland")).toBeInTheDocument();
   expect(screen.getByText("MSD")).toBeInTheDocument();
   expect(screen.getByText("SRG SSR")).toBeInTheDocument();
   expect(screen.getByText("IBM")).toBeInTheDocument();
@@ -2108,6 +2123,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("checkbox", { name: /Aveniq/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Mimacom/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Unit8 Switzerland/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /Axpo Switzerland/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /MSD/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /SRG SSR/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /IBM/ }));
@@ -2146,7 +2162,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 43 of 43 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
+      "Added 44 of 44 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2183,6 +2199,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "aveniq",
       "mimacom",
       "unit8_switzerland",
+      "axpo_switzerland",
       "msd",
       "srg_ssr",
       "ibm",
@@ -2293,6 +2310,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getAllByRole("img", { name: "Unit8 Switzerland logo" }).length,
   ).toBeGreaterThan(0);
   expect(
+    screen.getAllByRole("img", { name: "Axpo Switzerland logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
     screen.getAllByRole("img", { name: "MSD logo" }).length,
   ).toBeGreaterThan(0);
   expect(
@@ -2380,6 +2400,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getAllByText("Source: Mimacom").length).toBeGreaterThan(0);
   expect(
     screen.getAllByText("Source: Unit8 Switzerland").length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: Axpo Switzerland").length,
   ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: MSD").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: SRG SSR").length).toBeGreaterThan(0);
