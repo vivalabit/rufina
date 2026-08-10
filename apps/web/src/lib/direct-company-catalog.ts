@@ -471,6 +471,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 65,
     logoHeight: 26,
   },
+  {
+    id: "ao_foundation",
+    name: "AO Foundation",
+    careersUrl: "https://careers.aofoundation.org/search/locale=en_US",
+    logoSrc: "/company-logos/ao_foundation.svg",
+    logoAlt: "AO Foundation logo",
+    logoWidth: 45,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

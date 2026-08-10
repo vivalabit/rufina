@@ -93,7 +93,8 @@ function importedJobData({
     | "siemens_switzerland"
     | "kpmg_switzerland"
     | "swissgrid"
-    | "suva";
+    | "suva"
+    | "ao_foundation";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -218,6 +219,9 @@ function importedJobData({
                                                                                                     : source ===
                                                                                                         "suva"
                                                                                                       ? "Suva"
+                                                                                                      : source ===
+                                                                                                          "ao_foundation"
+                                                                                                        ? "AO Foundation"
                                                                                                     : source ===
                                                                                                         "axpo_switzerland"
                                                                                                       ? "Axpo Switzerland"
@@ -346,6 +350,9 @@ function importedJobData({
                                                                                                   : source ===
                                                                                                       "suva"
                                                                                                     ? "Suva"
+                                                                                                    : source ===
+                                                                                                        "ao_foundation"
+                                                                                                      ? "AO Foundation"
                                                                                                   : source ===
                                                                                                       "axpo_switzerland"
                                                                                                     ? "Axpo Group"
@@ -410,7 +417,8 @@ function importedJobData({
       source === "siemens_switzerland" ||
       source === "kpmg_switzerland" ||
       source === "swissgrid" ||
-      source === "suva"
+      source === "suva" ||
+      source === "ao_foundation"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -1960,6 +1968,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Business Analyst at Suva",
         source: "suva",
       });
+      const aoFoundationJob = importedJobData({
+        id: "ao_foundation-1419823633",
+        title: "Senior IT Security Engineer at AO Foundation",
+        source: "ao_foundation",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -2016,11 +2029,12 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: kpmgSwitzerlandJob.id, data: kpmgSwitzerlandJob },
         { id: swissgridJob.id, data: swissgridJob },
         { id: suvaJob.id, data: suvaJob },
+        { id: aoFoundationJob.id, data: aoFoundationJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 46,
-        jobsAdded: 46,
+        jobsFound: 47,
+        jobsAdded: 47,
         sourceErrors: {},
         warning: null,
       });
@@ -2109,6 +2123,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("KPMG Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Swissgrid")).toBeInTheDocument();
   expect(screen.getByText("Suva")).toBeInTheDocument();
+  expect(screen.getByText("AO Foundation")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -2168,6 +2183,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("checkbox", { name: /KPMG Switzerland/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Swissgrid/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Suva/ }));
+  fireEvent.click(screen.getByRole("checkbox", { name: /AO Foundation/ }));
   fireEvent.change(
     screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
     { target: { value: "Direct companies" } },
@@ -2194,7 +2210,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 46 of 46 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva",
+      "Added 47 of 47 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2246,6 +2262,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "kpmg_switzerland",
       "swissgrid",
       "suva",
+      "ao_foundation",
     ],
     aiAnalysisEnabled: true,
   });
@@ -2388,6 +2405,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Suva logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "AO Foundation logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -2468,6 +2488,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Swissgrid").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Suva").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: AO Foundation").length).toBeGreaterThan(
+    0,
+  );
 }, 15_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

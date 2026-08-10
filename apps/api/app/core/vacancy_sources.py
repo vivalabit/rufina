@@ -800,6 +800,26 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "suva_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="ao_foundation",
+        name="AO Foundation",
+        careers_url="https://careers.aofoundation.org/search/locale=en_US",
+        parser_path=(
+            "app.services.parsers.companies.ao_foundation:"
+            "AoFoundationJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "ao_foundation_jobs_base_url"),
+            ("page_url", "ao_foundation_jobs_page_url"),
+            ("timeout_seconds", "ao_foundation_jobs_timeout_seconds"),
+            ("max_pages", "ao_foundation_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "ao_foundation_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "ao_foundation_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
