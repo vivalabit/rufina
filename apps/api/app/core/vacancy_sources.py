@@ -491,6 +491,23 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="elca",
+        name="ELCA",
+        careers_url=(
+            "https://iaaras.fa.ocs.oraclecloud.com/"
+            "hcmUI/CandidateExperience/en/sites/CX_1/jobs"
+        ),
+        parser_path="app.services.parsers.companies.elca:ElcaJobsParser",
+        settings_map=(
+            ("base_url", "elca_jobs_base_url"),
+            ("api_url", "elca_jobs_api_url"),
+            ("timeout_seconds", "elca_jobs_timeout_seconds"),
+            ("max_pages", "elca_jobs_max_pages"),
+            ("max_catalog_passes", "elca_jobs_max_catalog_passes"),
+            ("detail_workers", "elca_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="msd",
         name="MSD",
         careers_url=(

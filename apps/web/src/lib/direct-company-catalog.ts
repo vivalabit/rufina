@@ -292,6 +292,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "elca",
+    name: "ELCA",
+    careersUrl:
+      "https://iaaras.fa.ocs.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX_1/jobs",
+    logoSrc: "/company-logos/elca.svg",
+    logoAlt: "ELCA logo",
+    logoWidth: 66,
+    logoHeight: 24,
+  },
+  {
     id: "msd",
     name: "MSD",
     careersUrl:

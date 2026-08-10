@@ -399,6 +399,17 @@ class Settings(BaseSettings):
     baloise_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     baloise_jobs_max_jobs: int = Field(default=1000, ge=1, le=5000)
     baloise_jobs_detail_workers: int = Field(default=8, ge=1, le=8)
+    elca_jobs_base_url: str = (
+        "https://iaaras.fa.ocs.oraclecloud.com/"
+        "hcmUI/CandidateExperience/en/sites/CX_1/jobs"
+    )
+    elca_jobs_api_url: str = (
+        "https://iaaras.fa.ocs.oraclecloud.com/hcmRestApi/resources/latest"
+    )
+    elca_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    elca_jobs_max_pages: int = Field(default=50, ge=1, le=200)
+    elca_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
+    elca_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     msd_jobs_base_url: str = (
         "https://jobs.msd.com/gb/en/search-results?"
         "rk=page-targeted-jobs-page172-prod-DZJ1ve"
