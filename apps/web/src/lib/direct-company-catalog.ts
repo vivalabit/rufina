@@ -539,6 +539,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 112,
     logoHeight: 20,
   },
+  {
+    id: "fisba",
+    name: "FISBA",
+    careersUrl: "https://www.fisba.com/en/current-vacancies",
+    logoSrc: "/company-logos/fisba.svg",
+    logoAlt: "FISBA logo",
+    logoWidth: 84,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

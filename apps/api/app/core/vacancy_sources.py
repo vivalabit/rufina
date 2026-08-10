@@ -936,6 +936,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "cognizant_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="fisba",
+        name="FISBA",
+        careers_url="https://www.fisba.com/en/current-vacancies",
+        parser_path="app.services.parsers.companies.fisba:FisbaJobsParser",
+        settings_map=(
+            ("base_url", "fisba_jobs_base_url"),
+            ("timeout_seconds", "fisba_jobs_timeout_seconds"),
+            ("detail_workers", "fisba_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
