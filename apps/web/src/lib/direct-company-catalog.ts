@@ -461,6 +461,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 88,
     logoHeight: 22,
   },
+  {
+    id: "suva",
+    name: "Suva",
+    careersUrl:
+      "https://jobs.suva.ch/search/?q=&searchResultView=LIST&pageNumber=0&facetFilters=%7B%7D&sortBy=&markerViewed=&carouselIndex=",
+    logoSrc: "/company-logos/suva.svg",
+    logoAlt: "Suva logo",
+    logoWidth: 65,
+    logoHeight: 26,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

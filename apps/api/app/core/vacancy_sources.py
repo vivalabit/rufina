@@ -783,6 +783,23 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "swissgrid_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="suva",
+        name="Suva",
+        careers_url=(
+            "https://jobs.suva.ch/search/?q=&searchResultView=LIST&pageNumber=0"
+            "&facetFilters=%7B%7D&sortBy=&markerViewed=&carouselIndex="
+        ),
+        parser_path="app.services.parsers.companies.suva:SuvaJobsParser",
+        settings_map=(
+            ("base_url", "suva_jobs_base_url"),
+            ("api_url", "suva_jobs_api_url"),
+            ("timeout_seconds", "suva_jobs_timeout_seconds"),
+            ("max_pages", "suva_jobs_max_pages"),
+            ("max_catalog_passes", "suva_jobs_max_catalog_passes"),
+            ("detail_workers", "suva_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
