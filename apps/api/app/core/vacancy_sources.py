@@ -567,6 +567,18 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="ringier",
+        name="Ringier",
+        careers_url="https://career.ringier.ch/en/career",
+        parser_path="app.services.parsers.companies.ringier:RingierJobsParser",
+        settings_map=(
+            ("base_url", "ringier_jobs_base_url"),
+            ("api_url", "ringier_jobs_api_url"),
+            ("timeout_seconds", "ringier_jobs_timeout_seconds"),
+            ("max_jobs", "ringier_jobs_max_jobs"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="msd",
         name="MSD",
         careers_url=(

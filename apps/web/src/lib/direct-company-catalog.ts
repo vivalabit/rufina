@@ -339,6 +339,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "ringier",
+    name: "Ringier",
+    careersUrl: "https://career.ringier.ch/en/career",
+    logoSrc: "/company-logos/ringier.svg",
+    logoAlt: "Ringier logo",
+    logoWidth: 96,
+    logoHeight: 24,
+  },
+  {
     id: "msd",
     name: "MSD",
     careersUrl:
