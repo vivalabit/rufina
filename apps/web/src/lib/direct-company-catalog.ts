@@ -70,7 +70,8 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
   {
     id: "bundesverwaltung",
     name: "Bundesverwaltung",
-    careersUrl: "https://jobs.admin.ch/?lang=de",
+    careersUrl:
+      "https://jobs.admin.ch/?lang=de&f=verwaltungseinheit:36497&intranet=1",
     logoSrc: "/company-logos/bundesverwaltung.svg",
     logoAlt: "Bundesverwaltung logo",
     logoWidth: 32,

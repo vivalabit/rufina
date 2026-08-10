@@ -12,11 +12,19 @@ import httpx
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
 
-BUNDESVERWALTUNG_JOBS_BASE_URL = "https://jobs.admin.ch/?lang=de"
+BUNDESVERWALTUNG_JOBS_BASE_URL = (
+    "https://jobs.admin.ch/?lang=de&f=verwaltungseinheit:36497&intranet=1"
+)
 BUNDESVERWALTUNG_JOBS_API_URL = (
     "https://ohws.prospective.ch/public/v1/medium/1000624/jobs"
 )
 BUNDESVERWALTUNG_RESULTS_PER_PAGE = 96
+BUNDESVERWALTUNG_UNIT_FILTER = "verwaltungseinheit:1083366"
+BUNDESVERWALTUNG_ACTIVITY_FILTER = "taetigkeitsbereich:1083293"
+BUNDESVERWALTUNG_EXPECTED_UNIT = (
+    "Bundesamt für Informatik und Telekommunikation BIT"
+)
+BUNDESVERWALTUNG_EXPECTED_ACTIVITY = "Informatik"
 BUNDESVERWALTUNG_HEADERS = {
     "Accept": "application/json",
     "Accept-Language": "de-CH,de;q=0.9,fr;q=0.8,it;q=0.7,en;q=0.6",
@@ -33,7 +41,7 @@ class BundesverwaltungParseError(DirectCompanyRequestError):
 
 
 class BundesverwaltungJobsParser:
-    """Collect the complete jobs.admin.ch catalog from its public JSON API."""
+    """Collect BIT Informatik vacancies from the public jobs.admin.ch API."""
 
     parser_id = "bundesverwaltung"
 
@@ -87,7 +95,7 @@ class BundesverwaltungJobsParser:
             search_url=self.base_url,
             jobs=jobs,
             message=(
-                f"Scanned {len(jobs)} Bundesverwaltung vacancies across "
+                f"Scanned {len(jobs)} Bundesverwaltung Informatik vacancies across "
                 f"{pages_fetched} API pages"
             ),
         )
@@ -117,11 +125,16 @@ class BundesverwaltungJobsParser:
                         "lang": "de",
                         "offset": offset,
                         "limit": BUNDESVERWALTUNG_RESULTS_PER_PAGE,
+                        "f": [
+                            BUNDESVERWALTUNG_UNIT_FILTER,
+                            BUNDESVERWALTUNG_ACTIVITY_FILTER,
+                        ],
                     },
                 )
                 pages_fetched += 1
                 response.raise_for_status()
                 page_total, records = parse_listing_payload(response.json())
+                validate_filtered_records(records)
 
                 if expected_total is None:
                     expected_total = page_total
@@ -248,6 +261,27 @@ def parse_listing_payload(payload: Any) -> tuple[int, list[dict[str, Any]]]:
             )
         records.append(item)
     return total, records
+
+
+def validate_filtered_records(records: Sequence[dict[str, Any]]) -> None:
+    for record in records:
+        attributes = record.get("attributes")
+        attributes = attributes if isinstance(attributes, dict) else {}
+        specific_units = [
+            first_text(value)
+            for key, value in attributes.items()
+            if key.startswith("verwaltungseinheit_")
+        ]
+        activity = first_text(attributes.get("taetigkeitsbereich"))
+        if (
+            BUNDESVERWALTUNG_EXPECTED_UNIT not in specific_units
+            or activity != BUNDESVERWALTUNG_EXPECTED_ACTIVITY
+        ):
+            job_id = optional_text(record.get("id")) or "unknown"
+            raise BundesverwaltungParseError(
+                "Bundesverwaltung API returned vacancy "
+                f"{job_id} outside the BIT Informatik filters"
+            )
 
 
 def extract_company(attributes: dict[str, Any]) -> str:

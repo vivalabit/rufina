@@ -105,7 +105,10 @@ DIRECT_COMPANY_PARSERS = (
     DirectCompanyParserDefinition(
         id="bundesverwaltung",
         name="Bundesverwaltung",
-        careers_url="https://jobs.admin.ch/?lang=de",
+        careers_url=(
+            "https://jobs.admin.ch/?lang=de&f=verwaltungseinheit:36497"
+            "&intranet=1"
+        ),
         parser_path=(
             "app.services.parsers.companies.bundesverwaltung:"
             "BundesverwaltungJobsParser"

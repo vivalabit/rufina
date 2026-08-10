@@ -16,7 +16,12 @@ from app.services.parsers.companies.bundesverwaltung import (
 from app.services.vacancy_search import create_vacancy_search_runner
 
 
-def listing_record(index: int) -> dict[str, object]:
+def listing_record(
+    index: int,
+    *,
+    activity: str = "Informatik",
+    unit: str = "Bundesamt für Informatik und Telekommunikation BIT",
+) -> dict[str, object]:
     return {
         "id": str(10_140_000 + index),
         "viewkey": f"view-key-{index}",
@@ -24,8 +29,9 @@ def listing_record(index: int) -> dict[str, object]:
         "attributes": {
             "25": ["Berufserfahrene und Berufseinsteiger/innen"],
             "arbeitsort": ["Bern"],
-            "verwaltungseinheit_1083352": ["Bundesamt für Informatik BIT"],
-            "verwaltungseinheit": ["EFD"],
+            "verwaltungseinheit_1083364": [unit],
+            "verwaltungseinheit": ["Eidgenössisches Finanzdepartement EFD"],
+            "taetigkeitsbereich": [activity],
             "70": ["80"],
             "75": ["100"],
         },
@@ -68,6 +74,10 @@ def test_bundesverwaltung_fetches_every_page_and_normalizes_rich_records() -> No
         assert request.url.path.endswith("/jobs")
         assert request.url.params["lang"] == "de"
         assert request.url.params["limit"] == "96"
+        assert request.url.params.get_list("f") == [
+            "verwaltungseinheit:1083366",
+            "taetigkeitsbereich:1083293",
+        ]
         offset = int(request.url.params["offset"])
         requested_offsets.append(offset)
         return httpx.Response(
@@ -80,7 +90,10 @@ def test_bundesverwaltung_fetches_every_page_and_normalizes_rich_records() -> No
         )
 
     parser = BundesverwaltungJobsParser(
-        base_url="https://jobs.admin.example.test/?lang=de",
+        base_url=(
+            "https://jobs.admin.example.test/?lang=de"
+            "&f=verwaltungseinheit:36497&intranet=1"
+        ),
         api_url=(
             "https://api.admin.example.test/public/v1/medium/1000624/jobs"
         ),
@@ -91,15 +104,18 @@ def test_bundesverwaltung_fetches_every_page_and_normalizes_rich_records() -> No
 
     assert requested_offsets == [0, 96]
     assert result.status == "completed"
-    assert result.search_url == "https://jobs.admin.example.test/?lang=de"
+    assert result.search_url == (
+        "https://jobs.admin.example.test/?lang=de"
+        "&f=verwaltungseinheit:36497&intranet=1"
+    )
     assert result.message == (
-        "Scanned 98 Bundesverwaltung vacancies across 2 API pages"
+        "Scanned 98 Bundesverwaltung Informatik vacancies across 2 API pages"
     )
     assert len(result.jobs) == 98
     first = result.jobs[0]
     assert first.source == "bundesverwaltung"
     assert first.title == "Platform Engineer 0"
-    assert first.company == "Bundesamt für Informatik BIT"
+    assert first.company == "Bundesamt für Informatik und Telekommunikation BIT"
     assert first.location == "Bern"
     assert first.posted_at == "2026-08-07T10:59:41Z"
     assert first.employment_type == "80–100%"
@@ -158,6 +174,33 @@ def test_bundesverwaltung_rejects_invalid_jobs_payload() -> None:
         parser.search(LinkedInSearchRequest())
 
 
+@pytest.mark.parametrize(
+    ("activity", "unit"),
+    [
+        ("Recht", "Bundesamt für Informatik und Telekommunikation BIT"),
+        ("Informatik", "Eidgenössische Finanzverwaltung EFV"),
+    ],
+)
+def test_bundesverwaltung_rejects_vacancies_outside_bit_informatik_filters(
+    activity: str,
+    unit: str,
+) -> None:
+    parser = BundesverwaltungJobsParser(
+        transport=httpx.MockTransport(
+            lambda _: httpx.Response(
+                200,
+                json={
+                    "total": 1,
+                    "jobs": [listing_record(1, activity=activity, unit=unit)],
+                },
+            )
+        )
+    )
+
+    with pytest.raises(DirectCompanyRequestError, match="outside the BIT Informatik"):
+        parser.search(LinkedInSearchRequest())
+
+
 def test_bundesverwaltung_does_not_silently_truncate_above_page_limit() -> None:
     parser = BundesverwaltungJobsParser(
         max_pages=2,
@@ -183,6 +226,7 @@ def test_bundesverwaltung_is_registered_as_a_direct_company_source() -> None:
 
     parser = runner.parsers["bundesverwaltung"]
     assert isinstance(parser, BundesverwaltungJobsParser)
+    assert parser.base_url == settings.bundesverwaltung_jobs_base_url
     assert parser.api_url == settings.bundesverwaltung_jobs_api_url
     request = JobSearchManualRunRequest.model_validate(
         {
