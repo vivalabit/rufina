@@ -47,3 +47,27 @@ describe("Stadler IT Switzerland Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("EBP Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "ebp_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "ebp_switzerland",
+      name: "EBP Switzerland",
+      careersUrl:
+        "https://www.ebp.global/ch-de/karriere/offene-stellen/stellenangebote",
+      logoSrc: "/company-logos/ebp.svg",
+      logoAlt: "EBP Switzerland logo",
+      logoWidth: 79,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "ebp_switzerland-b913f9ef-1bdc-4824-8b46-ea0607c12c58",
+      ),
+    ).toBe(company);
+  });
+});

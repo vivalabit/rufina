@@ -75,6 +75,7 @@ function importedJobData({
     | "switch"
     | "huber_suhner_switzerland"
     | "stadler_it_switzerland"
+    | "ebp_switzerland"
     | "swiss_re"
     | "baloise"
     | "elca"
@@ -180,99 +181,102 @@ function importedJobData({
                                                                       "stadler_it_switzerland"
                                                                     ? "Stadler IT Switzerland"
                                                                     : source ===
-                                                                        "swiss_re"
-                                                                      ? "Swiss Re"
+                                                                        "ebp_switzerland"
+                                                                      ? "EBP Switzerland"
                                                                       : source ===
-                                                                          "baloise"
-                                                                        ? "Baloise"
+                                                                          "swiss_re"
+                                                                        ? "Swiss Re"
                                                                         : source ===
-                                                                            "elca"
-                                                                          ? "ELCA"
+                                                                            "baloise"
+                                                                          ? "Baloise"
                                                                           : source ===
-                                                                              "aveniq"
-                                                                            ? "Aveniq"
+                                                                              "elca"
+                                                                            ? "ELCA"
                                                                             : source ===
-                                                                                "mimacom"
-                                                                              ? "Mimacom"
+                                                                                "aveniq"
+                                                                              ? "Aveniq"
                                                                               : source ===
-                                                                                  "unit8_switzerland"
-                                                                                ? "Unit8 Switzerland"
+                                                                                  "mimacom"
+                                                                                ? "Mimacom"
                                                                                 : source ===
-                                                                                    "msd"
-                                                                                  ? "MSD"
+                                                                                    "unit8_switzerland"
+                                                                                  ? "Unit8 Switzerland"
                                                                                   : source ===
-                                                                                      "srg_ssr"
-                                                                                    ? "SRG SSR"
+                                                                                      "msd"
+                                                                                    ? "MSD"
                                                                                     : source ===
-                                                                                        "ibm"
-                                                                                      ? "IBM"
+                                                                                        "srg_ssr"
+                                                                                      ? "SRG SSR"
                                                                                       : source ===
-                                                                                          "google"
-                                                                                        ? "Google"
+                                                                                          "ibm"
+                                                                                        ? "IBM"
                                                                                         : source ===
-                                                                                            "buhler_switzerland"
-                                                                                          ? "Bühler Schweiz"
+                                                                                            "google"
+                                                                                          ? "Google"
                                                                                           : source ===
-                                                                                              "oracle_switzerland"
-                                                                                            ? "Oracle Switzerland"
+                                                                                              "buhler_switzerland"
+                                                                                            ? "Bühler Schweiz"
                                                                                             : source ===
-                                                                                                "ey_switzerland"
-                                                                                              ? "EY Switzerland"
+                                                                                                "oracle_switzerland"
+                                                                                              ? "Oracle Switzerland"
                                                                                               : source ===
-                                                                                                  "adnovum"
-                                                                                                ? "Adnovum"
+                                                                                                  "ey_switzerland"
+                                                                                                ? "EY Switzerland"
                                                                                                 : source ===
-                                                                                                    "eth_zurich"
-                                                                                                  ? "ETH Zürich"
+                                                                                                    "adnovum"
+                                                                                                  ? "Adnovum"
                                                                                                   : source ===
-                                                                                                      "siemens_switzerland"
-                                                                                                    ? "Siemens Schweiz"
+                                                                                                      "eth_zurich"
+                                                                                                    ? "ETH Zürich"
                                                                                                     : source ===
-                                                                                                        "kpmg_switzerland"
-                                                                                                      ? "KPMG Switzerland"
+                                                                                                        "siemens_switzerland"
+                                                                                                      ? "Siemens Schweiz"
                                                                                                       : source ===
-                                                                                                          "swissgrid"
-                                                                                                        ? "Swissgrid"
+                                                                                                          "kpmg_switzerland"
+                                                                                                        ? "KPMG Switzerland"
                                                                                                         : source ===
-                                                                                                            "suva"
-                                                                                                          ? "Suva"
+                                                                                                            "swissgrid"
+                                                                                                          ? "Swissgrid"
                                                                                                           : source ===
-                                                                                                              "ao_foundation"
-                                                                                                            ? "AO Foundation"
+                                                                                                              "suva"
+                                                                                                            ? "Suva"
                                                                                                             : source ===
-                                                                                                                "skyguide"
-                                                                                                              ? "Skyguide"
+                                                                                                                "ao_foundation"
+                                                                                                              ? "AO Foundation"
                                                                                                               : source ===
-                                                                                                                  "roche_switzerland"
-                                                                                                                ? "Roche Switzerland"
+                                                                                                                  "skyguide"
+                                                                                                                ? "Skyguide"
                                                                                                                 : source ===
-                                                                                                                    "logitech_switzerland"
-                                                                                                                  ? "Logitech Switzerland"
+                                                                                                                    "roche_switzerland"
+                                                                                                                  ? "Roche Switzerland"
                                                                                                                   : source ===
-                                                                                                                      "swatch_group"
-                                                                                                                    ? "Swatch Group"
+                                                                                                                      "logitech_switzerland"
+                                                                                                                    ? "Logitech Switzerland"
                                                                                                                     : source ===
-                                                                                                                        "amazon_switzerland"
-                                                                                                                      ? "Amazon Switzerland"
+                                                                                                                        "swatch_group"
+                                                                                                                      ? "Swatch Group"
                                                                                                                       : source ===
-                                                                                                                          "cognizant_switzerland"
-                                                                                                                        ? "Cognizant Technology Solutions AG"
+                                                                                                                          "amazon_switzerland"
+                                                                                                                        ? "Amazon Switzerland"
                                                                                                                         : source ===
-                                                                                                                            "fisba"
-                                                                                                                          ? "FISBA"
+                                                                                                                            "cognizant_switzerland"
+                                                                                                                          ? "Cognizant Technology Solutions AG"
                                                                                                                           : source ===
-                                                                                                                              "gritec"
-                                                                                                                            ? "GRITEC"
+                                                                                                                              "fisba"
+                                                                                                                            ? "FISBA"
                                                                                                                             : source ===
-                                                                                                                                "helbling"
-                                                                                                                              ? "Helbling"
+                                                                                                                                "gritec"
+                                                                                                                              ? "GRITEC"
                                                                                                                               : source ===
-                                                                                                                                  "axpo_switzerland"
-                                                                                                                                ? "Axpo Switzerland"
+                                                                                                                                  "helbling"
+                                                                                                                                ? "Helbling"
                                                                                                                                 : source ===
-                                                                                                                                    "ringier"
-                                                                                                                                  ? "Ringier"
-                                                                                                                                  : "LinkedIn";
+                                                                                                                                    "axpo_switzerland"
+                                                                                                                                  ? "Axpo Switzerland"
+                                                                                                                                  : source ===
+                                                                                                                                      "ringier"
+                                                                                                                                    ? "Ringier"
+                                                                                                                                    : "LinkedIn";
   return {
     id,
     company:
@@ -344,99 +348,102 @@ function importedJobData({
                                                                     "stadler_it_switzerland"
                                                                   ? "Stadler"
                                                                   : source ===
-                                                                      "swiss_re"
-                                                                    ? "Swiss Re"
+                                                                      "ebp_switzerland"
+                                                                    ? "EBP Schweiz AG"
                                                                     : source ===
-                                                                        "baloise"
-                                                                      ? "Baloise"
+                                                                        "swiss_re"
+                                                                      ? "Swiss Re"
                                                                       : source ===
-                                                                          "elca"
-                                                                        ? "ELCA"
+                                                                          "baloise"
+                                                                        ? "Baloise"
                                                                         : source ===
-                                                                            "aveniq"
-                                                                          ? "Aveniq AG"
+                                                                            "elca"
+                                                                          ? "ELCA"
                                                                           : source ===
-                                                                              "mimacom"
-                                                                            ? "Mimacom"
+                                                                              "aveniq"
+                                                                            ? "Aveniq AG"
                                                                             : source ===
-                                                                                "unit8_switzerland"
-                                                                              ? "Unit8 SA"
+                                                                                "mimacom"
+                                                                              ? "Mimacom"
                                                                               : source ===
-                                                                                  "msd"
-                                                                                ? "MSD"
+                                                                                  "unit8_switzerland"
+                                                                                ? "Unit8 SA"
                                                                                 : source ===
-                                                                                    "srg_ssr"
-                                                                                  ? "SRG SSR"
+                                                                                    "msd"
+                                                                                  ? "MSD"
                                                                                   : source ===
-                                                                                      "ibm"
-                                                                                    ? "IBM"
+                                                                                      "srg_ssr"
+                                                                                    ? "SRG SSR"
                                                                                     : source ===
-                                                                                        "google"
-                                                                                      ? "Google"
+                                                                                        "ibm"
+                                                                                      ? "IBM"
                                                                                       : source ===
-                                                                                          "buhler_switzerland"
-                                                                                        ? "Bühler AG"
+                                                                                          "google"
+                                                                                        ? "Google"
                                                                                         : source ===
-                                                                                            "oracle_switzerland"
-                                                                                          ? "Oracle"
+                                                                                            "buhler_switzerland"
+                                                                                          ? "Bühler AG"
                                                                                           : source ===
-                                                                                              "ey_switzerland"
-                                                                                            ? "EY"
+                                                                                              "oracle_switzerland"
+                                                                                            ? "Oracle"
                                                                                             : source ===
-                                                                                                "adnovum"
-                                                                                              ? "Adnovum AG"
+                                                                                                "ey_switzerland"
+                                                                                              ? "EY"
                                                                                               : source ===
-                                                                                                  "eth_zurich"
-                                                                                                ? "ETH Zürich"
+                                                                                                  "adnovum"
+                                                                                                ? "Adnovum AG"
                                                                                                 : source ===
-                                                                                                    "siemens_switzerland"
-                                                                                                  ? "Siemens Schweiz AG"
+                                                                                                    "eth_zurich"
+                                                                                                  ? "ETH Zürich"
                                                                                                   : source ===
-                                                                                                      "kpmg_switzerland"
-                                                                                                    ? "KPMG AG"
+                                                                                                      "siemens_switzerland"
+                                                                                                    ? "Siemens Schweiz AG"
                                                                                                     : source ===
-                                                                                                        "swissgrid"
-                                                                                                      ? "Swissgrid"
+                                                                                                        "kpmg_switzerland"
+                                                                                                      ? "KPMG AG"
                                                                                                       : source ===
-                                                                                                          "suva"
-                                                                                                        ? "Suva"
+                                                                                                          "swissgrid"
+                                                                                                        ? "Swissgrid"
                                                                                                         : source ===
-                                                                                                            "ao_foundation"
-                                                                                                          ? "AO Foundation"
+                                                                                                            "suva"
+                                                                                                          ? "Suva"
                                                                                                           : source ===
-                                                                                                              "skyguide"
-                                                                                                            ? "Skyguide"
+                                                                                                              "ao_foundation"
+                                                                                                            ? "AO Foundation"
                                                                                                             : source ===
-                                                                                                                "roche_switzerland"
-                                                                                                              ? "Roche"
+                                                                                                                "skyguide"
+                                                                                                              ? "Skyguide"
                                                                                                               : source ===
-                                                                                                                  "logitech_switzerland"
-                                                                                                                ? "Logitech"
+                                                                                                                  "roche_switzerland"
+                                                                                                                ? "Roche"
                                                                                                                 : source ===
-                                                                                                                    "swatch_group"
-                                                                                                                  ? "Tissot Ltd"
+                                                                                                                    "logitech_switzerland"
+                                                                                                                  ? "Logitech"
                                                                                                                   : source ===
-                                                                                                                      "amazon_switzerland"
-                                                                                                                    ? "AWS EMEA SARL (Switzerland Branch)"
+                                                                                                                      "swatch_group"
+                                                                                                                    ? "Tissot Ltd"
                                                                                                                     : source ===
-                                                                                                                        "cognizant_switzerland"
-                                                                                                                      ? "Cognizant Technology Solutions AG"
+                                                                                                                        "amazon_switzerland"
+                                                                                                                      ? "AWS EMEA SARL (Switzerland Branch)"
                                                                                                                       : source ===
-                                                                                                                          "fisba"
-                                                                                                                        ? "FISBA AG"
+                                                                                                                          "cognizant_switzerland"
+                                                                                                                        ? "Cognizant Technology Solutions AG"
                                                                                                                         : source ===
-                                                                                                                            "gritec"
-                                                                                                                          ? "GRITEC AG"
+                                                                                                                            "fisba"
+                                                                                                                          ? "FISBA AG"
                                                                                                                           : source ===
-                                                                                                                              "helbling"
-                                                                                                                            ? "Helbling"
+                                                                                                                              "gritec"
+                                                                                                                            ? "GRITEC AG"
                                                                                                                             : source ===
-                                                                                                                                "axpo_switzerland"
-                                                                                                                              ? "Axpo Group"
+                                                                                                                                "helbling"
+                                                                                                                              ? "Helbling"
                                                                                                                               : source ===
-                                                                                                                                  "ringier"
-                                                                                                                                ? "Ringier AG"
-                                                                                                                                : "Example AG",
+                                                                                                                                  "axpo_switzerland"
+                                                                                                                                ? "Axpo Group"
+                                                                                                                                : source ===
+                                                                                                                                    "ringier"
+                                                                                                                                  ? "Ringier AG"
+                                                                                                                                  : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -476,6 +483,7 @@ function importedJobData({
       source === "switch" ||
       source === "huber_suhner_switzerland" ||
       source === "stadler_it_switzerland" ||
+      source === "ebp_switzerland" ||
       source === "swiss_re" ||
       source === "baloise" ||
       source === "elca" ||
@@ -1961,6 +1969,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "DevOps & Integration Engineer at Stadler",
         source: "stadler_it_switzerland",
       });
+      const ebpSwitzerlandJob = importedJobData({
+        id: "ebp_switzerland-b913f9ef-1bdc-4824-8b46-ea0607c12c58",
+        title: "Junior Projektleiter/in at EBP",
+        source: "ebp_switzerland",
+      });
       const swissReJob = importedJobData({
         id: "swiss_re-1412388733",
         title: "Senior Security Analyst at Swiss Re",
@@ -2159,6 +2172,7 @@ it("shows direct-company vacancies with their company logos", async () => {
           id: stadlerItSwitzerlandJob.id,
           data: stadlerItSwitzerlandJob,
         },
+        { id: ebpSwitzerlandJob.id, data: ebpSwitzerlandJob },
         { id: swissReJob.id, data: swissReJob },
         { id: baloiseJob.id, data: baloiseJob },
         { id: elcaJob.id, data: elcaJob },
@@ -2193,8 +2207,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 58,
-        jobsAdded: 58,
+        jobsFound: 59,
+        jobsAdded: 59,
         sourceErrors: {},
         warning: null,
       });
@@ -2264,6 +2278,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Switch")).toBeInTheDocument();
   expect(screen.getByText("Huber+Suhner Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Stadler IT Switzerland")).toBeInTheDocument();
+  expect(screen.getByText("EBP Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Swiss Re")).toBeInTheDocument();
   expect(screen.getByText("Baloise")).toBeInTheDocument();
   expect(screen.getByText("ELCA")).toBeInTheDocument();
@@ -2332,7 +2347,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 58 of 58 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling",
+      "Added 59 of 59 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2365,6 +2380,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "switch",
       "huber_suhner_switzerland",
       "stadler_it_switzerland",
+      "ebp_switzerland",
       "swiss_re",
       "baloise",
       "elca",
@@ -2481,6 +2497,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   ).toBeGreaterThan(0);
   expect(
     screen.getAllByRole("img", { name: "Stadler IT Switzerland logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "EBP Switzerland logo" }).length,
   ).toBeGreaterThan(0);
   expect(
     screen.getAllByRole("img", { name: "Swiss Re logo" }).length,
@@ -2628,6 +2647,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByText("Source: Stadler IT Switzerland").length,
   ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: EBP Switzerland").length).toBeGreaterThan(
+    0,
+  );
   expect(screen.getAllByText("Source: Swiss Re").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Baloise").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: ELCA").length).toBeGreaterThan(0);

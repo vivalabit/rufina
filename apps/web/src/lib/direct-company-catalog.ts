@@ -294,6 +294,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "ebp_switzerland",
+    name: "EBP Switzerland",
+    careersUrl:
+      "https://www.ebp.global/ch-de/karriere/offene-stellen/stellenangebote",
+    logoSrc: "/company-logos/ebp.svg",
+    logoAlt: "EBP Switzerland logo",
+    logoWidth: 79,
+    logoHeight: 24,
+  },
+  {
     id: "swiss_re",
     name: "Swiss Re",
     careersUrl: "https://www.swissre.com/careers/switzerland-careers.html",

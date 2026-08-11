@@ -503,6 +503,23 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="ebp_switzerland",
+        name="EBP Switzerland",
+        careers_url=(
+            "https://www.ebp.global/ch-de/karriere/offene-stellen/stellenangebote"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.ebp_switzerland:"
+            "EbpSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "ebp_switzerland_jobs_base_url"),
+            ("catalog_url", "ebp_switzerland_jobs_catalog_url"),
+            ("timeout_seconds", "ebp_switzerland_jobs_timeout_seconds"),
+            ("detail_workers", "ebp_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="swiss_re",
         name="Swiss Re",
         careers_url=(
