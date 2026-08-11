@@ -480,6 +480,29 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="stadler_it_switzerland",
+        name="Stadler IT Switzerland",
+        careers_url=(
+            "https://www.stadlerrail.com/de/karriere/offene-stellen"
+            "?10=1077445&25=1098730&"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.stadler_it_switzerland:"
+            "StadlerItSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "stadler_it_switzerland_jobs_base_url"),
+            ("catalog_url", "stadler_it_switzerland_jobs_catalog_url"),
+            ("timeout_seconds", "stadler_it_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "stadler_it_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "stadler_it_switzerland_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "stadler_it_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="swiss_re",
         name="Swiss Re",
         careers_url=(

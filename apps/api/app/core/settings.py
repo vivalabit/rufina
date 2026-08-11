@@ -403,6 +403,33 @@ class Settings(BaseSettings):
         ge=1,
         le=20,
     )
+    stadler_it_switzerland_jobs_base_url: str = (
+        "https://www.stadlerrail.com/de/karriere/offene-stellen"
+        "?10=1077445&25=1098730&"
+    )
+    stadler_it_switzerland_jobs_catalog_url: str = (
+        "https://ohws.prospective.ch/public/v1/careercenter/1000470/"
+    )
+    stadler_it_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    stadler_it_switzerland_jobs_max_pages: int = Field(
+        default=20,
+        ge=1,
+        le=100,
+    )
+    stadler_it_switzerland_jobs_max_catalog_passes: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+    )
+    stadler_it_switzerland_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+    )
     swiss_re_jobs_base_url: str = (
         "https://www.swissre.com/careers/switzerland-careers.html"
     )

@@ -284,6 +284,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "stadler_it_switzerland",
+    name: "Stadler IT Switzerland",
+    careersUrl:
+      "https://www.stadlerrail.com/de/karriere/offene-stellen?10=1077445&25=1098730&",
+    logoSrc: "/company-logos/stadler.svg",
+    logoAlt: "Stadler IT Switzerland logo",
+    logoWidth: 142,
+    logoHeight: 24,
+  },
+  {
     id: "swiss_re",
     name: "Swiss Re",
     careersUrl: "https://www.swissre.com/careers/switzerland-careers.html",

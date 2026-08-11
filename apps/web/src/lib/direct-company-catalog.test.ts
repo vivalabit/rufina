@@ -25,3 +25,25 @@ describe("Huber+Suhner Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("Stadler IT Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "stadler_it_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "stadler_it_switzerland",
+      name: "Stadler IT Switzerland",
+      careersUrl:
+        "https://www.stadlerrail.com/de/karriere/offene-stellen?10=1077445&25=1098730&",
+      logoSrc: "/company-logos/stadler.svg",
+      logoAlt: "Stadler IT Switzerland logo",
+      logoWidth: 142,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("stadler_it_switzerland-10133279")).toBe(
+      company,
+    );
+  });
+});
