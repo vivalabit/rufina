@@ -612,6 +612,25 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="pictet_switzerland",
+        name="Pictet Switzerland",
+        careers_url=(
+            "https://career012.successfactors.eu/career?company=banquepict"
+            "&career_ns=job_listing_summary&navBarLevel=JOB_SEARCH"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.pictet_switzerland:"
+            "PictetSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "pictet_switzerland_jobs_base_url"),
+            ("timeout_seconds", "pictet_switzerland_jobs_timeout_seconds"),
+            ("max_jobs", "pictet_switzerland_jobs_max_jobs"),
+            ("max_catalog_passes", "pictet_switzerland_jobs_max_catalog_passes"),
+            ("detail_workers", "pictet_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="swiss_re",
         name="Swiss Re",
         careers_url=(

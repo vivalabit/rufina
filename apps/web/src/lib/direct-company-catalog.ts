@@ -359,6 +359,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "pictet_switzerland",
+    name: "Pictet Switzerland",
+    careersUrl:
+      "https://career012.successfactors.eu/career?company=banquepict&career_ns=job_listing_summary&navBarLevel=JOB_SEARCH",
+    logoSrc: "/company-logos/pictet.svg",
+    logoAlt: "Pictet Switzerland logo",
+    logoWidth: 108,
+    logoHeight: 24,
+  },
+  {
     id: "swiss_re",
     name: "Swiss Re",
     careersUrl: "https://www.swissre.com/careers/switzerland-careers.html",

@@ -492,6 +492,14 @@ class Settings(BaseSettings):
     novartis_switzerland_jobs_max_pages: int = Field(default=50, ge=1, le=200)
     novartis_switzerland_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
     novartis_switzerland_jobs_detail_workers: int = Field(default=8, ge=1, le=8)
+    pictet_switzerland_jobs_base_url: str = (
+        "https://career012.successfactors.eu/career?company=banquepict"
+        "&career_ns=job_listing_summary&navBarLevel=JOB_SEARCH"
+    )
+    pictet_switzerland_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    pictet_switzerland_jobs_max_jobs: int = Field(default=1000, ge=1, le=5000)
+    pictet_switzerland_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
+    pictet_switzerland_jobs_detail_workers: int = Field(default=8, ge=1, le=8)
     swiss_re_jobs_base_url: str = (
         "https://www.swissre.com/careers/switzerland-careers.html"
     )

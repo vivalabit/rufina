@@ -198,3 +198,23 @@ describe("Novartis Switzerland Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("Pictet Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "pictet_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "pictet_switzerland",
+      name: "Pictet Switzerland",
+      careersUrl:
+        "https://career012.successfactors.eu/career?company=banquepict&career_ns=job_listing_summary&navBarLevel=JOB_SEARCH",
+      logoSrc: "/company-logos/pictet.svg",
+      logoAlt: "Pictet Switzerland logo",
+      logoWidth: 108,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("pictet_switzerland-124439")).toBe(company);
+  });
+});
