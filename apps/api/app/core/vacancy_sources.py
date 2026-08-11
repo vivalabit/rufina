@@ -1170,6 +1170,20 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="detecon_switzerland",
+        name="Detecon Switzerland",
+        careers_url="https://www.detecon.com/de/jobs",
+        parser_path=(
+            "app.services.parsers.companies.detecon_switzerland:"
+            "DeteconSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "detecon_switzerland_jobs_base_url"),
+            ("timeout_seconds", "detecon_switzerland_jobs_timeout_seconds"),
+            ("detail_workers", "detecon_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="bachem",
         name="Bachem",
         careers_url=(

@@ -208,6 +208,29 @@ describe("Electrosuisse Direct Company catalog entry", () => {
   });
 });
 
+describe("Detecon Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "detecon_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "detecon_switzerland",
+      name: "Detecon Switzerland",
+      careersUrl: "https://www.detecon.com/de/jobs",
+      logoSrc: "/company-logos/detecon.svg",
+      logoAlt: "Detecon Switzerland logo",
+      logoWidth: 128,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "detecon_switzerland-student-consultant-applied-agentic-ai-entwicklung-all-genders",
+      ),
+    ).toBe(company);
+  });
+});
+
 describe("Huber+Suhner Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

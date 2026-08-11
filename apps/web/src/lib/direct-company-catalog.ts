@@ -680,6 +680,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "detecon_switzerland",
+    name: "Detecon Switzerland",
+    careersUrl: "https://www.detecon.com/de/jobs",
+    logoSrc: "/company-logos/detecon.svg",
+    logoAlt: "Detecon Switzerland logo",
+    logoWidth: 128,
+    logoHeight: 24,
+  },
+  {
     id: "bachem",
     name: "Bachem",
     careersUrl:
