@@ -97,7 +97,9 @@ describe("RUAG Switzerland Direct Company catalog entry", () => {
 
 describe("Cyberlink Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
-    const company = directCompanyCatalog.find((item) => item.id === "cyberlink");
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "cyberlink",
+    );
 
     expect(company).toEqual({
       id: "cyberlink",
@@ -108,8 +110,23 @@ describe("Cyberlink Direct Company catalog entry", () => {
       logoWidth: 118,
       logoHeight: 24,
     });
-    expect(getDirectCompanyByJobId("cyberlink-spontanbewerbung")).toBe(
-      company,
-    );
+    expect(getDirectCompanyByJobId("cyberlink-spontanbewerbung")).toBe(company);
+  });
+});
+
+describe("Ergon Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "ergon");
+
+    expect(company).toEqual({
+      id: "ergon",
+      name: "Ergon",
+      careersUrl: "https://www.ergon.ch/de/karriere/jobs?showAllJobs=true",
+      logoSrc: "/company-logos/ergon.svg",
+      logoAlt: "Ergon logo",
+      logoWidth: 82,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("ergon-2587674")).toBe(company);
   });
 });

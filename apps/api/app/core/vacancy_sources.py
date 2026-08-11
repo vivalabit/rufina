@@ -553,6 +553,18 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="ergon",
+        name="Ergon",
+        careers_url="https://www.ergon.ch/de/karriere/jobs?showAllJobs=true",
+        parser_path="app.services.parsers.companies.ergon:ErgonJobsParser",
+        settings_map=(
+            ("base_url", "ergon_jobs_base_url"),
+            ("api_url", "ergon_jobs_api_url"),
+            ("timeout_seconds", "ergon_jobs_timeout_seconds"),
+            ("max_jobs", "ergon_jobs_max_jobs"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="swiss_re",
         name="Swiss Re",
         careers_url=(

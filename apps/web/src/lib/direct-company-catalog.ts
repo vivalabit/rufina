@@ -322,6 +322,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "ergon",
+    name: "Ergon",
+    careersUrl: "https://www.ergon.ch/de/karriere/jobs?showAllJobs=true",
+    logoSrc: "/company-logos/ergon.svg",
+    logoAlt: "Ergon logo",
+    logoWidth: 82,
+    logoHeight: 24,
+  },
+  {
     id: "swiss_re",
     name: "Swiss Re",
     careersUrl: "https://www.swissre.com/careers/switzerland-careers.html",
