@@ -349,6 +349,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "novartis_switzerland",
+    name: "Novartis Switzerland",
+    careersUrl:
+      "https://www.novartis.com/careers/career-search?search_api_fulltext=&country%5B%5D=LOC_CH&field_job_posted_date=All&op=Submit",
+    logoSrc: "/company-logos/novartis.svg",
+    logoAlt: "Novartis Switzerland logo",
+    logoWidth: 160,
+    logoHeight: 24,
+  },
+  {
     id: "swiss_re",
     name: "Swiss Re",
     careersUrl: "https://www.swissre.com/careers/switzerland-careers.html",

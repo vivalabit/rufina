@@ -484,6 +484,14 @@ class Settings(BaseSettings):
     ti8m_switzerland_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     ti8m_switzerland_jobs_max_jobs: int = Field(default=500, ge=1, le=5000)
     ti8m_switzerland_jobs_detail_workers: int = Field(default=8, ge=1, le=8)
+    novartis_switzerland_jobs_base_url: str = (
+        "https://www.novartis.com/careers/career-search?search_api_fulltext="
+        "&country%5B%5D=LOC_CH&field_job_posted_date=All&op=Submit"
+    )
+    novartis_switzerland_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    novartis_switzerland_jobs_max_pages: int = Field(default=50, ge=1, le=200)
+    novartis_switzerland_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
+    novartis_switzerland_jobs_detail_workers: int = Field(default=8, ge=1, le=8)
     swiss_re_jobs_base_url: str = (
         "https://www.swissre.com/careers/switzerland-careers.html"
     )

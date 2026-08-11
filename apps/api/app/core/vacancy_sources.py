@@ -593,6 +593,25 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="novartis_switzerland",
+        name="Novartis Switzerland",
+        careers_url=(
+            "https://www.novartis.com/careers/career-search?search_api_fulltext="
+            "&country%5B%5D=LOC_CH&field_job_posted_date=All&op=Submit"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.novartis_switzerland:"
+            "NovartisSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "novartis_switzerland_jobs_base_url"),
+            ("timeout_seconds", "novartis_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "novartis_switzerland_jobs_max_pages"),
+            ("max_catalog_passes", "novartis_switzerland_jobs_max_catalog_passes"),
+            ("detail_workers", "novartis_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="swiss_re",
         name="Swiss Re",
         careers_url=(

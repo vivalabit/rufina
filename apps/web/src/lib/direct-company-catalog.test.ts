@@ -176,3 +176,25 @@ describe("ti&m Switzerland Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("Novartis Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "novartis_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "novartis_switzerland",
+      name: "Novartis Switzerland",
+      careersUrl:
+        "https://www.novartis.com/careers/career-search?search_api_fulltext=&country%5B%5D=LOC_CH&field_job_posted_date=All&op=Submit",
+      logoSrc: "/company-logos/novartis.svg",
+      logoAlt: "Novartis Switzerland logo",
+      logoWidth: 160,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("novartis_switzerland-req-10084379")).toBe(
+      company,
+    );
+  });
+});

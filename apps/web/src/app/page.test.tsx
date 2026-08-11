@@ -81,6 +81,7 @@ function importedJobData({
     | "ergon"
     | "logobject"
     | "ti8m_switzerland"
+    | "novartis_switzerland"
     | "swiss_re"
     | "baloise"
     | "elca"
@@ -296,7 +297,10 @@ function importedJobData({
                                                                                                                                             : source ===
                                                                                                                                                 "ti8m_switzerland"
                                                                                                                                               ? "ti&m Switzerland"
-                                                                                                                                              : "LinkedIn";
+                                                                                                                                              : source ===
+                                                                                                                                                  "novartis_switzerland"
+                                                                                                                                                ? "Novartis Switzerland"
+                                                                                                                                                : "LinkedIn";
   return {
     id,
     company:
@@ -478,7 +482,10 @@ function importedJobData({
                                                                                                                                           : source ===
                                                                                                                                               "ti8m_switzerland"
                                                                                                                                             ? "ti&m AG"
-                                                                                                                                            : "Example AG",
+                                                                                                                                            : source ===
+                                                                                                                                                "novartis_switzerland"
+                                                                                                                                              ? "Novartis"
+                                                                                                                                              : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -524,6 +531,7 @@ function importedJobData({
       source === "ergon" ||
       source === "logobject" ||
       source === "ti8m_switzerland" ||
+      source === "novartis_switzerland" ||
       source === "swiss_re" ||
       source === "baloise" ||
       source === "elca" ||
@@ -2039,6 +2047,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Senior Business Analyst at ti&m",
         source: "ti8m_switzerland",
       });
+      const novartisSwitzerlandJob = importedJobData({
+        id: "novartis_switzerland-req-10084379",
+        title: "AI Scientist at Novartis",
+        source: "novartis_switzerland",
+      });
       const swissReJob = importedJobData({
         id: "swiss_re-1412388733",
         title: "Senior Security Analyst at Swiss Re",
@@ -2243,6 +2256,7 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: ergonJob.id, data: ergonJob },
         { id: logobjectJob.id, data: logobjectJob },
         { id: ti8mSwitzerlandJob.id, data: ti8mSwitzerlandJob },
+        { id: novartisSwitzerlandJob.id, data: novartisSwitzerlandJob },
         { id: swissReJob.id, data: swissReJob },
         { id: baloiseJob.id, data: baloiseJob },
         { id: elcaJob.id, data: elcaJob },
@@ -2277,8 +2291,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 64,
-        jobsAdded: 64,
+        jobsFound: 65,
+        jobsAdded: 65,
         sourceErrors: {},
         warning: null,
       });
@@ -2354,6 +2368,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Ergon")).toBeInTheDocument();
   expect(screen.getByText("LogObject")).toBeInTheDocument();
   expect(screen.getByText("ti&m Switzerland")).toBeInTheDocument();
+  expect(screen.getByText("Novartis Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Swiss Re")).toBeInTheDocument();
   expect(screen.getByText("Baloise")).toBeInTheDocument();
   expect(screen.getByText("ELCA")).toBeInTheDocument();
@@ -2422,7 +2437,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 64 of 64 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling",
+      "Added 65 of 65 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2461,6 +2476,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "ergon",
       "logobject",
       "ti8m_switzerland",
+      "novartis_switzerland",
       "swiss_re",
       "baloise",
       "elca",
@@ -2595,6 +2611,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   ).toBeGreaterThan(0);
   expect(
     screen.getAllByRole("img", { name: "ti&m Switzerland logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Novartis Switzerland logo" }).length,
   ).toBeGreaterThan(0);
   expect(
     screen.getAllByRole("img", { name: "Swiss Re logo" }).length,
@@ -2753,6 +2772,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getAllByText("Source: LogObject").length).toBeGreaterThan(0);
   expect(
     screen.getAllByText("Source: ti&m Switzerland").length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: Novartis Switzerland").length,
   ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Swiss Re").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Baloise").length).toBeGreaterThan(0);
