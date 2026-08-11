@@ -855,6 +855,37 @@ class Settings(BaseSettings):
         le=120,
     )
     detecon_switzerland_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    lufthansa_group_switzerland_jobs_base_url: str = (
+        "https://apply.lufthansagroup.careers/index.php?ac=search_result"
+        "&search_criterion_division%5B%5D=5926"
+        "&search_criterion_division%5B%5D=9114"
+        "&search_criterion_division%5B%5D=5988"
+        "&search_criterion_division%5B%5D=6006"
+        "&search_criterion_channel%5B%5D=12"
+    )
+    lufthansa_group_switzerland_jobs_api_url: str = (
+        "https://api-apply.lufthansagroup.careers/search/"
+    )
+    lufthansa_group_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    lufthansa_group_switzerland_jobs_max_pages: int = Field(
+        default=20,
+        ge=1,
+        le=200,
+    )
+    lufthansa_group_switzerland_jobs_max_catalog_passes: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+    )
+    lufthansa_group_switzerland_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+    )
     bachem_jobs_base_url: str = (
         "https://careers.bachem.com/search/?createNewAlert=false&q="
         "&optionsFacetsDD_department=&optionsFacetsDD_shifttype="

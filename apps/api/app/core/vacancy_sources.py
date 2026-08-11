@@ -1184,6 +1184,33 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="lufthansa_group_switzerland",
+        name="Lufthansa Group Switzerland",
+        careers_url=(
+            "https://apply.lufthansagroup.careers/index.php?ac=search_result"
+            "&search_criterion_division%5B%5D=5926"
+            "&search_criterion_division%5B%5D=9114"
+            "&search_criterion_division%5B%5D=5988"
+            "&search_criterion_division%5B%5D=6006"
+            "&search_criterion_channel%5B%5D=12"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.lufthansa_group_switzerland:"
+            "LufthansaGroupSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "lufthansa_group_switzerland_jobs_base_url"),
+            ("api_url", "lufthansa_group_switzerland_jobs_api_url"),
+            ("timeout_seconds", "lufthansa_group_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "lufthansa_group_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "lufthansa_group_switzerland_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "lufthansa_group_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="bachem",
         name="Bachem",
         careers_url=(

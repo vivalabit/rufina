@@ -231,6 +231,28 @@ describe("Detecon Switzerland Direct Company catalog entry", () => {
   });
 });
 
+describe("Lufthansa Group Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "lufthansa_group_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "lufthansa_group_switzerland",
+      name: "Lufthansa Group Switzerland",
+      careersUrl:
+        "https://apply.lufthansagroup.careers/index.php?ac=search_result&search_criterion_division%5B%5D=5926&search_criterion_division%5B%5D=9114&search_criterion_division%5B%5D=5988&search_criterion_division%5B%5D=6006&search_criterion_channel%5B%5D=12",
+      logoSrc: "/company-logos/lufthansa_group.svg",
+      logoAlt: "Lufthansa Group Switzerland logo",
+      logoWidth: 132,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId("lufthansa_group_switzerland-134020"),
+    ).toBe(company);
+  });
+});
+
 describe("Huber+Suhner Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

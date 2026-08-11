@@ -689,6 +689,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "lufthansa_group_switzerland",
+    name: "Lufthansa Group Switzerland",
+    careersUrl:
+      "https://apply.lufthansagroup.careers/index.php?ac=search_result&search_criterion_division%5B%5D=5926&search_criterion_division%5B%5D=9114&search_criterion_division%5B%5D=5988&search_criterion_division%5B%5D=6006&search_criterion_channel%5B%5D=12",
+    logoSrc: "/company-logos/lufthansa_group.svg",
+    logoAlt: "Lufthansa Group Switzerland logo",
+    logoWidth: 132,
+    logoHeight: 24,
+  },
+  {
     id: "bachem",
     name: "Bachem",
     careersUrl:
