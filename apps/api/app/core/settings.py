@@ -475,6 +475,10 @@ class Settings(BaseSettings):
     ergon_jobs_api_url: str = "https://apply.ergon.ch/api/offers/"
     ergon_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     ergon_jobs_max_jobs: int = Field(default=500, ge=1, le=5000)
+    logobject_jobs_base_url: str = "https://logobject.com/karriere"
+    logobject_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    logobject_jobs_max_jobs: int = Field(default=500, ge=1, le=5000)
+    logobject_jobs_detail_workers: int = Field(default=4, ge=1, le=8)
     swiss_re_jobs_base_url: str = (
         "https://www.swissre.com/careers/switzerland-careers.html"
     )

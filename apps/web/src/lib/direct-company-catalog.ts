@@ -331,6 +331,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "logobject",
+    name: "LogObject",
+    careersUrl: "https://logobject.com/karriere",
+    logoSrc: "/company-logos/logobject.svg",
+    logoAlt: "LogObject logo",
+    logoWidth: 116,
+    logoHeight: 24,
+  },
+  {
     id: "swiss_re",
     name: "Swiss Re",
     careersUrl: "https://www.swissre.com/careers/switzerland-careers.html",

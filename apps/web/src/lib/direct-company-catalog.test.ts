@@ -130,3 +130,26 @@ describe("Ergon Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("ergon-2587674")).toBe(company);
   });
 });
+
+describe("LogObject Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "logobject",
+    );
+
+    expect(company).toEqual({
+      id: "logobject",
+      name: "LogObject",
+      careersUrl: "https://logobject.com/karriere",
+      logoSrc: "/company-logos/logobject.svg",
+      logoAlt: "LogObject logo",
+      logoWidth: 116,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "logobject-wirtschaftsinformatiker-software-entwicklung-m-w-d-1",
+      ),
+    ).toBe(company);
+  });
+});

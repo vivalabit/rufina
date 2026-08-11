@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="116" height="24" viewBox="0 0 116 24" role="img" aria-label="LogObject">
+  <path fill="#143a84" d="M2 4 10 1.8 18 4v8l-8 2.3L2 12z"/>
+  <path fill="#e1e2f1" d="m10 6.2 8-2.2v8l-8 2.3z"/>
+  <text x="23" y="17" fill="#111" font-family="Arial, Helvetica, sans-serif" font-size="15" font-weight="700">LogObject</text>
+</svg>

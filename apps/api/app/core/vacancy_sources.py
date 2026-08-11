@@ -565,6 +565,18 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="logobject",
+        name="LogObject",
+        careers_url="https://logobject.com/karriere",
+        parser_path="app.services.parsers.companies.logobject:LogObjectJobsParser",
+        settings_map=(
+            ("base_url", "logobject_jobs_base_url"),
+            ("timeout_seconds", "logobject_jobs_timeout_seconds"),
+            ("max_jobs", "logobject_jobs_max_jobs"),
+            ("detail_workers", "logobject_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="swiss_re",
         name="Swiss Re",
         careers_url=(

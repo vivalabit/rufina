@@ -79,6 +79,7 @@ function importedJobData({
     | "ruag_switzerland"
     | "cyberlink"
     | "ergon"
+    | "logobject"
     | "swiss_re"
     | "baloise"
     | "elca"
@@ -288,7 +289,10 @@ function importedJobData({
                                                                                                                                         : source ===
                                                                                                                                             "ergon"
                                                                                                                                           ? "Ergon"
-                                                                                                                                          : "LinkedIn";
+                                                                                                                                          : source ===
+                                                                                                                                              "logobject"
+                                                                                                                                            ? "LogObject"
+                                                                                                                                            : "LinkedIn";
   return {
     id,
     company:
@@ -464,7 +468,10 @@ function importedJobData({
                                                                                                                                       : source ===
                                                                                                                                           "ergon"
                                                                                                                                         ? "Ergon Informatik AG"
-                                                                                                                                        : "Example AG",
+                                                                                                                                        : source ===
+                                                                                                                                            "logobject"
+                                                                                                                                          ? "LogObject AG"
+                                                                                                                                          : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -508,6 +515,7 @@ function importedJobData({
       source === "ruag_switzerland" ||
       source === "cyberlink" ||
       source === "ergon" ||
+      source === "logobject" ||
       source === "swiss_re" ||
       source === "baloise" ||
       source === "elca" ||
@@ -2013,6 +2021,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Senior Fullstack Software Engineer at Ergon",
         source: "ergon",
       });
+      const logobjectJob = importedJobData({
+        id: "logobject-wirtschaftsinformatiker-software-entwicklung-m-w-d-1",
+        title: "Wirtschaftsinformatiker Software Entwicklung at LogObject",
+        source: "logobject",
+      });
       const swissReJob = importedJobData({
         id: "swiss_re-1412388733",
         title: "Senior Security Analyst at Swiss Re",
@@ -2215,6 +2228,7 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: ruagSwitzerlandJob.id, data: ruagSwitzerlandJob },
         { id: cyberlinkJob.id, data: cyberlinkJob },
         { id: ergonJob.id, data: ergonJob },
+        { id: logobjectJob.id, data: logobjectJob },
         { id: swissReJob.id, data: swissReJob },
         { id: baloiseJob.id, data: baloiseJob },
         { id: elcaJob.id, data: elcaJob },
@@ -2249,8 +2263,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 62,
-        jobsAdded: 62,
+        jobsFound: 63,
+        jobsAdded: 63,
         sourceErrors: {},
         warning: null,
       });
@@ -2324,6 +2338,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("RUAG Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Cyberlink")).toBeInTheDocument();
   expect(screen.getByText("Ergon")).toBeInTheDocument();
+  expect(screen.getByText("LogObject")).toBeInTheDocument();
   expect(screen.getByText("Swiss Re")).toBeInTheDocument();
   expect(screen.getByText("Baloise")).toBeInTheDocument();
   expect(screen.getByText("ELCA")).toBeInTheDocument();
@@ -2392,7 +2407,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 62 of 62 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling",
+      "Added 63 of 63 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2429,6 +2444,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "ruag_switzerland",
       "cyberlink",
       "ergon",
+      "logobject",
       "swiss_re",
       "baloise",
       "elca",
@@ -2557,6 +2573,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   ).toBeGreaterThan(0);
   expect(
     screen.getAllByRole("img", { name: "Ergon logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "LogObject logo" }).length,
   ).toBeGreaterThan(0);
   expect(
     screen.getAllByRole("img", { name: "Swiss Re logo" }).length,
@@ -2712,6 +2731,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Cyberlink").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Ergon").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: LogObject").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Swiss Re").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Baloise").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: ELCA").length).toBeGreaterThan(0);
