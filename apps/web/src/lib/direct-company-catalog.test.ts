@@ -188,6 +188,26 @@ describe("Maerki Baumann Direct Company catalog entry", () => {
   });
 });
 
+describe("Electrosuisse Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "electrosuisse",
+    );
+
+    expect(company).toEqual({
+      id: "electrosuisse",
+      name: "Electrosuisse",
+      careersUrl:
+        "https://www.electrosuisse.ch/de/karriere/offene-stellen/",
+      logoSrc: "/company-logos/electrosuisse.svg",
+      logoAlt: "Electrosuisse logo",
+      logoWidth: 43,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("electrosuisse-80275")).toBe(company);
+  });
+});
+
 describe("Huber+Suhner Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

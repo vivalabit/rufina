@@ -1153,6 +1153,23 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="electrosuisse",
+        name="Electrosuisse",
+        careers_url=(
+            "https://www.electrosuisse.ch/de/karriere/offene-stellen/"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.electrosuisse:"
+            "ElectrosuisseJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "electrosuisse_jobs_base_url"),
+            ("api_url", "electrosuisse_jobs_api_url"),
+            ("timeout_seconds", "electrosuisse_jobs_timeout_seconds"),
+            ("detail_workers", "electrosuisse_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="bachem",
         name="Bachem",
         careers_url=(

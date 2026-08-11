@@ -670,6 +670,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "electrosuisse",
+    name: "Electrosuisse",
+    careersUrl:
+      "https://www.electrosuisse.ch/de/karriere/offene-stellen/",
+    logoSrc: "/company-logos/electrosuisse.svg",
+    logoAlt: "Electrosuisse logo",
+    logoWidth: 43,
+    logoHeight: 24,
+  },
+  {
     id: "bachem",
     name: "Bachem",
     careersUrl:

@@ -834,6 +834,20 @@ class Settings(BaseSettings):
         le=120,
     )
     maerki_baumann_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    electrosuisse_jobs_base_url: str = (
+        "https://www.electrosuisse.ch/de/karriere/offene-stellen/"
+    )
+    electrosuisse_jobs_api_url: str = (
+        "https://odm.ostendis.com/ojp/data/v55/jobs/"
+        "3bydei12tjzhiw5j4mqa85cfj4bjoud2/DE"
+        "?domain=www.electrosuisse.ch"
+    )
+    electrosuisse_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    electrosuisse_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     bachem_jobs_base_url: str = (
         "https://careers.bachem.com/search/?createNewAlert=false&q="
         "&optionsFacetsDD_department=&optionsFacetsDD_shifttype="

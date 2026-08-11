@@ -115,6 +115,7 @@ function importedJobData({
     | "gritec"
     | "helbling"
     | "maerki_baumann"
+    | "electrosuisse"
     | "bachem"
     | "georg_fischer_switzerland"
     | "also"
@@ -289,6 +290,9 @@ function importedJobData({
                                                                                                                                 : source ===
                                                                                                                                     "maerki_baumann"
                                                                                                                                   ? "Maerki Baumann"
+                                                                                                                                : source ===
+                                                                                                                                    "electrosuisse"
+                                                                                                                                  ? "Electrosuisse"
                                                                                                                                 : source ===
                                                                                                                                     "bachem"
                                                                                                                                   ? "Bachem"
@@ -505,6 +509,9 @@ function importedJobData({
                                                                                                                                   "maerki_baumann"
                                                                                                                                 ? "Maerki Baumann & Co. AG"
                                                                                                                               : source ===
+                                                                                                                                  "electrosuisse"
+                                                                                                                                ? "Electrosuisse"
+                                                                                                                              : source ===
                                                                                                                                   "bachem"
                                                                                                                                 ? "Bachem AG"
                                                                                                                               : source ===
@@ -635,6 +642,7 @@ function importedJobData({
       source === "gritec" ||
       source === "helbling" ||
       source === "maerki_baumann" ||
+      source === "electrosuisse" ||
       source === "bachem" ||
       source === "georg_fischer_switzerland" ||
       source === "also" ||
@@ -2297,6 +2305,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Mitarbeiter/in Kundendokumentation at Maerki Baumann",
         source: "maerki_baumann",
       });
+      const electrosuisseJob = importedJobData({
+        id: "electrosuisse-80275",
+        title: "IT Helpdesk Support at Electrosuisse",
+        source: "electrosuisse",
+      });
       const bachemJob = importedJobData({
         id: "bachem-1425152933",
         title: "Batchdocument Reviewer at Bachem",
@@ -2420,6 +2433,7 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: gritecJob.id, data: gritecJob },
         { id: helblingJob.id, data: helblingJob },
         { id: maerkiBaumannJob.id, data: maerkiBaumannJob },
+        { id: electrosuisseJob.id, data: electrosuisseJob },
         { id: bachemJob.id, data: bachemJob },
         {
           id: georgFischerSwitzerlandJob.id,
@@ -2443,8 +2457,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 75,
-        jobsAdded: 75,
+        jobsFound: 76,
+        jobsAdded: 76,
         sourceErrors: {},
         warning: null,
       });
@@ -2555,6 +2569,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("FISBA")).toBeInTheDocument();
   expect(screen.getByText("GRITEC")).toBeInTheDocument();
   expect(screen.getByText("Helbling")).toBeInTheDocument();
+  expect(screen.getByText("Electrosuisse")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -2590,7 +2605,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 75 of 75 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland",
+      "Added 76 of 76 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2663,6 +2678,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "gritec",
       "helbling",
       "maerki_baumann",
+      "electrosuisse",
       "bachem",
       "georg_fischer_switzerland",
       "also",
@@ -2880,6 +2896,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getAllByRole("img", { name: "Maerki Baumann logo" }).length,
   ).toBeGreaterThan(0);
   expect(
+    screen.getAllByRole("img", { name: "Electrosuisse logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
     screen.getAllByRole("img", { name: "Bachem logo" }).length,
   ).toBeGreaterThan(0);
   expect(
@@ -3031,6 +3050,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByText("Source: Maerki Baumann").length,
   ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Electrosuisse").length).toBeGreaterThan(
+    0,
+  );
   expect(screen.getAllByText("Source: Bachem").length).toBeGreaterThan(0);
   expect(
     screen.getAllByText("Source: Georg Fischer Switzerland").length,
