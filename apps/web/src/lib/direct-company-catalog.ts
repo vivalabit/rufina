@@ -313,6 +313,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "cyberlink",
+    name: "Cyberlink",
+    careersUrl: "https://www.cyberlink.ch/de/cyberlink/jobs",
+    logoSrc: "/company-logos/cyberlink.svg",
+    logoAlt: "Cyberlink logo",
+    logoWidth: 118,
+    logoHeight: 24,
+  },
+  {
     id: "swiss_re",
     name: "Swiss Re",
     careersUrl: "https://www.swissre.com/careers/switzerland-careers.html",

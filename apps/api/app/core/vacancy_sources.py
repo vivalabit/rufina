@@ -539,6 +539,20 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="cyberlink",
+        name="Cyberlink",
+        careers_url="https://www.cyberlink.ch/de/cyberlink/jobs",
+        parser_path=(
+            "app.services.parsers.companies.cyberlink:CyberlinkJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "cyberlink_jobs_base_url"),
+            ("catalog_url", "cyberlink_jobs_catalog_url"),
+            ("timeout_seconds", "cyberlink_jobs_timeout_seconds"),
+            ("detail_workers", "cyberlink_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="swiss_re",
         name="Swiss Re",
         careers_url=(

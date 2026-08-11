@@ -77,6 +77,7 @@ function importedJobData({
     | "stadler_it_switzerland"
     | "ebp_switzerland"
     | "ruag_switzerland"
+    | "cyberlink"
     | "swiss_re"
     | "baloise"
     | "elca"
@@ -280,7 +281,10 @@ function importedJobData({
                                                                                                                                     : source ===
                                                                                                                                         "ruag_switzerland"
                                                                                                                                       ? "RUAG Switzerland"
-                                                                                                                                      : "LinkedIn";
+                                                                                                                                      : source ===
+                                                                                                                                          "cyberlink"
+                                                                                                                                        ? "Cyberlink"
+                                                                                                                                        : "LinkedIn";
   return {
     id,
     company:
@@ -450,7 +454,10 @@ function importedJobData({
                                                                                                                                   : source ===
                                                                                                                                       "ruag_switzerland"
                                                                                                                                     ? "RUAG AG"
-                                                                                                                                    : "Example AG",
+                                                                                                                                    : source ===
+                                                                                                                                        "cyberlink"
+                                                                                                                                      ? "Cyberlink AG"
+                                                                                                                                      : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -492,6 +499,7 @@ function importedJobData({
       source === "stadler_it_switzerland" ||
       source === "ebp_switzerland" ||
       source === "ruag_switzerland" ||
+      source === "cyberlink" ||
       source === "swiss_re" ||
       source === "baloise" ||
       source === "elca" ||
@@ -1987,6 +1995,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Helikoptermechaniker EC-635 at RUAG",
         source: "ruag_switzerland",
       });
+      const cyberlinkJob = importedJobData({
+        id: "cyberlink-spontanbewerbung",
+        title: "Spontanbewerbung at Cyberlink",
+        source: "cyberlink",
+      });
       const swissReJob = importedJobData({
         id: "swiss_re-1412388733",
         title: "Senior Security Analyst at Swiss Re",
@@ -2187,6 +2200,7 @@ it("shows direct-company vacancies with their company logos", async () => {
         },
         { id: ebpSwitzerlandJob.id, data: ebpSwitzerlandJob },
         { id: ruagSwitzerlandJob.id, data: ruagSwitzerlandJob },
+        { id: cyberlinkJob.id, data: cyberlinkJob },
         { id: swissReJob.id, data: swissReJob },
         { id: baloiseJob.id, data: baloiseJob },
         { id: elcaJob.id, data: elcaJob },
@@ -2221,8 +2235,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 60,
-        jobsAdded: 60,
+        jobsFound: 61,
+        jobsAdded: 61,
         sourceErrors: {},
         warning: null,
       });
@@ -2294,6 +2308,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Stadler IT Switzerland")).toBeInTheDocument();
   expect(screen.getByText("EBP Switzerland")).toBeInTheDocument();
   expect(screen.getByText("RUAG Switzerland")).toBeInTheDocument();
+  expect(screen.getByText("Cyberlink")).toBeInTheDocument();
   expect(screen.getByText("Swiss Re")).toBeInTheDocument();
   expect(screen.getByText("Baloise")).toBeInTheDocument();
   expect(screen.getByText("ELCA")).toBeInTheDocument();
@@ -2362,7 +2377,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 60 of 60 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling",
+      "Added 61 of 61 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2397,6 +2412,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "stadler_it_switzerland",
       "ebp_switzerland",
       "ruag_switzerland",
+      "cyberlink",
       "swiss_re",
       "baloise",
       "elca",
@@ -2519,6 +2535,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   ).toBeGreaterThan(0);
   expect(
     screen.getAllByRole("img", { name: "RUAG Switzerland logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Cyberlink logo" }).length,
   ).toBeGreaterThan(0);
   expect(
     screen.getAllByRole("img", { name: "Swiss Re logo" }).length,
@@ -2672,6 +2691,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByText("Source: RUAG Switzerland").length,
   ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Cyberlink").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Swiss Re").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Baloise").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: ELCA").length).toBeGreaterThan(0);

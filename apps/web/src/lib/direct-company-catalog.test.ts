@@ -94,3 +94,22 @@ describe("RUAG Switzerland Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("Cyberlink Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "cyberlink");
+
+    expect(company).toEqual({
+      id: "cyberlink",
+      name: "Cyberlink",
+      careersUrl: "https://www.cyberlink.ch/de/cyberlink/jobs",
+      logoSrc: "/company-logos/cyberlink.svg",
+      logoAlt: "Cyberlink logo",
+      logoWidth: 118,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("cyberlink-spontanbewerbung")).toBe(
+      company,
+    );
+  });
+});

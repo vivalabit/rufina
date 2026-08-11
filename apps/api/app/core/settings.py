@@ -465,6 +465,10 @@ class Settings(BaseSettings):
         ge=1,
         le=20,
     )
+    cyberlink_jobs_base_url: str = "https://www.cyberlink.ch/de/cyberlink/jobs"
+    cyberlink_jobs_catalog_url: str = "https://cyberlink.digitalent.cloud/"
+    cyberlink_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    cyberlink_jobs_detail_workers: int = Field(default=4, ge=1, le=20)
     swiss_re_jobs_base_url: str = (
         "https://www.swissre.com/careers/switzerland-careers.html"
     )
