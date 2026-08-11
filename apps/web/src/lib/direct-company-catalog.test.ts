@@ -5,6 +5,28 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("Georg Fischer Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "georg_fischer_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "georg_fischer_switzerland",
+      name: "Georg Fischer Switzerland",
+      careersUrl:
+        "https://georgfischer.wd103.myworkdayjobs.com/GeorgFischer_Careers?locationCountry=187134fccb084a0ea9b4b95f23890dbe",
+      logoSrc: "/company-logos/georg_fischer.svg",
+      logoAlt: "Georg Fischer Switzerland logo",
+      logoWidth: 75,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("georg_fischer_switzerland-jr10784")).toBe(
+      company,
+    );
+  });
+});
+
 describe("Bachem Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "bachem");

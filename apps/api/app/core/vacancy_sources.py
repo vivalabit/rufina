@@ -1170,6 +1170,24 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "bachem_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="georg_fischer_switzerland",
+        name="Georg Fischer Switzerland",
+        careers_url=(
+            "https://georgfischer.wd103.myworkdayjobs.com/GeorgFischer_Careers?"
+            "locationCountry=187134fccb084a0ea9b4b95f23890dbe"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.georg_fischer_switzerland:"
+            "GeorgFischerSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "georg_fischer_switzerland_jobs_base_url"),
+            ("timeout_seconds", "georg_fischer_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "georg_fischer_switzerland_jobs_max_pages"),
+            ("detail_workers", "georg_fischer_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
