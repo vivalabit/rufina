@@ -118,7 +118,8 @@ function importedJobData({
     | "bachem"
     | "georg_fischer_switzerland"
     | "also"
-    | "bedag";
+    | "bedag"
+    | "nexplore";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -297,6 +298,9 @@ function importedJobData({
                                                                                                                                 : source ===
                                                                                                                                     "bedag"
                                                                                                                                   ? "Bedag"
+                                                                                                                                : source ===
+                                                                                                                                    "nexplore"
+                                                                                                                                  ? "Nexplore"
                                                                                                                                 : source ===
                                                                                                                                     "axpo_switzerland"
                                                                                                                                   ? "Axpo Switzerland"
@@ -501,6 +505,9 @@ function importedJobData({
                                                                                                                                   "bedag"
                                                                                                                                 ? "Bedag Informatik AG"
                                                                                                                               : source ===
+                                                                                                                                  "nexplore"
+                                                                                                                                ? "Nexplore AG"
+                                                                                                                              : source ===
                                                                                                                                   "axpo_switzerland"
                                                                                                                                 ? "Axpo Group"
                                                                                                                                 : source ===
@@ -610,7 +617,8 @@ function importedJobData({
       source === "bachem" ||
       source === "georg_fischer_switzerland" ||
       source === "also" ||
-      source === "bedag"
+      source === "bedag" ||
+      source === "nexplore"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -2285,6 +2293,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Senior ICT-Controller at Bedag",
         source: "bedag",
       });
+      const nexploreJob = importedJobData({
+        id: "nexplore-bcff2b26-bae2-48e2-851d-f39ee1fbcb3d",
+        title: "Software Test Engineer at Nexplore",
+        source: "nexplore",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -2375,11 +2388,12 @@ it("shows direct-company vacancies with their company logos", async () => {
         },
         { id: alsoJob.id, data: alsoJob },
         { id: bedagJob.id, data: bedagJob },
+        { id: nexploreJob.id, data: nexploreJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 71,
-        jobsAdded: 71,
+        jobsFound: 72,
+        jobsAdded: 72,
         sourceErrors: {},
         warning: null,
       });
@@ -2525,7 +2539,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 71 of 71 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Bachem + Georg Fischer Switzerland + ALSO + Bedag",
+      "Added 72 of 72 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2602,6 +2616,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "georg_fischer_switzerland",
       "also",
       "bedag",
+      "nexplore",
     ],
     aiAnalysisEnabled: true,
   });
@@ -2823,6 +2838,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Bedag logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Nexplore logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -2956,6 +2974,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: ALSO").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Bedag").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Nexplore").length).toBeGreaterThan(0);
 }, 30_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

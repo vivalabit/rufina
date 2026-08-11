@@ -5,6 +5,27 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("Nexplore Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "nexplore");
+
+    expect(company).toEqual({
+      id: "nexplore",
+      name: "Nexplore",
+      careersUrl: "https://www.nexplore.ch/jobs",
+      logoSrc: "/company-logos/nexplore.svg",
+      logoAlt: "Nexplore logo",
+      logoWidth: 112,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "nexplore-bcff2b26-bae2-48e2-851d-f39ee1fbcb3d",
+      ),
+    ).toBe(company);
+  });
+});
+
 describe("Bedag Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "bedag");

@@ -708,6 +708,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 101,
     logoHeight: 24,
   },
+  {
+    id: "nexplore",
+    name: "Nexplore",
+    careersUrl: "https://www.nexplore.ch/jobs",
+    logoSrc: "/company-logos/nexplore.svg",
+    logoAlt: "Nexplore logo",
+    logoWidth: 112,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
