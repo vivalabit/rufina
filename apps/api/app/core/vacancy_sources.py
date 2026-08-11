@@ -1203,6 +1203,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "also_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="bedag",
+        name="Bedag",
+        careers_url="https://www.bedag.ch/de/jobs-und-karriere/offene-stellen/",
+        parser_path="app.services.parsers.companies.bedag:BedagJobsParser",
+        settings_map=(
+            ("base_url", "bedag_jobs_base_url"),
+            ("timeout_seconds", "bedag_jobs_timeout_seconds"),
+            ("detail_workers", "bedag_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

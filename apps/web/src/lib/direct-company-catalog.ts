@@ -699,6 +699,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 120,
     logoHeight: 19,
   },
+  {
+    id: "bedag",
+    name: "Bedag",
+    careersUrl: "https://www.bedag.ch/de/jobs-und-karriere/offene-stellen/",
+    logoSrc: "/company-logos/bedag.svg",
+    logoAlt: "Bedag logo",
+    logoWidth: 101,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

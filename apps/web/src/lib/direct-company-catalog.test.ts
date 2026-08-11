@@ -5,6 +5,23 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("Bedag Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "bedag");
+
+    expect(company).toEqual({
+      id: "bedag",
+      name: "Bedag",
+      careersUrl: "https://www.bedag.ch/de/jobs-und-karriere/offene-stellen/",
+      logoSrc: "/company-logos/bedag.svg",
+      logoAlt: "Bedag logo",
+      logoWidth: 101,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("bedag-1008")).toBe(company);
+  });
+});
+
 describe("ALSO Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "also");
