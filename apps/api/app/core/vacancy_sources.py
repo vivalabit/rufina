@@ -1188,6 +1188,21 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "georg_fischer_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="also",
+        name="ALSO",
+        careers_url=(
+            "https://www.also.com/ec/cms5/en_6000/6000/company/career/"
+            "open-positions/index.jsp"
+        ),
+        parser_path="app.services.parsers.companies.also:AlsoJobsParser",
+        settings_map=(
+            ("base_url", "also_jobs_base_url"),
+            ("api_url", "also_jobs_api_url"),
+            ("timeout_seconds", "also_jobs_timeout_seconds"),
+            ("detail_workers", "also_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

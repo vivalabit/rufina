@@ -5,6 +5,24 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("ALSO Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "also");
+
+    expect(company).toEqual({
+      id: "also",
+      name: "ALSO",
+      careersUrl:
+        "https://www.also.com/ec/cms5/en_6000/6000/company/career/open-positions/index.jsp",
+      logoSrc: "/company-logos/also.svg",
+      logoAlt: "ALSO logo",
+      logoWidth: 120,
+      logoHeight: 19,
+    });
+    expect(getDirectCompanyByJobId("also-296512")).toBe(company);
+  });
+});
+
 describe("Georg Fischer Switzerland Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

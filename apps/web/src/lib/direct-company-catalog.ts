@@ -689,6 +689,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 75,
     logoHeight: 24,
   },
+  {
+    id: "also",
+    name: "ALSO",
+    careersUrl:
+      "https://www.also.com/ec/cms5/en_6000/6000/company/career/open-positions/index.jsp",
+    logoSrc: "/company-logos/also.svg",
+    logoAlt: "ALSO logo",
+    logoWidth: 120,
+    logoHeight: 19,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
