@@ -465,6 +465,21 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="huber_suhner_switzerland",
+        name="Huber+Suhner Switzerland",
+        careers_url="https://recruiting.hubersuhner.com/Jobs/All",
+        parser_path=(
+            "app.services.parsers.companies.huber_suhner_switzerland:"
+            "HuberSuhnerSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "huber_suhner_switzerland_jobs_base_url"),
+            ("timeout_seconds", "huber_suhner_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "huber_suhner_switzerland_jobs_max_pages"),
+            ("detail_workers", "huber_suhner_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="swiss_re",
         name="Swiss Re",
         careers_url=(

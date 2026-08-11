@@ -385,6 +385,24 @@ class Settings(BaseSettings):
     switch_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     switch_jobs_max_pages: int = Field(default=50, ge=1, le=200)
     switch_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    huber_suhner_switzerland_jobs_base_url: str = (
+        "https://recruiting.hubersuhner.com/Jobs/All"
+    )
+    huber_suhner_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    huber_suhner_switzerland_jobs_max_pages: int = Field(
+        default=20,
+        ge=1,
+        le=100,
+    )
+    huber_suhner_switzerland_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+    )
     swiss_re_jobs_base_url: str = (
         "https://www.swissre.com/careers/switzerland-careers.html"
     )

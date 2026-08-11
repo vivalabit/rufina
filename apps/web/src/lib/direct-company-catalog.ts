@@ -275,6 +275,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "huber_suhner_switzerland",
+    name: "Huber+Suhner Switzerland",
+    careersUrl: "https://recruiting.hubersuhner.com/Jobs/All",
+    logoSrc: "/company-logos/huber_suhner.svg",
+    logoAlt: "Huber+Suhner Switzerland logo",
+    logoWidth: 92,
+    logoHeight: 24,
+  },
+  {
     id: "swiss_re",
     name: "Swiss Re",
     careersUrl: "https://www.swissre.com/careers/switzerland-careers.html",

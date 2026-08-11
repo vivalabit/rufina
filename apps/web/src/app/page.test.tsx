@@ -73,6 +73,7 @@ function importedJobData({
     | "sulzer_switzerland"
     | "siegfried"
     | "switch"
+    | "huber_suhner_switzerland"
     | "swiss_re"
     | "baloise"
     | "elca"
@@ -172,26 +173,29 @@ function importedJobData({
                                                                   "switch"
                                                                 ? "Switch"
                                                                 : source ===
-                                                                    "swiss_re"
-                                                                  ? "Swiss Re"
+                                                                    "huber_suhner_switzerland"
+                                                                  ? "Huber+Suhner Switzerland"
                                                                   : source ===
-                                                                      "baloise"
-                                                                    ? "Baloise"
+                                                                      "swiss_re"
+                                                                    ? "Swiss Re"
                                                                     : source ===
-                                                                        "elca"
-                                                                      ? "ELCA"
+                                                                        "baloise"
+                                                                      ? "Baloise"
                                                                       : source ===
-                                                                          "aveniq"
-                                                                        ? "Aveniq"
+                                                                          "elca"
+                                                                        ? "ELCA"
                                                                         : source ===
-                                                                            "mimacom"
-                                                                          ? "Mimacom"
+                                                                            "aveniq"
+                                                                          ? "Aveniq"
                                                                           : source ===
-                                                                              "unit8_switzerland"
-                                                                            ? "Unit8 Switzerland"
+                                                                              "mimacom"
+                                                                            ? "Mimacom"
                                                                             : source ===
-                                                                                "msd"
-                                                                              ? "MSD"
+                                                                                "unit8_switzerland"
+                                                                              ? "Unit8 Switzerland"
+                                                                              : source ===
+                                                                                  "msd"
+                                                                                ? "MSD"
                                                                               : source ===
                                                                                   "srg_ssr"
                                                                                 ? "SRG SSR"
@@ -327,29 +331,32 @@ function importedJobData({
                                                               "siegfried"
                                                             ? "Siegfried AG"
                                                             : source ===
-                                                                "switch"
-                                                              ? "Switch"
-                                                              : source ===
-                                                                  "swiss_re"
-                                                                ? "Swiss Re"
+                                                              "switch"
+                                                            ? "Switch"
+                                                            : source ===
+                                                                  "huber_suhner_switzerland"
+                                                                ? "Huber+Suhner"
                                                                 : source ===
-                                                                    "baloise"
-                                                                  ? "Baloise"
+                                                                    "swiss_re"
+                                                                  ? "Swiss Re"
                                                                   : source ===
-                                                                      "elca"
-                                                                    ? "ELCA"
+                                                                      "baloise"
+                                                                    ? "Baloise"
                                                                     : source ===
-                                                                        "aveniq"
-                                                                      ? "Aveniq AG"
+                                                                        "elca"
+                                                                      ? "ELCA"
                                                                       : source ===
-                                                                          "mimacom"
-                                                                        ? "Mimacom"
+                                                                          "aveniq"
+                                                                        ? "Aveniq AG"
                                                                         : source ===
-                                                                            "unit8_switzerland"
-                                                                          ? "Unit8 SA"
+                                                                            "mimacom"
+                                                                          ? "Mimacom"
                                                                           : source ===
-                                                                              "msd"
-                                                                            ? "MSD"
+                                                                              "unit8_switzerland"
+                                                                            ? "Unit8 SA"
+                                                                            : source ===
+                                                                                "msd"
+                                                                              ? "MSD"
                                                                             : source ===
                                                                                 "srg_ssr"
                                                                               ? "SRG SSR"
@@ -460,6 +467,7 @@ function importedJobData({
       source === "sulzer_switzerland" ||
       source === "siegfried" ||
       source === "switch" ||
+      source === "huber_suhner_switzerland" ||
       source === "swiss_re" ||
       source === "baloise" ||
       source === "elca" ||
@@ -1935,6 +1943,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Technical Documentation Specialist at Switch",
         source: "switch",
       });
+      const huberSuhnerSwitzerlandJob = importedJobData({
+        id: "huber_suhner_switzerland-7806",
+        title: "Corporate Controller at Huber+Suhner",
+        source: "huber_suhner_switzerland",
+      });
       const swissReJob = importedJobData({
         id: "swiss_re-1412388733",
         title: "Senior Security Analyst at Swiss Re",
@@ -2125,6 +2138,10 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: sulzerSwitzerlandJob.id, data: sulzerSwitzerlandJob },
         { id: siegfriedJob.id, data: siegfriedJob },
         { id: switchJob.id, data: switchJob },
+        {
+          id: huberSuhnerSwitzerlandJob.id,
+          data: huberSuhnerSwitzerlandJob,
+        },
         { id: swissReJob.id, data: swissReJob },
         { id: baloiseJob.id, data: baloiseJob },
         { id: elcaJob.id, data: elcaJob },
@@ -2159,8 +2176,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 56,
-        jobsAdded: 56,
+        jobsFound: 57,
+        jobsAdded: 57,
         sourceErrors: {},
         warning: null,
       });
@@ -2228,6 +2245,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Sulzer Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Siegfried")).toBeInTheDocument();
   expect(screen.getByText("Switch")).toBeInTheDocument();
+  expect(screen.getByText("Huber+Suhner Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Swiss Re")).toBeInTheDocument();
   expect(screen.getByText("Baloise")).toBeInTheDocument();
   expect(screen.getByText("ELCA")).toBeInTheDocument();
@@ -2296,7 +2314,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 56 of 56 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling",
+      "Added 57 of 57 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2327,6 +2345,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "sulzer_switzerland",
       "siegfried",
       "switch",
+      "huber_suhner_switzerland",
       "swiss_re",
       "baloise",
       "elca",
@@ -2436,6 +2455,10 @@ it("shows direct-company vacancies with their company logos", async () => {
   ).toBeGreaterThan(0);
   expect(
     screen.getAllByRole("img", { name: "Switch logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Huber+Suhner Switzerland logo" })
+      .length,
   ).toBeGreaterThan(0);
   expect(
     screen.getAllByRole("img", { name: "Swiss Re logo" }).length,
@@ -2577,6 +2600,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Siegfried").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Switch").length).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: Huber+Suhner Switzerland").length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Swiss Re").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Baloise").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: ELCA").length).toBeGreaterThan(0);
