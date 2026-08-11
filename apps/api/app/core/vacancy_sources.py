@@ -577,6 +577,22 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="ti8m_switzerland",
+        name="ti&m Switzerland",
+        careers_url="https://www.ti8m.com/en/career#job",
+        parser_path=(
+            "app.services.parsers.companies.ti8m_switzerland:"
+            "Ti8mSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "ti8m_switzerland_jobs_base_url"),
+            ("catalog_url", "ti8m_switzerland_jobs_catalog_url"),
+            ("timeout_seconds", "ti8m_switzerland_jobs_timeout_seconds"),
+            ("max_jobs", "ti8m_switzerland_jobs_max_jobs"),
+            ("detail_workers", "ti8m_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="swiss_re",
         name="Swiss Re",
         careers_url=(

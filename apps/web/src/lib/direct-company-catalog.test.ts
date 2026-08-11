@@ -153,3 +153,26 @@ describe("LogObject Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("ti&m Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "ti8m_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "ti8m_switzerland",
+      name: "ti&m Switzerland",
+      careersUrl: "https://www.ti8m.com/en/career#job",
+      logoSrc: "/company-logos/ti8m.svg",
+      logoAlt: "ti&m Switzerland logo",
+      logoWidth: 65,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "ti8m_switzerland-cc7debd9-6eea-40f0-9c48-6a8152ca5227",
+      ),
+    ).toBe(company);
+  });
+});

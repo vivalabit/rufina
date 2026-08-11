@@ -340,6 +340,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "ti8m_switzerland",
+    name: "ti&m Switzerland",
+    careersUrl: "https://www.ti8m.com/en/career#job",
+    logoSrc: "/company-logos/ti8m.svg",
+    logoAlt: "ti&m Switzerland logo",
+    logoWidth: 65,
+    logoHeight: 24,
+  },
+  {
     id: "swiss_re",
     name: "Swiss Re",
     careersUrl: "https://www.swissre.com/careers/switzerland-careers.html",
