@@ -727,6 +727,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 87,
     logoHeight: 24,
   },
+  {
+    id: "teradata_switzerland",
+    name: "Teradata Switzerland",
+    careersUrl: "https://careers.teradata.com/jobs",
+    logoSrc: "/company-logos/teradata.svg",
+    logoAlt: "Teradata Switzerland logo",
+    logoWidth: 120,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

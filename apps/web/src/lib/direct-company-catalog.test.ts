@@ -5,6 +5,25 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("Teradata Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "teradata_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "teradata_switzerland",
+      name: "Teradata Switzerland",
+      careersUrl: "https://careers.teradata.com/jobs",
+      logoSrc: "/company-logos/teradata.svg",
+      logoAlt: "Teradata Switzerland logo",
+      logoWidth: 120,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("teradata_switzerland-220353")).toBe(company);
+  });
+});
+
 describe("NTT Global Data Centers Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

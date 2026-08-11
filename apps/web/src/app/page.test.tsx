@@ -120,7 +120,8 @@ function importedJobData({
     | "also"
     | "bedag"
     | "nexplore"
-    | "ntt_global_data_centers_switzerland";
+    | "ntt_global_data_centers_switzerland"
+    | "teradata_switzerland";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -305,6 +306,9 @@ function importedJobData({
                                                                                                                                 : source ===
                                                                                                                                     "ntt_global_data_centers_switzerland"
                                                                                                                                   ? "NTT Global Data Centers"
+                                                                                                                                : source ===
+                                                                                                                                    "teradata_switzerland"
+                                                                                                                                  ? "Teradata Switzerland"
                                                                                                                                 : source ===
                                                                                                                                     "axpo_switzerland"
                                                                                                                                   ? "Axpo Switzerland"
@@ -515,6 +519,9 @@ function importedJobData({
                                                                                                                                   "ntt_global_data_centers_switzerland"
                                                                                                                                 ? "NTT Global Data Centers"
                                                                                                                               : source ===
+                                                                                                                                  "teradata_switzerland"
+                                                                                                                                ? "Teradata"
+                                                                                                                              : source ===
                                                                                                                                   "axpo_switzerland"
                                                                                                                                 ? "Axpo Group"
                                                                                                                                 : source ===
@@ -626,7 +633,8 @@ function importedJobData({
       source === "also" ||
       source === "bedag" ||
       source === "nexplore" ||
-      source === "ntt_global_data_centers_switzerland"
+      source === "ntt_global_data_centers_switzerland" ||
+      source === "teradata_switzerland"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -2311,6 +2319,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Litigation & Claims Counsel at NTT Global Data Centers",
         source: "ntt_global_data_centers_switzerland",
       });
+      const teradataSwitzerlandJob = importedJobData({
+        id: "teradata_switzerland-220353",
+        title: "Customer Solution Architect at Teradata",
+        source: "teradata_switzerland",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -2406,11 +2419,15 @@ it("shows direct-company vacancies with their company logos", async () => {
           id: nttGlobalDataCentersJob.id,
           data: nttGlobalDataCentersJob,
         },
+        {
+          id: teradataSwitzerlandJob.id,
+          data: teradataSwitzerlandJob,
+        },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 73,
-        jobsAdded: 73,
+        jobsFound: 74,
+        jobsAdded: 74,
         sourceErrors: {},
         warning: null,
       });
@@ -2556,7 +2573,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 73 of 73 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers",
+      "Added 74 of 74 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2635,6 +2652,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "bedag",
       "nexplore",
       "ntt_global_data_centers_switzerland",
+      "teradata_switzerland",
     ],
     aiAnalysisEnabled: true,
   });
@@ -2862,6 +2880,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "NTT Global Data Centers logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Teradata Switzerland logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -2998,6 +3019,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getAllByText("Source: Nexplore").length).toBeGreaterThan(0);
   expect(
     screen.getAllByText("Source: NTT Global Data Centers").length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: Teradata Switzerland").length,
   ).toBeGreaterThan(0);
 }, 30_000);
 

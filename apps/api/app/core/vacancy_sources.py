@@ -1249,6 +1249,21 @@ DIRECT_COMPANY_PARSERS = (
             ),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="teradata_switzerland",
+        name="Teradata Switzerland",
+        careers_url="https://careers.teradata.com/jobs",
+        parser_path=(
+            "app.services.parsers.companies.teradata_switzerland:"
+            "TeradataSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "teradata_switzerland_jobs_base_url"),
+            ("api_url", "teradata_switzerland_jobs_api_url"),
+            ("timeout_seconds", "teradata_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "teradata_switzerland_jobs_max_pages"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
