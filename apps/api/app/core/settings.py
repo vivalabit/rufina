@@ -834,6 +834,16 @@ class Settings(BaseSettings):
         le=120,
     )
     maerki_baumann_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    bachem_jobs_base_url: str = (
+        "https://careers.bachem.com/search/?createNewAlert=false&q="
+        "&optionsFacetsDD_department=&optionsFacetsDD_shifttype="
+        "&optionsFacetsDD_location=&optionsFacetsDD_country=CH"
+        "&optionsFacetsDD_customfield1="
+    )
+    bachem_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    bachem_jobs_max_pages: int = Field(default=20, ge=1, le=200)
+    bachem_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
+    bachem_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

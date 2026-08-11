@@ -1152,6 +1152,24 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "maerki_baumann_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="bachem",
+        name="Bachem",
+        careers_url=(
+            "https://careers.bachem.com/search/?createNewAlert=false&q="
+            "&optionsFacetsDD_department=&optionsFacetsDD_shifttype="
+            "&optionsFacetsDD_location=&optionsFacetsDD_country=CH"
+            "&optionsFacetsDD_customfield1="
+        ),
+        parser_path="app.services.parsers.companies.bachem:BachemJobsParser",
+        settings_map=(
+            ("base_url", "bachem_jobs_base_url"),
+            ("timeout_seconds", "bachem_jobs_timeout_seconds"),
+            ("max_pages", "bachem_jobs_max_pages"),
+            ("max_catalog_passes", "bachem_jobs_max_catalog_passes"),
+            ("detail_workers", "bachem_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

@@ -5,6 +5,24 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("Bachem Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "bachem");
+
+    expect(company).toEqual({
+      id: "bachem",
+      name: "Bachem",
+      careersUrl:
+        "https://careers.bachem.com/search/?createNewAlert=false&q=&optionsFacetsDD_department=&optionsFacetsDD_shifttype=&optionsFacetsDD_location=&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1=",
+      logoSrc: "/company-logos/bachem.svg",
+      logoAlt: "Bachem logo",
+      logoWidth: 87,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("bachem-1425152933")).toBe(company);
+  });
+});
+
 describe("Maerki Baumann Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

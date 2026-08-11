@@ -669,6 +669,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 18,
     logoHeight: 24,
   },
+  {
+    id: "bachem",
+    name: "Bachem",
+    careersUrl:
+      "https://careers.bachem.com/search/?createNewAlert=false&q=&optionsFacetsDD_department=&optionsFacetsDD_shifttype=&optionsFacetsDD_location=&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1=",
+    logoSrc: "/company-logos/bachem.svg",
+    logoAlt: "Bachem logo",
+    logoWidth: 87,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
