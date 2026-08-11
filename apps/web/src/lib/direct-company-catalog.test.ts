@@ -71,3 +71,26 @@ describe("EBP Switzerland Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("RUAG Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "ruag_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "ruag_switzerland",
+      name: "RUAG Switzerland",
+      careersUrl: "https://www.ruag.ch/en/working-us/job-portal",
+      logoSrc: "/company-logos/ruag.svg",
+      logoAlt: "RUAG Switzerland logo",
+      logoWidth: 40,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "ruag_switzerland-24e02ed3-4dc6-4358-a9f4-9383b380371b",
+      ),
+    ).toBe(company);
+  });
+});

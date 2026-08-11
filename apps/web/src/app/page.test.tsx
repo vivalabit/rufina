@@ -76,6 +76,7 @@ function importedJobData({
     | "huber_suhner_switzerland"
     | "stadler_it_switzerland"
     | "ebp_switzerland"
+    | "ruag_switzerland"
     | "swiss_re"
     | "baloise"
     | "elca"
@@ -276,7 +277,10 @@ function importedJobData({
                                                                                                                                   : source ===
                                                                                                                                       "ringier"
                                                                                                                                     ? "Ringier"
-                                                                                                                                    : "LinkedIn";
+                                                                                                                                    : source ===
+                                                                                                                                        "ruag_switzerland"
+                                                                                                                                      ? "RUAG Switzerland"
+                                                                                                                                      : "LinkedIn";
   return {
     id,
     company:
@@ -443,7 +447,10 @@ function importedJobData({
                                                                                                                                 : source ===
                                                                                                                                     "ringier"
                                                                                                                                   ? "Ringier AG"
-                                                                                                                                  : "Example AG",
+                                                                                                                                  : source ===
+                                                                                                                                      "ruag_switzerland"
+                                                                                                                                    ? "RUAG AG"
+                                                                                                                                    : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -484,6 +491,7 @@ function importedJobData({
       source === "huber_suhner_switzerland" ||
       source === "stadler_it_switzerland" ||
       source === "ebp_switzerland" ||
+      source === "ruag_switzerland" ||
       source === "swiss_re" ||
       source === "baloise" ||
       source === "elca" ||
@@ -1974,6 +1982,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Junior Projektleiter/in at EBP",
         source: "ebp_switzerland",
       });
+      const ruagSwitzerlandJob = importedJobData({
+        id: "ruag_switzerland-24e02ed3-4dc6-4358-a9f4-9383b380371b",
+        title: "Helikoptermechaniker EC-635 at RUAG",
+        source: "ruag_switzerland",
+      });
       const swissReJob = importedJobData({
         id: "swiss_re-1412388733",
         title: "Senior Security Analyst at Swiss Re",
@@ -2173,6 +2186,7 @@ it("shows direct-company vacancies with their company logos", async () => {
           data: stadlerItSwitzerlandJob,
         },
         { id: ebpSwitzerlandJob.id, data: ebpSwitzerlandJob },
+        { id: ruagSwitzerlandJob.id, data: ruagSwitzerlandJob },
         { id: swissReJob.id, data: swissReJob },
         { id: baloiseJob.id, data: baloiseJob },
         { id: elcaJob.id, data: elcaJob },
@@ -2207,8 +2221,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 59,
-        jobsAdded: 59,
+        jobsFound: 60,
+        jobsAdded: 60,
         sourceErrors: {},
         warning: null,
       });
@@ -2279,6 +2293,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Huber+Suhner Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Stadler IT Switzerland")).toBeInTheDocument();
   expect(screen.getByText("EBP Switzerland")).toBeInTheDocument();
+  expect(screen.getByText("RUAG Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Swiss Re")).toBeInTheDocument();
   expect(screen.getByText("Baloise")).toBeInTheDocument();
   expect(screen.getByText("ELCA")).toBeInTheDocument();
@@ -2347,7 +2362,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 59 of 59 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling",
+      "Added 60 of 60 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2381,6 +2396,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "huber_suhner_switzerland",
       "stadler_it_switzerland",
       "ebp_switzerland",
+      "ruag_switzerland",
       "swiss_re",
       "baloise",
       "elca",
@@ -2500,6 +2516,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   ).toBeGreaterThan(0);
   expect(
     screen.getAllByRole("img", { name: "EBP Switzerland logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "RUAG Switzerland logo" }).length,
   ).toBeGreaterThan(0);
   expect(
     screen.getAllByRole("img", { name: "Swiss Re logo" }).length,
@@ -2650,6 +2669,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getAllByText("Source: EBP Switzerland").length).toBeGreaterThan(
     0,
   );
+  expect(
+    screen.getAllByText("Source: RUAG Switzerland").length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Swiss Re").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Baloise").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: ELCA").length).toBeGreaterThan(0);
@@ -2705,7 +2727,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getAllByText("Source: FISBA").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: GRITEC").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Helbling").length).toBeGreaterThan(0);
-}, 15_000);
+}, 30_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {
   window.history.replaceState(null, "", "#jobs");

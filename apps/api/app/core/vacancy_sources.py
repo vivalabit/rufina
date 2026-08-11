@@ -520,6 +520,25 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="ruag_switzerland",
+        name="RUAG Switzerland",
+        careers_url="https://www.ruag.ch/en/working-us/job-portal",
+        parser_path=(
+            "app.services.parsers.companies.ruag_switzerland:"
+            "RuagSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "ruag_switzerland_jobs_base_url"),
+            ("timeout_seconds", "ruag_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "ruag_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "ruag_switzerland_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "ruag_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="swiss_re",
         name="Swiss Re",
         careers_url=(

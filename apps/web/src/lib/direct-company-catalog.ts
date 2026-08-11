@@ -304,6 +304,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "ruag_switzerland",
+    name: "RUAG Switzerland",
+    careersUrl: "https://www.ruag.ch/en/working-us/job-portal",
+    logoSrc: "/company-logos/ruag.svg",
+    logoAlt: "RUAG Switzerland logo",
+    logoWidth: 40,
+    logoHeight: 24,
+  },
+  {
     id: "swiss_re",
     name: "Swiss Re",
     careersUrl: "https://www.swissre.com/careers/switzerland-careers.html",
