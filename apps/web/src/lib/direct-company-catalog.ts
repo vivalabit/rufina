@@ -660,6 +660,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 100,
     logoHeight: 24,
   },
+  {
+    id: "maerki_baumann",
+    name: "Maerki Baumann",
+    careersUrl: "https://www.maerki-baumann.ch/de/unsere-bank/stellenangebote",
+    logoSrc: "/company-logos/maerki_baumann.svg",
+    logoAlt: "Maerki Baumann logo",
+    logoWidth: 18,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

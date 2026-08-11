@@ -5,6 +5,26 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("Maerki Baumann Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "maerki_baumann",
+    );
+
+    expect(company).toEqual({
+      id: "maerki_baumann",
+      name: "Maerki Baumann",
+      careersUrl:
+        "https://www.maerki-baumann.ch/de/unsere-bank/stellenangebote",
+      logoSrc: "/company-logos/maerki_baumann.svg",
+      logoAlt: "Maerki Baumann logo",
+      logoWidth: 18,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("maerki_baumann-78216")).toBe(company);
+  });
+});
+
 describe("Huber+Suhner Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

@@ -113,7 +113,8 @@ function importedJobData({
     | "cognizant_switzerland"
     | "fisba"
     | "gritec"
-    | "helbling";
+    | "helbling"
+    | "maerki_baumann";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -277,6 +278,9 @@ function importedJobData({
                                                                                                                               : source ===
                                                                                                                                   "helbling"
                                                                                                                                 ? "Helbling"
+                                                                                                                                : source ===
+                                                                                                                                    "maerki_baumann"
+                                                                                                                                  ? "Maerki Baumann"
                                                                                                                                 : source ===
                                                                                                                                     "axpo_switzerland"
                                                                                                                                   ? "Axpo Switzerland"
@@ -466,6 +470,9 @@ function importedJobData({
                                                                                                                                 "helbling"
                                                                                                                               ? "Helbling"
                                                                                                                               : source ===
+                                                                                                                                  "maerki_baumann"
+                                                                                                                                ? "Maerki Baumann & Co. AG"
+                                                                                                                              : source ===
                                                                                                                                   "axpo_switzerland"
                                                                                                                                 ? "Axpo Group"
                                                                                                                                 : source ===
@@ -570,7 +577,8 @@ function importedJobData({
       source === "cognizant_switzerland" ||
       source === "fisba" ||
       source === "gritec" ||
-      source === "helbling"
+      source === "helbling" ||
+      source === "maerki_baumann"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -2220,6 +2228,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Embedded Software Engineer at Helbling",
         source: "helbling",
       });
+      const maerkiBaumannJob = importedJobData({
+        id: "maerki_baumann-78216",
+        title: "Mitarbeiter/in Kundendokumentation at Maerki Baumann",
+        source: "maerki_baumann",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -2302,11 +2315,12 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: fisbaJob.id, data: fisbaJob },
         { id: gritecJob.id, data: gritecJob },
         { id: helblingJob.id, data: helblingJob },
+        { id: maerkiBaumannJob.id, data: maerkiBaumannJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 66,
-        jobsAdded: 66,
+        jobsFound: 67,
+        jobsAdded: 67,
         sourceErrors: {},
         warning: null,
       });
@@ -2452,7 +2466,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 66 of 66 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling",
+      "Added 67 of 67 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2524,6 +2538,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "fisba",
       "gritec",
       "helbling",
+      "maerki_baumann",
     ],
     aiAnalysisEnabled: true,
   });
@@ -2729,6 +2744,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Helbling logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Maerki Baumann logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -2853,6 +2871,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getAllByText("Source: FISBA").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: GRITEC").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Helbling").length).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: Maerki Baumann").length,
+  ).toBeGreaterThan(0);
 }, 30_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

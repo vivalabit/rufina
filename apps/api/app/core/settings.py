@@ -820,6 +820,20 @@ class Settings(BaseSettings):
     helbling_jobs_base_url: str = "https://helbling.ch/de/karriere/jobs"
     helbling_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     helbling_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    maerki_baumann_jobs_base_url: str = (
+        "https://www.maerki-baumann.ch/de/unsere-bank/stellenangebote"
+    )
+    maerki_baumann_jobs_api_url: str = (
+        "https://odm.ostendis.com/ojp/data/v55/jobs/"
+        "58c324307ff846428a19a2f36b7f9994/DE"
+        "?domain=www.maerki-baumann.ch"
+    )
+    maerki_baumann_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    maerki_baumann_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,
