@@ -5,6 +5,30 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("NTT Global Data Centers Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "ntt_global_data_centers_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "ntt_global_data_centers_switzerland",
+      name: "NTT Global Data Centers",
+      careersUrl:
+        "https://nttglobaldatacenters.wd501.myworkdayjobs.com/en-US/External/jobs?locations=0416448655001000c28517e560890000",
+      logoSrc: "/company-logos/ntt_global_data_centers.svg",
+      logoAlt: "NTT Global Data Centers logo",
+      logoWidth: 87,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "ntt_global_data_centers_switzerland-jr101121",
+      ),
+    ).toBe(company);
+  });
+});
+
 describe("Nexplore Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "nexplore");

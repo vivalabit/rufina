@@ -717,6 +717,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 112,
     logoHeight: 24,
   },
+  {
+    id: "ntt_global_data_centers_switzerland",
+    name: "NTT Global Data Centers",
+    careersUrl:
+      "https://nttglobaldatacenters.wd501.myworkdayjobs.com/en-US/External/jobs?locations=0416448655001000c28517e560890000",
+    logoSrc: "/company-logos/ntt_global_data_centers.svg",
+    logoAlt: "NTT Global Data Centers logo",
+    logoWidth: 87,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

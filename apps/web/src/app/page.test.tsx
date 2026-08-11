@@ -119,7 +119,8 @@ function importedJobData({
     | "georg_fischer_switzerland"
     | "also"
     | "bedag"
-    | "nexplore";
+    | "nexplore"
+    | "ntt_global_data_centers_switzerland";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -301,6 +302,9 @@ function importedJobData({
                                                                                                                                 : source ===
                                                                                                                                     "nexplore"
                                                                                                                                   ? "Nexplore"
+                                                                                                                                : source ===
+                                                                                                                                    "ntt_global_data_centers_switzerland"
+                                                                                                                                  ? "NTT Global Data Centers"
                                                                                                                                 : source ===
                                                                                                                                     "axpo_switzerland"
                                                                                                                                   ? "Axpo Switzerland"
@@ -508,6 +512,9 @@ function importedJobData({
                                                                                                                                   "nexplore"
                                                                                                                                 ? "Nexplore AG"
                                                                                                                               : source ===
+                                                                                                                                  "ntt_global_data_centers_switzerland"
+                                                                                                                                ? "NTT Global Data Centers"
+                                                                                                                              : source ===
                                                                                                                                   "axpo_switzerland"
                                                                                                                                 ? "Axpo Group"
                                                                                                                                 : source ===
@@ -618,7 +625,8 @@ function importedJobData({
       source === "georg_fischer_switzerland" ||
       source === "also" ||
       source === "bedag" ||
-      source === "nexplore"
+      source === "nexplore" ||
+      source === "ntt_global_data_centers_switzerland"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -2298,6 +2306,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Software Test Engineer at Nexplore",
         source: "nexplore",
       });
+      const nttGlobalDataCentersJob = importedJobData({
+        id: "ntt_global_data_centers_switzerland-jr101121",
+        title: "Litigation & Claims Counsel at NTT Global Data Centers",
+        source: "ntt_global_data_centers_switzerland",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -2389,11 +2402,15 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: alsoJob.id, data: alsoJob },
         { id: bedagJob.id, data: bedagJob },
         { id: nexploreJob.id, data: nexploreJob },
+        {
+          id: nttGlobalDataCentersJob.id,
+          data: nttGlobalDataCentersJob,
+        },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 72,
-        jobsAdded: 72,
+        jobsFound: 73,
+        jobsAdded: 73,
         sourceErrors: {},
         warning: null,
       });
@@ -2539,7 +2556,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 72 of 72 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore",
+      "Added 73 of 73 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2617,6 +2634,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "also",
       "bedag",
       "nexplore",
+      "ntt_global_data_centers_switzerland",
     ],
     aiAnalysisEnabled: true,
   });
@@ -2841,6 +2859,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Nexplore logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "NTT Global Data Centers logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -2975,6 +2996,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getAllByText("Source: ALSO").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Bedag").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Nexplore").length).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: NTT Global Data Centers").length,
+  ).toBeGreaterThan(0);
 }, 30_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

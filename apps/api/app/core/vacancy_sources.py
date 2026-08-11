@@ -1225,6 +1225,30 @@ DIRECT_COMPANY_PARSERS = (
             ("timeout_seconds", "nexplore_jobs_timeout_seconds"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="ntt_global_data_centers_switzerland",
+        name="NTT Global Data Centers",
+        careers_url=(
+            "https://nttglobaldatacenters.wd501.myworkdayjobs.com/en-US/"
+            "External/jobs?locations=0416448655001000c28517e560890000"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.ntt_global_data_centers_switzerland:"
+            "NttGlobalDataCentersSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "ntt_global_data_centers_switzerland_jobs_base_url"),
+            (
+                "timeout_seconds",
+                "ntt_global_data_centers_switzerland_jobs_timeout_seconds",
+            ),
+            ("max_pages", "ntt_global_data_centers_switzerland_jobs_max_pages"),
+            (
+                "detail_workers",
+                "ntt_global_data_centers_switzerland_jobs_detail_workers",
+            ),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
