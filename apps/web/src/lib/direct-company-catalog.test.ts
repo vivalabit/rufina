@@ -5,6 +5,30 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("Swiss Life Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "swiss_life_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "swiss_life_switzerland",
+      name: "Swiss Life Switzerland",
+      careersUrl:
+        "https://www.swisslife.ch/de/ueber-uns/karriere/jobs.html#",
+      logoSrc: "/company-logos/swiss_life.svg",
+      logoAlt: "Swiss Life Switzerland logo",
+      logoWidth: 96,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "swiss_life_switzerland-4c6b891f-22b1-494c-ad4e-06a25ede7ef4",
+      ),
+    ).toBe(company);
+  });
+});
+
 describe("Teradata Switzerland Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

@@ -121,7 +121,8 @@ function importedJobData({
     | "bedag"
     | "nexplore"
     | "ntt_global_data_centers_switzerland"
-    | "teradata_switzerland";
+    | "teradata_switzerland"
+    | "swiss_life_switzerland";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -309,6 +310,9 @@ function importedJobData({
                                                                                                                                 : source ===
                                                                                                                                     "teradata_switzerland"
                                                                                                                                   ? "Teradata Switzerland"
+                                                                                                                                : source ===
+                                                                                                                                    "swiss_life_switzerland"
+                                                                                                                                  ? "Swiss Life Switzerland"
                                                                                                                                 : source ===
                                                                                                                                     "axpo_switzerland"
                                                                                                                                   ? "Axpo Switzerland"
@@ -520,7 +524,10 @@ function importedJobData({
                                                                                                                                 ? "NTT Global Data Centers"
                                                                                                                               : source ===
                                                                                                                                   "teradata_switzerland"
-                                                                                                                                ? "Teradata"
+                                                                                                                                  ? "Teradata"
+                                                                                                                              : source ===
+                                                                                                                                  "swiss_life_switzerland"
+                                                                                                                                ? "Swiss Life AG"
                                                                                                                               : source ===
                                                                                                                                   "axpo_switzerland"
                                                                                                                                 ? "Axpo Group"
@@ -634,7 +641,8 @@ function importedJobData({
       source === "bedag" ||
       source === "nexplore" ||
       source === "ntt_global_data_centers_switzerland" ||
-      source === "teradata_switzerland"
+      source === "teradata_switzerland" ||
+      source === "swiss_life_switzerland"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -2324,6 +2332,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Customer Solution Architect at Teradata",
         source: "teradata_switzerland",
       });
+      const swissLifeSwitzerlandJob = importedJobData({
+        id: "swiss_life_switzerland-4c6b891f-22b1-494c-ad4e-06a25ede7ef4",
+        title: "Associate Financial Planner & Relationship Manager at Swiss Life",
+        source: "swiss_life_switzerland",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -2423,11 +2436,15 @@ it("shows direct-company vacancies with their company logos", async () => {
           id: teradataSwitzerlandJob.id,
           data: teradataSwitzerlandJob,
         },
+        {
+          id: swissLifeSwitzerlandJob.id,
+          data: swissLifeSwitzerlandJob,
+        },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 74,
-        jobsAdded: 74,
+        jobsFound: 75,
+        jobsAdded: 75,
         sourceErrors: {},
         warning: null,
       });
@@ -2573,7 +2590,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 74 of 74 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland",
+      "Added 75 of 75 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2653,6 +2670,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "nexplore",
       "ntt_global_data_centers_switzerland",
       "teradata_switzerland",
+      "swiss_life_switzerland",
     ],
     aiAnalysisEnabled: true,
   });
@@ -2883,6 +2901,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Teradata Switzerland logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Swiss Life Switzerland logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -3022,6 +3043,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   ).toBeGreaterThan(0);
   expect(
     screen.getAllByText("Source: Teradata Switzerland").length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: Swiss Life Switzerland").length,
   ).toBeGreaterThan(0);
 }, 30_000);
 

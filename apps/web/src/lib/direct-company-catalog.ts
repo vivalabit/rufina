@@ -736,6 +736,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 120,
     logoHeight: 24,
   },
+  {
+    id: "swiss_life_switzerland",
+    name: "Swiss Life Switzerland",
+    careersUrl:
+      "https://www.swisslife.ch/de/ueber-uns/karriere/jobs.html#",
+    logoSrc: "/company-logos/swiss_life.svg",
+    logoAlt: "Swiss Life Switzerland logo",
+    logoWidth: 96,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

@@ -1264,6 +1264,24 @@ DIRECT_COMPANY_PARSERS = (
             ("max_pages", "teradata_switzerland_jobs_max_pages"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="swiss_life_switzerland",
+        name="Swiss Life Switzerland",
+        careers_url=(
+            "https://www.swisslife.ch/de/ueber-uns/karriere/jobs.html#"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.swiss_life_switzerland:"
+            "SwissLifeSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "swiss_life_switzerland_jobs_base_url"),
+            ("catalog_url", "swiss_life_switzerland_jobs_catalog_url"),
+            ("timeout_seconds", "swiss_life_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "swiss_life_switzerland_jobs_max_pages"),
+            ("detail_workers", "swiss_life_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
