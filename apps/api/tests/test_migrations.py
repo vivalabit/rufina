@@ -1403,9 +1403,11 @@ def test_lifespan_starts_and_stops_scheduled_expiration_cleanup(monkeypatch) -> 
         interval_seconds: float,
         *,
         settings,
+        settings_provider,
         stop_event: asyncio.Event,
     ) -> None:
         assert interval_seconds == settings.job_search_poll_interval_seconds
+        assert settings_provider is main_module.get_settings
         worker_started.set()
         await stop_event.wait()
         worker_stopped.set()

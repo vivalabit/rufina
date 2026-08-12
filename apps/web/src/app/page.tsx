@@ -294,6 +294,7 @@ type AppSettings = {
   ai_match_batch_size: number;
   ai_match_timeout_seconds: number;
   ai_match_max_attempts: number;
+  auto_ai_match_enabled: boolean;
   job_screening_model: string;
   job_screening_reasoning: AIWorkloadReasoningEffort;
   job_screening_batch_size: number;
@@ -316,6 +317,7 @@ type AppSettingsUpdate = Partial<{
   ai_match_batch_size: number;
   ai_match_timeout_seconds: number;
   ai_match_max_attempts: number;
+  auto_ai_match_enabled: boolean;
   job_screening_model: string;
   job_screening_reasoning: AIWorkloadReasoningEffort;
   job_screening_batch_size: number;
@@ -340,6 +342,7 @@ const defaultAppSettings: AppSettings = {
   ai_match_batch_size: 1,
   ai_match_timeout_seconds: 120,
   ai_match_max_attempts: 2,
+  auto_ai_match_enabled: false,
   job_screening_model: "openai/gpt-5.6-luna",
   job_screening_reasoning: "off",
   job_screening_batch_size: 10,
@@ -9489,6 +9492,9 @@ function SettingsView({
   const [aiMatchBatchSizeDraft, setAiMatchBatchSizeDraft] = useState(settings.ai_match_batch_size);
   const [aiMatchTimeoutDraft, setAiMatchTimeoutDraft] = useState(settings.ai_match_timeout_seconds);
   const [aiMatchAttemptsDraft, setAiMatchAttemptsDraft] = useState(settings.ai_match_max_attempts);
+  const [autoAiMatchEnabledDraft, setAutoAiMatchEnabledDraft] = useState(
+    settings.auto_ai_match_enabled,
+  );
   const [screeningModelDraft, setScreeningModelDraft] = useState(settings.job_screening_model);
   const [screeningReasoningDraft, setScreeningReasoningDraft] = useState<AIWorkloadReasoningEffort>(
     settings.job_screening_reasoning,
@@ -9559,6 +9565,7 @@ function SettingsView({
     setAiMatchBatchSizeDraft(settings.ai_match_batch_size);
     setAiMatchTimeoutDraft(settings.ai_match_timeout_seconds);
     setAiMatchAttemptsDraft(settings.ai_match_max_attempts);
+    setAutoAiMatchEnabledDraft(settings.auto_ai_match_enabled);
     setScreeningModelDraft(settings.job_screening_model);
     setScreeningReasoningDraft(settings.job_screening_reasoning);
     setScreeningBatchSizeDraft(settings.job_screening_batch_size);
@@ -9571,6 +9578,7 @@ function SettingsView({
     settings.ai_match_model,
     settings.ai_match_reasoning,
     settings.ai_match_timeout_seconds,
+    settings.auto_ai_match_enabled,
     settings.ai_backend,
     settings.job_screening_batch_size,
     settings.job_screening_max_attempts,
@@ -9601,6 +9609,7 @@ function SettingsView({
       ai_match_batch_size: aiMatchBatchSizeDraft,
       ai_match_timeout_seconds: aiMatchTimeoutDraft,
       ai_match_max_attempts: aiMatchAttemptsDraft,
+      auto_ai_match_enabled: autoAiMatchEnabledDraft,
       job_screening_model: screeningModelDraft.trim(),
       job_screening_reasoning: screeningReasoningDraft,
       job_screening_batch_size: screeningBatchSizeDraft,
@@ -9908,6 +9917,38 @@ function SettingsView({
                     Runs only for vacancies that passed pre-screening and builds the detailed match analysis.
                   </p>
                 </div>
+
+                <button
+                  type="button"
+                  role="switch"
+                  aria-label="Auto AI Match"
+                  aria-checked={autoAiMatchEnabledDraft}
+                  onClick={() => setAutoAiMatchEnabledDraft((enabled) => !enabled)}
+                  className="flex min-h-14 w-full items-center justify-between gap-4 rounded-lg border border-border bg-black/15 px-3.5 py-3 text-left transition hover:border-accent/40"
+                >
+                  <span>
+                    <span className="block text-sm font-bold text-white">Auto AI Match</span>
+                    <span className="mt-1 block text-xs leading-5 text-muted">
+                      Automatically analyze every new vacancy immediately after it is added.
+                    </span>
+                  </span>
+                  <span
+                    aria-hidden="true"
+                    className={cn(
+                      "relative h-6 w-11 shrink-0 rounded-full transition",
+                      autoAiMatchEnabledDraft
+                        ? "bg-accent shadow-[0_0_14px_rgba(255,90,0,0.22)]"
+                        : "bg-white/15",
+                    )}
+                  >
+                    <span
+                      className={cn(
+                        "absolute top-1 h-4 w-4 rounded-full bg-white transition",
+                        autoAiMatchEnabledDraft ? "right-1" : "left-1",
+                      )}
+                    />
+                  </span>
+                </button>
 
                 <label className="grid gap-2">
                   <span className="text-sm font-bold text-[#d8dee8]">Model</span>

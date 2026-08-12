@@ -53,6 +53,7 @@ class Settings(BaseSettings):
     ai_match_batch_size: int | None = Field(default=None, ge=1, le=100)
     ai_match_timeout_seconds: int | None = Field(default=None, ge=10, le=600)
     ai_match_max_attempts: int | None = Field(default=None, ge=1, le=4)
+    auto_ai_match_enabled: bool = False
     job_screening_model: str = Field(
         default="openai/gpt-5.6-luna",
         min_length=1,

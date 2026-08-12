@@ -22,6 +22,7 @@ AI_MATCH_REASONING_ENV = "AI_MATCH_REASONING"
 AI_MATCH_BATCH_SIZE_ENV = "AI_MATCH_BATCH_SIZE"
 AI_MATCH_TIMEOUT_SECONDS_ENV = "AI_MATCH_TIMEOUT_SECONDS"
 AI_MATCH_MAX_ATTEMPTS_ENV = "AI_MATCH_MAX_ATTEMPTS"
+AUTO_AI_MATCH_ENABLED_ENV = "AUTO_AI_MATCH_ENABLED"
 JOB_SCREENING_MODEL_ENV = "JOB_SCREENING_MODEL"
 JOB_SCREENING_REASONING_ENV = "JOB_SCREENING_REASONING"
 JOB_SCREENING_BATCH_SIZE_ENV = "JOB_SCREENING_BATCH_SIZE"
@@ -50,6 +51,7 @@ class AppSettingsResponse(BaseModel):
     ai_match_batch_size: int
     ai_match_timeout_seconds: int
     ai_match_max_attempts: int
+    auto_ai_match_enabled: bool
     job_screening_model: str
     job_screening_reasoning: ReasoningEffort
     job_screening_batch_size: int
@@ -72,6 +74,7 @@ class AppSettingsUpdateRequest(BaseModel):
     ai_match_batch_size: int | None = Field(default=None, ge=1, le=100)
     ai_match_timeout_seconds: int | None = Field(default=None, ge=10, le=600)
     ai_match_max_attempts: int | None = Field(default=None, ge=1, le=4)
+    auto_ai_match_enabled: bool | None = None
     job_screening_model: str | None = Field(default=None, max_length=256)
     job_screening_reasoning: ReasoningEffort | None = None
     job_screening_batch_size: int | None = Field(default=None, ge=1, le=100)
@@ -163,6 +166,7 @@ def build_settings_response() -> AppSettingsResponse:
         ai_match_batch_size=settings.ai_match_batch_size_value(),
         ai_match_timeout_seconds=settings.ai_match_timeout_seconds_value(),
         ai_match_max_attempts=settings.ai_match_max_attempts_value(),
+        auto_ai_match_enabled=settings.auto_ai_match_enabled,
         job_screening_model=settings.job_screening_model,
         job_screening_reasoning=settings.normalize_reasoning_for_backend(
             settings.job_screening_reasoning
@@ -234,6 +238,8 @@ def update_app_settings(payload: AppSettingsUpdateRequest) -> AppSettingsRespons
         updates[AI_MATCH_TIMEOUT_SECONDS_ENV] = str(payload.ai_match_timeout_seconds)
     if payload.ai_match_max_attempts is not None:
         updates[AI_MATCH_MAX_ATTEMPTS_ENV] = str(payload.ai_match_max_attempts)
+    if payload.auto_ai_match_enabled is not None:
+        updates[AUTO_AI_MATCH_ENABLED_ENV] = str(payload.auto_ai_match_enabled).lower()
     if payload.job_screening_model is not None:
         screening_model = payload.job_screening_model.strip()
         if not screening_model:

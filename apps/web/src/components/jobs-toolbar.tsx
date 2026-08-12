@@ -61,15 +61,18 @@ export function JobsToolbar({
   return (
     <>
       <div
-        aria-label="Jobs actions"
         className={cn(
-          "flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
+          "relative min-w-0",
           className,
         )}
         onKeyDown={(event) => {
           if (event.key === "Escape") onAnalysisMenuOpenChange(false);
         }}
       >
+        <div
+          aria-label="Jobs actions"
+          className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
         <Button
           className="h-10 shrink-0 rounded-lg border border-[#ff7524] bg-[linear-gradient(135deg,#ff7a16_0%,#ff5708_100%)] px-4 text-[13px] font-bold text-white shadow-[0_10px_28px_rgba(255,90,0,0.24),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-[linear-gradient(135deg,#ff852b_0%,#ff6415_100%)] 2xl:h-12 2xl:px-5 2xl:text-sm"
           onClick={onAddVacancy}
@@ -127,7 +130,7 @@ export function JobsToolbar({
           <Settings className="h-[18px] w-[18px] 2xl:h-5 2xl:w-5" />
         </Button>
 
-        <div className="relative">
+        <div>
           <Button
             variant="ghost"
             aria-haspopup="menu"
@@ -146,47 +149,48 @@ export function JobsToolbar({
               <ChevronDown className="h-3.5 w-3.5 text-[#8f99a8]" />
             ) : null}
           </Button>
-
-          {isAnalysisMenuOpen ? (
-            <div
-              role="menu"
-              aria-label="Bulk AI analysis"
-              className="absolute right-0 top-12 z-40 grid w-[300px] gap-1 rounded-lg border border-border bg-[#101720] p-2 shadow-[0_18px_40px_rgba(0,0,0,0.48)] 2xl:top-14"
-            >
-              <p className="px-2 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
-                Run AI analysis
-              </p>
-              <button
-                type="button"
-                role="menuitem"
-                disabled={recentAnalysisCount === 0}
-                onClick={() => onRunAnalysis("recent")}
-                className="rounded-md px-2.5 py-2 text-left transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
-              >
-                <span className="block text-xs font-bold text-[#e6ebf3]">
-                  Vacancies added in the last 24 hours
-                </span>
-                <span className="mt-1 block text-[11px] leading-4 text-muted">
-                  Re-run analysis for {recentAnalysisCount} active vacancies.
-                </span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                disabled={missingAnalysisCount === 0}
-                onClick={() => onRunAnalysis("missing")}
-                className="rounded-md px-2.5 py-2 text-left transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
-              >
-                <span className="block text-xs font-bold text-[#e6ebf3]">
-                  Vacancies without current analysis
-                </span>
-                <span className="mt-1 block text-[11px] leading-4 text-muted">
-                  Analyze {missingAnalysisCount} vacancies with missing or outdated results.
-                </span>
-              </button>
-            </div>
-          ) : null}
         </div>
+        </div>
+
+        {isAnalysisMenuOpen ? (
+          <div
+            role="menu"
+            aria-label="Bulk AI analysis"
+            className="absolute right-0 top-12 z-40 grid w-[min(300px,calc(100vw-2rem))] gap-1 rounded-lg border border-border bg-[#101720] p-2 shadow-[0_18px_40px_rgba(0,0,0,0.48)] 2xl:top-14"
+          >
+            <p className="px-2 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
+              Run AI analysis
+            </p>
+            <button
+              type="button"
+              role="menuitem"
+              disabled={recentAnalysisCount === 0}
+              onClick={() => onRunAnalysis("recent")}
+              className="rounded-md px-2.5 py-2 text-left transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
+            >
+              <span className="block text-xs font-bold text-[#e6ebf3]">
+                Vacancies added in the last 24 hours
+              </span>
+              <span className="mt-1 block text-[11px] leading-4 text-muted">
+                Re-run analysis for {recentAnalysisCount} active vacancies.
+              </span>
+            </button>
+            <button
+              type="button"
+              role="menuitem"
+              disabled={missingAnalysisCount === 0}
+              onClick={() => onRunAnalysis("missing")}
+              className="rounded-md px-2.5 py-2 text-left transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
+            >
+              <span className="block text-xs font-bold text-[#e6ebf3]">
+                Vacancies without current analysis
+              </span>
+              <span className="mt-1 block text-[11px] leading-4 text-muted">
+                Analyze {missingAnalysisCount} vacancies with missing or outdated results.
+              </span>
+            </button>
+          </div>
+        ) : null}
       </div>
 
       <AutoSearchDialog

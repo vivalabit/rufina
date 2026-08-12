@@ -1,9 +1,10 @@
 import json
 import logging
+from collections.abc import Callable
 from copy import deepcopy
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
-from typing import Any, Callable, Literal
+from typing import Any, Literal
 from uuid import uuid4
 
 from pydantic import ValidationError
@@ -385,11 +386,10 @@ def execute_job_search(
     db.commit()
     log_job_search_results_persisted(run)
 
-    analysis_enabled = (
-        ai_analysis_enabled
-        if ai_analysis_enabled is not None
-        else schedule.ai_analysis_enabled if schedule else False
-    )
+    # Auto AI Match is a global, explicit opt-in. The legacy per-run and
+    # per-schedule flags remain accepted for API compatibility, but the app
+    # setting is the single source of truth for automatic matching.
+    analysis_enabled = settings.auto_ai_match_enabled
     match_warning = match_new_jobs_if_allowed(
         db,
         jobs=new_jobs,

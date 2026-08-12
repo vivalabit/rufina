@@ -1638,32 +1638,9 @@ function AutoSearchForm({
         </FormSection>
 
         <FormSection title="Analysis">
-          <Field label="AI Match">
-            <button
-              type="button"
-              role="switch"
-              aria-label="AI Match"
-              aria-checked={draft.aiAnalysisEnabled}
-              onClick={() =>
-                patch({ aiAnalysisEnabled: !draft.aiAnalysisEnabled })
-              }
-              className="flex min-h-12 w-full items-center justify-between rounded-lg border border-border bg-white/[0.025] px-3 text-left"
-            >
-              <span>
-                <span className="block text-xs font-bold text-[#dce3ec]">
-                  Analyze new vacancies
-                </span>
-                <span className="mt-0.5 block text-[10px] text-muted">
-                  Requires current AI data-processing consent.
-                </span>
-              </span>
-              <Toggle enabled={draft.aiAnalysisEnabled} />
-            </button>
-          </Field>
-
           <div className="rounded-lg border border-violet-400/15 bg-violet-500/[0.055] p-3 text-[11px] leading-5 text-[#c9c3db]">
-            Example: duplicate “LinkedIn · 13:00”, select Indeed, set 15:00, and
-            save. Each time remains an independent rule.
+            Automatic AI Match is controlled globally in Settings. When enabled,
+            every new vacancy that passes pre-screening is analyzed immediately.
           </div>
         </FormSection>
       </div>

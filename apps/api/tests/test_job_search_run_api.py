@@ -327,6 +327,7 @@ def test_manual_run_accepts_inline_config_without_creating_schedule(
     monkeypatch: pytest.MonkeyPatch,
     caplog: pytest.LogCaptureFixture,
 ) -> None:
+    api_context.settings.auto_ai_match_enabled = False
     headers = {"X-Rufina-Owner-Id": "manual-owner"}
     job = parsed_job(
         title="Manual Backend Engineer",
@@ -366,7 +367,7 @@ def test_manual_run_accepts_inline_config_without_creating_schedule(
                 },
             },
             "sources": ["linkedin"],
-            "aiAnalysisEnabled": False,
+            "aiAnalysisEnabled": True,
         },
     )
 
@@ -413,6 +414,7 @@ def test_manual_parser_run_persists_and_analyzes_only_accepted_vacancies(
     api_context: ApiContext,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    api_context.settings.auto_ai_match_enabled = True
     owner_id = "manual-parser-screening-owner"
     headers = {"X-Rufina-Owner-Id": owner_id}
     accepted = parsed_job(
@@ -472,7 +474,7 @@ def test_manual_parser_run_persists_and_analyzes_only_accepted_vacancies(
                 },
             },
             "sources": ["linkedin"],
-            "aiAnalysisEnabled": True,
+            "aiAnalysisEnabled": False,
         },
     )
 
@@ -524,6 +526,7 @@ def test_manual_screening_persists_and_matches_only_keep_and_reuses_cache(
     api_context: ApiContext,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    api_context.settings.auto_ai_match_enabled = True
     owner_id = "screening-owner"
     headers = {"X-Rufina-Owner-Id": owner_id}
     keep = parsed_job(
@@ -997,6 +1000,7 @@ def test_final_screening_matrix_only_persists_and_analyzes_entry_product_manager
     api_context: ApiContext,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    api_context.settings.auto_ai_match_enabled = True
     owner_id = "screening-matrix-owner"
     headers = {"X-Rufina-Owner-Id": owner_id}
     jobs = [
@@ -1848,6 +1852,7 @@ def test_run_now_persists_jobs_snapshot_and_no_consent_warning(
     api_context: ApiContext,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    api_context.settings.auto_ai_match_enabled = True
     owner_a = {"X-Rufina-Owner-Id": "owner-a"}
     owner_b = {"X-Rufina-Owner-Id": "owner-b"}
     job = parsed_job(
@@ -2083,6 +2088,7 @@ def test_run_now_does_not_restore_existing_or_dismissed_jobs_and_matches_only_ne
     api_context: ApiContext,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
+    api_context.settings.auto_ai_match_enabled = True
     headers = {"X-Rufina-Owner-Id": "dedup-owner"}
     existing = parsed_job(
         title="Existing Engineer",

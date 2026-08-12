@@ -26,6 +26,7 @@ const configuredAppSettings = {
   ai_match_batch_size: 1,
   ai_match_timeout_seconds: 120,
   ai_match_max_attempts: 2,
+  auto_ai_match_enabled: false,
   job_screening_model: "openai/gpt-5-mini",
   job_screening_reasoning: "off",
   job_screening_batch_size: 10,
@@ -929,6 +930,7 @@ it("saves a selectable AI backend without overwriting unrelated settings", async
       target: { value: "4" },
     },
   );
+  fireEvent.click(screen.getByRole("switch", { name: "Auto AI Match" }));
   fireEvent.click(screen.getByRole("button", { name: "Save AI settings" }));
   await waitFor(() => {
     expect(
@@ -946,6 +948,7 @@ it("saves a selectable AI backend without overwriting unrelated settings", async
     ai_backend: "openclaw_codex",
     ai_match_model: "openai/gpt-5.6-sol",
     ai_match_batch_size: 4,
+    auto_ai_match_enabled: true,
     job_screening_model: "openai/gpt-5-mini-fast",
     job_screening_reasoning: "low",
   });

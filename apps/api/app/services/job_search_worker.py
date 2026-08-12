@@ -39,22 +39,25 @@ _local_reservation_lock = Lock()
 
 SessionFactory = Callable[[], Session]
 RunnerFactory = Callable[[Settings], VacancySearchRunner]
+SettingsProvider = Callable[[], Settings]
 
 
 async def run_job_search_worker(
     interval_seconds: float,
     *,
     settings: Settings,
+    settings_provider: SettingsProvider | None = None,
     session_factory: SessionFactory = SessionLocal,
     runner_factory: RunnerFactory = create_vacancy_search_runner,
     stop_event: asyncio.Event | None = None,
 ) -> None:
     stop = stop_event or asyncio.Event()
     while not stop.is_set():
+        cycle_settings = settings_provider() if settings_provider is not None else settings
         cycle = asyncio.create_task(
             asyncio.to_thread(
                 run_job_search_cycle,
-                settings=settings,
+                settings=cycle_settings,
                 session_factory=session_factory,
                 runner_factory=runner_factory,
             )

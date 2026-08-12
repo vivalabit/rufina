@@ -1,4 +1,5 @@
 import { fireEvent, render, screen, within } from "@testing-library/react";
+import { useState } from "react";
 import { afterEach, expect, it, vi } from "vitest";
 
 import { JobsToolbar } from "@/components/jobs-toolbar";
@@ -60,4 +61,47 @@ it("renders the requested action order and opens auto-searches locally", async (
   expect(
     screen.queryByRole("dialog", { name: "Automatic searches" }),
   ).not.toBeInTheDocument();
+});
+
+it("shows the bulk analysis menu outside the scrolling action row", () => {
+  const onRunAnalysis = vi.fn();
+
+  function ControlledToolbar() {
+    const [isOpen, setIsOpen] = useState(false);
+    return (
+      <JobsToolbar
+        savedJobsCount={0}
+        archivedJobsCount={0}
+        showSavedJobs={false}
+        showArchivedJobs={false}
+        isAnalysisMenuOpen={isOpen}
+        bulkAnalysisScope={null}
+        recentAnalysisCount={2}
+        missingAnalysisCount={3}
+        onAddVacancy={vi.fn()}
+        onSearchVacancies={vi.fn()}
+        onToggleSavedJobs={vi.fn()}
+        onToggleArchivedJobs={vi.fn()}
+        onAnalysisMenuOpenChange={setIsOpen}
+        onRunAnalysis={onRunAnalysis}
+        onVacanciesChanged={vi.fn()}
+      />
+    );
+  }
+
+  render(<ControlledToolbar />);
+
+  const actionRow = screen.getByLabelText("Jobs actions");
+  fireEvent.click(within(actionRow).getByRole("button", { name: "Analysis" }));
+
+  const menu = screen.getByRole("menu", { name: "Bulk AI analysis" });
+  expect(menu).toBeVisible();
+  expect(actionRow).not.toContainElement(menu);
+
+  fireEvent.click(
+    within(menu).getByRole("menuitem", {
+      name: /Vacancies without current analysis/,
+    }),
+  );
+  expect(onRunAnalysis).toHaveBeenCalledWith("missing");
 });

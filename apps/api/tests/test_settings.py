@@ -311,6 +311,33 @@ def test_ai_match_settings_api_persists_backend_neutral_overrides(
     assert "AI_MATCH_REASONING=high" in env_text
 
 
+def test_auto_ai_match_setting_is_opt_in_and_persisted(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setattr(settings_api, "REPO_ROOT", tmp_path)
+    monkeypatch.setenv("AUTO_AI_MATCH_ENABLED", "false")
+    get_settings.cache_clear()
+
+    assert get_settings().auto_ai_match_enabled is False
+
+    try:
+        response = TestClient(app).put(
+            "/settings",
+            json={"auto_ai_match_enabled": True},
+        )
+        refreshed = get_settings()
+    finally:
+        get_settings.cache_clear()
+
+    assert response.status_code == 200
+    assert response.json()["auto_ai_match_enabled"] is True
+    assert refreshed.auto_ai_match_enabled is True
+    assert "AUTO_AI_MATCH_ENABLED=true" in (tmp_path / ".env").read_text(
+        encoding="utf-8"
+    )
+
+
 @pytest.mark.parametrize(
     ("field", "value"),
     [
