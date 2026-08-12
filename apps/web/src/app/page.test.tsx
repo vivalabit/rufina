@@ -1311,22 +1311,29 @@ it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selecte
   fireEvent.click(
     await screen.findByRole("button", { name: "Search vacancies" }),
   );
-  const linkedinSource = screen.getByRole("button", { name: /LinkedIn/ });
-  const indeedSource = screen.getByRole("button", { name: /Indeed/ });
-  const jobsChSource = screen.getByRole("button", { name: /jobs\.ch/ });
+  const linkedinSource = screen.getByRole("button", {
+    name: "Include LinkedIn in search",
+  });
+  const indeedSource = screen.getByRole("button", {
+    name: "Include Indeed in search",
+  });
+  const jobsChSource = screen.getByRole("button", {
+    name: "Include jobs.ch in search",
+  });
   expect(linkedinSource).toHaveAttribute("aria-pressed", "true");
   expect(indeedSource).toHaveAttribute("aria-pressed", "false");
   expect(jobsChSource).toHaveAttribute("aria-pressed", "false");
 
+  fireEvent.click(screen.getByRole("button", { name: "Configure Indeed" }));
+  expect(screen.getByText("2. Configure Indeed")).toBeInTheDocument();
+  expect(indeedSource).toHaveAttribute("aria-pressed", "false");
   fireEvent.click(indeedSource);
   fireEvent.click(jobsChSource);
   expect(linkedinSource).toHaveAttribute("aria-pressed", "true");
   expect(indeedSource).toHaveAttribute("aria-pressed", "true");
   expect(jobsChSource).toHaveAttribute("aria-pressed", "true");
   expect(
-    screen.getByText(
-      "Shared screening rules and the fallback query for direct company pages.",
-    ),
+    screen.getByText("These query fields belong only to Indeed."),
   ).toBeInTheDocument();
   fireEvent.change(
     screen.getByPlaceholderText(
@@ -1523,6 +1530,22 @@ it("loads a server config and refreshes backend-persisted search results", async
     if (url.pathname === "/job-search/configs" && method === "GET") {
       return Response.json([entryItConfig]);
     }
+    if (url.pathname === "/job-search/source-configs" && method === "GET") {
+      return Response.json([
+        {
+          id: "entry-it-linkedin",
+          name: "Entry IT · LinkedIn",
+          configId: "entry-it",
+          source: "linkedin",
+          filters: entryItConfig.filters.search,
+          createdAt: "2026-07-21T00:00:00.000Z",
+          updatedAt: "2026-07-21T00:00:00.000Z",
+        },
+      ]);
+    }
+    if (url.pathname === "/job-search/presets" && method === "GET") {
+      return Response.json([]);
+    }
     if (url.pathname === "/jobs" && method === "GET")
       return Response.json(storedJobs);
     if (url.pathname === "/applications" && method === "GET")
@@ -1580,6 +1603,7 @@ it("loads a server config and refreshes backend-persisted search results", async
   expect(runBodies[0]).toMatchObject({
     sources: ["linkedin"],
     configId: "entry-it",
+    sourceConfigIds: { linkedin: "entry-it-linkedin" },
   });
   expect(runBodies[0]).not.toHaveProperty("config");
   expect(screen.getAllByText("Junior Python Developer").length).toBeGreaterThan(
@@ -1681,12 +1705,35 @@ it("loads a run preset with a separate query config for every aggregator", async
   expect(screen.getByLabelText("LinkedIn query config")).toHaveValue(
     "entry-it-linkedin",
   );
+  expect(
+    screen.getByPlaceholderText(
+      "e.g. Product Designer, UX Designer, Design System",
+    ),
+  ).toHaveValue("linkedin query");
+  fireEvent.click(screen.getByRole("button", { name: "Configure Indeed" }));
   expect(screen.getByLabelText("Indeed query config")).toHaveValue(
     "entry-it-indeed",
   );
+  expect(
+    screen.getByPlaceholderText(
+      "e.g. Product Designer, UX Designer, Design System",
+    ),
+  ).toHaveValue("indeed query");
+  fireEvent.click(screen.getByRole("button", { name: "Configure jobs.ch" }));
   expect(screen.getByLabelText("jobs.ch query config")).toHaveValue(
     "entry-it-jobs-ch",
   );
+  fireEvent.change(screen.getByLabelText("jobs.ch query config"), {
+    target: { value: "" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Start search" }));
+  expect(
+    await screen.findByText("Select a query config for jobs.ch"),
+  ).toBeInTheDocument();
+  expect(runBodies).toHaveLength(0);
+  fireEvent.change(screen.getByLabelText("jobs.ch query config"), {
+    target: { value: "entry-it-jobs-ch" },
+  });
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
 
   expect(
@@ -2539,8 +2586,15 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(
     await screen.findByRole("button", { name: "Search vacancies" }),
   );
-  fireEvent.click(screen.getByRole("button", { name: /Direct Companies/ }));
-  fireEvent.click(screen.getByRole("button", { name: /LinkedIn/ }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Configure Direct Companies" }),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Include Direct Companies in search" }),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Include LinkedIn in search" }),
+  );
 
   expect(screen.getByText("Direct company pages")).toBeInTheDocument();
   expect(screen.getByText("SBB CFF FFS")).toBeInTheDocument();

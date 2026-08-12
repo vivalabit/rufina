@@ -364,6 +364,7 @@ type AppLogEntry = {
 };
 
 type ParserId = "linkedin" | "indeed" | "jobs_ch";
+type ActiveSearchSource = ParserId | "direct_companies";
 
 type ParserSearchForm = {
   parsers: ParserId[];
@@ -381,6 +382,19 @@ type ParserSearchForm = {
   searchName: string;
   folder: string;
 };
+
+type SourceSearchDraft = Pick<
+  ParserSearchForm,
+  | "keywords"
+  | "location"
+  | "remote"
+  | "experienceLevel"
+  | "jobType"
+  | "datePosted"
+  | "resultsLimit"
+  | "country"
+  | "deduplicate"
+>;
 
 type JobFilterKey = "location" | "remote" | "salary" | "experience" | "type" | "match";
 
@@ -2137,6 +2151,55 @@ function sourceSearchFiltersFromForm(
   return isRecord(filters.search) ? filters.search : {};
 }
 
+function sourceSearchDraftFromForm(form: ParserSearchForm): SourceSearchDraft {
+  return {
+    keywords: form.keywords,
+    location: form.location,
+    remote: form.remote,
+    experienceLevel: form.experienceLevel,
+    jobType: form.jobType,
+    datePosted: form.datePosted,
+    resultsLimit: form.resultsLimit,
+    country: form.country,
+    deduplicate: form.deduplicate,
+  };
+}
+
+function sourceSearchDraftFromFilters(
+  filters: Record<string, unknown>,
+  fallback: ParserSearchForm,
+): SourceSearchDraft {
+  const stringValue = (fallbackValue: string, ...keys: string[]) => {
+    for (const key of keys) {
+      if (typeof filters[key] === "string") return filters[key];
+    }
+    return fallbackValue;
+  };
+  return {
+    keywords: stringValue(fallback.keywords, "keywords"),
+    location: stringValue(fallback.location, "location"),
+    remote: stringValue(fallback.remote, "remote"),
+    experienceLevel: stringValue(
+      fallback.experienceLevel,
+      "experienceLevel",
+      "experience_level",
+    ),
+    jobType: stringValue(fallback.jobType, "jobType", "job_type"),
+    datePosted: stringValue(
+      fallback.datePosted,
+      "datePosted",
+      "date_posted",
+    ),
+    resultsLimit: String(
+      filterNumber(filters, "resultsLimit", "results_limit") ??
+        (Number.parseInt(fallback.resultsLimit, 10) || 10),
+    ),
+    country: stringValue(fallback.country, "country"),
+    deduplicate:
+      filterBoolean(filters, "deduplicate") ?? fallback.deduplicate,
+  };
+}
+
 function parserSearchConfigFromApi(
   config: JobSearchConfigPayload,
 ): ParserSearchConfig {
@@ -3018,6 +3081,8 @@ export default function HomePage() {
   const [aiMatchErrorMessage, setAiMatchErrorMessage] = useState("");
   const [matchFeedbackSavingJobId, setMatchFeedbackSavingJobId] = useState("");
   const [parserSearchForm, setParserSearchForm] = useState<ParserSearchForm>(defaultParserSearchForm);
+  const [activeSearchSource, setActiveSearchSource] = useState<ActiveSearchSource>("linkedin");
+  const [sourceSearchDrafts, setSourceSearchDrafts] = useState<Partial<Record<ParserId, SourceSearchDraft>>>({});
   const [parserSearchConfigs, setParserSearchConfigs] = useState<ParserSearchConfig[]>([]);
   const [selectedParserSearchConfigId, setSelectedParserSearchConfigId] = useState("");
   const [sourceSearchConfigs, setSourceSearchConfigs] = useState<JobSourceConfigPayload[]>([]);
@@ -4198,7 +4263,23 @@ export default function HomePage() {
     field: Field,
     value: (typeof parserSearchForm)[Field],
   ) {
-    setParserSearchForm((current) => ({ ...current, [field]: value }));
+    setParserSearchForm((current) => {
+      const next = { ...current, [field]: value };
+      if (
+        activeSearchSource !== "direct_companies" &&
+        field !== "parsers" &&
+        field !== "directCompaniesEnabled" &&
+        field !== "directCompanyIds" &&
+        field !== "searchName" &&
+        field !== "folder"
+      ) {
+        setSourceSearchDrafts((drafts) => ({
+          ...drafts,
+          [activeSearchSource]: sourceSearchDraftFromForm(next),
+        }));
+      }
+      return next;
+    });
     setParserSearchStatus("idle");
     setParserSearchMessage("");
   }
@@ -4206,13 +4287,6 @@ export default function HomePage() {
   function toggleParser(parser: ParserId) {
     setParserSearchForm((current) => {
       const isSelected = current.parsers.includes(parser);
-      if (
-        isSelected &&
-        current.parsers.length === 1 &&
-        !current.directCompaniesEnabled
-      ) {
-        return current;
-      }
       return {
         ...current,
         parsers: isSelected
@@ -4221,6 +4295,34 @@ export default function HomePage() {
       };
     });
     setSelectedSearchPresetId("");
+    setParserSearchStatus("idle");
+    setParserSearchMessage("");
+  }
+
+  function sourceDraftFor(source: ParserId): SourceSearchDraft {
+    const existingDraft = sourceSearchDrafts[source];
+    if (existingDraft) return existingDraft;
+
+    const selectedConfigId = selectedSourceConfigIds[source];
+    const selectedConfig = sourceSearchConfigs.find(
+      (config) => config.id === selectedConfigId && config.source === source,
+    );
+    const commonConfig = parserSearchConfigs.find(
+      (config) => config.id === selectedParserSearchConfigId,
+    );
+    const fallback = commonConfig?.form ?? defaultParserSearchForm;
+    return selectedConfig
+      ? sourceSearchDraftFromFilters(selectedConfig.filters, fallback)
+      : sourceSearchDraftFromForm(fallback);
+  }
+
+  function activateSearchSource(source: ActiveSearchSource) {
+    setActiveSearchSource(source);
+    if (source !== "direct_companies") {
+      const draft = sourceDraftFor(source);
+      setSourceSearchDrafts((current) => ({ ...current, [source]: draft }));
+      setParserSearchForm((current) => ({ ...current, ...draft }));
+    }
     setParserSearchStatus("idle");
     setParserSearchMessage("");
   }
@@ -4271,6 +4373,24 @@ export default function HomePage() {
       ...current,
       [source]: configId || undefined,
     }));
+    const selectedConfig = sourceSearchConfigs.find(
+      (config) => config.id === configId && config.source === source,
+    );
+    const commonConfig = parserSearchConfigs.find(
+      (config) => config.id === selectedParserSearchConfigId,
+    );
+    const draft = selectedConfig
+      ? sourceSearchDraftFromFilters(
+          selectedConfig.filters,
+          commonConfig?.form ?? defaultParserSearchForm,
+        )
+      : sourceSearchDraftFromForm(
+          commonConfig?.form ?? defaultParserSearchForm,
+        );
+    setSourceSearchDrafts((current) => ({ ...current, [source]: draft }));
+    if (activeSearchSource === source) {
+      setParserSearchForm((current) => ({ ...current, ...draft }));
+    }
     setSelectedSearchPresetId("");
     setParserSearchStatus("idle");
     setParserSearchMessage("");
@@ -4287,6 +4407,10 @@ export default function HomePage() {
       (config) => config.id === selectedParserSearchConfigId,
     );
     const sourceLabel = getParserLabel(source);
+    const sourceForm = {
+      ...parserSearchForm,
+      ...(sourceSearchDrafts[source] ?? sourceSearchDraftFromForm(parserSearchForm)),
+    };
     setParserSearchStatus("loading");
     setParserSearchMessage(
       `${existingId ? "Updating" : "Creating"} ${sourceLabel} query config...`,
@@ -4307,7 +4431,7 @@ export default function HomePage() {
                   source,
                 }
               : {}),
-            filters: sourceSearchFiltersFromForm(parserSearchForm),
+            filters: sourceSearchFiltersFromForm(sourceForm),
           }),
         },
       );
@@ -4346,6 +4470,12 @@ export default function HomePage() {
         source === "linkedin" || source === "indeed" || source === "jobs_ch",
     );
     const directCompanyIds = normalizeDirectCompanyIds(preset.sources);
+    const nextActiveSource: ActiveSearchSource =
+      parserIds.length > 0
+        ? parserIds[0]
+        : directCompanyIds.length > 0
+          ? "direct_companies"
+          : "linkedin";
     setParserSearchForm((current) => ({
       ...current,
       parsers: parserIds,
@@ -4353,6 +4483,36 @@ export default function HomePage() {
       directCompanyIds,
     }));
     setSelectedSourceConfigIds(preset.sourceConfigIds);
+    const activeSourceConfig =
+      nextActiveSource === "direct_companies"
+        ? undefined
+        : sourceSearchConfigs.find(
+            (config) =>
+              config.id === preset.sourceConfigIds[nextActiveSource] &&
+              config.source === nextActiveSource,
+          );
+    const activeSourceDraft = activeSourceConfig
+      ? sourceSearchDraftFromFilters(
+          activeSourceConfig.filters,
+          parserSearchConfigs.find((config) => config.id === preset.configId)?.form ??
+            defaultParserSearchForm,
+        )
+      : undefined;
+    setSourceSearchDrafts(
+      nextActiveSource !== "direct_companies" && activeSourceDraft
+        ? { [nextActiveSource]: activeSourceDraft }
+        : {},
+    );
+    if (activeSourceDraft) {
+      setParserSearchForm((current) => ({
+        ...current,
+        ...activeSourceDraft,
+        parsers: parserIds,
+        directCompaniesEnabled: directCompanyIds.length > 0,
+        directCompanyIds,
+      }));
+    }
+    setActiveSearchSource(nextActiveSource);
     setSelectedSearchPresetId(presetId);
     setParserSearchStatus("ready");
     setParserSearchMessage(`Loaded preset: ${preset.name}`);
@@ -4557,9 +4717,12 @@ export default function HomePage() {
 
     if (!config) return;
 
-    setSelectedSourceConfigIds(
-      defaultSourceConfigMapping(config.id, parserSearchForm.parsers),
+    const sourceConfigMapping = defaultSourceConfigMapping(
+      config.id,
+      parserSearchForm.parsers,
     );
+    setSelectedSourceConfigIds(sourceConfigMapping);
+    setSourceSearchDrafts({});
     setSelectedSearchPresetId("");
 
     setParserSearchForm((currentForm) => ({
@@ -4599,6 +4762,7 @@ export default function HomePage() {
       );
       setSelectedParserSearchConfigId("");
       setSelectedSourceConfigIds({});
+      setSourceSearchDrafts({});
       setSelectedSearchPresetId("");
       setParserSearchStatus("ready");
       setParserSearchMessage(
@@ -5781,6 +5945,23 @@ export default function HomePage() {
       });
       return;
     }
+    if (selectedParserSearchConfigId) {
+      const missingSourceConfig = parserSearchForm.parsers.find(
+        (source) => !selectedSourceConfigIds[source],
+      );
+      if (missingSourceConfig) {
+        activateSearchSource(missingSourceConfig);
+        const message = `Select a query config for ${getParserLabel(missingSourceConfig)}`;
+        setParserSearchStatus("error");
+        setParserSearchMessage(message);
+        appendAppLog({
+          level: "warning",
+          area: "Vacancy search",
+          message,
+        });
+        return;
+      }
+    }
     const parsersLabel = sources.map(getParserLabel).join(" + ");
     setParserSearchStatus("loading");
     setParserSearchMessage(`Searching ${parsersLabel}...`);
@@ -6598,20 +6779,24 @@ export default function HomePage() {
                         { id: "jobs_ch", label: "jobs.ch", description: "Extract jobs from jobs.ch", mark: "j", color: "bg-[#e4002b]" },
                       ] as const).map((parserOption) => {
                         const isSelected = parserSearchForm.parsers.includes(parserOption.id);
+                        const isActive = activeSearchSource === parserOption.id;
                         return (
-                          <button
+                          <div
                             key={parserOption.id}
-                            type="button"
-                            aria-pressed={isSelected}
-                            onClick={() => toggleParser(parserOption.id)}
                             className={cn(
-                              "rounded-md border bg-white/[0.035] p-3 text-left transition",
-                              isSelected
+                              "flex items-center rounded-md border bg-white/[0.035] p-2 transition",
+                              isActive
                                 ? "border-accent shadow-[0_0_0_1px_rgba(255,90,0,0.18)]"
                                 : "border-border hover:border-white/20 hover:bg-white/[0.055]",
                             )}
                           >
-                            <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              aria-label={`Configure ${parserOption.label}`}
+                              aria-current={isActive ? "true" : undefined}
+                              onClick={() => activateSearchSource(parserOption.id)}
+                              className="flex min-w-0 flex-1 items-center gap-3 rounded p-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+                            >
                               <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-md text-lg font-black text-white", parserOption.color)}>
                                 {parserOption.mark}
                               </div>
@@ -6624,25 +6809,39 @@ export default function HomePage() {
                                 </div>
                                 <p className="mt-1 text-xs font-medium text-muted">{parserOption.description}</p>
                               </div>
-                              <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded border-2", isSelected ? "border-accent bg-accent" : "border-white/25")}>
+                            </button>
+                            <button
+                              type="button"
+                              aria-label={`Include ${parserOption.label} in search`}
+                              aria-pressed={isSelected}
+                              onClick={() => toggleParser(parserOption.id)}
+                              className={cn(
+                                "grid h-8 w-8 shrink-0 place-items-center rounded outline-none transition focus-visible:ring-2 focus-visible:ring-accent/70",
+                                isSelected ? "bg-accent/10" : "hover:bg-white/[0.06]",
+                              )}
+                            >
+                              <span className={cn("grid h-5 w-5 place-items-center rounded border-2", isSelected ? "border-accent bg-accent" : "border-white/25")}>
                                 {isSelected && <Check className="h-3.5 w-3.5 text-white" />}
                               </span>
-                            </div>
-                          </button>
+                            </button>
+                          </div>
                         );
                       })}
-                      <button
-                        type="button"
-                        aria-pressed={parserSearchForm.directCompaniesEnabled}
-                        onClick={toggleDirectCompanies}
+                      <div
                         className={cn(
-                          "rounded-md border bg-white/[0.035] p-3 text-left transition",
-                          parserSearchForm.directCompaniesEnabled
+                          "flex items-center rounded-md border bg-white/[0.035] p-2 transition",
+                          activeSearchSource === "direct_companies"
                             ? "border-[#8b5cf6] shadow-[0_0_0_1px_rgba(139,92,246,0.20)]"
                             : "border-border hover:border-white/20 hover:bg-white/[0.055]",
                         )}
                       >
-                        <div className="flex items-center gap-3">
+                        <button
+                          type="button"
+                          aria-label="Configure Direct Companies"
+                          aria-current={activeSearchSource === "direct_companies" ? "true" : undefined}
+                          onClick={() => activateSearchSource("direct_companies")}
+                          className="flex min-w-0 flex-1 items-center gap-3 rounded p-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]/70"
+                        >
                           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-[#6d45c8] text-[11px] font-black uppercase tracking-tight text-white">
                             dc
                           </div>
@@ -6655,20 +6854,35 @@ export default function HomePage() {
                             </div>
                             <p className="mt-1 text-xs font-medium text-muted">Track jobs on company career pages</p>
                           </div>
-                          <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded border-2", parserSearchForm.directCompaniesEnabled ? "border-[#8b5cf6] bg-[#8b5cf6]" : "border-white/25")}>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label="Include Direct Companies in search"
+                          aria-pressed={parserSearchForm.directCompaniesEnabled}
+                          onClick={toggleDirectCompanies}
+                          className={cn(
+                            "grid h-8 w-8 shrink-0 place-items-center rounded outline-none transition focus-visible:ring-2 focus-visible:ring-[#8b5cf6]/70",
+                            parserSearchForm.directCompaniesEnabled ? "bg-[#8b5cf6]/10" : "hover:bg-white/[0.06]",
+                          )}
+                        >
+                          <span className={cn("grid h-5 w-5 place-items-center rounded border-2", parserSearchForm.directCompaniesEnabled ? "border-[#8b5cf6] bg-[#8b5cf6]" : "border-white/25")}>
                             {parserSearchForm.directCompaniesEnabled && <Check className="h-3.5 w-3.5 text-white" />}
                           </span>
-                        </div>
-                      </button>
+                        </button>
+                      </div>
                     </div>
                   </section>
 
                   <section className="p-4 lg:border-l lg:border-border 2xl:p-5">
                     <div className="flex items-center justify-between gap-3">
                       <div>
-                        <h3 className="text-sm font-bold text-white">2. Configure common profile</h3>
+                        <h3 className="text-sm font-bold text-white">
+                          2. Configure {activeSearchSource === "direct_companies" ? "Direct Companies" : getParserLabel(activeSearchSource)}
+                        </h3>
                         <p className="mt-1 text-xs font-medium text-muted">
-                          Shared screening rules and the fallback query for direct company pages.
+                          {activeSearchSource === "direct_companies"
+                            ? "Choose company career pages and configure their fallback search profile."
+                            : `These query fields belong only to ${getParserLabel(activeSearchSource)}.`}
                         </p>
                       </div>
                       <button
@@ -6676,6 +6890,8 @@ export default function HomePage() {
                         className="inline-flex items-center gap-2 text-xs font-bold text-muted transition hover:text-white"
                         onClick={() => {
                           setParserSearchForm(defaultParserSearchForm);
+                          setActiveSearchSource("linkedin");
+                          setSourceSearchDrafts({});
                           setSelectedParserSearchConfigId("");
                           setSelectedSourceConfigIds({});
                           setSelectedSearchPresetId("");
@@ -6689,7 +6905,7 @@ export default function HomePage() {
                     </div>
 
                     <div className="mt-4 grid gap-4">
-                      {parserSearchForm.directCompaniesEnabled && (
+                      {activeSearchSource === "direct_companies" && (
                         <DirectCompaniesSource
                           companies={directCompanyCatalog}
                           selectedCompanyIds={parserSearchForm.directCompanyIds}
@@ -6881,16 +7097,34 @@ export default function HomePage() {
                     </select>
                   </label>
 
-                  <div className="mt-4 grid gap-3 md:grid-cols-3">
-                    {parserSearchForm.parsers.map((source) => {
+                  <div className="mt-4 grid gap-3">
+                    {activeSearchSource !== "direct_companies" && (() => {
+                      const source = activeSearchSource;
                       const compatibleConfigs = sourceSearchConfigs.filter(
                         (config) =>
                           config.source === source &&
                           config.configId === selectedParserSearchConfigId,
                       );
                       return (
-                        <div key={source} className="rounded-md border border-border bg-white/[0.018] p-3">
-                          <p className="text-sm font-bold text-white">{getParserLabel(source)}</p>
+                        <div className="rounded-md border border-accent/30 bg-accent/[0.035] p-3">
+                          <div className="flex flex-wrap items-center justify-between gap-2">
+                            <div>
+                              <p className="text-sm font-bold text-white">{getParserLabel(source)}</p>
+                              <p className="mt-1 text-xs font-medium text-muted">
+                                {parserSearchForm.parsers.includes(source)
+                                  ? "Included in the next search"
+                                  : "Not included; configuration is still editable"}
+                              </p>
+                            </div>
+                            <span className={cn(
+                              "rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wide",
+                              parserSearchForm.parsers.includes(source)
+                                ? "bg-success/15 text-success"
+                                : "bg-white/[0.06] text-muted",
+                            )}>
+                              {parserSearchForm.parsers.includes(source) ? "Enabled" : "Disabled"}
+                            </span>
+                          </div>
                           <select
                             aria-label={`${getParserLabel(source)} query config`}
                             value={selectedSourceConfigIds[source] ?? ""}
@@ -6913,8 +7147,8 @@ export default function HomePage() {
                           </button>
                         </div>
                       );
-                    })}
-                    {parserSearchForm.directCompaniesEnabled && parserSearchForm.directCompanyIds.length > 0 && (
+                    })()}
+                    {activeSearchSource === "direct_companies" && parserSearchForm.directCompanyIds.length > 0 && (
                       <div className="rounded-md border border-[#8b5cf6]/30 bg-[#8b5cf6]/[0.06] p-3">
                         <p className="text-sm font-bold text-white">Direct companies</p>
                         <p className="mt-2 text-xs font-medium text-muted">
@@ -6999,6 +7233,8 @@ export default function HomePage() {
                       className="h-9 rounded-md border border-border bg-transparent px-4 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
                       onClick={() => {
                         setParserSearchForm(defaultParserSearchForm);
+                        setActiveSearchSource("linkedin");
+                        setSourceSearchDrafts({});
                         setSelectedParserSearchConfigId("");
                         setSelectedSourceConfigIds({});
                         setSelectedSearchPresetId("");
