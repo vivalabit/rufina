@@ -157,7 +157,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260802_0035"
+            assert revision == "20260812_0036"
             entry_it = connection.execute(
                 text(
                     "SELECT id, owner_id, name, filters "
@@ -194,11 +194,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
                     "WHERE config_id = 'entry-it' ORDER BY source"
                 )
             ).mappings().all()
-            assert [row["source"] for row in source_configs] == [
-                "indeed",
-                "jobs_ch",
-                "linkedin",
-            ]
+            assert [row["source"] for row in source_configs] == ["linkedin"]
             assert all(row["config_id"] == "entry-it" for row in source_configs)
             preset = connection.execute(
                 text(
@@ -213,11 +209,9 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             if isinstance(preset_source_config_ids, str):
                 preset_source_config_ids = json.loads(preset_source_config_ids)
             assert preset["config_id"] == "entry-it"
-            assert preset_sources == ["linkedin", "indeed", "jobs_ch", "sbb"]
+            assert preset_sources == ["linkedin"]
             assert preset_source_config_ids == {
                 "linkedin": "entry-it-linkedin",
-                "indeed": "entry-it-indeed",
-                "jobs_ch": "entry-it-jobs-ch",
             }
         imaginator_columns = {
             column["name"]
@@ -718,11 +712,7 @@ def test_legacy_entry_it_config_is_migrated_without_changing_its_id(tmp_path) ->
                 ),
                 {"config_id": legacy_id},
             ).mappings().all()
-            assert [row["source"] for row in source_configs] == [
-                "indeed",
-                "jobs_ch",
-                "linkedin",
-            ]
+            assert [row["source"] for row in source_configs] == ["linkedin"]
             preset = connection.execute(
                 text(
                     "SELECT config_id FROM job_search_presets "
@@ -1094,7 +1084,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260802_0035"
+            assert revision == "20260812_0036"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
@@ -1134,7 +1124,7 @@ def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> Non
                     "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
                 )
             ).scalar_one()
-        assert revision == "20260802_0035"
+        assert revision == "20260812_0036"
         assert entry_it_count == 1
         assert LEGACY_RECOVERABLE_MISSING_TABLES <= set(
             inspect(engine).get_table_names()
