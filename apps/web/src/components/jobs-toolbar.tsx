@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 import {
   Archive,
   Bookmark,
@@ -57,14 +57,40 @@ export function JobsToolbar({
   onVacanciesChanged,
 }: JobsToolbarProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [analysisMenuLeft, setAnalysisMenuLeft] = useState(0);
+  const toolbarRef = useRef<HTMLDivElement>(null);
+  const analysisButtonRef = useRef<HTMLButtonElement>(null);
+
+  useLayoutEffect(() => {
+    if (!isAnalysisMenuOpen) return;
+
+    const updateMenuPosition = () => {
+      const toolbar = toolbarRef.current;
+      const button = analysisButtonRef.current;
+      if (!toolbar || !button) return;
+
+      const toolbarRect = toolbar.getBoundingClientRect();
+      const buttonRect = button.getBoundingClientRect();
+      const menuWidth = Math.min(300, Math.max(0, window.innerWidth - 32));
+      const desiredLeft = buttonRect.right - toolbarRect.left - menuWidth;
+      const maximumLeft = Math.max(0, toolbarRect.width - menuWidth);
+      setAnalysisMenuLeft(Math.max(0, Math.min(desiredLeft, maximumLeft)));
+    };
+
+    updateMenuPosition();
+    window.addEventListener("resize", updateMenuPosition);
+    window.addEventListener("scroll", updateMenuPosition, true);
+    return () => {
+      window.removeEventListener("resize", updateMenuPosition);
+      window.removeEventListener("scroll", updateMenuPosition, true);
+    };
+  }, [isAnalysisMenuOpen]);
 
   return (
     <>
       <div
-        className={cn(
-          "relative min-w-0",
-          className,
-        )}
+        ref={toolbarRef}
+        className={cn("relative min-w-0", className)}
         onKeyDown={(event) => {
           if (event.key === "Escape") onAnalysisMenuOpenChange(false);
         }}
@@ -132,6 +158,7 @@ export function JobsToolbar({
 
         <div>
           <Button
+            ref={analysisButtonRef}
             variant="ghost"
             aria-haspopup="menu"
             aria-expanded={isAnalysisMenuOpen}
@@ -156,7 +183,8 @@ export function JobsToolbar({
           <div
             role="menu"
             aria-label="Bulk AI analysis"
-            className="absolute right-0 top-12 z-40 grid w-[min(300px,calc(100vw-2rem))] gap-1 rounded-lg border border-border bg-[#101720] p-2 shadow-[0_18px_40px_rgba(0,0,0,0.48)] 2xl:top-14"
+            style={{ left: analysisMenuLeft }}
+            className="absolute top-12 z-40 grid w-[min(300px,calc(100vw-2rem))] gap-1 rounded-lg border border-border bg-[#101720] p-2 shadow-[0_18px_40px_rgba(0,0,0,0.48)] 2xl:top-14"
           >
             <p className="px-2 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
               Run AI analysis
