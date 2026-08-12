@@ -253,6 +253,26 @@ describe("Lufthansa Group Switzerland Direct Company catalog entry", () => {
   });
 });
 
+describe("Adesso Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "adesso_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "adesso_switzerland",
+      name: "Adesso Switzerland",
+      careersUrl:
+        "https://www.adesso.ch/de_ch/jobs-karriere/unsere-stellenangebote/",
+      logoSrc: "/company-logos/adesso.svg",
+      logoAlt: "Adesso Switzerland logo",
+      logoWidth: 64,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("adesso_switzerland-2956")).toBe(company);
+  });
+});
+
 describe("Huber+Suhner Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

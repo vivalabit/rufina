@@ -886,6 +886,19 @@ class Settings(BaseSettings):
         ge=1,
         le=20,
     )
+    adesso_switzerland_jobs_base_url: str = (
+        "https://www.adesso.ch/de_ch/jobs-karriere/unsere-stellenangebote/"
+    )
+    adesso_switzerland_jobs_feed_url: str = (
+        "https://www.adesso.ch/de_ch/jobs-karriere/unsere-stellenangebote/"
+        "rss_generator-rss0.php?unit=adesso_ch&lang=de"
+    )
+    adesso_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    adesso_switzerland_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     bachem_jobs_base_url: str = (
         "https://careers.bachem.com/search/?createNewAlert=false&q="
         "&optionsFacetsDD_department=&optionsFacetsDD_shifttype="

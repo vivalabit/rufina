@@ -699,6 +699,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "adesso_switzerland",
+    name: "Adesso Switzerland",
+    careersUrl:
+      "https://www.adesso.ch/de_ch/jobs-karriere/unsere-stellenangebote/",
+    logoSrc: "/company-logos/adesso.svg",
+    logoAlt: "Adesso Switzerland logo",
+    logoWidth: 64,
+    logoHeight: 24,
+  },
+  {
     id: "bachem",
     name: "Bachem",
     careersUrl:

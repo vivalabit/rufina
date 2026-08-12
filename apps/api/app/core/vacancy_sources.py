@@ -1211,6 +1211,23 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="adesso_switzerland",
+        name="Adesso Switzerland",
+        careers_url=(
+            "https://www.adesso.ch/de_ch/jobs-karriere/unsere-stellenangebote/"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.adesso_switzerland:"
+            "AdessoSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "adesso_switzerland_jobs_base_url"),
+            ("feed_url", "adesso_switzerland_jobs_feed_url"),
+            ("timeout_seconds", "adesso_switzerland_jobs_timeout_seconds"),
+            ("detail_workers", "adesso_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="bachem",
         name="Bachem",
         careers_url=(
