@@ -709,6 +709,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "cudos",
+    name: "Cudos",
+    careersUrl: "https://cudos.ch/de/jobs/",
+    logoSrc: "/company-logos/cudos.svg",
+    logoAlt: "Cudos logo",
+    logoWidth: 144,
+    logoHeight: 24,
+  },
+  {
     id: "bachem",
     name: "Bachem",
     careersUrl:

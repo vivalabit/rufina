@@ -900,6 +900,9 @@ class Settings(BaseSettings):
         le=120,
     )
     adesso_switzerland_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    cudos_jobs_base_url: str = "https://cudos.ch/de/jobs/"
+    cudos_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    cudos_jobs_detail_workers: int = Field(default=6, ge=1, le=20)
     bachem_jobs_base_url: str = (
         "https://careers.bachem.com/search/?createNewAlert=false&q="
         "&optionsFacetsDD_department=&optionsFacetsDD_shifttype="

@@ -1228,6 +1228,17 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="cudos",
+        name="Cudos",
+        careers_url="https://cudos.ch/de/jobs/",
+        parser_path="app.services.parsers.companies.cudos:CudosJobsParser",
+        settings_map=(
+            ("base_url", "cudos_jobs_base_url"),
+            ("timeout_seconds", "cudos_jobs_timeout_seconds"),
+            ("detail_workers", "cudos_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="bachem",
         name="Bachem",
         careers_url=(

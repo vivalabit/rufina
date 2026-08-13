@@ -273,6 +273,25 @@ describe("Adesso Switzerland Direct Company catalog entry", () => {
   });
 });
 
+describe("Cudos Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "cudos");
+
+    expect(company).toEqual({
+      id: "cudos",
+      name: "Cudos",
+      careersUrl: "https://cudos.ch/de/jobs/",
+      logoSrc: "/company-logos/cudos.svg",
+      logoAlt: "Cudos logo",
+      logoWidth: 144,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId("cudos-senior-software-engineer-c-sharp"),
+    ).toBe(company);
+  });
+});
+
 describe("Huber+Suhner Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

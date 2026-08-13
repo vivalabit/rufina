@@ -120,6 +120,7 @@ function importedJobData({
     | "detecon_switzerland"
     | "lufthansa_group_switzerland"
     | "adesso_switzerland"
+    | "cudos"
     | "bachem"
     | "georg_fischer_switzerland"
     | "also"
@@ -303,10 +304,13 @@ function importedJobData({
                                                                                                                                 : source ===
                                                                                                                                     "lufthansa_group_switzerland"
                                                                                                                                   ? "Lufthansa Group Switzerland"
-                                                                                                                                : source ===
-                                                                                                                                    "adesso_switzerland"
-                                                                                                                                  ? "Adesso Switzerland"
-                                                                                                                                : source ===
+                                                                                                                              : source ===
+                                                                                                                                  "adesso_switzerland"
+                                                                                                                                ? "Adesso Switzerland"
+                                                                                                                              : source ===
+                                                                                                                                  "cudos"
+                                                                                                                                ? "Cudos"
+                                                                                                                              : source ===
                                                                                                                                     "bachem"
                                                                                                                                   ? "Bachem"
                                                                                                                                 : source ===
@@ -530,10 +534,13 @@ function importedJobData({
                                                                                                                               : source ===
                                                                                                                                   "lufthansa_group_switzerland"
                                                                                                                                 ? "Swiss International Air Lines AG"
-                                                                                                                              : source ===
-                                                                                                                                  "adesso_switzerland"
-                                                                                                                                ? "adesso Schweiz AG"
-                                                                                                                              : source ===
+                                                                                                                            : source ===
+                                                                                                                                "adesso_switzerland"
+                                                                                                                              ? "adesso Schweiz AG"
+                                                                                                                            : source ===
+                                                                                                                                "cudos"
+                                                                                                                              ? "Cudos AG"
+                                                                                                                            : source ===
                                                                                                                                   "bachem"
                                                                                                                                 ? "Bachem AG"
                                                                                                                               : source ===
@@ -668,6 +675,7 @@ function importedJobData({
       source === "detecon_switzerland" ||
       source === "lufthansa_group_switzerland" ||
       source === "adesso_switzerland" ||
+      source === "cudos" ||
       source === "bachem" ||
       source === "georg_fischer_switzerland" ||
       source === "also" ||
@@ -1405,6 +1413,136 @@ it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selecte
   );
   await waitFor(() =>
     expect(requestUrls).toContain("/jobs/ai-match/run?force=true"),
+  );
+});
+
+it("collects current AI consent and resumes the requested 24-hour analysis", async () => {
+  window.history.replaceState(null, "", "#jobs");
+  const recentJob = importedJobData({
+    id: "linkedin-recent-consent-job",
+    title: "Data Engineer",
+  });
+  window.localStorage.setItem("tasko.importedJobs.v1", JSON.stringify([recentJob]));
+
+  let aiMatchAttempts = 0;
+  const consentRequests: Array<Record<string, unknown>> = [];
+  const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+    const url = new URL(requestUrl, "http://localhost");
+    const method = init?.method ?? "GET";
+
+    if (url.pathname === "/job-search/configs" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/jobs" && method === "GET")
+      return Response.json([{ id: recentJob.id, data: recentJob }]);
+    if (url.pathname === "/jobs" && method === "PUT")
+      return Response.json([{ id: recentJob.id, data: recentJob }]);
+    if (url.pathname === "/applications" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/applications/events" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/profile" && method === "GET")
+      return Response.json({});
+    if (url.pathname === "/settings" && method === "GET")
+      return Response.json(configuredAppSettings);
+    if (url.pathname === "/jobs/ai-match/run" && method === "POST") {
+      aiMatchAttempts += 1;
+      if (aiMatchAttempts === 1) {
+        return Response.json(
+          {
+            detail: {
+              code: "ai_consent_required",
+              message: "Current AI data-processing consent is required",
+              requiredVersion: "2026-07-18.v2",
+            },
+          },
+          { status: 403 },
+        );
+      }
+      return Response.json({
+        runId: "consented-match-run",
+        status: "completed",
+        total: 1,
+        processed: 1,
+        updatedJobs: [],
+      });
+    }
+    if (url.pathname === "/privacy/ai-consent" && method === "GET") {
+      return Response.json({
+        providerName: "OpenAI via OpenClaw/Codex",
+        currentBackend: "openclaw_codex",
+        currentConsentVersion: "2026-07-18.v2",
+        consentVersion: null,
+        consentBackend: null,
+        consentedAt: null,
+        hasCurrentConsent: false,
+        retentionDays: 30,
+        lastAiActivityAt: null,
+        aiDataExpiresAt: null,
+      });
+    }
+    if (url.pathname === "/privacy/ai-consent" && method === "PUT") {
+      const request = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      consentRequests.push(request);
+      return Response.json({
+        providerName: "OpenAI via OpenClaw/Codex",
+        currentBackend: "openclaw_codex",
+        currentConsentVersion: "2026-07-18.v2",
+        consentVersion: request.version,
+        consentBackend: request.backend,
+        consentedAt: "2026-08-12T10:00:00.000Z",
+        hasCurrentConsent: true,
+        retentionDays: request.retentionDays,
+        lastAiActivityAt: null,
+        aiDataExpiresAt: null,
+      });
+    }
+
+    throw new Error(`Unhandled request: ${method} ${url.pathname}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<HomePage />);
+
+  expect(await screen.findByText("1 jobs found")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Analysis" }));
+  fireEvent.click(
+    within(screen.getByRole("menu", { name: "Bulk AI analysis" })).getByRole(
+      "menuitem",
+      { name: /Vacancies added in the last 24 hours/ },
+    ),
+  );
+
+  const consentDialog = await screen.findByRole("dialog", {
+    name: "Analyze vacancies with OpenAI via OpenClaw/Codex",
+  });
+  expect(
+    screen.queryByText("Current AI data-processing consent is required"),
+  ).not.toBeInTheDocument();
+  fireEvent.click(within(consentDialog).getByRole("checkbox"));
+  fireEvent.click(
+    within(consentDialog).getByRole("button", { name: "Continue to AI" }),
+  );
+
+  await waitFor(() => expect(aiMatchAttempts).toBe(2));
+  expect(consentRequests).toEqual([
+    {
+      version: "2026-07-18.v2",
+      backend: "openclaw_codex",
+      retentionDays: 30,
+    },
+  ]);
+  await waitFor(() =>
+    expect(
+      screen.queryByRole("dialog", {
+        name: "Analyze vacancies with OpenAI via OpenClaw/Codex",
+      }),
+    ).not.toBeInTheDocument(),
   );
 });
 
@@ -2399,6 +2537,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Senior Consultant Business Automation at Adesso",
         source: "adesso_switzerland",
       });
+      const cudosJob = importedJobData({
+        id: "cudos-senior-software-engineer-c-sharp",
+        title: "Senior Software Engineer C# at Cudos",
+        source: "cudos",
+      });
       const bachemJob = importedJobData({
         id: "bachem-1425152933",
         title: "Batchdocument Reviewer at Bachem",
@@ -2529,6 +2672,7 @@ it("shows direct-company vacancies with their company logos", async () => {
           data: lufthansaGroupSwitzerlandJob,
         },
         { id: adessoSwitzerlandJob.id, data: adessoSwitzerlandJob },
+        { id: cudosJob.id, data: cudosJob },
         { id: bachemJob.id, data: bachemJob },
         {
           id: georgFischerSwitzerlandJob.id,
@@ -2552,8 +2696,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 79,
-        jobsAdded: 79,
+        jobsFound: 80,
+        jobsAdded: 80,
         sourceErrors: {},
         warning: null,
       });
@@ -2675,6 +2819,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Detecon Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Lufthansa Group Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Adesso Switzerland")).toBeInTheDocument();
+  expect(screen.getByText("Cudos")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -2710,7 +2855,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 79 of 79 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland",
+      "Added 80 of 80 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2787,6 +2932,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "detecon_switzerland",
       "lufthansa_group_switzerland",
       "adesso_switzerland",
+      "cudos",
       "bachem",
       "georg_fischer_switzerland",
       "also",
@@ -3018,6 +3164,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getAllByRole("img", { name: "Adesso Switzerland logo" }).length,
   ).toBeGreaterThan(0);
   expect(
+    screen.getAllByRole("img", { name: "Cudos logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
     screen.getAllByRole("img", { name: "Bachem logo" }).length,
   ).toBeGreaterThan(0);
   expect(
@@ -3181,6 +3330,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByText("Source: Adesso Switzerland").length,
   ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Cudos").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Bachem").length).toBeGreaterThan(0);
   expect(
     screen.getAllByText("Source: Georg Fischer Switzerland").length,
