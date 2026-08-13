@@ -867,6 +867,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 66,
     logoHeight: 24,
   },
+  {
+    id: "comerge",
+    name: "Comerge",
+    careersUrl: "https://www.comerge.net/en/career#",
+    logoSrc: "/company-logos/comerge.svg",
+    logoAlt: "Comerge logo",
+    logoWidth: 110,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

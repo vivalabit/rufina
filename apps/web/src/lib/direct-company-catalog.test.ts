@@ -662,3 +662,20 @@ describe("SIX Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("six_group-1415188733")).toBe(company);
   });
 });
+
+describe("Comerge Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "comerge");
+
+    expect(company).toEqual({
+      id: "comerge",
+      name: "Comerge",
+      careersUrl: "https://www.comerge.net/en/career#",
+      logoSrc: "/company-logos/comerge.svg",
+      logoAlt: "Comerge logo",
+      logoWidth: 110,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("comerge-software-engineer")).toBe(company);
+  });
+});

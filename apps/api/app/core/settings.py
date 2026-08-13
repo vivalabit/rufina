@@ -1102,6 +1102,9 @@ class Settings(BaseSettings):
     six_group_jobs_max_pages: int = Field(default=20, ge=1, le=200)
     six_group_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
     six_group_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    comerge_jobs_base_url: str = "https://www.comerge.net/en/career#"
+    comerge_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    comerge_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

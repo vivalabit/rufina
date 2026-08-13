@@ -1493,6 +1493,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "six_group_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="comerge",
+        name="Comerge",
+        careers_url="https://www.comerge.net/en/career#",
+        parser_path="app.services.parsers.companies.comerge:ComergeJobsParser",
+        settings_map=(
+            ("base_url", "comerge_jobs_base_url"),
+            ("timeout_seconds", "comerge_jobs_timeout_seconds"),
+            ("detail_workers", "comerge_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
