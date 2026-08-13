@@ -921,6 +921,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 24,
     logoHeight: 24,
   },
+  {
+    id: "egeli_informatik",
+    name: "EGELI Informatik AG",
+    careersUrl: "https://egeli-informatik.ch/karriere/",
+    logoSrc: "/company-logos/egeli-informatik.svg",
+    logoAlt: "EGELI Informatik AG logo",
+    logoWidth: 87,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

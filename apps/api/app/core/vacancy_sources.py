@@ -1565,6 +1565,21 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "cmi_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="egeli_informatik",
+        name="EGELI Informatik AG",
+        careers_url="https://egeli-informatik.ch/karriere/",
+        parser_path=(
+            "app.services.parsers.companies.egeli_informatik:"
+            "EgeliInformatikJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "egeli_informatik_jobs_base_url"),
+            ("portal_url", "egeli_informatik_jobs_portal_url"),
+            ("timeout_seconds", "egeli_informatik_jobs_timeout_seconds"),
+            ("detail_workers", "egeli_informatik_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

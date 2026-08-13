@@ -1129,6 +1129,12 @@ class Settings(BaseSettings):
     cmi_jobs_base_url: str = "https://cmi.ch/karriere/"
     cmi_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     cmi_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    egeli_informatik_jobs_base_url: str = "https://egeli-informatik.ch/karriere/"
+    egeli_informatik_jobs_portal_url: str = (
+        "https://jobs.dualoo.com/portal/lx0anfq4?lang=DE"
+    )
+    egeli_informatik_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    egeli_informatik_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

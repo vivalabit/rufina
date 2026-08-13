@@ -772,3 +772,26 @@ describe("CM Informatik AG Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("EGELI Informatik AG Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "egeli_informatik",
+    );
+
+    expect(company).toEqual({
+      id: "egeli_informatik",
+      name: "EGELI Informatik AG",
+      careersUrl: "https://egeli-informatik.ch/karriere/",
+      logoSrc: "/company-logos/egeli-informatik.svg",
+      logoAlt: "EGELI Informatik AG logo",
+      logoWidth: 87,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "egeli_informatik-d77b3af8-f9f7-45b4-9353-d85d64ae37e5",
+      ),
+    ).toBe(company);
+  });
+});
