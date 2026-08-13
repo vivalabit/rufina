@@ -857,6 +857,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 143,
     logoHeight: 24,
   },
+  {
+    id: "six_group",
+    name: "SIX",
+    careersUrl:
+      "https://jobs.six-group.com/search/?createNewAlert=false&q=&optionsFacetsDD_customfield2=&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1=",
+    logoSrc: "/company-logos/six.svg",
+    logoAlt: "SIX logo",
+    logoWidth: 66,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

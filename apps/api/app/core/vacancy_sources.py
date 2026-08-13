@@ -1474,6 +1474,25 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "infoguard_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="six_group",
+        name="SIX",
+        careers_url=(
+            "https://jobs.six-group.com/search/?createNewAlert=false&q=&"
+            "optionsFacetsDD_customfield2=&optionsFacetsDD_country=CH&"
+            "optionsFacetsDD_customfield1="
+        ),
+        parser_path=(
+            "app.services.parsers.companies.six_group:SixGroupJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "six_group_jobs_base_url"),
+            ("timeout_seconds", "six_group_jobs_timeout_seconds"),
+            ("max_pages", "six_group_jobs_max_pages"),
+            ("max_catalog_passes", "six_group_jobs_max_catalog_passes"),
+            ("detail_workers", "six_group_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

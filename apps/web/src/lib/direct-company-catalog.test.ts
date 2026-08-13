@@ -642,3 +642,23 @@ describe("Pictet Switzerland Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("pictet_switzerland-124439")).toBe(company);
   });
 });
+
+describe("SIX Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "six_group",
+    );
+
+    expect(company).toEqual({
+      id: "six_group",
+      name: "SIX",
+      careersUrl:
+        "https://jobs.six-group.com/search/?createNewAlert=false&q=&optionsFacetsDD_customfield2=&optionsFacetsDD_country=CH&optionsFacetsDD_customfield1=",
+      logoSrc: "/company-logos/six.svg",
+      logoAlt: "SIX logo",
+      logoWidth: 66,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("six_group-1415188733")).toBe(company);
+  });
+});
