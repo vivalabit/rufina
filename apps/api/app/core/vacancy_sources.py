@@ -1463,6 +1463,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "datwyler_it_infra_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="infoguard",
+        name="InfoGuard",
+        careers_url="https://www.infoguard.ch/en/career",
+        parser_path="app.services.parsers.companies.infoguard:InfoGuardJobsParser",
+        settings_map=(
+            ("base_url", "infoguard_jobs_base_url"),
+            ("timeout_seconds", "infoguard_jobs_timeout_seconds"),
+            ("detail_workers", "infoguard_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

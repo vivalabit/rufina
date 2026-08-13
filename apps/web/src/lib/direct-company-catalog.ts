@@ -848,6 +848,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 113,
     logoHeight: 24,
   },
+  {
+    id: "infoguard",
+    name: "InfoGuard",
+    careersUrl: "https://www.infoguard.ch/en/career",
+    logoSrc: "/company-logos/infoguard.svg",
+    logoAlt: "InfoGuard logo",
+    logoWidth: 143,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

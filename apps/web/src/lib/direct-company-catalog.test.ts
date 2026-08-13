@@ -5,6 +5,27 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("InfoGuard Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "infoguard",
+    );
+
+    expect(company).toEqual({
+      id: "infoguard",
+      name: "InfoGuard",
+      careersUrl: "https://www.infoguard.ch/en/career",
+      logoSrc: "/company-logos/infoguard.svg",
+      logoAlt: "InfoGuard logo",
+      logoWidth: 143,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("infoguard-incident-responder")).toBe(
+      company,
+    );
+  });
+});
+
 describe("Dätwyler IT Infra Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(
