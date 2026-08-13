@@ -1537,6 +1537,23 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "ametiq_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="bsi_software",
+        name="BSI Software",
+        careers_url="https://www.bsi-software.com/en/career/jobs",
+        parser_path=(
+            "app.services.parsers.companies.bsi_software:"
+            "BsiSoftwareJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "bsi_software_jobs_base_url"),
+            ("jobs_url", "bsi_software_jobs_catalog_url"),
+            ("api_url", "bsi_software_jobs_api_url"),
+            ("timeout_seconds", "bsi_software_jobs_timeout_seconds"),
+            ("max_pages", "bsi_software_jobs_max_pages"),
+            ("detail_workers", "bsi_software_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

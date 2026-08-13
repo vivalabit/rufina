@@ -1116,6 +1116,16 @@ class Settings(BaseSettings):
     ametiq_jobs_base_url: str = "https://ametiq.ch/jobs/"
     ametiq_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     ametiq_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    bsi_software_jobs_base_url: str = (
+        "https://www.bsi-software.com/en/career/jobs"
+    )
+    bsi_software_jobs_catalog_url: str = (
+        "https://www.bsi-software.com/de/karriere/jobs"
+    )
+    bsi_software_jobs_api_url: str = "https://www.bsi-software.com/api/jobs"
+    bsi_software_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    bsi_software_jobs_max_pages: int = Field(default=20, ge=1, le=200)
+    bsi_software_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

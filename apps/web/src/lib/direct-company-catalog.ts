@@ -903,6 +903,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 58,
     logoHeight: 24,
   },
+  {
+    id: "bsi_software",
+    name: "BSI Software",
+    careersUrl: "https://www.bsi-software.com/en/career/jobs",
+    logoSrc: "/company-logos/bsi-software.svg",
+    logoAlt: "BSI Software logo",
+    logoWidth: 70,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

@@ -732,3 +732,24 @@ describe("amétiq Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("ametiq-13617")).toBe(company);
   });
 });
+
+describe("BSI Software Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "bsi_software",
+    );
+
+    expect(company).toEqual({
+      id: "bsi_software",
+      name: "BSI Software",
+      careersUrl: "https://www.bsi-software.com/en/career/jobs",
+      logoSrc: "/company-logos/bsi-software.svg",
+      logoAlt: "BSI Software logo",
+      logoWidth: 70,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("bsi_software-software-engineer")).toBe(
+      company,
+    );
+  });
+});
