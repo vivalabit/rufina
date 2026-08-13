@@ -145,7 +145,8 @@ function importedJobData({
     | "cmi"
     | "egeli_informatik"
     | "emineo"
-    | "hostpoint";
+    | "hostpoint"
+    | "huerlimann_informatik";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -403,6 +404,9 @@ function importedJobData({
                                                                                                                                                                                                 "hostpoint"
                                                                                                                                                                                               ? "Hostpoint AG"
                                                                                                                                                                                               : source ===
+                                                                                                                                                                                                  "huerlimann_informatik"
+                                                                                                                                                                                                ? "Hürlimann Informatik AG"
+                                                                                                                                                                                                : source ===
                                                                                                                                                                                                 "axpo_switzerland"
                                                                                                                                                                                               ? "Axpo Switzerland"
                                                                                                                                                                                               : source ===
@@ -684,6 +688,9 @@ function importedJobData({
                                                                                                                                                                                               "hostpoint"
                                                                                                                                                                                             ? "Hostpoint AG"
                                                                                                                                                                                             : source ===
+                                                                                                                                                                                                "huerlimann_informatik"
+                                                                                                                                                                                              ? "Hürlimann Informatik AG"
+                                                                                                                                                                                              : source ===
                                                                                                                                                                                               "axpo_switzerland"
                                                                                                                                                                                             ? "Axpo Group"
                                                                                                                                                                                             : source ===
@@ -819,7 +826,8 @@ function importedJobData({
       source === "cmi" ||
       source === "egeli_informatik" ||
       source === "emineo" ||
-      source === "hostpoint"
+      source === "hostpoint" ||
+      source === "huerlimann_informatik"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -2807,6 +2815,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "System Engineer Unix at Hostpoint",
         source: "hostpoint",
       });
+      const huerlimannInformatikJob = importedJobData({
+        id: "huerlimann_informatik-75877",
+        title: "Abteilungsleiter/in Technik & Support at Hürlimann Informatik",
+        source: "huerlimann_informatik",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -2938,11 +2951,12 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: egeliInformatikJob.id, data: egeliInformatikJob },
         { id: emineoJob.id, data: emineoJob },
         { id: hostpointJob.id, data: hostpointJob },
+        { id: huerlimannInformatikJob.id, data: huerlimannInformatikJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 97,
-        jobsAdded: 97,
+        jobsFound: 98,
+        jobsAdded: 98,
         sourceErrors: {},
         warning: null,
       });
@@ -3075,6 +3089,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("EGELI Informatik AG")).toBeInTheDocument();
   expect(screen.getByText("emineo AG")).toBeInTheDocument();
   expect(screen.getByText("Hostpoint AG")).toBeInTheDocument();
+  expect(screen.getByText("Hürlimann Informatik AG")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -3110,7 +3125,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 97 of 97 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG",
+      "Added 98 of 98 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -3213,6 +3228,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "egeli_informatik",
       "emineo",
       "hostpoint",
+      "huerlimann_informatik",
     ],
     aiAnalysisEnabled: true,
   });
@@ -3514,6 +3530,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Hostpoint AG logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Hürlimann Informatik AG logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -3701,6 +3720,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: emineo AG").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Hostpoint AG").length).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: Hürlimann Informatik AG").length,
+  ).toBeGreaterThan(0);
 }, 30_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

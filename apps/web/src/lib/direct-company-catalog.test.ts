@@ -829,3 +829,23 @@ describe("Hostpoint AG Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("hostpoint-system-engineer-unix")).toBe(company);
   });
 });
+
+describe("Hürlimann Informatik AG Direct Company catalog entry", () => {
+  it("uses the official careers tab and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "huerlimann_informatik",
+    );
+
+    expect(company).toEqual({
+      id: "huerlimann_informatik",
+      name: "Hürlimann Informatik AG",
+      careersUrl:
+        "https://www.hi-ag.ch/unternehmen/karriere#karriere-1266-panel-2",
+      logoSrc: "/company-logos/huerlimann-informatik.svg",
+      logoAlt: "Hürlimann Informatik AG logo",
+      logoWidth: 108,
+      logoHeight: 29,
+    });
+    expect(getDirectCompanyByJobId("huerlimann_informatik-75877")).toBe(company);
+  });
+});

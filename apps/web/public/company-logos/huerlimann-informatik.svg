@@ -1,0 +1,14 @@
+<svg role="img" aria-labelledby="title" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1794 480">
+  <title id="title">Hürlimann Informatik AG</title>
+  <defs>
+    <linearGradient id="hi-mark" x1="0" x2="1">
+      <stop stop-color="#07698b"/>
+      <stop offset=".7" stop-color="#07698b"/>
+      <stop offset="1" stop-color="#09afe1"/>
+    </linearGradient>
+  </defs>
+  <circle cx="198" cy="240" r="198" fill="url(#hi-mark)"/>
+  <path fill="#07698b" d="M115 0h24v190h120V0h24v480h-24V276H139v204h-24z"/>
+  <text x="445" y="210" fill="#07698b" font-family="Arial,Helvetica,sans-serif" font-size="215" font-weight="700" letter-spacing="5">HÜRLIMANN</text>
+  <text x="445" y="430" fill="#07698b" font-family="Arial,Helvetica,sans-serif" font-size="215" font-weight="700" letter-spacing="5">INFORMATIK</text>
+</svg>

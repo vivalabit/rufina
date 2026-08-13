@@ -948,6 +948,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 126,
     logoHeight: 24,
   },
+  {
+    id: "huerlimann_informatik",
+    name: "Hürlimann Informatik AG",
+    careersUrl:
+      "https://www.hi-ag.ch/unternehmen/karriere#karriere-1266-panel-2",
+    logoSrc: "/company-logos/huerlimann-informatik.svg",
+    logoAlt: "Hürlimann Informatik AG logo",
+    logoWidth: 108,
+    logoHeight: 29,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

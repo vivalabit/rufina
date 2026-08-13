@@ -1143,6 +1143,17 @@ class Settings(BaseSettings):
     hostpoint_jobs_base_url: str = "https://www.hostpoint.ch/en/jobs/"
     hostpoint_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     hostpoint_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    huerlimann_informatik_jobs_base_url: str = (
+        "https://www.hi-ag.ch/unternehmen/karriere"
+    )
+    huerlimann_informatik_jobs_api_url: str = (
+        "https://odm.ostendis.com/ojp/data/v55/jobs/"
+        "7e4b4ce19bfa48e5838035fcadc5be54/DE?domain=www.hi-ag.ch"
+    )
+    huerlimann_informatik_jobs_timeout_seconds: float = Field(
+        default=30.0, ge=1, le=120
+    )
+    huerlimann_informatik_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

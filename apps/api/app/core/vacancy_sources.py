@@ -1602,6 +1602,23 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "hostpoint_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="huerlimann_informatik",
+        name="Hürlimann Informatik AG",
+        careers_url=(
+            "https://www.hi-ag.ch/unternehmen/karriere#karriere-1266-panel-2"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.huerlimann_informatik:"
+            "HuerlimannInformatikJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "huerlimann_informatik_jobs_base_url"),
+            ("api_url", "huerlimann_informatik_jobs_api_url"),
+            ("timeout_seconds", "huerlimann_informatik_jobs_timeout_seconds"),
+            ("detail_workers", "huerlimann_informatik_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
