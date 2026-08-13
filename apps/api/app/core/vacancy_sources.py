@@ -1591,6 +1591,17 @@ DIRECT_COMPANY_PARSERS = (
             ("timeout_seconds", "emineo_jobs_timeout_seconds"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="hostpoint",
+        name="Hostpoint AG",
+        careers_url="https://www.hostpoint.ch/en/jobs/",
+        parser_path="app.services.parsers.companies.hostpoint:HostpointJobsParser",
+        settings_map=(
+            ("base_url", "hostpoint_jobs_base_url"),
+            ("timeout_seconds", "hostpoint_jobs_timeout_seconds"),
+            ("detail_workers", "hostpoint_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

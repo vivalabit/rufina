@@ -812,3 +812,20 @@ describe("emineo AG Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("emineo-389")).toBe(company);
   });
 });
+
+describe("Hostpoint AG Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "hostpoint");
+
+    expect(company).toEqual({
+      id: "hostpoint",
+      name: "Hostpoint AG",
+      careersUrl: "https://www.hostpoint.ch/en/jobs/",
+      logoSrc: "/company-logos/hostpoint.svg",
+      logoAlt: "Hostpoint AG logo",
+      logoWidth: 126,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("hostpoint-system-engineer-unix")).toBe(company);
+  });
+});

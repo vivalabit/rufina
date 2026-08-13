@@ -939,6 +939,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 24,
     logoHeight: 24,
   },
+  {
+    id: "hostpoint",
+    name: "Hostpoint AG",
+    careersUrl: "https://www.hostpoint.ch/en/jobs/",
+    logoSrc: "/company-logos/hostpoint.svg",
+    logoAlt: "Hostpoint AG logo",
+    logoWidth: 126,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
