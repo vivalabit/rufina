@@ -1554,6 +1554,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "bsi_software_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="cmi",
+        name="CM Informatik AG",
+        careers_url="https://cmi.ch/karriere/",
+        parser_path="app.services.parsers.companies.cmi:CmiJobsParser",
+        settings_map=(
+            ("base_url", "cmi_jobs_base_url"),
+            ("timeout_seconds", "cmi_jobs_timeout_seconds"),
+            ("detail_workers", "cmi_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

@@ -753,3 +753,22 @@ describe("BSI Software Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("CM Informatik AG Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "cmi");
+
+    expect(company).toEqual({
+      id: "cmi",
+      name: "CM Informatik AG",
+      careersUrl: "https://cmi.ch/karriere/",
+      logoSrc: "/company-logos/cmi.svg",
+      logoAlt: "CM Informatik AG logo",
+      logoWidth: 24,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId("cmi-808dbb0a-dde0-d52b-001d-3dcc84d46f46"),
+    ).toBe(company);
+  });
+});

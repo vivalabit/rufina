@@ -912,6 +912,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 70,
     logoHeight: 24,
   },
+  {
+    id: "cmi",
+    name: "CM Informatik AG",
+    careersUrl: "https://cmi.ch/karriere/",
+    logoSrc: "/company-logos/cmi.svg",
+    logoAlt: "CM Informatik AG logo",
+    logoWidth: 24,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
