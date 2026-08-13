@@ -1619,6 +1619,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "huerlimann_informatik_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="infosoft",
+        name="Infosoft Systems AG",
+        careers_url="https://infosoft.swiss/karriere/",
+        parser_path="app.services.parsers.companies.infosoft:InfosoftJobsParser",
+        settings_map=(
+            ("base_url", "infosoft_jobs_base_url"),
+            ("timeout_seconds", "infosoft_jobs_timeout_seconds"),
+            ("detail_workers", "infosoft_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

@@ -815,7 +815,9 @@ describe("emineo AG Direct Company catalog entry", () => {
 
 describe("Hostpoint AG Direct Company catalog entry", () => {
   it("uses the official careers page and local logo", () => {
-    const company = directCompanyCatalog.find((item) => item.id === "hostpoint");
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "hostpoint",
+    );
 
     expect(company).toEqual({
       id: "hostpoint",
@@ -826,7 +828,9 @@ describe("Hostpoint AG Direct Company catalog entry", () => {
       logoWidth: 126,
       logoHeight: 24,
     });
-    expect(getDirectCompanyByJobId("hostpoint-system-engineer-unix")).toBe(company);
+    expect(getDirectCompanyByJobId("hostpoint-system-engineer-unix")).toBe(
+      company,
+    );
   });
 });
 
@@ -846,6 +850,27 @@ describe("Hürlimann Informatik AG Direct Company catalog entry", () => {
       logoWidth: 108,
       logoHeight: 29,
     });
-    expect(getDirectCompanyByJobId("huerlimann_informatik-75877")).toBe(company);
+    expect(getDirectCompanyByJobId("huerlimann_informatik-75877")).toBe(
+      company,
+    );
+  });
+});
+
+describe("Infosoft Systems AG Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "infosoft");
+
+    expect(company).toEqual({
+      id: "infosoft",
+      name: "Infosoft Systems AG",
+      careersUrl: "https://infosoft.swiss/karriere/",
+      logoSrc: "/company-logos/infosoft.svg",
+      logoAlt: "Infosoft Systems AG logo",
+      logoWidth: 104,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId("infosoft-senior-software-engineer-in-net"),
+    ).toBe(company);
   });
 });

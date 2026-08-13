@@ -958,6 +958,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 108,
     logoHeight: 29,
   },
+  {
+    id: "infosoft",
+    name: "Infosoft Systems AG",
+    careersUrl: "https://infosoft.swiss/karriere/",
+    logoSrc: "/company-logos/infosoft.svg",
+    logoAlt: "Infosoft Systems AG logo",
+    logoWidth: 104,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
