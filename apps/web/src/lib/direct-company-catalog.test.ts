@@ -314,6 +314,25 @@ describe("Eraneos Switzerland Direct Company catalog entry", () => {
   });
 });
 
+describe("ERNI Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "erni_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "erni_switzerland",
+      name: "ERNI Switzerland",
+      careersUrl: "https://www.betterask.erni/ch-en/job-opportunities/",
+      logoSrc: "/company-logos/erni.svg",
+      logoAlt: "ERNI Switzerland logo",
+      logoWidth: 92,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("erni_switzerland-7852745")).toBe(company);
+  });
+});
+
 describe("Huber+Suhner Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

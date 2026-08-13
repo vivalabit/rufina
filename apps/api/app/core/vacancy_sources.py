@@ -1256,6 +1256,21 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="erni_switzerland",
+        name="ERNI Switzerland",
+        careers_url="https://www.betterask.erni/ch-en/job-opportunities/",
+        parser_path=(
+            "app.services.parsers.companies.erni_switzerland:"
+            "ErniSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "erni_switzerland_jobs_base_url"),
+            ("catalog_url", "erni_switzerland_jobs_catalog_url"),
+            ("timeout_seconds", "erni_switzerland_jobs_timeout_seconds"),
+            ("detail_workers", "erni_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="bachem",
         name="Bachem",
         careers_url=(

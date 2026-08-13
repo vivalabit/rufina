@@ -122,6 +122,7 @@ function importedJobData({
     | "adesso_switzerland"
     | "cudos"
     | "eraneos_switzerland"
+    | "erni_switzerland"
     | "bachem"
     | "georg_fischer_switzerland"
     | "also"
@@ -314,6 +315,9 @@ function importedJobData({
                                                                                                                               : source ===
                                                                                                                                   "eraneos_switzerland"
                                                                                                                                 ? "Eraneos Switzerland"
+                                                                                                                              : source ===
+                                                                                                                                  "erni_switzerland"
+                                                                                                                                ? "ERNI Switzerland"
                                                                                                                               : source ===
                                                                                                                                     "bachem"
                                                                                                                                   ? "Bachem"
@@ -548,6 +552,9 @@ function importedJobData({
                                                                                                                                 "eraneos_switzerland"
                                                                                                                               ? "Eraneos Switzerland AG"
                                                                                                                             : source ===
+                                                                                                                                "erni_switzerland"
+                                                                                                                              ? "ERNI Schweiz AG"
+                                                                                                                            : source ===
                                                                                                                                   "bachem"
                                                                                                                                 ? "Bachem AG"
                                                                                                                               : source ===
@@ -684,6 +691,7 @@ function importedJobData({
       source === "adesso_switzerland" ||
       source === "cudos" ||
       source === "eraneos_switzerland" ||
+      source === "erni_switzerland" ||
       source === "bachem" ||
       source === "georg_fischer_switzerland" ||
       source === "also" ||
@@ -2555,6 +2563,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Cybersecurity Consultant at Eraneos",
         source: "eraneos_switzerland",
       });
+      const erniSwitzerlandJob = importedJobData({
+        id: "erni_switzerland-7852745",
+        title: "Rust Software Engineer at ERNI",
+        source: "erni_switzerland",
+      });
       const bachemJob = importedJobData({
         id: "bachem-1425152933",
         title: "Batchdocument Reviewer at Bachem",
@@ -2687,6 +2700,7 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: adessoSwitzerlandJob.id, data: adessoSwitzerlandJob },
         { id: cudosJob.id, data: cudosJob },
         { id: eraneosSwitzerlandJob.id, data: eraneosSwitzerlandJob },
+        { id: erniSwitzerlandJob.id, data: erniSwitzerlandJob },
         { id: bachemJob.id, data: bachemJob },
         {
           id: georgFischerSwitzerlandJob.id,
@@ -2710,8 +2724,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 81,
-        jobsAdded: 81,
+        jobsFound: 82,
+        jobsAdded: 82,
         sourceErrors: {},
         warning: null,
       });
@@ -2835,6 +2849,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Adesso Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Cudos")).toBeInTheDocument();
   expect(screen.getByText("Eraneos Switzerland")).toBeInTheDocument();
+  expect(screen.getByText("ERNI Switzerland")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -2870,7 +2885,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 81 of 81 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland",
+      "Added 82 of 82 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2949,6 +2964,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "adesso_switzerland",
       "cudos",
       "eraneos_switzerland",
+      "erni_switzerland",
       "bachem",
       "georg_fischer_switzerland",
       "also",
@@ -3186,6 +3202,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getAllByRole("img", { name: "Eraneos Switzerland logo" }).length,
   ).toBeGreaterThan(0);
   expect(
+    screen.getAllByRole("img", { name: "ERNI Switzerland logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
     screen.getAllByRole("img", { name: "Bachem logo" }).length,
   ).toBeGreaterThan(0);
   expect(
@@ -3352,6 +3371,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getAllByText("Source: Cudos").length).toBeGreaterThan(0);
   expect(
     screen.getAllByText("Source: Eraneos Switzerland").length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: ERNI Switzerland").length,
   ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Bachem").length).toBeGreaterThan(0);
   expect(

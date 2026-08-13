@@ -922,6 +922,18 @@ class Settings(BaseSettings):
         ge=1,
         le=20,
     )
+    erni_switzerland_jobs_base_url: str = (
+        "https://www.betterask.erni/ch-en/job-opportunities/"
+    )
+    erni_switzerland_jobs_catalog_url: str = (
+        "https://weareerniswjobs.teamtailor.com/jobs"
+    )
+    erni_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    erni_switzerland_jobs_detail_workers: int = Field(default=6, ge=1, le=20)
     bachem_jobs_base_url: str = (
         "https://careers.bachem.com/search/?createNewAlert=false&q="
         "&optionsFacetsDD_department=&optionsFacetsDD_shifttype="

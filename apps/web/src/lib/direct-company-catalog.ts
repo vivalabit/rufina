@@ -728,6 +728,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "erni_switzerland",
+    name: "ERNI Switzerland",
+    careersUrl: "https://www.betterask.erni/ch-en/job-opportunities/",
+    logoSrc: "/company-logos/erni.svg",
+    logoAlt: "ERNI Switzerland logo",
+    logoWidth: 92,
+    logoHeight: 24,
+  },
+  {
     id: "bachem",
     name: "Bachem",
     careersUrl:
