@@ -1428,6 +1428,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "centris_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="edorex",
+        name="Edorex",
+        careers_url="https://edorex.ch/jobs",
+        parser_path="app.services.parsers.companies.edorex:EdorexJobsParser",
+        settings_map=(
+            ("base_url", "edorex_jobs_base_url"),
+            ("timeout_seconds", "edorex_jobs_timeout_seconds"),
+            ("detail_workers", "edorex_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

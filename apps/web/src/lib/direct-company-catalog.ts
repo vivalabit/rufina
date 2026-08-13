@@ -672,8 +672,7 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
   {
     id: "electrosuisse",
     name: "Electrosuisse",
-    careersUrl:
-      "https://www.electrosuisse.ch/de/karriere/offene-stellen/",
+    careersUrl: "https://www.electrosuisse.ch/de/karriere/offene-stellen/",
     logoSrc: "/company-logos/electrosuisse.svg",
     logoAlt: "Electrosuisse logo",
     logoWidth: 43,
@@ -806,8 +805,7 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
   {
     id: "swiss_life_switzerland",
     name: "Swiss Life Switzerland",
-    careersUrl:
-      "https://www.swisslife.ch/de/ueber-uns/karriere/jobs.html#",
+    careersUrl: "https://www.swisslife.ch/de/ueber-uns/karriere/jobs.html#",
     logoSrc: "/company-logos/swiss_life.svg",
     logoAlt: "Swiss Life Switzerland logo",
     logoWidth: 96,
@@ -829,6 +827,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoSrc: "/company-logos/centris.svg",
     logoAlt: "Centris logo",
     logoWidth: 99,
+    logoHeight: 24,
+  },
+  {
+    id: "edorex",
+    name: "Edorex",
+    careersUrl: "https://edorex.ch/jobs",
+    logoSrc: "/company-logos/edorex.svg",
+    logoAlt: "Edorex logo",
+    logoWidth: 62,
     logoHeight: 24,
   },
 ];

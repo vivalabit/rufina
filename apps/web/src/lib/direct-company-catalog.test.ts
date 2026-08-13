@@ -5,6 +5,25 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("Edorex Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "edorex");
+
+    expect(company).toEqual({
+      id: "edorex",
+      name: "Edorex",
+      careersUrl: "https://edorex.ch/jobs",
+      logoSrc: "/company-logos/edorex.svg",
+      logoAlt: "Edorex logo",
+      logoWidth: 62,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId("edorex-senior-postgresql-consultant-mwd"),
+    ).toBe(company);
+  });
+});
+
 describe("Centris Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "centris");
@@ -54,8 +73,7 @@ describe("Swiss Life Switzerland Direct Company catalog entry", () => {
     expect(company).toEqual({
       id: "swiss_life_switzerland",
       name: "Swiss Life Switzerland",
-      careersUrl:
-        "https://www.swisslife.ch/de/ueber-uns/karriere/jobs.html#",
+      careersUrl: "https://www.swisslife.ch/de/ueber-uns/karriere/jobs.html#",
       logoSrc: "/company-logos/swiss_life.svg",
       logoAlt: "Swiss Life Switzerland logo",
       logoWidth: 96,
@@ -84,7 +102,9 @@ describe("Teradata Switzerland Direct Company catalog entry", () => {
       logoWidth: 120,
       logoHeight: 24,
     });
-    expect(getDirectCompanyByJobId("teradata_switzerland-220353")).toBe(company);
+    expect(getDirectCompanyByJobId("teradata_switzerland-220353")).toBe(
+      company,
+    );
   });
 });
 
@@ -105,9 +125,7 @@ describe("NTT Global Data Centers Direct Company catalog entry", () => {
       logoHeight: 24,
     });
     expect(
-      getDirectCompanyByJobId(
-        "ntt_global_data_centers_switzerland-jr101121",
-      ),
+      getDirectCompanyByJobId("ntt_global_data_centers_switzerland-jr101121"),
     ).toBe(company);
   });
 });
@@ -126,9 +144,7 @@ describe("Nexplore Direct Company catalog entry", () => {
       logoHeight: 24,
     });
     expect(
-      getDirectCompanyByJobId(
-        "nexplore-bcff2b26-bae2-48e2-851d-f39ee1fbcb3d",
-      ),
+      getDirectCompanyByJobId("nexplore-bcff2b26-bae2-48e2-851d-f39ee1fbcb3d"),
     ).toBe(company);
   });
 });
@@ -237,8 +253,7 @@ describe("Electrosuisse Direct Company catalog entry", () => {
     expect(company).toEqual({
       id: "electrosuisse",
       name: "Electrosuisse",
-      careersUrl:
-        "https://www.electrosuisse.ch/de/karriere/offene-stellen/",
+      careersUrl: "https://www.electrosuisse.ch/de/karriere/offene-stellen/",
       logoSrc: "/company-logos/electrosuisse.svg",
       logoAlt: "Electrosuisse logo",
       logoWidth: 43,
@@ -287,9 +302,9 @@ describe("Lufthansa Group Switzerland Direct Company catalog entry", () => {
       logoWidth: 132,
       logoHeight: 24,
     });
-    expect(
-      getDirectCompanyByJobId("lufthansa_group_switzerland-134020"),
-    ).toBe(company);
+    expect(getDirectCompanyByJobId("lufthansa_group_switzerland-134020")).toBe(
+      company,
+    );
   });
 });
 
