@@ -718,6 +718,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "eraneos_switzerland",
+    name: "Eraneos Switzerland",
+    careersUrl:
+      "https://eraneos.wd3.myworkdayjobs.com/Eraneos_External_Career_Site",
+    logoSrc: "/company-logos/eraneos.svg",
+    logoAlt: "Eraneos Switzerland logo",
+    logoWidth: 154,
+    logoHeight: 24,
+  },
+  {
     id: "bachem",
     name: "Bachem",
     careersUrl:

@@ -32,7 +32,8 @@ class Settings(BaseSettings):
     openclaw_resume_import_timeout_seconds: int = 120
     openclaw_resume_tailoring_enabled: bool = True
     openclaw_resume_tailoring_model: str = "openai/gpt-5.6-terra"
-    openclaw_resume_tailoring_thinking: str = "high"
+    # The default OpenClaw tailoring model only accepts reasoning disabled.
+    openclaw_resume_tailoring_thinking: str = "off"
     openclaw_resume_tailoring_timeout_seconds: int = Field(
         default=120,
         ge=10,
@@ -903,6 +904,24 @@ class Settings(BaseSettings):
     cudos_jobs_base_url: str = "https://cudos.ch/de/jobs/"
     cudos_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     cudos_jobs_detail_workers: int = Field(default=6, ge=1, le=20)
+    eraneos_switzerland_jobs_base_url: str = (
+        "https://eraneos.wd3.myworkdayjobs.com/Eraneos_External_Career_Site"
+    )
+    eraneos_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    eraneos_switzerland_jobs_max_pages: int = Field(
+        default=100,
+        ge=1,
+        le=500,
+    )
+    eraneos_switzerland_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+    )
     bachem_jobs_base_url: str = (
         "https://careers.bachem.com/search/?createNewAlert=false&q="
         "&optionsFacetsDD_department=&optionsFacetsDD_shifttype="

@@ -292,6 +292,28 @@ describe("Cudos Direct Company catalog entry", () => {
   });
 });
 
+describe("Eraneos Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "eraneos_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "eraneos_switzerland",
+      name: "Eraneos Switzerland",
+      careersUrl:
+        "https://eraneos.wd3.myworkdayjobs.com/Eraneos_External_Career_Site",
+      logoSrc: "/company-logos/eraneos.svg",
+      logoAlt: "Eraneos Switzerland logo",
+      logoWidth: 154,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("eraneos_switzerland-jr100169")).toBe(
+      company,
+    );
+  });
+});
+
 describe("Huber+Suhner Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

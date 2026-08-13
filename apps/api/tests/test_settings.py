@@ -129,6 +129,18 @@ def test_job_screening_settings_have_independent_defaults() -> None:
     assert settings.ai_match_batch_size_value() == 1
 
 
+def test_default_openclaw_resume_tailoring_model_disables_reasoning(
+    monkeypatch,
+) -> None:
+    monkeypatch.delenv("OPENCLAW_RESUME_TAILORING_MODEL", raising=False)
+    monkeypatch.delenv("OPENCLAW_RESUME_TAILORING_THINKING", raising=False)
+
+    settings = Settings(_env_file=None)
+
+    assert settings.openclaw_resume_tailoring_model == "openai/gpt-5.6-terra"
+    assert settings.openclaw_resume_tailoring_thinking == "off"
+
+
 def test_job_screening_settings_use_dedicated_environment_variables(monkeypatch) -> None:
     monkeypatch.setenv("JOB_SCREENING_MODEL", "openai/gpt-screening")
     monkeypatch.setenv("JOB_SCREENING_REASONING", "low")

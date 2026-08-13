@@ -1239,6 +1239,23 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="eraneos_switzerland",
+        name="Eraneos Switzerland",
+        careers_url=(
+            "https://eraneos.wd3.myworkdayjobs.com/Eraneos_External_Career_Site"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.eraneos_switzerland:"
+            "EraneosSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "eraneos_switzerland_jobs_base_url"),
+            ("timeout_seconds", "eraneos_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "eraneos_switzerland_jobs_max_pages"),
+            ("detail_workers", "eraneos_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="bachem",
         name="Bachem",
         careers_url=(
