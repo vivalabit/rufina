@@ -1417,6 +1417,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "sika_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="centris",
+        name="Centris",
+        careers_url="https://www.centrisag.ch/karriere/jobs",
+        parser_path="app.services.parsers.companies.centris:CentrisJobsParser",
+        settings_map=(
+            ("base_url", "centris_jobs_base_url"),
+            ("timeout_seconds", "centris_jobs_timeout_seconds"),
+            ("detail_workers", "centris_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

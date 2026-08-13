@@ -131,7 +131,8 @@ function importedJobData({
     | "ntt_global_data_centers_switzerland"
     | "teradata_switzerland"
     | "swiss_life_switzerland"
-    | "sika_switzerland";
+    | "sika_switzerland"
+    | "centris";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -346,6 +347,9 @@ function importedJobData({
                                                                                                                                 : source ===
                                                                                                                                     "sika_switzerland"
                                                                                                                                   ? "Sika Switzerland"
+                                                                                                                                : source ===
+                                                                                                                                    "centris"
+                                                                                                                                  ? "Centris"
                                                                                                                                 : source ===
                                                                                                                                     "axpo_switzerland"
                                                                                                                                   ? "Axpo Switzerland"
@@ -586,6 +590,9 @@ function importedJobData({
                                                                                                                                   "sika_switzerland"
                                                                                                                                 ? "Sika AG"
                                                                                                                               : source ===
+                                                                                                                                  "centris"
+                                                                                                                                ? "Centris AG"
+                                                                                                                              : source ===
                                                                                                                                   "axpo_switzerland"
                                                                                                                                 ? "Axpo Group"
                                                                                                                                 : source ===
@@ -707,7 +714,8 @@ function importedJobData({
       source === "ntt_global_data_centers_switzerland" ||
       source === "teradata_switzerland" ||
       source === "swiss_life_switzerland" ||
-      source === "sika_switzerland"
+      source === "sika_switzerland" ||
+      source === "centris"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -2621,6 +2629,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Senior Technical Consultant SAP Integration at Sika",
         source: "sika_switzerland",
       });
+      const centrisJob = importedJobData({
+        id: "centris-1085",
+        title: "Fachtester at Centris",
+        source: "centris",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -2738,11 +2751,12 @@ it("shows direct-company vacancies with their company logos", async () => {
           id: sikaSwitzerlandJob.id,
           data: sikaSwitzerlandJob,
         },
+        { id: centrisJob.id, data: centrisJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 83,
-        jobsAdded: 83,
+        jobsFound: 84,
+        jobsAdded: 84,
         sourceErrors: {},
         warning: null,
       });
@@ -2902,7 +2916,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 83 of 83 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland",
+      "Added 84 of 84 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -2991,6 +3005,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "teradata_switzerland",
       "swiss_life_switzerland",
       "sika_switzerland",
+      "centris",
     ],
     aiAnalysisEnabled: true,
   });
@@ -3250,6 +3265,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Sika Switzerland logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Centris logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -3415,6 +3433,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByText("Source: Sika Switzerland").length,
   ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Centris").length).toBeGreaterThan(0);
 }, 30_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

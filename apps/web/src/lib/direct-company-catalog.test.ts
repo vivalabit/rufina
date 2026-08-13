@@ -5,6 +5,23 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("Centris Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "centris");
+
+    expect(company).toEqual({
+      id: "centris",
+      name: "Centris",
+      careersUrl: "https://www.centrisag.ch/karriere/jobs",
+      logoSrc: "/company-logos/centris.svg",
+      logoAlt: "Centris logo",
+      logoWidth: 99,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("centris-1085")).toBe(company);
+  });
+});
+
 describe("Sika Switzerland Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

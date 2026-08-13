@@ -822,6 +822,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 32,
     logoHeight: 28,
   },
+  {
+    id: "centris",
+    name: "Centris",
+    careersUrl: "https://www.centrisag.ch/karriere/jobs",
+    logoSrc: "/company-logos/centris.svg",
+    logoAlt: "Centris logo",
+    logoWidth: 99,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
