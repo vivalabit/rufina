@@ -5,6 +5,29 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("Sika Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "sika_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "sika_switzerland",
+      name: "Sika Switzerland",
+      careersUrl: "https://www.sika.com/en/career/jobs.html",
+      logoSrc: "/company-logos/sika.svg",
+      logoAlt: "Sika Switzerland logo",
+      logoWidth: 32,
+      logoHeight: 28,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "sika_switzerland-9c76864a-9d47-46eb-af82-10893fcfc91e",
+      ),
+    ).toBe(company);
+  });
+});
+
 describe("Swiss Life Switzerland Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

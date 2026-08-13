@@ -1400,6 +1400,23 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "swiss_life_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="sika_switzerland",
+        name="Sika Switzerland",
+        careers_url="https://www.sika.com/en/career/jobs.html",
+        parser_path=(
+            "app.services.parsers.companies.sika_switzerland:"
+            "SikaSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "sika_switzerland_jobs_base_url"),
+            ("catalog_url", "sika_switzerland_jobs_catalog_url"),
+            ("timeout_seconds", "sika_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "sika_switzerland_jobs_max_pages"),
+            ("max_catalog_passes", "sika_switzerland_jobs_max_catalog_passes"),
+            ("detail_workers", "sika_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

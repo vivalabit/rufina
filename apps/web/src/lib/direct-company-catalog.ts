@@ -813,6 +813,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 96,
     logoHeight: 24,
   },
+  {
+    id: "sika_switzerland",
+    name: "Sika Switzerland",
+    careersUrl: "https://www.sika.com/en/career/jobs.html",
+    logoSrc: "/company-logos/sika.svg",
+    logoAlt: "Sika Switzerland logo",
+    logoWidth: 32,
+    logoHeight: 28,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
