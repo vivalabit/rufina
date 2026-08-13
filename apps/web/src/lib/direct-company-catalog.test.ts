@@ -696,3 +696,22 @@ describe("Abraxas Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("abraxas-9876")).toBe(company);
   });
 });
+
+describe("AKROS Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "akros");
+
+    expect(company).toEqual({
+      id: "akros",
+      name: "AKROS AG",
+      careersUrl: "https://www.akros.ch/jobs/",
+      logoSrc: "/company-logos/akros.svg",
+      logoAlt: "AKROS AG logo",
+      logoWidth: 94,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId("akros-java-software-engineer-fullstack-zurich"),
+    ).toBe(company);
+  });
+});

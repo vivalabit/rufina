@@ -885,6 +885,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 29,
     logoHeight: 24,
   },
+  {
+    id: "akros",
+    name: "AKROS AG",
+    careersUrl: "https://www.akros.ch/jobs/",
+    logoSrc: "/company-logos/akros.svg",
+    logoAlt: "AKROS AG logo",
+    logoWidth: 94,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

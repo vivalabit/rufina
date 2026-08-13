@@ -1515,6 +1515,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "abraxas_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="akros",
+        name="AKROS AG",
+        careers_url="https://www.akros.ch/jobs/",
+        parser_path="app.services.parsers.companies.akros:AkrosJobsParser",
+        settings_map=(
+            ("base_url", "akros_jobs_base_url"),
+            ("timeout_seconds", "akros_jobs_timeout_seconds"),
+            ("detail_workers", "akros_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
