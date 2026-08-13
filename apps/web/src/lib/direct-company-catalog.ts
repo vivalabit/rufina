@@ -930,6 +930,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 87,
     logoHeight: 24,
   },
+  {
+    id: "emineo",
+    name: "emineo AG",
+    careersUrl: "https://emineo.ch/en/career/open-positions/",
+    logoSrc: "/company-logos/emineo.svg",
+    logoAlt: "emineo AG logo",
+    logoWidth: 24,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

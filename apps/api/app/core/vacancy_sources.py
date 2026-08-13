@@ -1580,6 +1580,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "egeli_informatik_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="emineo",
+        name="emineo AG",
+        careers_url="https://emineo.ch/en/career/open-positions/",
+        parser_path="app.services.parsers.companies.emineo:EmineoJobsParser",
+        settings_map=(
+            ("base_url", "emineo_jobs_base_url"),
+            ("export_url", "emineo_jobs_export_url"),
+            ("timeout_seconds", "emineo_jobs_timeout_seconds"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

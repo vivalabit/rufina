@@ -795,3 +795,20 @@ describe("EGELI Informatik AG Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("emineo AG Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "emineo");
+
+    expect(company).toEqual({
+      id: "emineo",
+      name: "emineo AG",
+      careersUrl: "https://emineo.ch/en/career/open-positions/",
+      logoSrc: "/company-logos/emineo.svg",
+      logoAlt: "emineo AG logo",
+      logoWidth: 24,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("emineo-389")).toBe(company);
+  });
+});
