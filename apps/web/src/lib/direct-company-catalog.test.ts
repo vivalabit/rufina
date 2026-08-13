@@ -715,3 +715,20 @@ describe("AKROS Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("amétiq Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "ametiq");
+
+    expect(company).toEqual({
+      id: "ametiq",
+      name: "amétiq ag",
+      careersUrl: "https://ametiq.ch/jobs/",
+      logoSrc: "/company-logos/ametiq.svg",
+      logoAlt: "amétiq ag logo",
+      logoWidth: 58,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("ametiq-13617")).toBe(company);
+  });
+});

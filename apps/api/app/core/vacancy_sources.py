@@ -1526,6 +1526,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "akros_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="ametiq",
+        name="amétiq ag",
+        careers_url="https://ametiq.ch/jobs/",
+        parser_path="app.services.parsers.companies.ametiq:AmetiqJobsParser",
+        settings_map=(
+            ("base_url", "ametiq_jobs_base_url"),
+            ("timeout_seconds", "ametiq_jobs_timeout_seconds"),
+            ("detail_workers", "ametiq_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

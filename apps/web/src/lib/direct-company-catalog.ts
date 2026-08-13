@@ -894,6 +894,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 94,
     logoHeight: 24,
   },
+  {
+    id: "ametiq",
+    name: "amétiq ag",
+    careersUrl: "https://ametiq.ch/jobs/",
+    logoSrc: "/company-logos/ametiq.svg",
+    logoAlt: "amétiq ag logo",
+    logoWidth: 58,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
