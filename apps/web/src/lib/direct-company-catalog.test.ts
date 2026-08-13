@@ -5,6 +5,26 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("Dätwyler IT Infra Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "datwyler_it_infra",
+    );
+
+    expect(company).toEqual({
+      id: "datwyler_it_infra",
+      name: "Dätwyler IT Infra",
+      careersUrl:
+        "https://careers.datwyler-itinfra.com/search/?locale=de_DE&searchResultView=LIST&facetFilters=%7B%22jobLocationCountry%22%3A%5B%22Schweiz%22%5D%7D&pageNumber=0",
+      logoSrc: "/company-logos/datwyler_it_infra.svg",
+      logoAlt: "Dätwyler IT Infra logo",
+      logoWidth: 113,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("datwyler_it_infra-432")).toBe(company);
+  });
+});
+
 describe("Edorex Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "edorex");

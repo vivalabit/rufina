@@ -1066,6 +1066,30 @@ class Settings(BaseSettings):
     edorex_jobs_base_url: str = "https://edorex.ch/jobs"
     edorex_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     edorex_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    datwyler_it_infra_jobs_base_url: str = (
+        "https://careers.datwyler-itinfra.com/search/?locale=de_DE&"
+        "searchResultView=LIST&facetFilters=%7B%22jobLocationCountry%22%3A%5B%22"
+        "Schweiz%22%5D%7D&pageNumber=0"
+    )
+    datwyler_it_infra_jobs_api_url: str = (
+        "https://careers.datwyler-itinfra.com/services/recruiting/v1/jobs"
+    )
+    datwyler_it_infra_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    datwyler_it_infra_jobs_max_pages: int = Field(default=20, ge=1, le=200)
+    datwyler_it_infra_jobs_max_catalog_passes: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+    )
+    datwyler_it_infra_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

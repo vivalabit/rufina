@@ -1439,6 +1439,30 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "edorex_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="datwyler_it_infra",
+        name="Dätwyler IT Infra",
+        careers_url=(
+            "https://careers.datwyler-itinfra.com/search/?locale=de_DE&"
+            "searchResultView=LIST&facetFilters=%7B%22jobLocationCountry%22%3A%5B%22"
+            "Schweiz%22%5D%7D&pageNumber=0"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.datwyler_it_infra:"
+            "DatwylerItInfraJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "datwyler_it_infra_jobs_base_url"),
+            ("api_url", "datwyler_it_infra_jobs_api_url"),
+            ("timeout_seconds", "datwyler_it_infra_jobs_timeout_seconds"),
+            ("max_pages", "datwyler_it_infra_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "datwyler_it_infra_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "datwyler_it_infra_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

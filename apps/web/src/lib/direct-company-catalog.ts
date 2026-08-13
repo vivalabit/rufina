@@ -838,6 +838,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 62,
     logoHeight: 24,
   },
+  {
+    id: "datwyler_it_infra",
+    name: "Dätwyler IT Infra",
+    careersUrl:
+      "https://careers.datwyler-itinfra.com/search/?locale=de_DE&searchResultView=LIST&facetFilters=%7B%22jobLocationCountry%22%3A%5B%22Schweiz%22%5D%7D&pageNumber=0",
+    logoSrc: "/company-logos/datwyler_it_infra.svg",
+    logoAlt: "Dätwyler IT Infra logo",
+    logoWidth: 113,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
