@@ -679,3 +679,20 @@ describe("Comerge Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("comerge-software-engineer")).toBe(company);
   });
 });
+
+describe("Abraxas Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "abraxas");
+
+    expect(company).toEqual({
+      id: "abraxas",
+      name: "Abraxas Informatik AG",
+      careersUrl: "https://www.abraxas.ch/de/karriere/offene-stellen",
+      logoSrc: "/company-logos/abraxas.svg",
+      logoAlt: "Abraxas Informatik AG logo",
+      logoWidth: 29,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("abraxas-9876")).toBe(company);
+  });
+});

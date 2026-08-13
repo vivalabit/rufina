@@ -876,6 +876,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 110,
     logoHeight: 24,
   },
+  {
+    id: "abraxas",
+    name: "Abraxas Informatik AG",
+    careersUrl: "https://www.abraxas.ch/de/karriere/offene-stellen",
+    logoSrc: "/company-logos/abraxas.svg",
+    logoAlt: "Abraxas Informatik AG logo",
+    logoWidth: 29,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

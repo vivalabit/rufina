@@ -1504,6 +1504,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "comerge_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="abraxas",
+        name="Abraxas Informatik AG",
+        careers_url="https://www.abraxas.ch/de/karriere/offene-stellen",
+        parser_path="app.services.parsers.companies.abraxas:AbraxasJobsParser",
+        settings_map=(
+            ("base_url", "abraxas_jobs_base_url"),
+            ("timeout_seconds", "abraxas_jobs_timeout_seconds"),
+            ("detail_workers", "abraxas_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
