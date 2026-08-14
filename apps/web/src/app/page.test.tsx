@@ -165,7 +165,8 @@ function importedJobData({
     | "loewenfels"
     | "m_s_software_engineering"
     | "opacc"
-    | "panter";
+    | "panter"
+    | "digital_architects_zurich";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -473,7 +474,10 @@ function importedJobData({
                                                                                                                                                                                                                               : source ===
                                                                                                                                                                                                                                   "panter"
                                                                                                                                                                                                                                 ? "Panter AG"
-                                                                                                                                                                                                                                : "LinkedIn";
+                                                                                                                                                                                                                                : source ===
+                                                                                                                                                                                                                                    "digital_architects_zurich"
+                                                                                                                                                                                                                                  ? "Digital Architects Zurich GmbH"
+                                                                                                                                                                                                                                  : "LinkedIn";
   return {
     id,
     company:
@@ -778,7 +782,10 @@ function importedJobData({
                                                                                                                                                                                                                             : source ===
                                                                                                                                                                                                                                 "panter"
                                                                                                                                                                                                                               ? "Panter AG"
-                                                                                                                                                                                                                              : "Example AG",
+                                                                                                                                                                                                                              : source ===
+                                                                                                                                                                                                                                  "digital_architects_zurich"
+                                                                                                                                                                                                                                ? "Digital Architects Zurich GmbH"
+                                                                                                                                                                                                                                : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -895,7 +902,8 @@ function importedJobData({
       source === "loewenfels" ||
       source === "m_s_software_engineering" ||
       source === "opacc" ||
-      source === "panter"
+      source === "panter" ||
+      source === "digital_architects_zurich"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -2923,6 +2931,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Senior AI Software Engineer at Panter",
         source: "panter",
       });
+      const digitalArchitectsZurichJob = importedJobData({
+        id: "digital_architects_zurich-job-cicd-consultant",
+        title: "CI/CD Engineer & Consultant at Digital Architects Zurich",
+        source: "digital_architects_zurich",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -3065,11 +3078,15 @@ it("shows direct-company vacancies with their company logos", async () => {
         },
         { id: opaccJob.id, data: opaccJob },
         { id: panterJob.id, data: panterJob },
+        {
+          id: digitalArchitectsZurichJob.id,
+          data: digitalArchitectsZurichJob,
+        },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 105,
-        jobsAdded: 105,
+        jobsFound: 106,
+        jobsAdded: 106,
         sourceErrors: {},
         warning: null,
       });
@@ -3211,6 +3228,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Opacc Software AG")).toBeInTheDocument();
   expect(screen.getByText("Panter AG")).toBeInTheDocument();
   expect(
+    screen.getByText("Digital Architects Zurich GmbH"),
+  ).toBeInTheDocument();
+  expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Select all" })).toBeEnabled();
@@ -3245,7 +3265,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 105 of 105 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG",
+      "Added 106 of 106 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -3356,6 +3376,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "m_s_software_engineering",
       "opacc",
       "panter",
+      "digital_architects_zurich",
     ],
     aiAnalysisEnabled: true,
   });
@@ -3683,6 +3704,11 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Panter AG logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", {
+      name: "Digital Architects Zurich GmbH logo",
+    }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -3890,6 +3916,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getAllByText("Source: Opacc Software AG").length,
   ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Panter AG").length).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: Digital Architects Zurich GmbH").length,
+  ).toBeGreaterThan(0);
 }, 30_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

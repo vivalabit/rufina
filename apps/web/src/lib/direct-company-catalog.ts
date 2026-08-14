@@ -1021,6 +1021,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 114,
     logoHeight: 30,
   },
+  {
+    id: "digital_architects_zurich",
+    name: "Digital Architects Zurich GmbH",
+    careersUrl: "https://digital-architects-zurich.ch/career/",
+    logoSrc: "/company-logos/digital-architects-zurich.svg",
+    logoAlt: "Digital Architects Zurich GmbH logo",
+    logoWidth: 30,
+    logoHeight: 30,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

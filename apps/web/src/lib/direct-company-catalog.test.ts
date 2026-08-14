@@ -992,3 +992,24 @@ describe("Panter AG Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("Digital Architects Zurich GmbH Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "digital_architects_zurich",
+    );
+
+    expect(company).toEqual({
+      id: "digital_architects_zurich",
+      name: "Digital Architects Zurich GmbH",
+      careersUrl: "https://digital-architects-zurich.ch/career/",
+      logoSrc: "/company-logos/digital-architects-zurich.svg",
+      logoAlt: "Digital Architects Zurich GmbH logo",
+      logoWidth: 30,
+      logoHeight: 30,
+    });
+    expect(
+      getDirectCompanyByJobId("digital_architects_zurich-job-cicd-consultant"),
+    ).toBe(company);
+  });
+});

@@ -1700,6 +1700,20 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "panter_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="digital_architects_zurich",
+        name="Digital Architects Zurich GmbH",
+        careers_url="https://digital-architects-zurich.ch/career/",
+        parser_path=(
+            "app.services.parsers.companies.digital_architects_zurich:"
+            "DigitalArchitectsZurichJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "digital_architects_zurich_jobs_base_url"),
+            ("timeout_seconds", "digital_architects_zurich_jobs_timeout_seconds"),
+            ("detail_workers", "digital_architects_zurich_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
