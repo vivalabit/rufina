@@ -163,7 +163,8 @@ function importedJobData({
     | "isolutions"
     | "iwf"
     | "loewenfels"
-    | "m_s_software_engineering";
+    | "m_s_software_engineering"
+    | "opacc";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -439,33 +440,36 @@ function importedJobData({
                                                                                                                                                                                                             "m_s_software_engineering"
                                                                                                                                                                                                           ? "M&S Software Engineering AG"
                                                                                                                                                                                                           : source ===
-                                                                                                                                                                                                              "axpo_switzerland"
-                                                                                                                                                                                                            ? "Axpo Switzerland"
+                                                                                                                                                                                                              "opacc"
+                                                                                                                                                                                                            ? "Opacc Software AG"
                                                                                                                                                                                                             : source ===
-                                                                                                                                                                                                                "ringier"
-                                                                                                                                                                                                              ? "Ringier"
+                                                                                                                                                                                                                "axpo_switzerland"
+                                                                                                                                                                                                              ? "Axpo Switzerland"
                                                                                                                                                                                                               : source ===
-                                                                                                                                                                                                                  "ruag_switzerland"
-                                                                                                                                                                                                                ? "RUAG Switzerland"
+                                                                                                                                                                                                                  "ringier"
+                                                                                                                                                                                                                ? "Ringier"
                                                                                                                                                                                                                 : source ===
-                                                                                                                                                                                                                    "cyberlink"
-                                                                                                                                                                                                                  ? "Cyberlink"
+                                                                                                                                                                                                                    "ruag_switzerland"
+                                                                                                                                                                                                                  ? "RUAG Switzerland"
                                                                                                                                                                                                                   : source ===
-                                                                                                                                                                                                                      "ergon"
-                                                                                                                                                                                                                    ? "Ergon"
+                                                                                                                                                                                                                      "cyberlink"
+                                                                                                                                                                                                                    ? "Cyberlink"
                                                                                                                                                                                                                     : source ===
-                                                                                                                                                                                                                        "logobject"
-                                                                                                                                                                                                                      ? "LogObject"
+                                                                                                                                                                                                                        "ergon"
+                                                                                                                                                                                                                      ? "Ergon"
                                                                                                                                                                                                                       : source ===
-                                                                                                                                                                                                                          "ti8m_switzerland"
-                                                                                                                                                                                                                        ? "ti&m Switzerland"
+                                                                                                                                                                                                                          "logobject"
+                                                                                                                                                                                                                        ? "LogObject"
                                                                                                                                                                                                                         : source ===
-                                                                                                                                                                                                                            "novartis_switzerland"
-                                                                                                                                                                                                                          ? "Novartis Switzerland"
+                                                                                                                                                                                                                            "ti8m_switzerland"
+                                                                                                                                                                                                                          ? "ti&m Switzerland"
                                                                                                                                                                                                                           : source ===
-                                                                                                                                                                                                                              "pictet_switzerland"
-                                                                                                                                                                                                                            ? "Pictet Switzerland"
-                                                                                                                                                                                                                            : "LinkedIn";
+                                                                                                                                                                                                                              "novartis_switzerland"
+                                                                                                                                                                                                                            ? "Novartis Switzerland"
+                                                                                                                                                                                                                            : source ===
+                                                                                                                                                                                                                                "pictet_switzerland"
+                                                                                                                                                                                                                              ? "Pictet Switzerland"
+                                                                                                                                                                                                                              : "LinkedIn";
   return {
     id,
     company:
@@ -738,33 +742,36 @@ function importedJobData({
                                                                                                                                                                                                           "m_s_software_engineering"
                                                                                                                                                                                                         ? "M&S Software Engineering AG"
                                                                                                                                                                                                         : source ===
-                                                                                                                                                                                                            "axpo_switzerland"
-                                                                                                                                                                                                          ? "Axpo Group"
+                                                                                                                                                                                                            "opacc"
+                                                                                                                                                                                                          ? "Opacc Software AG"
                                                                                                                                                                                                           : source ===
-                                                                                                                                                                                                              "ringier"
-                                                                                                                                                                                                            ? "Ringier AG"
+                                                                                                                                                                                                              "axpo_switzerland"
+                                                                                                                                                                                                            ? "Axpo Group"
                                                                                                                                                                                                             : source ===
-                                                                                                                                                                                                                "ruag_switzerland"
-                                                                                                                                                                                                              ? "RUAG AG"
+                                                                                                                                                                                                                "ringier"
+                                                                                                                                                                                                              ? "Ringier AG"
                                                                                                                                                                                                               : source ===
-                                                                                                                                                                                                                  "cyberlink"
-                                                                                                                                                                                                                ? "Cyberlink AG"
+                                                                                                                                                                                                                  "ruag_switzerland"
+                                                                                                                                                                                                                ? "RUAG AG"
                                                                                                                                                                                                                 : source ===
-                                                                                                                                                                                                                    "ergon"
-                                                                                                                                                                                                                  ? "Ergon Informatik AG"
+                                                                                                                                                                                                                    "cyberlink"
+                                                                                                                                                                                                                  ? "Cyberlink AG"
                                                                                                                                                                                                                   : source ===
-                                                                                                                                                                                                                      "logobject"
-                                                                                                                                                                                                                    ? "LogObject AG"
+                                                                                                                                                                                                                      "ergon"
+                                                                                                                                                                                                                    ? "Ergon Informatik AG"
                                                                                                                                                                                                                     : source ===
-                                                                                                                                                                                                                        "ti8m_switzerland"
-                                                                                                                                                                                                                      ? "ti&m AG"
+                                                                                                                                                                                                                        "logobject"
+                                                                                                                                                                                                                      ? "LogObject AG"
                                                                                                                                                                                                                       : source ===
-                                                                                                                                                                                                                          "novartis_switzerland"
-                                                                                                                                                                                                                        ? "Novartis"
+                                                                                                                                                                                                                          "ti8m_switzerland"
+                                                                                                                                                                                                                        ? "ti&m AG"
                                                                                                                                                                                                                         : source ===
-                                                                                                                                                                                                                            "pictet_switzerland"
-                                                                                                                                                                                                                          ? "Pictet"
-                                                                                                                                                                                                                          : "Example AG",
+                                                                                                                                                                                                                            "novartis_switzerland"
+                                                                                                                                                                                                                          ? "Novartis"
+                                                                                                                                                                                                                          : source ===
+                                                                                                                                                                                                                              "pictet_switzerland"
+                                                                                                                                                                                                                            ? "Pictet"
+                                                                                                                                                                                                                            : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -879,7 +886,8 @@ function importedJobData({
       source === "isolutions" ||
       source === "iwf" ||
       source === "loewenfels" ||
-      source === "m_s_software_engineering"
+      source === "m_s_software_engineering" ||
+      source === "opacc"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -2897,6 +2905,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Softwareentwickler at M&S",
         source: "m_s_software_engineering",
       });
+      const opaccJob = importedJobData({
+        id: "opacc-kunden-bedienen-teamleiterin-support",
+        title: "TeamleiterIn Support at Opacc",
+        source: "opacc",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -3037,11 +3050,12 @@ it("shows direct-company vacancies with their company logos", async () => {
           id: mSSoftwareEngineeringJob.id,
           data: mSSoftwareEngineeringJob,
         },
+        { id: opaccJob.id, data: opaccJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 103,
-        jobsAdded: 103,
+        jobsFound: 104,
+        jobsAdded: 104,
         sourceErrors: {},
         warning: null,
       });
@@ -3180,6 +3194,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("IWF AG")).toBeInTheDocument();
   expect(screen.getByText("Löwenfels Partner AG")).toBeInTheDocument();
   expect(screen.getByText("M&S Software Engineering AG")).toBeInTheDocument();
+  expect(screen.getByText("Opacc Software AG")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -3215,7 +3230,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 103 of 103 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG",
+      "Added 104 of 104 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -3324,6 +3339,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "iwf",
       "loewenfels",
       "m_s_software_engineering",
+      "opacc",
     ],
     aiAnalysisEnabled: true,
   });
@@ -3645,6 +3661,9 @@ it("shows direct-company vacancies with their company logos", async () => {
       name: "M&S Software Engineering AG logo",
     }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Opacc Software AG logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -3847,6 +3866,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   ).toBeGreaterThan(0);
   expect(
     screen.getAllByText("Source: M&S Software Engineering AG").length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: Opacc Software AG").length,
   ).toBeGreaterThan(0);
 }, 30_000);
 

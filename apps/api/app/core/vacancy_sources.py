@@ -1678,6 +1678,17 @@ DIRECT_COMPANY_PARSERS = (
             ("timeout_seconds", "m_s_software_engineering_jobs_timeout_seconds"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="opacc",
+        name="Opacc Software AG",
+        careers_url="https://jobs.opacc.ch/",
+        parser_path="app.services.parsers.companies.opacc:OpaccJobsParser",
+        settings_map=(
+            ("base_url", "opacc_jobs_base_url"),
+            ("timeout_seconds", "opacc_jobs_timeout_seconds"),
+            ("detail_workers", "opacc_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

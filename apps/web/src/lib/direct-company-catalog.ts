@@ -1003,6 +1003,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 110,
     logoHeight: 34,
   },
+  {
+    id: "opacc",
+    name: "Opacc Software AG",
+    careersUrl: "https://jobs.opacc.ch/",
+    logoSrc: "/company-logos/opacc.svg",
+    logoAlt: "Opacc Software AG logo",
+    logoWidth: 84,
+    logoHeight: 60,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

@@ -954,3 +954,22 @@ describe("M&S Software Engineering AG Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("Opacc Software AG Direct Company catalog entry", () => {
+  it("uses the official jobs site and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "opacc");
+
+    expect(company).toEqual({
+      id: "opacc",
+      name: "Opacc Software AG",
+      careersUrl: "https://jobs.opacc.ch/",
+      logoSrc: "/company-logos/opacc.svg",
+      logoAlt: "Opacc Software AG logo",
+      logoWidth: 84,
+      logoHeight: 60,
+    });
+    expect(
+      getDirectCompanyByJobId("opacc-kunden-bedienen-teamleiterin-support"),
+    ).toBe(company);
+  });
+});
