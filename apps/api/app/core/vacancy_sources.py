@@ -1630,6 +1630,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "infosoft_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="isolutions",
+        name="isolutions AG",
+        careers_url="https://www.isolutions.ch/en/career/#module-1396",
+        parser_path="app.services.parsers.companies.isolutions:IsolutionsJobsParser",
+        settings_map=(
+            ("base_url", "isolutions_jobs_base_url"),
+            ("timeout_seconds", "isolutions_jobs_timeout_seconds"),
+            ("detail_workers", "isolutions_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

@@ -874,3 +874,26 @@ describe("Infosoft Systems AG Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("isolutions AG Direct Company catalog entry", () => {
+  it("uses the official careers module and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "isolutions",
+    );
+
+    expect(company).toEqual({
+      id: "isolutions",
+      name: "isolutions AG",
+      careersUrl: "https://www.isolutions.ch/en/career/#module-1396",
+      logoSrc: "/company-logos/isolutions.svg",
+      logoAlt: "isolutions AG logo",
+      logoWidth: 24,
+      logoHeight: 25,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "isolutions-junior-technical-consultant-digital-workplace",
+      ),
+    ).toBe(company);
+  });
+});

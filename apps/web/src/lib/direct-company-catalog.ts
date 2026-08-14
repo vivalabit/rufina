@@ -967,6 +967,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 104,
     logoHeight: 24,
   },
+  {
+    id: "isolutions",
+    name: "isolutions AG",
+    careersUrl: "https://www.isolutions.ch/en/career/#module-1396",
+    logoSrc: "/company-logos/isolutions.svg",
+    logoAlt: "isolutions AG logo",
+    logoWidth: 24,
+    logoHeight: 25,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

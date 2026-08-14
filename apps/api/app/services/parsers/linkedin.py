@@ -5,7 +5,6 @@ import httpx
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 
-
 LINKEDIN_JOBS_DATASET_ID = "gd_lpfll7v5hcqtkxl6l"
 
 REMOTE_FILTERS = {
@@ -86,6 +85,10 @@ class LinkedInJobsParser:
         except httpx.HTTPError as exc:
             raise BrightDataRequestError("Bright Data request failed") from exc
 
+        if response.status_code == 401:
+            raise BrightDataRequestError(
+                "Bright Data API key was rejected. Replace it in Settings."
+            )
         if response.status_code >= 400:
             raise BrightDataRequestError(
                 f"Bright Data returned HTTP {response.status_code}: {response.text[:500]}"

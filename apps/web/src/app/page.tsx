@@ -80,6 +80,7 @@ import {
   directCompanyCatalog,
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
+import { formatParserFailure } from "@/lib/parser-errors";
 import { cn } from "@/lib/utils";
 
 type AiPrivacySettings = {
@@ -6131,9 +6132,11 @@ export default function HomePage() {
         setSelectedJobId(refreshedJobs[0].id);
         setActiveTab("Overview");
       }
-      const failedSources = Object.keys(run.sourceErrors).map(getParserLabel);
+      const failedSources = Object.entries(run.sourceErrors).map(([source, error]) =>
+        formatParserFailure(getParserLabel(source), error),
+      );
       const finalMessage = failedSources.length
-        ? `Added ${run.jobsAdded} of ${run.jobsFound} vacancies; failed: ${failedSources.join(", ")}`
+        ? `Added ${run.jobsAdded} of ${run.jobsFound} vacancies; failed: ${failedSources.join("; ")}`
         : run.jobsAdded > 0
           ? `Added ${run.jobsAdded} of ${run.jobsFound} vacancies from ${parsersLabel}`
           : run.jobsFound > 0
