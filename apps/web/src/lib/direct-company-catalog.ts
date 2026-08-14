@@ -985,6 +985,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 24,
     logoHeight: 25,
   },
+  {
+    id: "loewenfels",
+    name: "Löwenfels Partner AG",
+    careersUrl: "https://www.loewenfels.ch/karriere/",
+    logoSrc: "/company-logos/loewenfels.svg",
+    logoAlt: "Löwenfels Partner AG logo",
+    logoWidth: 132,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

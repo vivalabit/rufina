@@ -1652,6 +1652,18 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "iwf_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="loewenfels",
+        name="Löwenfels Partner AG",
+        careers_url="https://www.loewenfels.ch/karriere/",
+        parser_path="app.services.parsers.companies.loewenfels:LoewenfelsJobsParser",
+        settings_map=(
+            ("base_url", "loewenfels_jobs_base_url"),
+            ("api_url", "loewenfels_jobs_api_url"),
+            ("timeout_seconds", "loewenfels_jobs_timeout_seconds"),
+            ("detail_workers", "loewenfels_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

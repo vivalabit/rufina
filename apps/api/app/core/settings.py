@@ -1165,6 +1165,13 @@ class Settings(BaseSettings):
     iwf_jobs_base_url: str = "https://www.iwf.ch/web-solutions/jobs"
     iwf_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     iwf_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    loewenfels_jobs_base_url: str = "https://www.loewenfels.ch/karriere/"
+    loewenfels_jobs_api_url: str = (
+        "https://odm.ostendis.com/ojp/data/v55/jobs/"
+        "e093bfef1e5b4b119ddf2f3eb38e665e/DE?domain=www.loewenfels.ch"
+    )
+    loewenfels_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    loewenfels_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

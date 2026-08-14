@@ -914,3 +914,22 @@ describe("IWF AG Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("iwf-agile-tester")).toBe(company);
   });
 });
+
+describe("Löwenfels Partner AG Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "loewenfels",
+    );
+
+    expect(company).toEqual({
+      id: "loewenfels",
+      name: "Löwenfels Partner AG",
+      careersUrl: "https://www.loewenfels.ch/karriere/",
+      logoSrc: "/company-logos/loewenfels.svg",
+      logoAlt: "Löwenfels Partner AG logo",
+      logoWidth: 132,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("loewenfels-76584")).toBe(company);
+  });
+});
