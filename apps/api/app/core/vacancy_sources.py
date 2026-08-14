@@ -1689,6 +1689,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "opacc_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="panter",
+        name="Panter AG",
+        careers_url="https://www.panter.ch/en/about-us/career/",
+        parser_path="app.services.parsers.companies.panter:PanterJobsParser",
+        settings_map=(
+            ("base_url", "panter_jobs_base_url"),
+            ("timeout_seconds", "panter_jobs_timeout_seconds"),
+            ("detail_workers", "panter_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

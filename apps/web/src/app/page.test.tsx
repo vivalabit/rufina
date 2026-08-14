@@ -164,7 +164,8 @@ function importedJobData({
     | "iwf"
     | "loewenfels"
     | "m_s_software_engineering"
-    | "opacc";
+    | "opacc"
+    | "panter";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -469,7 +470,10 @@ function importedJobData({
                                                                                                                                                                                                                             : source ===
                                                                                                                                                                                                                                 "pictet_switzerland"
                                                                                                                                                                                                                               ? "Pictet Switzerland"
-                                                                                                                                                                                                                              : "LinkedIn";
+                                                                                                                                                                                                                              : source ===
+                                                                                                                                                                                                                                  "panter"
+                                                                                                                                                                                                                                ? "Panter AG"
+                                                                                                                                                                                                                                : "LinkedIn";
   return {
     id,
     company:
@@ -771,7 +775,10 @@ function importedJobData({
                                                                                                                                                                                                                           : source ===
                                                                                                                                                                                                                               "pictet_switzerland"
                                                                                                                                                                                                                             ? "Pictet"
-                                                                                                                                                                                                                            : "Example AG",
+                                                                                                                                                                                                                            : source ===
+                                                                                                                                                                                                                                "panter"
+                                                                                                                                                                                                                              ? "Panter AG"
+                                                                                                                                                                                                                              : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -887,7 +894,8 @@ function importedJobData({
       source === "iwf" ||
       source === "loewenfels" ||
       source === "m_s_software_engineering" ||
-      source === "opacc"
+      source === "opacc" ||
+      source === "panter"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -2910,6 +2918,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "TeamleiterIn Support at Opacc",
         source: "opacc",
       });
+      const panterJob = importedJobData({
+        id: "panter-senior-ai-software-engineer",
+        title: "Senior AI Software Engineer at Panter",
+        source: "panter",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -3051,11 +3064,12 @@ it("shows direct-company vacancies with their company logos", async () => {
           data: mSSoftwareEngineeringJob,
         },
         { id: opaccJob.id, data: opaccJob },
+        { id: panterJob.id, data: panterJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 104,
-        jobsAdded: 104,
+        jobsFound: 105,
+        jobsAdded: 105,
         sourceErrors: {},
         warning: null,
       });
@@ -3195,6 +3209,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Löwenfels Partner AG")).toBeInTheDocument();
   expect(screen.getByText("M&S Software Engineering AG")).toBeInTheDocument();
   expect(screen.getByText("Opacc Software AG")).toBeInTheDocument();
+  expect(screen.getByText("Panter AG")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -3230,7 +3245,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 104 of 104 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG",
+      "Added 105 of 105 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -3340,6 +3355,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "loewenfels",
       "m_s_software_engineering",
       "opacc",
+      "panter",
     ],
     aiAnalysisEnabled: true,
   });
@@ -3664,6 +3680,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Opacc Software AG logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Panter AG logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -3870,6 +3889,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByText("Source: Opacc Software AG").length,
   ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Panter AG").length).toBeGreaterThan(0);
 }, 30_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

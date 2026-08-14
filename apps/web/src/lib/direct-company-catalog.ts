@@ -1012,6 +1012,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 84,
     logoHeight: 60,
   },
+  {
+    id: "panter",
+    name: "Panter AG",
+    careersUrl: "https://www.panter.ch/en/about-us/career/",
+    logoSrc: "/company-logos/panter.svg",
+    logoAlt: "Panter AG logo",
+    logoWidth: 114,
+    logoHeight: 30,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

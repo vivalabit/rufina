@@ -973,3 +973,22 @@ describe("Opacc Software AG Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("Panter AG Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "panter");
+
+    expect(company).toEqual({
+      id: "panter",
+      name: "Panter AG",
+      careersUrl: "https://www.panter.ch/en/about-us/career/",
+      logoSrc: "/company-logos/panter.svg",
+      logoAlt: "Panter AG logo",
+      logoWidth: 114,
+      logoHeight: 30,
+    });
+    expect(getDirectCompanyByJobId("panter-senior-ai-software-engineer")).toBe(
+      company,
+    );
+  });
+});
