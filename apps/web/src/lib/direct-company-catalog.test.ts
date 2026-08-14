@@ -897,3 +897,20 @@ describe("isolutions AG Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("IWF AG Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "iwf");
+
+    expect(company).toEqual({
+      id: "iwf",
+      name: "IWF AG",
+      careersUrl: "https://www.iwf.ch/web-solutions/jobs",
+      logoSrc: "/company-logos/iwf.svg",
+      logoAlt: "IWF AG logo",
+      logoWidth: 24,
+      logoHeight: 25,
+    });
+    expect(getDirectCompanyByJobId("iwf-agile-tester")).toBe(company);
+  });
+});

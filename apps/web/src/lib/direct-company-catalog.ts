@@ -976,6 +976,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 24,
     logoHeight: 25,
   },
+  {
+    id: "iwf",
+    name: "IWF AG",
+    careersUrl: "https://www.iwf.ch/web-solutions/jobs",
+    logoSrc: "/company-logos/iwf.svg",
+    logoAlt: "IWF AG logo",
+    logoWidth: 24,
+    logoHeight: 25,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

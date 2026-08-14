@@ -1641,6 +1641,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "isolutions_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="iwf",
+        name="IWF AG",
+        careers_url="https://www.iwf.ch/web-solutions/jobs",
+        parser_path="app.services.parsers.companies.iwf:IwfJobsParser",
+        settings_map=(
+            ("base_url", "iwf_jobs_base_url"),
+            ("timeout_seconds", "iwf_jobs_timeout_seconds"),
+            ("detail_workers", "iwf_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
