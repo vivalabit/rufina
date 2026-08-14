@@ -933,3 +933,24 @@ describe("Löwenfels Partner AG Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("loewenfels-76584")).toBe(company);
   });
 });
+
+describe("M&S Software Engineering AG Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "m_s_software_engineering",
+    );
+
+    expect(company).toEqual({
+      id: "m_s_software_engineering",
+      name: "M&S Software Engineering AG",
+      careersUrl: "https://www.m-s.ch/karriere/offene-stellen/",
+      logoSrc: "/company-logos/m-s-software-engineering.svg",
+      logoAlt: "M&S Software Engineering AG logo",
+      logoWidth: 110,
+      logoHeight: 34,
+    });
+    expect(
+      getDirectCompanyByJobId("m_s_software_engineering-tdpbva0dmo30y"),
+    ).toBe(company);
+  });
+});

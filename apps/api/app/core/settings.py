@@ -1172,6 +1172,16 @@ class Settings(BaseSettings):
     )
     loewenfels_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     loewenfels_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    m_s_software_engineering_jobs_base_url: str = (
+        "https://www.m-s.ch/karriere/offene-stellen/"
+    )
+    m_s_software_engineering_jobs_api_url: str = (
+        "https://m-s.onlyfy.io/job/list/s717ythviciiuecx51r1kx3pb1bowby"
+        "?format=json&lang=de&sorting_mode=date&sorting_dir=DESC&max_results=100"
+    )
+    m_s_software_engineering_jobs_timeout_seconds: float = Field(
+        default=30.0, ge=1, le=120
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

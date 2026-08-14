@@ -1664,6 +1664,20 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "loewenfels_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="m_s_software_engineering",
+        name="M&S Software Engineering AG",
+        careers_url="https://www.m-s.ch/karriere/offene-stellen/",
+        parser_path=(
+            "app.services.parsers.companies.m_s_software_engineering:"
+            "MSSoftwareEngineeringJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "m_s_software_engineering_jobs_base_url"),
+            ("api_url", "m_s_software_engineering_jobs_api_url"),
+            ("timeout_seconds", "m_s_software_engineering_jobs_timeout_seconds"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

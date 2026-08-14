@@ -994,6 +994,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 132,
     logoHeight: 24,
   },
+  {
+    id: "m_s_software_engineering",
+    name: "M&S Software Engineering AG",
+    careersUrl: "https://www.m-s.ch/karriere/offene-stellen/",
+    logoSrc: "/company-logos/m-s-software-engineering.svg",
+    logoAlt: "M&S Software Engineering AG logo",
+    logoWidth: 110,
+    logoHeight: 34,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
