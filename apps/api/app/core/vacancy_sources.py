@@ -1828,6 +1828,19 @@ DIRECT_COMPANY_PARSERS = (
             ),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="tx_group",
+        name="TX Group AG",
+        careers_url="https://jobs.tx.group/jobs",
+        parser_path="app.services.parsers.companies.tx_group:TxGroupJobsParser",
+        settings_map=(
+            ("base_url", "tx_group_jobs_base_url"),
+            ("feed_url", "tx_group_jobs_feed_url"),
+            ("timeout_seconds", "tx_group_jobs_timeout_seconds"),
+            ("max_jobs", "tx_group_jobs_max_jobs"),
+            ("max_catalog_passes", "tx_group_jobs_max_catalog_passes"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

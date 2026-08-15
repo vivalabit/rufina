@@ -1095,6 +1095,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 53,
     logoHeight: 40,
   },
+  {
+    id: "tx_group",
+    name: "TX Group AG",
+    careersUrl: "https://jobs.tx.group/jobs",
+    logoSrc: "/company-logos/tx-group.svg",
+    logoAlt: "TX Group AG logo",
+    logoWidth: 112,
+    logoHeight: 32,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

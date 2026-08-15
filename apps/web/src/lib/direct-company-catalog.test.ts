@@ -1154,3 +1154,20 @@ describe("PwC Switzerland Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("TX Group AG Direct Company catalog entry", () => {
+  it("uses the official Teamtailor careers page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "tx_group");
+
+    expect(company).toEqual({
+      id: "tx_group",
+      name: "TX Group AG",
+      careersUrl: "https://jobs.tx.group/jobs",
+      logoSrc: "/company-logos/tx-group.svg",
+      logoAlt: "TX Group AG logo",
+      logoWidth: 112,
+      logoHeight: 32,
+    });
+    expect(getDirectCompanyByJobId("tx_group-8172175")).toBe(company);
+  });
+});

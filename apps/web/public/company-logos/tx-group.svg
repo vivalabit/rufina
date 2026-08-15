@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 224 64" role="img" aria-labelledby="title">
+  <title id="title">TX Group AG</title>
+  <rect width="224" height="64" rx="8" fill="#172935"/>
+  <path fill="#00da91" d="M20 15h42v10H46v26H36V25H20zm45 0h12l10 11 10-11h12L93 32l17 19H98L87 38 76 51H64l17-19z"/>
+  <text x="120" y="40" fill="#fff" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" letter-spacing="1">GROUP</text>
+</svg>
