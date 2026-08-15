@@ -1013,3 +1013,20 @@ describe("Digital Architects Zurich GmbH Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("UMB AG Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "umb");
+
+    expect(company).toEqual({
+      id: "umb",
+      name: "UMB AG",
+      careersUrl: "https://www.umb.ch/unternehmen/it-jobs-bei-umb",
+      logoSrc: "/company-logos/umb.svg",
+      logoAlt: "UMB AG logo",
+      logoWidth: 95,
+      logoHeight: 31,
+    });
+    expect(getDirectCompanyByJobId("umb-744000143231549")).toBe(company);
+  });
+});

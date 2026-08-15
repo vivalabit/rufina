@@ -1030,6 +1030,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 30,
     logoHeight: 30,
   },
+  {
+    id: "umb",
+    name: "UMB AG",
+    careersUrl: "https://www.umb.ch/unternehmen/it-jobs-bei-umb",
+    logoSrc: "/company-logos/umb.svg",
+    logoAlt: "UMB AG logo",
+    logoWidth: 95,
+    logoHeight: 31,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

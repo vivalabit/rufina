@@ -1714,6 +1714,20 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "digital_architects_zurich_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="umb",
+        name="UMB AG",
+        careers_url="https://www.umb.ch/unternehmen/it-jobs-bei-umb",
+        parser_path="app.services.parsers.companies.umb:UmbJobsParser",
+        settings_map=(
+            ("base_url", "umb_jobs_base_url"),
+            ("api_url", "umb_jobs_api_url"),
+            ("timeout_seconds", "umb_jobs_timeout_seconds"),
+            ("max_pages", "umb_jobs_max_pages"),
+            ("max_catalog_passes", "umb_jobs_max_catalog_passes"),
+            ("detail_workers", "umb_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

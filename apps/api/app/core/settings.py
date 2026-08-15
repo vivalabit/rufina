@@ -1197,6 +1197,14 @@ class Settings(BaseSettings):
     digital_architects_zurich_jobs_detail_workers: int = Field(
         default=8, ge=1, le=20
     )
+    umb_jobs_base_url: str = "https://www.umb.ch/unternehmen/it-jobs-bei-umb"
+    umb_jobs_api_url: str = (
+        "https://api.smartrecruiters.com/v1/companies/UMBAG1/postings"
+    )
+    umb_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    umb_jobs_max_pages: int = Field(default=20, ge=1, le=200)
+    umb_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
+    umb_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,
