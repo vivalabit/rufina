@@ -1049,3 +1049,20 @@ describe("Webtouch GmbH Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("Manor AG Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "manor");
+
+    expect(company).toEqual({
+      id: "manor",
+      name: "Manor AG",
+      careersUrl: "https://careers.manor.ch/de/offene-stellen/offene-stellen",
+      logoSrc: "/company-logos/manor.svg",
+      logoAlt: "Manor AG logo",
+      logoWidth: 120,
+      logoHeight: 40,
+    });
+    expect(getDirectCompanyByJobId("manor-4041835")).toBe(company);
+  });
+});

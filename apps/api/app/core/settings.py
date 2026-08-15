@@ -1209,6 +1209,14 @@ class Settings(BaseSettings):
     webtouch_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     webtouch_jobs_max_jobs: int = Field(default=100, ge=1, le=1000)
     webtouch_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    manor_jobs_base_url: str = (
+        "https://careers.manor.ch/de/offene-stellen/offene-stellen"
+    )
+    manor_jobs_feed_url: str = "https://live.solique.ch/manor/de/jobs/"
+    manor_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    manor_jobs_max_pages: int = Field(default=50, ge=1, le=200)
+    manor_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
+    manor_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

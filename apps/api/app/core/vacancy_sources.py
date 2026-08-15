@@ -1740,6 +1740,20 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "webtouch_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="manor",
+        name="Manor AG",
+        careers_url="https://careers.manor.ch/de/offene-stellen/offene-stellen",
+        parser_path="app.services.parsers.companies.manor:ManorJobsParser",
+        settings_map=(
+            ("base_url", "manor_jobs_base_url"),
+            ("feed_url", "manor_jobs_feed_url"),
+            ("timeout_seconds", "manor_jobs_timeout_seconds"),
+            ("max_pages", "manor_jobs_max_pages"),
+            ("max_catalog_passes", "manor_jobs_max_catalog_passes"),
+            ("detail_workers", "manor_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

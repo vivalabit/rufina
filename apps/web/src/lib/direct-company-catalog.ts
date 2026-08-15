@@ -1048,6 +1048,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 131,
     logoHeight: 17,
   },
+  {
+    id: "manor",
+    name: "Manor AG",
+    careersUrl: "https://careers.manor.ch/de/offene-stellen/offene-stellen",
+    logoSrc: "/company-logos/manor.svg",
+    logoAlt: "Manor AG logo",
+    logoWidth: 120,
+    logoHeight: 40,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
