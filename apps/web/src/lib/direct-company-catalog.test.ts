@@ -1109,3 +1109,25 @@ describe("V-ZUG AG Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("Lindt & Sprüngli (Schweiz) AG Direct Company catalog entry", () => {
+  it("uses the official Swiss hiring-company facet and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "lindt_spruengli_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "lindt_spruengli_switzerland",
+      name: "Lindt & Sprüngli (Schweiz) AG",
+      careersUrl:
+        "https://lindtspruengli.wd103.myworkdayjobs.com/LindtSpruengliGroupCareers?hiringCompany=6ef234644ca31000c2704c6d47960000",
+      logoSrc: "/company-logos/lindt-spruengli.svg",
+      logoAlt: "Lindt & Sprüngli (Schweiz) AG logo",
+      logoWidth: 102,
+      logoHeight: 30,
+    });
+    expect(
+      getDirectCompanyByJobId("lindt_spruengli_switzerland-jr102591"),
+    ).toBe(company);
+  });
+});

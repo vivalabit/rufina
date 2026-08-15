@@ -1783,6 +1783,32 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "vzug_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="lindt_spruengli_switzerland",
+        name="Lindt & Sprüngli (Schweiz) AG",
+        careers_url=(
+            "https://lindtspruengli.wd103.myworkdayjobs.com/"
+            "LindtSpruengliGroupCareers?"
+            "hiringCompany=6ef234644ca31000c2704c6d47960000"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.lindt_spruengli_switzerland:"
+            "LindtSpruengliSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "lindt_spruengli_switzerland_jobs_base_url"),
+            ("timeout_seconds", "lindt_spruengli_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "lindt_spruengli_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "lindt_spruengli_switzerland_jobs_max_catalog_passes",
+            ),
+            (
+                "detail_workers",
+                "lindt_spruengli_switzerland_jobs_detail_workers",
+            ),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

@@ -1232,6 +1232,31 @@ class Settings(BaseSettings):
     vzug_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     vzug_jobs_max_jobs: int = Field(default=200, ge=1, le=1000)
     vzug_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    lindt_spruengli_switzerland_jobs_base_url: str = (
+        "https://lindtspruengli.wd103.myworkdayjobs.com/"
+        "LindtSpruengliGroupCareers?"
+        "hiringCompany=6ef234644ca31000c2704c6d47960000"
+    )
+    lindt_spruengli_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    lindt_spruengli_switzerland_jobs_max_pages: int = Field(
+        default=100,
+        ge=1,
+        le=500,
+    )
+    lindt_spruengli_switzerland_jobs_max_catalog_passes: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+    )
+    lindt_spruengli_switzerland_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,
