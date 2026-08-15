@@ -66,6 +66,28 @@ describe("Komax Group Direct Company catalog entry", () => {
   });
 });
 
+describe("BearingPoint Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "bearingpoint_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "bearingpoint_switzerland",
+      name: "BearingPoint Switzerland",
+      careersUrl:
+        "https://www.bearingpoint.com/de-ch/karriere/stellenangebote/?country=CH",
+      logoSrc: "/company-logos/bearingpoint.svg",
+      logoAlt: "BearingPoint Switzerland logo",
+      logoWidth: 120,
+      logoHeight: 20,
+    });
+    expect(getDirectCompanyByJobId("bearingpoint_switzerland-T7760115")).toBe(
+      company,
+    );
+  });
+});
+
 describe("Edorex Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "edorex");

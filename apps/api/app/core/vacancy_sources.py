@@ -1485,6 +1485,28 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="bearingpoint_switzerland",
+        name="BearingPoint Switzerland",
+        careers_url=(
+            "https://www.bearingpoint.com/de-ch/karriere/stellenangebote/?country=CH"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.bearingpoint_switzerland:"
+            "BearingpointSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "bearingpoint_switzerland_jobs_base_url"),
+            ("feed_url_de", "bearingpoint_switzerland_jobs_feed_url_de"),
+            ("feed_url_en", "bearingpoint_switzerland_jobs_feed_url_en"),
+            ("timeout_seconds", "bearingpoint_switzerland_jobs_timeout_seconds"),
+            ("max_jobs", "bearingpoint_switzerland_jobs_max_jobs"),
+            (
+                "max_catalog_passes",
+                "bearingpoint_switzerland_jobs_max_catalog_passes",
+            ),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="infoguard",
         name="InfoGuard",
         careers_url="https://www.infoguard.ch/en/career",

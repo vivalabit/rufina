@@ -1102,6 +1102,22 @@ class Settings(BaseSettings):
     komax_group_jobs_max_pages: int = Field(default=20, ge=1, le=200)
     komax_group_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
     komax_group_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    bearingpoint_switzerland_jobs_base_url: str = (
+        "https://www.bearingpoint.com/de-ch/karriere/stellenangebote/?country=CH"
+    )
+    bearingpoint_switzerland_jobs_feed_url_de: str = (
+        "https://bearingpointag.teamtailor.com/jobs.json"
+    )
+    bearingpoint_switzerland_jobs_feed_url_en: str = (
+        "https://bearingpointag.teamtailor.com/en/jobs.json"
+    )
+    bearingpoint_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0, ge=1, le=120
+    )
+    bearingpoint_switzerland_jobs_max_jobs: int = Field(default=100, ge=1, le=500)
+    bearingpoint_switzerland_jobs_max_catalog_passes: int = Field(
+        default=3, ge=1, le=20
+    )
     infoguard_jobs_base_url: str = "https://www.infoguard.ch/en/career"
     infoguard_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     infoguard_jobs_detail_workers: int = Field(default=8, ge=1, le=20)

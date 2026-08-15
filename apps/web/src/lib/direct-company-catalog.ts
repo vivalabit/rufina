@@ -859,6 +859,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "bearingpoint_switzerland",
+    name: "BearingPoint Switzerland",
+    careersUrl:
+      "https://www.bearingpoint.com/de-ch/karriere/stellenangebote/?country=CH",
+    logoSrc: "/company-logos/bearingpoint.svg",
+    logoAlt: "BearingPoint Switzerland logo",
+    logoWidth: 120,
+    logoHeight: 20,
+  },
+  {
     id: "infoguard",
     name: "InfoGuard",
     careersUrl: "https://www.infoguard.ch/en/career",
