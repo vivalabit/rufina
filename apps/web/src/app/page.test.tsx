@@ -169,7 +169,8 @@ function importedJobData({
     | "digital_architects_zurich"
     | "umb"
     | "webtouch"
-    | "manor";
+    | "manor"
+    | "salt_mobile";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -486,9 +487,12 @@ function importedJobData({
                                                                                                                                                                                                                                   : source ===
                                                                                                                                                                                                                                       "webtouch"
                                                                                                                                                                                                                                     ? "Webtouch GmbH"
+                                                                                                                                                                                                                                  : source ===
+                                                                                                                                                                                                                                      "manor"
+                                                                                                                                                                                                                                    ? "Manor AG"
                                                                                                                                                                                                                                     : source ===
-                                                                                                                                                                                                                                        "manor"
-                                                                                                                                                                                                                                      ? "Manor AG"
+                                                                                                                                                                                                                                        "salt_mobile"
+                                                                                                                                                                                                                                      ? "Salt Mobile SA"
                                                                                                                                                                                                                                       : "LinkedIn";
   return {
     id,
@@ -803,9 +807,12 @@ function importedJobData({
                                                                                                                                                                                                                                 : source ===
                                                                                                                                                                                                                                     "webtouch"
                                                                                                                                                                                                                                   ? "Webtouch GmbH"
+                                                                                                                                                                                                                                : source ===
+                                                                                                                                                                                                                                    "manor"
+                                                                                                                                                                                                                                  ? "Manor AG"
                                                                                                                                                                                                                                   : source ===
-                                                                                                                                                                                                                                      "manor"
-                                                                                                                                                                                                                                    ? "Manor AG"
+                                                                                                                                                                                                                                      "salt_mobile"
+                                                                                                                                                                                                                                    ? "Salt Mobile SA"
                                                                                                                                                                                                                                     : "Example AG",
     title,
     location: "Zurich",
@@ -927,7 +934,8 @@ function importedJobData({
       source === "digital_architects_zurich" ||
       source === "umb" ||
       source === "webtouch" ||
-      source === "manor"
+      source === "manor" ||
+      source === "salt_mobile"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -2975,6 +2983,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Polydesigner*in 3D at Manor",
         source: "manor",
       });
+      const saltMobileJob = importedJobData({
+        id: "salt_mobile-b6bb546f-f060-4a80-98bb-cc5d31f82a54",
+        title: "Customer Onboarding & Migration Specialist at Salt Mobile",
+        source: "salt_mobile",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -3124,11 +3137,12 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: umbJob.id, data: umbJob },
         { id: webtouchJob.id, data: webtouchJob },
         { id: manorJob.id, data: manorJob },
+        { id: saltMobileJob.id, data: saltMobileJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 109,
-        jobsAdded: 109,
+        jobsFound: 110,
+        jobsAdded: 110,
         sourceErrors: {},
         warning: null,
       });
@@ -3275,6 +3289,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("UMB AG")).toBeInTheDocument();
   expect(screen.getByText("Webtouch GmbH")).toBeInTheDocument();
   expect(screen.getByText("Manor AG")).toBeInTheDocument();
+  expect(screen.getByText("Salt Mobile SA")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -3310,7 +3325,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 109 of 109 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH + UMB AG + Webtouch GmbH + Manor AG",
+      "Added 110 of 110 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH + UMB AG + Webtouch GmbH + Manor AG + Salt Mobile SA",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -3425,6 +3440,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "umb",
       "webtouch",
       "manor",
+      "salt_mobile",
     ],
     aiAnalysisEnabled: true,
   });
@@ -3766,6 +3782,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Manor AG logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Salt Mobile SA logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -3981,6 +4000,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     0,
   );
   expect(screen.getAllByText("Source: Manor AG").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Salt Mobile SA").length).toBeGreaterThan(
+    0,
+  );
 }, 30_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

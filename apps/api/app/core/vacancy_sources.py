@@ -1754,6 +1754,22 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "manor_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="salt_mobile",
+        name="Salt Mobile SA",
+        careers_url=(
+            "https://company.jobcloud.ch/de/job-list/"
+            "1772460841133x163767963229093900?embedded=yes"
+        ),
+        parser_path="app.services.parsers.companies.salt_mobile:SaltMobileJobsParser",
+        settings_map=(
+            ("base_url", "salt_mobile_jobs_base_url"),
+            ("timeout_seconds", "salt_mobile_jobs_timeout_seconds"),
+            ("max_pages", "salt_mobile_jobs_max_pages"),
+            ("max_catalog_passes", "salt_mobile_jobs_max_catalog_passes"),
+            ("detail_workers", "salt_mobile_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

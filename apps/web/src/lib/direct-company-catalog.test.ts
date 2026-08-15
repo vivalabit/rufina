@@ -1066,3 +1066,27 @@ describe("Manor AG Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("manor-4041835")).toBe(company);
   });
 });
+
+describe("Salt Mobile SA Direct Company catalog entry", () => {
+  it("uses the official JobCloud-hosted careers page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "salt_mobile",
+    );
+
+    expect(company).toEqual({
+      id: "salt_mobile",
+      name: "Salt Mobile SA",
+      careersUrl:
+        "https://company.jobcloud.ch/de/job-list/1772460841133x163767963229093900?embedded=yes",
+      logoSrc: "/company-logos/salt-mobile.svg",
+      logoAlt: "Salt Mobile SA logo",
+      logoWidth: 100,
+      logoHeight: 40,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "salt_mobile-b6bb546f-f060-4a80-98bb-cc5d31f82a54",
+      ),
+    ).toBe(company);
+  });
+});

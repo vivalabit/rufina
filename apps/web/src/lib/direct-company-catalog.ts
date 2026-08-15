@@ -1057,6 +1057,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 120,
     logoHeight: 40,
   },
+  {
+    id: "salt_mobile",
+    name: "Salt Mobile SA",
+    careersUrl:
+      "https://company.jobcloud.ch/de/job-list/1772460841133x163767963229093900?embedded=yes",
+    logoSrc: "/company-logos/salt-mobile.svg",
+    logoAlt: "Salt Mobile SA logo",
+    logoWidth: 100,
+    logoHeight: 40,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
