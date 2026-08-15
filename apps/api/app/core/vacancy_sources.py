@@ -1852,6 +1852,17 @@ DIRECT_COMPANY_PARSERS = (
             ("max_jobs", "artificialy_jobs_max_jobs"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="cyon",
+        name="cyon AG",
+        careers_url="https://www.cyon.ch/ueber-cyon/jobs",
+        parser_path="app.services.parsers.companies.cyon:CyonJobsParser",
+        settings_map=(
+            ("base_url", "cyon_jobs_base_url"),
+            ("timeout_seconds", "cyon_jobs_timeout_seconds"),
+            ("max_jobs", "cyon_jobs_max_jobs"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

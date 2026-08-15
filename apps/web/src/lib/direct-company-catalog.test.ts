@@ -1190,3 +1190,22 @@ describe("Artificialy SA Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("artificialy-4440007645")).toBe(company);
   });
 });
+
+describe("cyon AG Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "cyon");
+
+    expect(company).toEqual({
+      id: "cyon",
+      name: "cyon AG",
+      careersUrl: "https://www.cyon.ch/ueber-cyon/jobs",
+      logoSrc: "/company-logos/cyon.svg",
+      logoAlt: "cyon AG logo",
+      logoWidth: 107,
+      logoHeight: 40,
+    });
+    expect(
+      getDirectCompanyByJobId("cyon-d46bed06fa68418c88ef3d14927e138a"),
+    ).toBe(company);
+  });
+});

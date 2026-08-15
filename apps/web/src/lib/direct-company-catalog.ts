@@ -1113,6 +1113,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 38,
     logoHeight: 32,
   },
+  {
+    id: "cyon",
+    name: "cyon AG",
+    careersUrl: "https://www.cyon.ch/ueber-cyon/jobs",
+    logoSrc: "/company-logos/cyon.svg",
+    logoAlt: "cyon AG logo",
+    logoWidth: 107,
+    logoHeight: 40,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

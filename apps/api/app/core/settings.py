@@ -1274,6 +1274,9 @@ class Settings(BaseSettings):
     artificialy_jobs_base_url: str = "https://www.artificialy.com/career"
     artificialy_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     artificialy_jobs_max_jobs: int = Field(default=100, ge=1, le=1000)
+    cyon_jobs_base_url: str = "https://www.cyon.ch/ueber-cyon/jobs"
+    cyon_jobs_timeout_seconds: float = Field(default=45.0, ge=1, le=120)
+    cyon_jobs_max_jobs: int = Field(default=100, ge=1, le=1000)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,
