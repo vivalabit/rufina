@@ -1131,3 +1131,26 @@ describe("Lindt & Sprüngli (Schweiz) AG Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("PwC Switzerland Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "pwc_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "pwc_switzerland",
+      name: "PwC Switzerland",
+      careersUrl: "https://www.pwc.ch/en/careers-with-pwc/open-positions.html",
+      logoSrc: "/company-logos/pwc-switzerland.svg",
+      logoAlt: "PwC Switzerland logo",
+      logoWidth: 53,
+      logoHeight: 40,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "pwc_switzerland-00000000-0000-4000-8000-000000000001",
+      ),
+    ).toBe(company);
+  });
+});

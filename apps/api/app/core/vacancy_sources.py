@@ -1809,6 +1809,25 @@ DIRECT_COMPANY_PARSERS = (
             ),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="pwc_switzerland",
+        name="PwC Switzerland",
+        careers_url="https://www.pwc.ch/en/careers-with-pwc/open-positions.html",
+        parser_path=(
+            "app.services.parsers.companies.pwc_switzerland:"
+            "PwcSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "pwc_switzerland_jobs_base_url"),
+            ("api_url", "pwc_switzerland_jobs_api_url"),
+            ("timeout_seconds", "pwc_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "pwc_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "pwc_switzerland_jobs_max_catalog_passes",
+            ),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

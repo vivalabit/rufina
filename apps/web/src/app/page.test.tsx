@@ -172,7 +172,8 @@ function importedJobData({
     | "manor"
     | "salt_mobile"
     | "vzug"
-    | "lindt_spruengli_switzerland";
+    | "lindt_spruengli_switzerland"
+    | "pwc_switzerland";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -501,7 +502,10 @@ function importedJobData({
                                                                                                                                                                                                                                             : source ===
                                                                                                                                                                                                                                                 "lindt_spruengli_switzerland"
                                                                                                                                                                                                                                               ? "Lindt & Sprüngli (Schweiz) AG"
-                                                                                                                                                                                                                                              : "LinkedIn";
+                                                                                                                                                                                                                                              : source ===
+                                                                                                                                                                                                                                                  "pwc_switzerland"
+                                                                                                                                                                                                                                                ? "PwC Switzerland"
+                                                                                                                                                                                                                                                : "LinkedIn";
   return {
     id,
     company:
@@ -827,7 +831,10 @@ function importedJobData({
                                                                                                                                                                                                                                           : source ===
                                                                                                                                                                                                                                               "lindt_spruengli_switzerland"
                                                                                                                                                                                                                                             ? "Lindt & Sprüngli (Schweiz) AG"
-                                                                                                                                                                                                                                            : "Example AG",
+                                                                                                                                                                                                                                            : source ===
+                                                                                                                                                                                                                                                "pwc_switzerland"
+                                                                                                                                                                                                                                              ? "PwC Switzerland"
+                                                                                                                                                                                                                                              : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -951,7 +958,8 @@ function importedJobData({
       source === "manor" ||
       source === "salt_mobile" ||
       source === "vzug" ||
-      source === "lindt_spruengli_switzerland"
+      source === "lindt_spruengli_switzerland" ||
+      source === "pwc_switzerland"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -3014,6 +3022,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Patissier*in 90% at Lindt & Sprüngli",
         source: "lindt_spruengli_switzerland",
       });
+      const pwcSwitzerlandJob = importedJobData({
+        id: "pwc_switzerland-00000000-0000-4000-8000-000000000001",
+        title: "Consultant at PwC Switzerland",
+        source: "pwc_switzerland",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -3169,11 +3182,12 @@ it("shows direct-company vacancies with their company logos", async () => {
           id: lindtSpruengliSwitzerlandJob.id,
           data: lindtSpruengliSwitzerlandJob,
         },
+        { id: pwcSwitzerlandJob.id, data: pwcSwitzerlandJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 112,
-        jobsAdded: 112,
+        jobsFound: 113,
+        jobsAdded: 113,
         sourceErrors: {},
         warning: null,
       });
@@ -3323,6 +3337,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Salt Mobile SA")).toBeInTheDocument();
   expect(screen.getByText("V-ZUG AG")).toBeInTheDocument();
   expect(screen.getByText("Lindt & Sprüngli (Schweiz) AG")).toBeInTheDocument();
+  expect(screen.getByText("PwC Switzerland")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -3358,7 +3373,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 112 of 112 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH + UMB AG + Webtouch GmbH + Manor AG + Salt Mobile SA + V-ZUG AG + Lindt & Sprüngli (Schweiz) AG",
+      "Added 113 of 113 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH + UMB AG + Webtouch GmbH + Manor AG + Salt Mobile SA + V-ZUG AG + Lindt & Sprüngli (Schweiz) AG + PwC Switzerland",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -3476,6 +3491,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "salt_mobile",
       "vzug",
       "lindt_spruengli_switzerland",
+      "pwc_switzerland",
     ],
     aiAnalysisEnabled: true,
   });
@@ -3828,6 +3844,9 @@ it("shows direct-company vacancies with their company logos", async () => {
       name: "Lindt & Sprüngli (Schweiz) AG logo",
     }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "PwC Switzerland logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -4050,6 +4069,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByText("Source: Lindt & Sprüngli (Schweiz) AG").length,
   ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: PwC Switzerland").length).toBeGreaterThan(
+    0,
+  );
 }, 30_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

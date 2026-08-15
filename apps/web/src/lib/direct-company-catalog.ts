@@ -1086,6 +1086,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 102,
     logoHeight: 30,
   },
+  {
+    id: "pwc_switzerland",
+    name: "PwC Switzerland",
+    careersUrl: "https://www.pwc.ch/en/careers-with-pwc/open-positions.html",
+    logoSrc: "/company-logos/pwc-switzerland.svg",
+    logoAlt: "PwC Switzerland logo",
+    logoWidth: 53,
+    logoHeight: 40,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
