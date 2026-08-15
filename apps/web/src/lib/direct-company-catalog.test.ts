@@ -1171,3 +1171,22 @@ describe("TX Group AG Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("tx_group-8172175")).toBe(company);
   });
 });
+
+describe("Artificialy SA Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "artificialy",
+    );
+
+    expect(company).toEqual({
+      id: "artificialy",
+      name: "Artificialy SA",
+      careersUrl: "https://www.artificialy.com/career",
+      logoSrc: "/company-logos/artificialy.svg",
+      logoAlt: "Artificialy SA logo",
+      logoWidth: 38,
+      logoHeight: 32,
+    });
+    expect(getDirectCompanyByJobId("artificialy-4440007645")).toBe(company);
+  });
+});

@@ -1841,6 +1841,17 @@ DIRECT_COMPANY_PARSERS = (
             ("max_catalog_passes", "tx_group_jobs_max_catalog_passes"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="artificialy",
+        name="Artificialy SA",
+        careers_url="https://www.artificialy.com/career",
+        parser_path="app.services.parsers.companies.artificialy:ArtificialyJobsParser",
+        settings_map=(
+            ("base_url", "artificialy_jobs_base_url"),
+            ("timeout_seconds", "artificialy_jobs_timeout_seconds"),
+            ("max_jobs", "artificialy_jobs_max_jobs"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

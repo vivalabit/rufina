@@ -1271,6 +1271,9 @@ class Settings(BaseSettings):
     tx_group_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     tx_group_jobs_max_jobs: int = Field(default=500, ge=1, le=2000)
     tx_group_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
+    artificialy_jobs_base_url: str = "https://www.artificialy.com/career"
+    artificialy_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    artificialy_jobs_max_jobs: int = Field(default=100, ge=1, le=1000)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

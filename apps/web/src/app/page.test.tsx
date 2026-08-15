@@ -174,7 +174,8 @@ function importedJobData({
     | "vzug"
     | "lindt_spruengli_switzerland"
     | "pwc_switzerland"
-    | "tx_group";
+    | "tx_group"
+    | "artificialy";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -509,7 +510,10 @@ function importedJobData({
                                                                                                                                                                                                                                                 : source ===
                                                                                                                                                                                                                                                     "tx_group"
                                                                                                                                                                                                                                                   ? "TX Group AG"
-                                                                                                                                                                                                                                                  : "LinkedIn";
+                                                                                                                                                                                                                                                  : source ===
+                                                                                                                                                                                                                                                      "artificialy"
+                                                                                                                                                                                                                                                    ? "Artificialy SA"
+                                                                                                                                                                                                                                                    : "LinkedIn";
   return {
     id,
     company:
@@ -841,7 +845,10 @@ function importedJobData({
                                                                                                                                                                                                                                               : source ===
                                                                                                                                                                                                                                                   "tx_group"
                                                                                                                                                                                                                                                 ? "TX Group AG"
-                                                                                                                                                                                                                                                : "Example AG",
+                                                                                                                                                                                                                                                : source ===
+                                                                                                                                                                                                                                                    "artificialy"
+                                                                                                                                                                                                                                                  ? "Artificialy SA"
+                                                                                                                                                                                                                                                  : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -967,7 +974,8 @@ function importedJobData({
       source === "vzug" ||
       source === "lindt_spruengli_switzerland" ||
       source === "pwc_switzerland" ||
-      source === "tx_group"
+      source === "tx_group" ||
+      source === "artificialy"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -3040,6 +3048,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Lehre als Kauffrau / Kaufmann EFZ at TX Group",
         source: "tx_group",
       });
+      const artificialyJob = importedJobData({
+        id: "artificialy-4440007645",
+        title: "AI Engineer at Artificialy",
+        source: "artificialy",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -3197,11 +3210,12 @@ it("shows direct-company vacancies with their company logos", async () => {
         },
         { id: pwcSwitzerlandJob.id, data: pwcSwitzerlandJob },
         { id: txGroupJob.id, data: txGroupJob },
+        { id: artificialyJob.id, data: artificialyJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 114,
-        jobsAdded: 114,
+        jobsFound: 115,
+        jobsAdded: 115,
         sourceErrors: {},
         warning: null,
       });
@@ -3353,6 +3367,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Lindt & Sprüngli (Schweiz) AG")).toBeInTheDocument();
   expect(screen.getByText("PwC Switzerland")).toBeInTheDocument();
   expect(screen.getByText("TX Group AG")).toBeInTheDocument();
+  expect(screen.getByText("Artificialy SA")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -3388,7 +3403,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 114 of 114 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH + UMB AG + Webtouch GmbH + Manor AG + Salt Mobile SA + V-ZUG AG + Lindt & Sprüngli (Schweiz) AG + PwC Switzerland + TX Group AG",
+      "Added 115 of 115 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH + UMB AG + Webtouch GmbH + Manor AG + Salt Mobile SA + V-ZUG AG + Lindt & Sprüngli (Schweiz) AG + PwC Switzerland + TX Group AG + Artificialy SA",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -3508,6 +3523,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "lindt_spruengli_switzerland",
       "pwc_switzerland",
       "tx_group",
+      "artificialy",
     ],
     aiAnalysisEnabled: true,
   });
@@ -3866,6 +3882,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "TX Group AG logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Artificialy SA logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -4092,6 +4111,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     0,
   );
   expect(screen.getAllByText("Source: TX Group AG").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Artificialy SA").length).toBeGreaterThan(
+    0,
+  );
 }, 30_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

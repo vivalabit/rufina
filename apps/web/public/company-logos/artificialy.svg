@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="38" height="32" viewBox="0 0 38 32" role="img" aria-labelledby="title">
+  <title id="title">Artificialy SA</title>
+  <g clip-path="url(#clip)">
+    <path d="M21.722 20.038H8.029L3.931 32H0L10.934 0h8.056l10.885 32h-3.878l-4.275-11.962Zm-1.052-3.285L15.492 1.078h-1.106L9.131 16.753H20.67Z" fill="#000"/>
+    <path d="M32.49 18.365v-8.119h5.472v8.119H32.49Zm-.058-10.418V0h2.029c.497-.006.989.09 1.447.284.427.183.808.458 1.116.805.322.365.566.791.72 1.251.177.524.263 1.073.256 1.625.007.552-.079 1.101-.256 1.625a3.49 3.49 0 0 1-.72 1.258 3.223 3.223 0 0 1-1.116.813 3.639 3.639 0 0 1-1.447.286h-2.029Z" fill="#0D4FE4"/>
+  </g>
+  <defs><clipPath id="clip"><path fill="#fff" d="M0 0h38v32H0z"/></clipPath></defs>
+</svg>

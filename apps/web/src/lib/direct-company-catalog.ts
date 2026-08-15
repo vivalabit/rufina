@@ -1104,6 +1104,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 112,
     logoHeight: 32,
   },
+  {
+    id: "artificialy",
+    name: "Artificialy SA",
+    careersUrl: "https://www.artificialy.com/career",
+    logoSrc: "/company-logos/artificialy.svg",
+    logoAlt: "Artificialy SA logo",
+    logoWidth: 38,
+    logoHeight: 32,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
