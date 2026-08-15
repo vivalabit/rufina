@@ -1464,6 +1464,27 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="komax_group",
+        name="Komax Group",
+        careers_url=(
+            "https://jobs.komaxgroup.com/search/?q=&locationsearch=switzerland&"
+            "searchResultView=LIST&pageNumber=0&facetFilters=%7B%7D&sortBy=&"
+            "markerViewed=&carouselIndex="
+        ),
+        parser_path=(
+            "app.services.parsers.companies.komax_group:"
+            "KomaxGroupJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "komax_group_jobs_base_url"),
+            ("api_url", "komax_group_jobs_api_url"),
+            ("timeout_seconds", "komax_group_jobs_timeout_seconds"),
+            ("max_pages", "komax_group_jobs_max_pages"),
+            ("max_catalog_passes", "komax_group_jobs_max_catalog_passes"),
+            ("detail_workers", "komax_group_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="infoguard",
         name="InfoGuard",
         careers_url="https://www.infoguard.ch/en/career",

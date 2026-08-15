@@ -849,6 +849,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "komax_group",
+    name: "Komax Group",
+    careersUrl:
+      "https://jobs.komaxgroup.com/search/?q=&locationsearch=switzerland&searchResultView=LIST&pageNumber=0&facetFilters=%7B%7D&sortBy=&markerViewed=&carouselIndex=",
+    logoSrc: "/company-logos/komax-group.svg",
+    logoAlt: "Komax Group logo",
+    logoWidth: 88,
+    logoHeight: 24,
+  },
+  {
     id: "infoguard",
     name: "InfoGuard",
     careersUrl: "https://www.infoguard.ch/en/career",

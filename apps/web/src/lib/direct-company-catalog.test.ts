@@ -46,6 +46,26 @@ describe("Dätwyler IT Infra Direct Company catalog entry", () => {
   });
 });
 
+describe("Komax Group Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "komax_group",
+    );
+
+    expect(company).toEqual({
+      id: "komax_group",
+      name: "Komax Group",
+      careersUrl:
+        "https://jobs.komaxgroup.com/search/?q=&locationsearch=switzerland&searchResultView=LIST&pageNumber=0&facetFilters=%7B%7D&sortBy=&markerViewed=&carouselIndex=",
+      logoSrc: "/company-logos/komax-group.svg",
+      logoAlt: "Komax Group logo",
+      logoWidth: 88,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("komax_group-2157")).toBe(company);
+  });
+});
+
 describe("Edorex Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "edorex");
