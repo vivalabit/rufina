@@ -167,7 +167,8 @@ function importedJobData({
     | "opacc"
     | "panter"
     | "digital_architects_zurich"
-    | "umb";
+    | "umb"
+    | "webtouch";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -481,7 +482,10 @@ function importedJobData({
                                                                                                                                                                                                                                   : source ===
                                                                                                                                                                                                                                       "umb"
                                                                                                                                                                                                                                     ? "UMB AG"
-                                                                                                                                                                                                                                    : "LinkedIn";
+                                                                                                                                                                                                                                    : source ===
+                                                                                                                                                                                                                                        "webtouch"
+                                                                                                                                                                                                                                      ? "Webtouch GmbH"
+                                                                                                                                                                                                                                      : "LinkedIn";
   return {
     id,
     company:
@@ -792,7 +796,10 @@ function importedJobData({
                                                                                                                                                                                                                                 : source ===
                                                                                                                                                                                                                                     "umb"
                                                                                                                                                                                                                                   ? "UMB AG"
-                                                                                                                                                                                                                                  : "Example AG",
+                                                                                                                                                                                                                                  : source ===
+                                                                                                                                                                                                                                      "webtouch"
+                                                                                                                                                                                                                                    ? "Webtouch GmbH"
+                                                                                                                                                                                                                                    : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -911,7 +918,8 @@ function importedJobData({
       source === "opacc" ||
       source === "panter" ||
       source === "digital_architects_zurich" ||
-      source === "umb"
+      source === "umb" ||
+      source === "webtouch"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -2949,6 +2957,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Senior System Engineer at UMB",
         source: "umb",
       });
+      const webtouchJob = importedJobData({
+        id: "webtouch-call-agent-in-b2b-outbound",
+        title: "Call Agent/in B2B Outbound at Webtouch",
+        source: "webtouch",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -3096,11 +3109,12 @@ it("shows direct-company vacancies with their company logos", async () => {
           data: digitalArchitectsZurichJob,
         },
         { id: umbJob.id, data: umbJob },
+        { id: webtouchJob.id, data: webtouchJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 107,
-        jobsAdded: 107,
+        jobsFound: 108,
+        jobsAdded: 108,
         sourceErrors: {},
         warning: null,
       });
@@ -3245,6 +3259,7 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getByText("Digital Architects Zurich GmbH"),
   ).toBeInTheDocument();
   expect(screen.getByText("UMB AG")).toBeInTheDocument();
+  expect(screen.getByText("Webtouch GmbH")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -3280,7 +3295,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 107 of 107 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH + UMB AG",
+      "Added 108 of 108 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH + UMB AG + Webtouch GmbH",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -3393,6 +3408,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "panter",
       "digital_architects_zurich",
       "umb",
+      "webtouch",
     ],
     aiAnalysisEnabled: true,
   });
@@ -3728,6 +3744,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "UMB AG logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Webtouch GmbH logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -3939,6 +3958,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getAllByText("Source: Digital Architects Zurich GmbH").length,
   ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: UMB AG").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Webtouch GmbH").length).toBeGreaterThan(
+    0,
+  );
 }, 30_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

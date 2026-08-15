@@ -1030,3 +1030,22 @@ describe("UMB AG Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("umb-744000143231549")).toBe(company);
   });
 });
+
+describe("Webtouch GmbH Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "webtouch");
+
+    expect(company).toEqual({
+      id: "webtouch",
+      name: "Webtouch GmbH",
+      careersUrl: "https://www.webtouch.ch/karriere",
+      logoSrc: "/company-logos/webtouch.svg",
+      logoAlt: "Webtouch GmbH logo",
+      logoWidth: 131,
+      logoHeight: 17,
+    });
+    expect(
+      getDirectCompanyByJobId("webtouch-call-agent-in-b2b-outbound"),
+    ).toBe(company);
+  });
+});

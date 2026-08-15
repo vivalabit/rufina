@@ -1728,6 +1728,18 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "umb_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="webtouch",
+        name="Webtouch GmbH",
+        careers_url="https://www.webtouch.ch/karriere",
+        parser_path="app.services.parsers.companies.webtouch:WebtouchJobsParser",
+        settings_map=(
+            ("base_url", "webtouch_jobs_base_url"),
+            ("timeout_seconds", "webtouch_jobs_timeout_seconds"),
+            ("max_jobs", "webtouch_jobs_max_jobs"),
+            ("detail_workers", "webtouch_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

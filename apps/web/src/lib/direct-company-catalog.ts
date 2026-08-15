@@ -1039,6 +1039,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 95,
     logoHeight: 31,
   },
+  {
+    id: "webtouch",
+    name: "Webtouch GmbH",
+    careersUrl: "https://www.webtouch.ch/karriere",
+    logoSrc: "/company-logos/webtouch.svg",
+    logoAlt: "Webtouch GmbH logo",
+    logoWidth: 131,
+    logoHeight: 17,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
