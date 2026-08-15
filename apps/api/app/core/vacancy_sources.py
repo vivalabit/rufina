@@ -1770,6 +1770,19 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "salt_mobile_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="vzug",
+        name="V-ZUG AG",
+        careers_url="https://www.vzug.com/ch/de/jobs",
+        parser_path="app.services.parsers.companies.vzug:VzugJobsParser",
+        settings_map=(
+            ("base_url", "vzug_jobs_base_url"),
+            ("catalog_url", "vzug_jobs_catalog_url"),
+            ("timeout_seconds", "vzug_jobs_timeout_seconds"),
+            ("max_jobs", "vzug_jobs_max_jobs"),
+            ("detail_workers", "vzug_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

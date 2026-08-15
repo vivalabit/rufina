@@ -1225,6 +1225,13 @@ class Settings(BaseSettings):
     salt_mobile_jobs_max_pages: int = Field(default=20, ge=1, le=200)
     salt_mobile_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
     salt_mobile_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    vzug_jobs_base_url: str = "https://www.vzug.com/ch/de/jobs"
+    vzug_jobs_catalog_url: str = (
+        "https://jobs.vzug.com/public/v1/careercenter/1002845/?lang=de"
+    )
+    vzug_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    vzug_jobs_max_jobs: int = Field(default=200, ge=1, le=1000)
+    vzug_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

@@ -1067,6 +1067,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 100,
     logoHeight: 40,
   },
+  {
+    id: "vzug",
+    name: "V-ZUG AG",
+    careersUrl: "https://www.vzug.com/ch/de/jobs",
+    logoSrc: "/company-logos/vzug.svg",
+    logoAlt: "V-ZUG AG logo",
+    logoWidth: 36,
+    logoHeight: 36,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

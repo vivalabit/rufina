@@ -1044,9 +1044,9 @@ describe("Webtouch GmbH Direct Company catalog entry", () => {
       logoWidth: 131,
       logoHeight: 17,
     });
-    expect(
-      getDirectCompanyByJobId("webtouch-call-agent-in-b2b-outbound"),
-    ).toBe(company);
+    expect(getDirectCompanyByJobId("webtouch-call-agent-in-b2b-outbound")).toBe(
+      company,
+    );
   });
 });
 
@@ -1087,6 +1087,25 @@ describe("Salt Mobile SA Direct Company catalog entry", () => {
       getDirectCompanyByJobId(
         "salt_mobile-b6bb546f-f060-4a80-98bb-cc5d31f82a54",
       ),
+    ).toBe(company);
+  });
+});
+
+describe("V-ZUG AG Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "vzug");
+
+    expect(company).toEqual({
+      id: "vzug",
+      name: "V-ZUG AG",
+      careersUrl: "https://www.vzug.com/ch/de/jobs",
+      logoSrc: "/company-logos/vzug.svg",
+      logoAlt: "V-ZUG AG logo",
+      logoWidth: 36,
+      logoHeight: 36,
+    });
+    expect(
+      getDirectCompanyByJobId("vzug-69b70fad-c7ef-4a6a-932f-db7a00ff345d"),
     ).toBe(company);
   });
 });
