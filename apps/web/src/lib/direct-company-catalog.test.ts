@@ -1653,3 +1653,23 @@ describe("Elektro-Material AG Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("CSL Switzerland Direct Company catalog entry", () => {
+  it("uses the official Swiss jobs filter and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "csl_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "csl_switzerland",
+      name: "CSL Switzerland",
+      careersUrl:
+        "https://jobs.csl.com/en/jobs?filterrific%5Bwith_location3%5D=switzerland&filterrific%5Bsorted_by%5D=newest",
+      logoSrc: "/company-logos/csl.svg",
+      logoAlt: "CSL logo",
+      logoWidth: 53,
+      logoHeight: 40,
+    });
+    expect(getDirectCompanyByJobId("csl_switzerland-283348")).toBe(company);
+  });
+});

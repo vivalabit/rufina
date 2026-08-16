@@ -1635,6 +1635,36 @@ class Settings(BaseSettings):
         ge=1,
         le=20,
     )
+    csl_switzerland_jobs_base_url: str = (
+        "https://jobs.csl.com/en/jobs?"
+        "filterrific%5Bsearch_by_title_and_description%5D=&"
+        "filterrific%5Bwith_location3%5D=switzerland&"
+        "filterrific%5Bwith_location2%5D=&"
+        "filterrific%5Bwith_location1%5D=&"
+        "filterrific%5Bwith_multiple_employment_types%5D%5B%5D=&"
+        "filterrific%5Bwith_remote%5D=0&"
+        "filterrific%5Bsorted_by%5D=newest"
+    )
+    csl_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    csl_switzerland_jobs_max_pages: int = Field(
+        default=50,
+        ge=1,
+        le=200,
+    )
+    csl_switzerland_jobs_max_catalog_passes: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+    )
+    csl_switzerland_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

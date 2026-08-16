@@ -1326,6 +1326,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 49,
     logoHeight: 40,
   },
+  {
+    id: "csl_switzerland",
+    name: "CSL Switzerland",
+    careersUrl:
+      "https://jobs.csl.com/en/jobs?filterrific%5Bwith_location3%5D=switzerland&filterrific%5Bsorted_by%5D=newest",
+    logoSrc: "/company-logos/csl.svg",
+    logoAlt: "CSL logo",
+    logoWidth: 53,
+    logoHeight: 40,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

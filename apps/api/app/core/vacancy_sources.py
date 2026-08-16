@@ -2309,6 +2309,29 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "elektro_material_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="csl_switzerland",
+        name="CSL Switzerland",
+        careers_url=(
+            "https://jobs.csl.com/en/jobs?"
+            "filterrific%5Bwith_location3%5D=switzerland&"
+            "filterrific%5Bsorted_by%5D=newest"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.csl_switzerland:"
+            "CslSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "csl_switzerland_jobs_base_url"),
+            ("timeout_seconds", "csl_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "csl_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "csl_switzerland_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "csl_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
