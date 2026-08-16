@@ -154,6 +154,27 @@ describe("Schneider Electric Switzerland Direct Company catalog entry", () => {
   });
 });
 
+describe("Bosch Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "bosch_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "bosch_switzerland",
+      name: "Bosch Switzerland",
+      careersUrl: "https://jobs.bosch.com/en/?pages=1&country=ch#",
+      logoSrc: "/company-logos/bosch.svg",
+      logoAlt: "Bosch Switzerland logo",
+      logoWidth: 143,
+      logoHeight: 32,
+    });
+    expect(getDirectCompanyByJobId("bosch_switzerland-REF293937G")).toBe(
+      company,
+    );
+  });
+});
+
 describe("InfoGuard Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

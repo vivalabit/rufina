@@ -2202,6 +2202,26 @@ DIRECT_COMPANY_PARSERS = (
             ),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="bosch_switzerland",
+        name="Bosch Switzerland",
+        careers_url="https://jobs.bosch.com/en/?pages=1&country=ch#",
+        parser_path=(
+            "app.services.parsers.companies.bosch_switzerland:"
+            "BoschSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "bosch_switzerland_jobs_base_url"),
+            ("timeout_seconds", "bosch_switzerland_jobs_timeout_seconds"),
+            ("page_size", "bosch_switzerland_jobs_page_size"),
+            ("max_pages", "bosch_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "bosch_switzerland_jobs_max_catalog_passes",
+            ),
+            ("page_workers", "bosch_switzerland_jobs_page_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

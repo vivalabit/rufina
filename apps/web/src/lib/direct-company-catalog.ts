@@ -1278,6 +1278,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 109,
     logoHeight: 32,
   },
+  {
+    id: "bosch_switzerland",
+    name: "Bosch Switzerland",
+    careersUrl: "https://jobs.bosch.com/en/?pages=1&country=ch#",
+    logoSrc: "/company-logos/bosch.svg",
+    logoAlt: "Bosch Switzerland logo",
+    logoWidth: 143,
+    logoHeight: 32,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
