@@ -1219,6 +1219,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 107,
     logoHeight: 40,
   },
+  {
+    id: "gsk_switzerland",
+    name: "GSK Switzerland",
+    careersUrl:
+      "https://jobs.gsk.com/gb/en/search-results?keywords=&location=Switzerland&lang=en-gb",
+    logoSrc: "/company-logos/gsk.svg",
+    logoAlt: "GSK Switzerland logo",
+    logoWidth: 40,
+    logoHeight: 40,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

@@ -2063,6 +2063,29 @@ DIRECT_COMPANY_PARSERS = (
             ("max_jobs", "cyon_jobs_max_jobs"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="gsk_switzerland",
+        name="GSK Switzerland",
+        careers_url=(
+            "https://jobs.gsk.com/gb/en/search-results?"
+            "keywords=&location=Switzerland&lang=en-gb"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.gsk_switzerland:"
+            "GskSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "gsk_switzerland_jobs_base_url"),
+            ("timeout_seconds", "gsk_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "gsk_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "gsk_switzerland_jobs_max_catalog_passes",
+            ),
+            ("page_workers", "gsk_switzerland_jobs_page_workers"),
+            ("detail_workers", "gsk_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

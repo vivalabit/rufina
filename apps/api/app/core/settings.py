@@ -1413,6 +1413,23 @@ class Settings(BaseSettings):
     cyon_jobs_base_url: str = "https://www.cyon.ch/ueber-cyon/jobs"
     cyon_jobs_timeout_seconds: float = Field(default=45.0, ge=1, le=120)
     cyon_jobs_max_jobs: int = Field(default=100, ge=1, le=1000)
+    gsk_switzerland_jobs_base_url: str = (
+        "https://jobs.gsk.com/gb/en/search-results?"
+        "keywords=&location=Switzerland&lang=en-gb"
+    )
+    gsk_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    gsk_switzerland_jobs_max_pages: int = Field(default=100, ge=1, le=500)
+    gsk_switzerland_jobs_max_catalog_passes: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+    )
+    gsk_switzerland_jobs_page_workers: int = Field(default=10, ge=1, le=20)
+    gsk_switzerland_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

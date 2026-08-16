@@ -27,6 +27,26 @@ describe("Gilead Sciences Switzerland Direct Company catalog entry", () => {
   });
 });
 
+describe("GSK Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "gsk_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "gsk_switzerland",
+      name: "GSK Switzerland",
+      careersUrl:
+        "https://jobs.gsk.com/gb/en/search-results?keywords=&location=Switzerland&lang=en-gb",
+      logoSrc: "/company-logos/gsk.svg",
+      logoAlt: "GSK Switzerland logo",
+      logoWidth: 40,
+      logoHeight: 40,
+    });
+    expect(getDirectCompanyByJobId("gsk_switzerland-445481")).toBe(company);
+  });
+});
+
 describe("InfoGuard Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(
