@@ -1555,6 +1555,21 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="amag_group",
+        name="AMAG Group",
+        careers_url="https://jobs.amag-group.ch/",
+        parser_path=(
+            "app.services.parsers.companies.amag_group:AmagGroupJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "amag_group_jobs_base_url"),
+            ("feed_url", "amag_group_jobs_feed_url"),
+            ("timeout_seconds", "amag_group_jobs_timeout_seconds"),
+            ("max_jobs", "amag_group_jobs_max_jobs"),
+            ("detail_workers", "amag_group_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="infoguard",
         name="InfoGuard",
         careers_url="https://www.infoguard.ch/en/career",

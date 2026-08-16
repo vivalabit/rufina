@@ -897,6 +897,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "amag_group",
+    name: "AMAG Group",
+    careersUrl: "https://jobs.amag-group.ch/",
+    logoSrc: "/company-logos/amag-group.svg",
+    logoAlt: "AMAG Group logo",
+    logoWidth: 19,
+    logoHeight: 24,
+  },
+  {
     id: "infoguard",
     name: "InfoGuard",
     careersUrl: "https://www.infoguard.ch/en/career",

@@ -150,6 +150,25 @@ describe("Swiss National Bank Direct Company catalog entry", () => {
   });
 });
 
+describe("AMAG Group Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "amag_group",
+    );
+
+    expect(company).toEqual({
+      id: "amag_group",
+      name: "AMAG Group",
+      careersUrl: "https://jobs.amag-group.ch/",
+      logoSrc: "/company-logos/amag-group.svg",
+      logoAlt: "AMAG Group logo",
+      logoWidth: 19,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("amag_group-23412")).toBe(company);
+  });
+});
+
 describe("Edorex Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "edorex");
