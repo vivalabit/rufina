@@ -132,6 +132,28 @@ describe("Zurich Insurance Direct Company catalog entry", () => {
   });
 });
 
+describe("Schneider Electric Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "schneider_electric_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "schneider_electric_switzerland",
+      name: "Schneider Electric Switzerland",
+      careersUrl:
+        "https://careers.se.com/jobs?lang=de-DE&country=Switzerland&page=1",
+      logoSrc: "/company-logos/schneider-electric.svg",
+      logoAlt: "Schneider Electric Switzerland logo",
+      logoWidth: 109,
+      logoHeight: 32,
+    });
+    expect(
+      getDirectCompanyByJobId("schneider_electric_switzerland-117294"),
+    ).toBe(company);
+  });
+});
+
 describe("InfoGuard Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

@@ -1495,6 +1495,29 @@ class Settings(BaseSettings):
         le=20,
     )
     zurich_insurance_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    schneider_electric_switzerland_jobs_base_url: str = (
+        "https://careers.se.com/jobs?lang=de-DE&country=Switzerland&page=1"
+    )
+    schneider_electric_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    schneider_electric_switzerland_jobs_max_pages: int = Field(
+        default=100,
+        ge=1,
+        le=500,
+    )
+    schneider_electric_switzerland_jobs_max_catalog_passes: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+    )
+    schneider_electric_switzerland_jobs_page_workers: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

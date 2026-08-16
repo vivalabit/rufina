@@ -2175,6 +2175,33 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "zurich_insurance_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="schneider_electric_switzerland",
+        name="Schneider Electric Switzerland",
+        careers_url=(
+            "https://careers.se.com/jobs?lang=de-DE&country=Switzerland&page=1"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.schneider_electric_switzerland:"
+            "SchneiderElectricSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "schneider_electric_switzerland_jobs_base_url"),
+            (
+                "timeout_seconds",
+                "schneider_electric_switzerland_jobs_timeout_seconds",
+            ),
+            ("max_pages", "schneider_electric_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "schneider_electric_switzerland_jobs_max_catalog_passes",
+            ),
+            (
+                "page_workers",
+                "schneider_electric_switzerland_jobs_page_workers",
+            ),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

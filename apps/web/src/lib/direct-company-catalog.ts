@@ -1268,6 +1268,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 83,
     logoHeight: 32,
   },
+  {
+    id: "schneider_electric_switzerland",
+    name: "Schneider Electric Switzerland",
+    careersUrl:
+      "https://careers.se.com/jobs?lang=de-DE&country=Switzerland&page=1",
+    logoSrc: "/company-logos/schneider-electric.svg",
+    logoAlt: "Schneider Electric Switzerland logo",
+    logoWidth: 109,
+    logoHeight: 32,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
