@@ -133,6 +133,23 @@ describe("BKW Switzerland Direct Company catalog entry", () => {
   });
 });
 
+describe("Swiss National Bank Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "snb");
+
+    expect(company).toEqual({
+      id: "snb",
+      name: "Swiss National Bank (SNB)",
+      careersUrl: "https://careers.snb.ch/search/?locale=de_DE",
+      logoSrc: "/company-logos/snb.svg",
+      logoAlt: "Swiss National Bank logo",
+      logoWidth: 146,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("snb-3453")).toBe(company);
+  });
+});
+
 describe("Edorex Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "edorex");

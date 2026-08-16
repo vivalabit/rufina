@@ -1141,6 +1141,12 @@ class Settings(BaseSettings):
     )
     bkw_switzerland_jobs_max_jobs: int = Field(default=2000, ge=1, le=5000)
     bkw_switzerland_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    snb_jobs_base_url: str = "https://careers.snb.ch/search/?locale=de_DE"
+    snb_jobs_api_url: str = "https://careers.snb.ch/services/recruiting/v1/jobs"
+    snb_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
+    snb_jobs_max_pages: int = Field(default=20, ge=1, le=200)
+    snb_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
+    snb_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     infoguard_jobs_base_url: str = "https://www.infoguard.ch/en/career"
     infoguard_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     infoguard_jobs_detail_workers: int = Field(default=8, ge=1, le=20)

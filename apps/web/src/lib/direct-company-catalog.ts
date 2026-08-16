@@ -888,6 +888,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "snb",
+    name: "Swiss National Bank (SNB)",
+    careersUrl: "https://careers.snb.ch/search/?locale=de_DE",
+    logoSrc: "/company-logos/snb.svg",
+    logoAlt: "Swiss National Bank logo",
+    logoWidth: 146,
+    logoHeight: 24,
+  },
+  {
     id: "infoguard",
     name: "InfoGuard",
     careersUrl: "https://www.infoguard.ch/en/career",

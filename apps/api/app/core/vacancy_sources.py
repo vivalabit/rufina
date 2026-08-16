@@ -1541,6 +1541,20 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="snb",
+        name="Swiss National Bank (SNB)",
+        careers_url="https://careers.snb.ch/search/?locale=de_DE",
+        parser_path="app.services.parsers.companies.snb:SnbJobsParser",
+        settings_map=(
+            ("base_url", "snb_jobs_base_url"),
+            ("api_url", "snb_jobs_api_url"),
+            ("timeout_seconds", "snb_jobs_timeout_seconds"),
+            ("max_pages", "snb_jobs_max_pages"),
+            ("max_catalog_passes", "snb_jobs_max_catalog_passes"),
+            ("detail_workers", "snb_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="infoguard",
         name="InfoGuard",
         careers_url="https://www.infoguard.ch/en/career",
