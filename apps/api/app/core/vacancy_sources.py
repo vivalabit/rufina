@@ -1617,6 +1617,31 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="bms_switzerland",
+        name="Bristol Myers Squibb Switzerland",
+        careers_url=(
+            "https://jobs.bms.com/careers?domain=bms.com&start=0&location=Switzerland&"
+            "pid=137482241804&sort_by=distance&filter_include_remote=1&"
+            "filter_include_relocation=0"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.bms_switzerland:"
+            "BmsSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "bms_switzerland_jobs_base_url"),
+            ("api_url", "bms_switzerland_jobs_api_url"),
+            ("detail_api_url", "bms_switzerland_jobs_detail_api_url"),
+            ("timeout_seconds", "bms_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "bms_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "bms_switzerland_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "bms_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="infoguard",
         name="InfoGuard",
         careers_url="https://www.infoguard.ch/en/career",

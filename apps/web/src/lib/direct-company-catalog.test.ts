@@ -213,6 +213,28 @@ describe("Biogen Switzerland Direct Company catalog entry", () => {
   });
 });
 
+describe("Bristol Myers Squibb Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "bms_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "bms_switzerland",
+      name: "Bristol Myers Squibb Switzerland",
+      careersUrl:
+        "https://jobs.bms.com/careers?domain=bms.com&start=0&location=Switzerland&pid=137482241804&sort_by=distance&filter_include_remote=1&filter_include_relocation=0",
+      logoSrc: "/company-logos/bms.svg",
+      logoAlt: "Bristol Myers Squibb Switzerland logo",
+      logoWidth: 169,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("bms_switzerland-137482241804")).toBe(
+      company,
+    );
+  });
+});
+
 describe("Edorex Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "edorex");

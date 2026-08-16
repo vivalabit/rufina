@@ -926,6 +926,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "bms_switzerland",
+    name: "Bristol Myers Squibb Switzerland",
+    careersUrl:
+      "https://jobs.bms.com/careers?domain=bms.com&start=0&location=Switzerland&pid=137482241804&sort_by=distance&filter_include_remote=1&filter_include_relocation=0",
+    logoSrc: "/company-logos/bms.svg",
+    logoAlt: "Bristol Myers Squibb Switzerland logo",
+    logoWidth: 169,
+    logoHeight: 24,
+  },
+  {
     id: "infoguard",
     name: "InfoGuard",
     careersUrl: "https://www.infoguard.ch/en/career",

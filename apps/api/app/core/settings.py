@@ -1187,6 +1187,25 @@ class Settings(BaseSettings):
     biogen_switzerland_jobs_detail_workers: int = Field(
         default=8, ge=1, le=20
     )
+    bms_switzerland_jobs_base_url: str = (
+        "https://jobs.bms.com/careers?domain=bms.com&start=0&location=Switzerland&"
+        "pid=137482241804&sort_by=distance&filter_include_remote=1&"
+        "filter_include_relocation=0"
+    )
+    bms_switzerland_jobs_api_url: str = "https://jobs.bms.com/api/pcsx/search"
+    bms_switzerland_jobs_detail_api_url: str = (
+        "https://jobs.bms.com/api/pcsx/position_details"
+    )
+    bms_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0, ge=1, le=120
+    )
+    bms_switzerland_jobs_max_pages: int = Field(default=100, ge=1, le=500)
+    bms_switzerland_jobs_max_catalog_passes: int = Field(
+        default=3, ge=1, le=20
+    )
+    bms_switzerland_jobs_detail_workers: int = Field(
+        default=8, ge=1, le=20
+    )
     infoguard_jobs_base_url: str = "https://www.infoguard.ch/en/career"
     infoguard_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     infoguard_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
