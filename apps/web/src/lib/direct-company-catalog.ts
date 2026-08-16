@@ -1239,6 +1239,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 196,
     logoHeight: 30,
   },
+  {
+    id: "takeda_switzerland",
+    name: "Takeda Switzerland",
+    careersUrl: "https://jobs.takeda.com/search-jobs",
+    logoSrc: "/company-logos/takeda.svg",
+    logoAlt: "Takeda Switzerland logo",
+    logoWidth: 113,
+    logoHeight: 40,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

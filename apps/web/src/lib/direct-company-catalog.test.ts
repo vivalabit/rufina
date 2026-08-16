@@ -69,6 +69,27 @@ describe("Sanofi Switzerland Direct Company catalog entry", () => {
   });
 });
 
+describe("Takeda Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "takeda_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "takeda_switzerland",
+      name: "Takeda Switzerland",
+      careersUrl: "https://jobs.takeda.com/search-jobs",
+      logoSrc: "/company-logos/takeda.svg",
+      logoAlt: "Takeda Switzerland logo",
+      logoWidth: 113,
+      logoHeight: 40,
+    });
+    expect(getDirectCompanyByJobId("takeda_switzerland-99191848720")).toBe(
+      company,
+    );
+  });
+});
+
 describe("InfoGuard Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(
