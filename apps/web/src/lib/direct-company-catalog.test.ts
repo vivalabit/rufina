@@ -110,6 +110,28 @@ describe("Johnson & Johnson Switzerland Direct Company catalog entry", () => {
   });
 });
 
+describe("Zurich Insurance Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "zurich_insurance",
+    );
+
+    expect(company).toEqual({
+      id: "zurich_insurance",
+      name: "Zurich Insurance",
+      careersUrl:
+        "https://www.careers.zurich.com/search/?createNewAlert=false&q=&locationsearch=zurich&optionsFacetsDD_shifttype=&optionsFacetsDD_department=&optionsFacetsDD_customfield3=",
+      logoSrc: "/company-logos/zurich-insurance.svg",
+      logoAlt: "Zurich Insurance logo",
+      logoWidth: 83,
+      logoHeight: 32,
+    });
+    expect(getDirectCompanyByJobId("zurich_insurance-1369305757")).toBe(
+      company,
+    );
+  });
+});
+
 describe("InfoGuard Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

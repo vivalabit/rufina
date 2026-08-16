@@ -2152,6 +2152,29 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "jnj_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="zurich_insurance",
+        name="Zurich Insurance",
+        careers_url=(
+            "https://www.careers.zurich.com/search/?createNewAlert=false&q="
+            "&locationsearch=zurich&optionsFacetsDD_shifttype="
+            "&optionsFacetsDD_department=&optionsFacetsDD_customfield3="
+        ),
+        parser_path=(
+            "app.services.parsers.companies.zurich_insurance:"
+            "ZurichInsuranceJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "zurich_insurance_jobs_base_url"),
+            ("timeout_seconds", "zurich_insurance_jobs_timeout_seconds"),
+            ("max_pages", "zurich_insurance_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "zurich_insurance_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "zurich_insurance_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

@@ -1258,6 +1258,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 154,
     logoHeight: 15,
   },
+  {
+    id: "zurich_insurance",
+    name: "Zurich Insurance",
+    careersUrl:
+      "https://www.careers.zurich.com/search/?createNewAlert=false&q=&locationsearch=zurich&optionsFacetsDD_shifttype=&optionsFacetsDD_department=&optionsFacetsDD_customfield3=",
+    logoSrc: "/company-logos/zurich-insurance.svg",
+    logoAlt: "Zurich Insurance logo",
+    logoWidth: 83,
+    logoHeight: 32,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
