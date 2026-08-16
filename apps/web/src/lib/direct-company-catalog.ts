@@ -916,6 +916,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "biogen_switzerland",
+    name: "Biogen Switzerland",
+    careersUrl:
+      "https://biibhr.wd3.myworkdayjobs.com/external?locationCountry=187134fccb084a0ea9b4b95f23890dbe",
+    logoSrc: "/company-logos/biogen.svg",
+    logoAlt: "Biogen Switzerland logo",
+    logoWidth: 69,
+    logoHeight: 24,
+  },
+  {
     id: "infoguard",
     name: "InfoGuard",
     careersUrl: "https://www.infoguard.ch/en/career",

@@ -191,6 +191,28 @@ describe("Bayer Switzerland Direct Company catalog entry", () => {
   });
 });
 
+describe("Biogen Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "biogen_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "biogen_switzerland",
+      name: "Biogen Switzerland",
+      careersUrl:
+        "https://biibhr.wd3.myworkdayjobs.com/external?locationCountry=187134fccb084a0ea9b4b95f23890dbe",
+      logoSrc: "/company-logos/biogen.svg",
+      logoAlt: "Biogen Switzerland logo",
+      logoWidth: 69,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("biogen_switzerland-REQ23932")).toBe(
+      company,
+    );
+  });
+});
+
 describe("Edorex Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "edorex");
