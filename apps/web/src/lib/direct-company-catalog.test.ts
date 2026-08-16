@@ -1631,3 +1631,25 @@ describe("Sonova Group Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("sonova_switzerland-164409")).toBe(company);
   });
 });
+
+describe("Elektro-Material AG Direct Company catalog entry", () => {
+  it("uses the official open-positions page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "elektro_material",
+    );
+
+    expect(company).toEqual({
+      id: "elektro_material",
+      name: "Elektro-Material AG",
+      careersUrl:
+        "https://elektro-material.ch/de/cms/seite/offene-stellen-t33143s226453a4614994",
+      logoSrc: "/company-logos/elektro-material.svg",
+      logoAlt: "Elektro-Material AG logo",
+      logoWidth: 49,
+      logoHeight: 40,
+    });
+    expect(getDirectCompanyByJobId("elektro_material-744000139266729")).toBe(
+      company,
+    );
+  });
+});

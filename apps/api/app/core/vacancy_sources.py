@@ -2283,6 +2283,32 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "sonova_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="elektro_material",
+        name="Elektro-Material AG",
+        careers_url=(
+            "https://elektro-material.ch/de/cms/seite/"
+            "offene-stellen-t33143s226453a4614994"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.elektro_material:"
+            "ElektroMaterialJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "elektro_material_jobs_base_url"),
+            ("cms_api_url", "elektro_material_jobs_cms_api_url"),
+            (
+                "smartrecruiters_api_url",
+                "elektro_material_jobs_smartrecruiters_api_url",
+            ),
+            ("timeout_seconds", "elektro_material_jobs_timeout_seconds"),
+            (
+                "max_catalog_records",
+                "elektro_material_jobs_max_catalog_records",
+            ),
+            ("detail_workers", "elektro_material_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

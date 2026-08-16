@@ -1609,6 +1609,32 @@ class Settings(BaseSettings):
         ge=1,
         le=20,
     )
+    elektro_material_jobs_base_url: str = (
+        "https://elektro-material.ch/de/cms/seite/"
+        "offene-stellen-t33143s226453a4614994"
+    )
+    elektro_material_jobs_cms_api_url: str = (
+        "https://www.elektro-material.ch/emwebservices/v2/elektromaterial/"
+        "cms/pages"
+    )
+    elektro_material_jobs_smartrecruiters_api_url: str = (
+        "https://api.smartrecruiters.com/v1/companies/REXEL1/postings"
+    )
+    elektro_material_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    elektro_material_jobs_max_catalog_records: int = Field(
+        default=100,
+        ge=1,
+        le=2_000,
+    )
+    elektro_material_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

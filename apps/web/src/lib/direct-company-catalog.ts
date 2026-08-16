@@ -1316,6 +1316,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 40,
     logoHeight: 40,
   },
+  {
+    id: "elektro_material",
+    name: "Elektro-Material AG",
+    careersUrl:
+      "https://elektro-material.ch/de/cms/seite/offene-stellen-t33143s226453a4614994",
+    logoSrc: "/company-logos/elektro-material.svg",
+    logoAlt: "Elektro-Material AG logo",
+    logoWidth: 49,
+    logoHeight: 40,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
