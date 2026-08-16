@@ -2240,6 +2240,28 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "eviden_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="schindler_switzerland",
+        name="Schindler Group",
+        careers_url=(
+            "https://job.schindler.com/search/?createNewAlert=false&q="
+            "&locationsearch=&optionsFacetsDD_country=CH"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.schindler_switzerland:"
+            "SchindlerSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "schindler_switzerland_jobs_base_url"),
+            ("timeout_seconds", "schindler_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "schindler_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "schindler_switzerland_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "schindler_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

@@ -1296,6 +1296,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 160,
     logoHeight: 32,
   },
+  {
+    id: "schindler_switzerland",
+    name: "Schindler Group",
+    careersUrl:
+      "https://job.schindler.com/search/?createNewAlert=false&q=&locationsearch=&optionsFacetsDD_country=CH",
+    logoSrc: "/company-logos/schindler.svg",
+    logoAlt: "Schindler Group logo",
+    logoWidth: 40,
+    logoHeight: 40,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

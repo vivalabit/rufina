@@ -1589,3 +1589,25 @@ describe("cyon AG Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("Schindler Group Direct Company catalog entry", () => {
+  it("uses the official Swiss SuccessFactors facet and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "schindler_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "schindler_switzerland",
+      name: "Schindler Group",
+      careersUrl:
+        "https://job.schindler.com/search/?createNewAlert=false&q=&locationsearch=&optionsFacetsDD_country=CH",
+      logoSrc: "/company-logos/schindler.svg",
+      logoAlt: "Schindler Group logo",
+      logoWidth: 40,
+      logoHeight: 40,
+    });
+    expect(getDirectCompanyByJobId("schindler_switzerland-1416306233")).toBe(
+      company,
+    );
+  });
+});
