@@ -2129,6 +2129,29 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "takeda_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="jnj_switzerland",
+        name="Johnson & Johnson Switzerland",
+        careers_url=(
+            "https://www.careers.jnj.com/en/jobs/?"
+            "search=&country=Switzerland&origin=global"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.jnj_switzerland:"
+            "JnjSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "jnj_switzerland_jobs_base_url"),
+            ("timeout_seconds", "jnj_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "jnj_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "jnj_switzerland_jobs_max_catalog_passes",
+            ),
+            ("page_workers", "jnj_switzerland_jobs_page_workers"),
+            ("detail_workers", "jnj_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

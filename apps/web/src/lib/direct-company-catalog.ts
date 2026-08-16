@@ -1248,6 +1248,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 113,
     logoHeight: 40,
   },
+  {
+    id: "jnj_switzerland",
+    name: "Johnson & Johnson Switzerland",
+    careersUrl:
+      "https://www.careers.jnj.com/en/jobs/?search=&country=Switzerland&origin=global",
+    logoSrc: "/company-logos/johnson-and-johnson.svg",
+    logoAlt: "Johnson & Johnson Switzerland logo",
+    logoWidth: 154,
+    logoHeight: 15,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

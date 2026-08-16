@@ -90,6 +90,26 @@ describe("Takeda Switzerland Direct Company catalog entry", () => {
   });
 });
 
+describe("Johnson & Johnson Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "jnj_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "jnj_switzerland",
+      name: "Johnson & Johnson Switzerland",
+      careersUrl:
+        "https://www.careers.jnj.com/en/jobs/?search=&country=Switzerland&origin=global",
+      logoSrc: "/company-logos/johnson-and-johnson.svg",
+      logoAlt: "Johnson & Johnson Switzerland logo",
+      logoWidth: 154,
+      logoHeight: 15,
+    });
+    expect(getDirectCompanyByJobId("jnj_switzerland-r-093101")).toBe(company);
+  });
+});
+
 describe("InfoGuard Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(
