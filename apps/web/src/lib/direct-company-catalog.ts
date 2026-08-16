@@ -1287,6 +1287,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 143,
     logoHeight: 32,
   },
+  {
+    id: "eviden_switzerland",
+    name: "Eviden Switzerland",
+    careersUrl: "https://eviden.com/careers/?country=CH",
+    logoSrc: "/company-logos/eviden.svg",
+    logoAlt: "Eviden Switzerland logo",
+    logoWidth: 160,
+    logoHeight: 32,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

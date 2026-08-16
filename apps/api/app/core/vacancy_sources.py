@@ -2222,6 +2222,24 @@ DIRECT_COMPANY_PARSERS = (
             ("page_workers", "bosch_switzerland_jobs_page_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="eviden_switzerland",
+        name="Eviden Switzerland",
+        careers_url="https://eviden.com/careers/?country=CH",
+        parser_path=(
+            "app.services.parsers.companies.eviden_switzerland:"
+            "EvidenSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "eviden_switzerland_jobs_base_url"),
+            ("timeout_seconds", "eviden_switzerland_jobs_timeout_seconds"),
+            (
+                "max_catalog_records",
+                "eviden_switzerland_jobs_max_catalog_records",
+            ),
+            ("detail_workers", "eviden_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

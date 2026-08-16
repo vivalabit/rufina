@@ -175,6 +175,27 @@ describe("Bosch Switzerland Direct Company catalog entry", () => {
   });
 });
 
+describe("Eviden Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "eviden_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "eviden_switzerland",
+      name: "Eviden Switzerland",
+      careersUrl: "https://eviden.com/careers/?country=CH",
+      logoSrc: "/company-logos/eviden.svg",
+      logoAlt: "Eviden Switzerland logo",
+      logoWidth: 160,
+      logoHeight: 32,
+    });
+    expect(getDirectCompanyByJobId("eviden_switzerland-550075")).toBe(
+      company,
+    );
+  });
+});
+
 describe("InfoGuard Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(
