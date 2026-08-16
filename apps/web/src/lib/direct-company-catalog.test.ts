@@ -88,6 +88,28 @@ describe("BearingPoint Switzerland Direct Company catalog entry", () => {
   });
 });
 
+describe("Julius Baer Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "julius_baer_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "julius_baer_switzerland",
+      name: "Julius Baer Switzerland",
+      careersUrl:
+        "https://juliusbaer.wd3.myworkdayjobs.com/en-US/External?Location_Country=187134fccb084a0ea9b4b95f23890dbe",
+      logoSrc: "/company-logos/julius-baer.svg",
+      logoAlt: "Julius Baer Switzerland logo",
+      logoWidth: 121,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("julius_baer_switzerland-r-19350")).toBe(
+      company,
+    );
+  });
+});
+
 describe("Edorex Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "edorex");

@@ -1507,6 +1507,24 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="julius_baer_switzerland",
+        name="Julius Baer Switzerland",
+        careers_url=(
+            "https://juliusbaer.wd3.myworkdayjobs.com/en-US/External?"
+            "Location_Country=187134fccb084a0ea9b4b95f23890dbe"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.julius_baer_switzerland:"
+            "JuliusBaerSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "julius_baer_switzerland_jobs_base_url"),
+            ("timeout_seconds", "julius_baer_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "julius_baer_switzerland_jobs_max_pages"),
+            ("detail_workers", "julius_baer_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="infoguard",
         name="InfoGuard",
         careers_url="https://www.infoguard.ch/en/career",

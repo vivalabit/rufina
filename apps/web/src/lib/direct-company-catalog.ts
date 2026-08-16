@@ -869,6 +869,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 20,
   },
   {
+    id: "julius_baer_switzerland",
+    name: "Julius Baer Switzerland",
+    careersUrl:
+      "https://juliusbaer.wd3.myworkdayjobs.com/en-US/External?Location_Country=187134fccb084a0ea9b4b95f23890dbe",
+    logoSrc: "/company-logos/julius-baer.svg",
+    logoAlt: "Julius Baer Switzerland logo",
+    logoWidth: 121,
+    logoHeight: 24,
+  },
+  {
     id: "infoguard",
     name: "InfoGuard",
     careersUrl: "https://www.infoguard.ch/en/career",
