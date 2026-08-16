@@ -1588,6 +1588,27 @@ class Settings(BaseSettings):
         ge=1,
         le=20,
     )
+    sonova_switzerland_jobs_base_url: str = (
+        "https://www.sonova.com/careers/?query-1-job-country=switzerland"
+    )
+    sonova_switzerland_jobs_api_url: str = (
+        "https://www.sonova.com/en/jobs_list/active?lang=en"
+    )
+    sonova_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    sonova_switzerland_jobs_max_catalog_records: int = Field(
+        default=2_000,
+        ge=1,
+        le=20_000,
+    )
+    sonova_switzerland_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

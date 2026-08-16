@@ -1306,6 +1306,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 40,
     logoHeight: 40,
   },
+  {
+    id: "sonova_switzerland",
+    name: "Sonova Group",
+    careersUrl:
+      "https://www.sonova.com/careers/?query-1-job-country=switzerland",
+    logoSrc: "/company-logos/sonova.svg",
+    logoAlt: "Sonova Group logo",
+    logoWidth: 40,
+    logoHeight: 40,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

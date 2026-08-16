@@ -2262,6 +2262,27 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "schindler_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="sonova_switzerland",
+        name="Sonova Group",
+        careers_url=(
+            "https://www.sonova.com/careers/?query-1-job-country=switzerland"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.sonova_switzerland:"
+            "SonovaSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "sonova_switzerland_jobs_base_url"),
+            ("api_url", "sonova_switzerland_jobs_api_url"),
+            ("timeout_seconds", "sonova_switzerland_jobs_timeout_seconds"),
+            (
+                "max_catalog_records",
+                "sonova_switzerland_jobs_max_catalog_records",
+            ),
+            ("detail_workers", "sonova_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

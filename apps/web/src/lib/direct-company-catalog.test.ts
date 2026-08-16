@@ -1611,3 +1611,23 @@ describe("Schindler Group Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("Sonova Group Direct Company catalog entry", () => {
+  it("uses the official Swiss careers facet and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "sonova_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "sonova_switzerland",
+      name: "Sonova Group",
+      careersUrl:
+        "https://www.sonova.com/careers/?query-1-job-country=switzerland",
+      logoSrc: "/company-logos/sonova.svg",
+      logoAlt: "Sonova Group logo",
+      logoWidth: 40,
+      logoHeight: 40,
+    });
+    expect(getDirectCompanyByJobId("sonova_switzerland-164409")).toBe(company);
+  });
+});
