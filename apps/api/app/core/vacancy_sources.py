@@ -1570,6 +1570,31 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="bayer_switzerland",
+        name="Bayer Switzerland",
+        careers_url=(
+            "https://talent.bayer.com/careers?"
+            "location=Basel%2CBasel-City%2CSwitzerland&pid=562949977567067&"
+            "job%20type=professional&job%20type=job%20starter&job%20type=student&"
+            "job%20type=graduate&domain=bayer.com&sort_by=relevance&triggerGoButton=false"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.bayer_switzerland:"
+            "BayerSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "bayer_switzerland_jobs_base_url"),
+            ("api_url", "bayer_switzerland_jobs_api_url"),
+            ("timeout_seconds", "bayer_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "bayer_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "bayer_switzerland_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "bayer_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="infoguard",
         name="InfoGuard",
         careers_url="https://www.infoguard.ch/en/career",

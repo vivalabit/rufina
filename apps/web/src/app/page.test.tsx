@@ -153,6 +153,7 @@ function importedJobData({
     | "bkw_switzerland"
     | "snb"
     | "amag_group"
+    | "bayer_switzerland"
     | "infoguard"
     | "six_group"
     | "comerge"
@@ -425,6 +426,9 @@ function importedJobData({
                                                                                                                                                                                       "amag_group"
                                                                                                                                                                                     ? "AMAG Group"
                                                                                                                                                                                     : source ===
+                                                                                                                                                                                        "bayer_switzerland"
+                                                                                                                                                                                      ? "Bayer Switzerland"
+                                                                                                                                                                                      : source ===
                                                                                                                                                                                       "infoguard"
                                                                                                                                                                                     ? "InfoGuard"
                                                                                                                                                                                     : source ===
@@ -781,6 +785,9 @@ function importedJobData({
                                                                                                                                                                                     "amag_group"
                                                                                                                                                                                   ? "AMAG Group"
                                                                                                                                                                                   : source ===
+                                                                                                                                                                                      "bayer_switzerland"
+                                                                                                                                                                                    ? "Bayer"
+                                                                                                                                                                                    : source ===
                                                                                                                                                                                     "infoguard"
                                                                                                                                                                                   ? "InfoGuard AG"
                                                                                                                                                                                   : source ===
@@ -1002,6 +1009,7 @@ function importedJobData({
       source === "bkw_switzerland" ||
       source === "snb" ||
       source === "amag_group" ||
+      source === "bayer_switzerland" ||
       source === "infoguard" ||
       source === "six_group" ||
       source === "comerge" ||
@@ -2994,6 +3002,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "SAP Architekt at AMAG Group",
         source: "amag_group",
       });
+      const bayerSwitzerlandJob = importedJobData({
+        id: "bayer_switzerland-562949978313882",
+        title: "Plant Engineer at Bayer",
+        source: "bayer_switzerland",
+      });
       const infoGuardJob = importedJobData({
         id: "infoguard-incident-responder",
         title: "Incident Responder at InfoGuard",
@@ -3276,6 +3289,7 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: bkwSwitzerlandJob.id, data: bkwSwitzerlandJob },
         { id: snbJob.id, data: snbJob },
         { id: amagGroupJob.id, data: amagGroupJob },
+        { id: bayerSwitzerlandJob.id, data: bayerSwitzerlandJob },
         { id: infoGuardJob.id, data: infoGuardJob },
         { id: sixGroupJob.id, data: sixGroupJob },
         { id: comergeJob.id, data: comergeJob },
@@ -3318,8 +3332,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 122,
-        jobsAdded: 122,
+        jobsFound: 123,
+        jobsAdded: 123,
         sourceErrors: {},
         warning: null,
       });
@@ -3450,6 +3464,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("BKW Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Swiss National Bank (SNB)")).toBeInTheDocument();
   expect(screen.getByText("AMAG Group")).toBeInTheDocument();
+  expect(screen.getByText("Bayer Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Abraxas Informatik AG")).toBeInTheDocument();
   expect(screen.getByText("AKROS AG")).toBeInTheDocument();
   expect(screen.getByText("amétiq ag")).toBeInTheDocument();
@@ -3514,7 +3529,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 122 of 122 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + Komax Group + BearingPoint Switzerland + Julius Baer Switzerland + BKW Switzerland + Swiss National Bank (SNB) + AMAG Group + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH + UMB AG + Webtouch GmbH + Manor AG + Salt Mobile SA + V-ZUG AG + Lindt & Sprüngli (Schweiz) AG + PwC Switzerland + TX Group AG + Artificialy SA + cyon AG",
+      "Added 123 of 123 vacancies from Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + Komax Group + BearingPoint Switzerland + Julius Baer Switzerland + BKW Switzerland + Swiss National Bank (SNB) + AMAG Group + Bayer Switzerland + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH + UMB AG + Webtouch GmbH + Manor AG + Salt Mobile SA + V-ZUG AG + Lindt & Sprüngli (Schweiz) AG + PwC Switzerland + TX Group AG + Artificialy SA + cyon AG",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -3612,6 +3627,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "bkw_switzerland",
       "snb",
       "amag_group",
+      "bayer_switzerland",
       "infoguard",
       "six_group",
       "comerge",
@@ -3930,6 +3946,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getAllByRole("img", { name: "AMAG Group logo" }).length,
   ).toBeGreaterThan(0);
   expect(
+    screen.getAllByRole("img", { name: "Bayer Switzerland logo" }).length,
+  ).toBeGreaterThan(0);
+  expect(
     screen.getAllByRole("img", { name: "InfoGuard logo" }).length,
   ).toBeGreaterThan(0);
   expect(
@@ -4209,6 +4228,9 @@ it("shows direct-company vacancies with their company logos", async () => {
     screen.getAllByText("Source: Swiss National Bank (SNB)").length,
   ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: AMAG Group").length).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: Bayer Switzerland").length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: InfoGuard").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: SIX").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Comerge").length).toBeGreaterThan(0);

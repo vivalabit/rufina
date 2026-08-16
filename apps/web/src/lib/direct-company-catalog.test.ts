@@ -169,6 +169,28 @@ describe("AMAG Group Direct Company catalog entry", () => {
   });
 });
 
+describe("Bayer Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "bayer_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "bayer_switzerland",
+      name: "Bayer Switzerland",
+      careersUrl:
+        "https://talent.bayer.com/careers?location=Basel%2CBasel-City%2CSwitzerland&pid=562949977567067&job%20type=professional&job%20type=job%20starter&job%20type=student&job%20type=graduate&domain=bayer.com&sort_by=relevance&triggerGoButton=false",
+      logoSrc: "/company-logos/bayer.svg",
+      logoAlt: "Bayer Switzerland logo",
+      logoWidth: 24,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId("bayer_switzerland-562949978313882"),
+    ).toBe(company);
+  });
+});
+
 describe("Edorex Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "edorex");

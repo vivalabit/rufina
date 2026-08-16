@@ -906,6 +906,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "bayer_switzerland",
+    name: "Bayer Switzerland",
+    careersUrl:
+      "https://talent.bayer.com/careers?location=Basel%2CBasel-City%2CSwitzerland&pid=562949977567067&job%20type=professional&job%20type=job%20starter&job%20type=student&job%20type=graduate&domain=bayer.com&sort_by=relevance&triggerGoButton=false",
+    logoSrc: "/company-logos/bayer.svg",
+    logoAlt: "Bayer Switzerland logo",
+    logoWidth: 24,
+    logoHeight: 24,
+  },
+  {
     id: "infoguard",
     name: "InfoGuard",
     careersUrl: "https://www.infoguard.ch/en/career",

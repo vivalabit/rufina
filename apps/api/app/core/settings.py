@@ -1154,6 +1154,25 @@ class Settings(BaseSettings):
     amag_group_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     amag_group_jobs_max_jobs: int = Field(default=2000, ge=1, le=5000)
     amag_group_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    bayer_switzerland_jobs_base_url: str = (
+        "https://talent.bayer.com/careers?"
+        "location=Basel%2CBasel-City%2CSwitzerland&pid=562949977567067&"
+        "job%20type=professional&job%20type=job%20starter&job%20type=student&"
+        "job%20type=graduate&domain=bayer.com&sort_by=relevance&triggerGoButton=false"
+    )
+    bayer_switzerland_jobs_api_url: str = (
+        "https://talent.bayer.com/api/apply/v2/jobs"
+    )
+    bayer_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0, ge=1, le=120
+    )
+    bayer_switzerland_jobs_max_pages: int = Field(default=100, ge=1, le=500)
+    bayer_switzerland_jobs_max_catalog_passes: int = Field(
+        default=3, ge=1, le=20
+    )
+    bayer_switzerland_jobs_detail_workers: int = Field(
+        default=8, ge=1, le=20
+    )
     infoguard_jobs_base_url: str = "https://www.infoguard.ch/en/career"
     infoguard_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     infoguard_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
