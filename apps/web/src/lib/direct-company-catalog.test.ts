@@ -5,6 +5,28 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("Gilead Sciences Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "gilead_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "gilead_switzerland",
+      name: "Gilead Sciences Switzerland",
+      careersUrl:
+        "https://gilead.wd1.myworkdayjobs.com/gileadcareers?locations=173342972c1201e6f4862b77b074df3b",
+      logoSrc: "/company-logos/gilead.svg",
+      logoAlt: "Gilead Sciences Switzerland logo",
+      logoWidth: 149,
+      logoHeight: 40,
+    });
+    expect(getDirectCompanyByJobId("gilead_switzerland-r0053823")).toBe(
+      company,
+    );
+  });
+});
+
 describe("InfoGuard Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

@@ -48,6 +48,28 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="gilead_switzerland",
+        name="Gilead Sciences Switzerland",
+        careers_url=(
+            "https://gilead.wd1.myworkdayjobs.com/gileadcareers?"
+            "locations=173342972c1201e6f4862b77b074df3b"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.gilead_switzerland:"
+            "GileadSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "gilead_switzerland_jobs_base_url"),
+            ("timeout_seconds", "gilead_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "gilead_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "gilead_switzerland_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "gilead_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="galaxus",
         name="Galaxus",
         careers_url="https://jobs.migros.ch/de/unsere-unternehmen/galaxus/",

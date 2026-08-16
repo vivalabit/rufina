@@ -31,6 +31,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "gilead_switzerland",
+    name: "Gilead Sciences Switzerland",
+    careersUrl:
+      "https://gilead.wd1.myworkdayjobs.com/gileadcareers?locations=173342972c1201e6f4862b77b074df3b",
+    logoSrc: "/company-logos/gilead.svg",
+    logoAlt: "Gilead Sciences Switzerland logo",
+    logoWidth: 149,
+    logoHeight: 40,
+  },
+  {
     id: "galaxus",
     name: "Galaxus",
     careersUrl: "https://jobs.migros.ch/de/unsere-unternehmen/galaxus/",
