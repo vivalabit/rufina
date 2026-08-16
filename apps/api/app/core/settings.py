@@ -1131,6 +1131,16 @@ class Settings(BaseSettings):
     julius_baer_switzerland_jobs_detail_workers: int = Field(
         default=8, ge=1, le=20
     )
+    bkw_switzerland_jobs_base_url: str = "https://jobs.bkw.com/en/vacancies"
+    bkw_switzerland_jobs_api_url: str = (
+        "https://jobs.bkw.com/_api/v1/structureddata?"
+        "configFromContentElement=82381&language=en-ch"
+    )
+    bkw_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0, ge=1, le=120
+    )
+    bkw_switzerland_jobs_max_jobs: int = Field(default=2000, ge=1, le=5000)
+    bkw_switzerland_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
     infoguard_jobs_base_url: str = "https://www.infoguard.ch/en/career"
     infoguard_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     infoguard_jobs_detail_workers: int = Field(default=8, ge=1, le=20)

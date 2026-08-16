@@ -879,6 +879,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoHeight: 24,
   },
   {
+    id: "bkw_switzerland",
+    name: "BKW Switzerland",
+    careersUrl: "https://jobs.bkw.com/en/vacancies",
+    logoSrc: "/company-logos/bkw.svg",
+    logoAlt: "BKW Switzerland logo",
+    logoWidth: 66,
+    logoHeight: 24,
+  },
+  {
     id: "infoguard",
     name: "InfoGuard",
     careersUrl: "https://www.infoguard.ch/en/career",

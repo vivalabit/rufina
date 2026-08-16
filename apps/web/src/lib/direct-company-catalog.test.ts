@@ -110,6 +110,29 @@ describe("Julius Baer Switzerland Direct Company catalog entry", () => {
   });
 });
 
+describe("BKW Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "bkw_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "bkw_switzerland",
+      name: "BKW Switzerland",
+      careersUrl: "https://jobs.bkw.com/en/vacancies",
+      logoSrc: "/company-logos/bkw.svg",
+      logoAlt: "BKW Switzerland logo",
+      logoWidth: 66,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "bkw_switzerland-974955bb-343b-44e5-bfa9-af77587ef35d",
+      ),
+    ).toBe(company);
+  });
+});
+
 describe("Edorex Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "edorex");

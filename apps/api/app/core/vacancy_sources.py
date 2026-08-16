@@ -1525,6 +1525,22 @@ DIRECT_COMPANY_PARSERS = (
         ),
     ),
     DirectCompanyParserDefinition(
+        id="bkw_switzerland",
+        name="BKW Switzerland",
+        careers_url="https://jobs.bkw.com/en/vacancies",
+        parser_path=(
+            "app.services.parsers.companies.bkw_switzerland:"
+            "BkwSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "bkw_switzerland_jobs_base_url"),
+            ("api_url", "bkw_switzerland_jobs_api_url"),
+            ("timeout_seconds", "bkw_switzerland_jobs_timeout_seconds"),
+            ("max_jobs", "bkw_switzerland_jobs_max_jobs"),
+            ("detail_workers", "bkw_switzerland_jobs_detail_workers"),
+        ),
+    ),
+    DirectCompanyParserDefinition(
         id="infoguard",
         name="InfoGuard",
         careers_url="https://www.infoguard.ch/en/career",
