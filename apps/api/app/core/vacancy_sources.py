@@ -2086,6 +2086,29 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "gsk_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="sanofi_switzerland",
+        name="Sanofi Switzerland",
+        careers_url=(
+            "https://jobs.sanofi.com/en/search-jobs/Switzerland/2649/2/2658434/"
+            "47x00016/8x01427/50/2"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.sanofi_switzerland:"
+            "SanofiSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "sanofi_switzerland_jobs_base_url"),
+            ("timeout_seconds", "sanofi_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "sanofi_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "sanofi_switzerland_jobs_max_catalog_passes",
+            ),
+            ("page_workers", "sanofi_switzerland_jobs_page_workers"),
+            ("detail_workers", "sanofi_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

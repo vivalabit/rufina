@@ -47,6 +47,28 @@ describe("GSK Switzerland Direct Company catalog entry", () => {
   });
 });
 
+describe("Sanofi Switzerland Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "sanofi_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "sanofi_switzerland",
+      name: "Sanofi Switzerland",
+      careersUrl:
+        "https://jobs.sanofi.com/en/search-jobs/Switzerland/2649/2/2658434/47x00016/8x01427/50/2",
+      logoSrc: "/company-logos/sanofi.svg",
+      logoAlt: "Sanofi Switzerland logo",
+      logoWidth: 196,
+      logoHeight: 30,
+    });
+    expect(getDirectCompanyByJobId("sanofi_switzerland-42680975104")).toBe(
+      company,
+    );
+  });
+});
+
 describe("InfoGuard Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

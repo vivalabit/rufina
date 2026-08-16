@@ -1229,6 +1229,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 40,
     logoHeight: 40,
   },
+  {
+    id: "sanofi_switzerland",
+    name: "Sanofi Switzerland",
+    careersUrl:
+      "https://jobs.sanofi.com/en/search-jobs/Switzerland/2649/2/2658434/47x00016/8x01427/50/2",
+    logoSrc: "/company-logos/sanofi.svg",
+    logoAlt: "Sanofi Switzerland logo",
+    logoWidth: 196,
+    logoHeight: 30,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
