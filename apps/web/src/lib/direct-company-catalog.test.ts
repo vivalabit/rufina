@@ -1757,3 +1757,25 @@ describe("Digital Realty Switzerland Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("Equans Switzerland Direct Company catalog entry", () => {
+  it("uses the official Swiss jobs filter and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "equans_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "equans_switzerland",
+      name: "Equans Switzerland",
+      careersUrl:
+        "https://www.equans.com/join-us?jobs_offer%5BrefinementList%5D%5Bcountry_en%5D%5B0%5D=Switzerland",
+      logoSrc: "/company-logos/equans.svg",
+      logoAlt: "Equans Switzerland logo",
+      logoWidth: 134,
+      logoHeight: 40,
+    });
+    expect(getDirectCompanyByJobId("equans_switzerland-100001144")).toBe(
+      company,
+    );
+  });
+});

@@ -2423,6 +2423,30 @@ DIRECT_COMPANY_PARSERS = (
             ),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="equans_switzerland",
+        name="Equans Switzerland",
+        careers_url=(
+            "https://www.equans.com/join-us?jobs_offer%5BrefinementList%5D"
+            "%5Bcountry_en%5D%5B0%5D=Switzerland"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.equans_switzerland:"
+            "EquansSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "equans_switzerland_jobs_base_url"),
+            ("search_url", "equans_switzerland_jobs_search_url"),
+            ("application_id", "equans_switzerland_jobs_application_id"),
+            ("api_key", "equans_switzerland_jobs_api_key"),
+            ("timeout_seconds", "equans_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "equans_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "equans_switzerland_jobs_max_catalog_passes",
+            ),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

@@ -1764,6 +1764,32 @@ class Settings(BaseSettings):
         ge=1,
         le=20,
     )
+    equans_switzerland_jobs_base_url: str = (
+        "https://www.equans.com/join-us?jobs_offer%5BrefinementList%5D"
+        "%5Bcountry_en%5D%5B0%5D=Switzerland"
+    )
+    equans_switzerland_jobs_search_url: str = (
+        "https://O7FDVQDWPV-dsn.algolia.net/1/indexes/jobs_offer/query"
+    )
+    equans_switzerland_jobs_application_id: str = "O7FDVQDWPV"
+    equans_switzerland_jobs_api_key: str = (
+        "2a5554adbdb2674d295f76ac88657541"
+    )
+    equans_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    equans_switzerland_jobs_max_pages: int = Field(
+        default=40,
+        ge=1,
+        le=100,
+    )
+    equans_switzerland_jobs_max_catalog_passes: int = Field(
+        default=3,
+        ge=1,
+        le=20,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

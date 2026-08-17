@@ -1374,6 +1374,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 114,
     logoHeight: 40,
   },
+  {
+    id: "equans_switzerland",
+    name: "Equans Switzerland",
+    careersUrl:
+      "https://www.equans.com/join-us?jobs_offer%5BrefinementList%5D%5Bcountry_en%5D%5B0%5D=Switzerland",
+    logoSrc: "/company-logos/equans.svg",
+    logoAlt: "Equans Switzerland logo",
+    logoWidth: 134,
+    logoHeight: 40,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
