@@ -1355,6 +1355,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 154,
     logoHeight: 40,
   },
+  {
+    id: "afry_switzerland",
+    name: "AFRY Switzerland",
+    careersUrl: "https://afry.com/de-ch/karriere/verfugbare-stellen",
+    logoSrc: "/company-logos/afry.svg",
+    logoAlt: "AFRY Switzerland logo",
+    logoWidth: 174,
+    logoHeight: 40,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

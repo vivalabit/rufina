@@ -2373,6 +2373,26 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "nestle_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="afry_switzerland",
+        name="AFRY Switzerland",
+        careers_url="https://afry.com/de-ch/karriere/verfugbare-stellen",
+        parser_path=(
+            "app.services.parsers.companies.afry_switzerland:"
+            "AfrySwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "afry_switzerland_jobs_base_url"),
+            ("catalog_url", "afry_switzerland_jobs_catalog_url"),
+            ("detail_api_url", "afry_switzerland_jobs_detail_api_url"),
+            ("timeout_seconds", "afry_switzerland_jobs_timeout_seconds"),
+            (
+                "max_catalog_records",
+                "afry_switzerland_jobs_max_catalog_records",
+            ),
+            ("detail_workers", "afry_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

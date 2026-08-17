@@ -1714,3 +1714,24 @@ describe("Nestlé Switzerland Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("AFRY Switzerland Direct Company catalog entry", () => {
+  it("uses the official Swiss jobs page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "afry_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "afry_switzerland",
+      name: "AFRY Switzerland",
+      careersUrl: "https://afry.com/de-ch/karriere/verfugbare-stellen",
+      logoSrc: "/company-logos/afry.svg",
+      logoAlt: "AFRY Switzerland logo",
+      logoWidth: 174,
+      logoHeight: 40,
+    });
+    expect(getDirectCompanyByJobId("afry_switzerland-744000143442729")).toBe(
+      company,
+    );
+  });
+});
