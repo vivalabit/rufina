@@ -1799,3 +1799,24 @@ describe("Bison Group Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("bison_group-10143471")).toBe(company);
   });
 });
+
+describe("PRODYNA Switzerland Direct Company catalog entry", () => {
+  it("uses the official Zurich jobs filter and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "prodyna_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "prodyna_switzerland",
+      name: "PRODYNA Switzerland",
+      careersUrl: "https://www.prodyna.com/jobs?location=Zurich",
+      logoSrc: "/company-logos/prodyna.svg",
+      logoAlt: "PRODYNA Switzerland logo",
+      logoWidth: 141,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId("prodyna_switzerland-zurich-full-stack"),
+    ).toBe(company);
+  });
+});

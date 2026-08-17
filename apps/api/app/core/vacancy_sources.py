@@ -2468,6 +2468,25 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "bison_group_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="prodyna_switzerland",
+        name="PRODYNA Switzerland",
+        careers_url="https://www.prodyna.com/jobs?location=Zurich",
+        parser_path=(
+            "app.services.parsers.companies.prodyna_switzerland:"
+            "ProdynaSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "prodyna_switzerland_jobs_base_url"),
+            ("rss_url", "prodyna_switzerland_jobs_rss_url"),
+            ("timeout_seconds", "prodyna_switzerland_jobs_timeout_seconds"),
+            (
+                "max_catalog_records",
+                "prodyna_switzerland_jobs_max_catalog_records",
+            ),
+            ("detail_workers", "prodyna_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

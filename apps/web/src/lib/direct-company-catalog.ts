@@ -1394,6 +1394,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 40,
     logoHeight: 40,
   },
+  {
+    id: "prodyna_switzerland",
+    name: "PRODYNA Switzerland",
+    careersUrl: "https://www.prodyna.com/jobs?location=Zurich",
+    logoSrc: "/company-logos/prodyna.svg",
+    logoAlt: "PRODYNA Switzerland logo",
+    logoWidth: 141,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

@@ -3360,8 +3360,8 @@ it("shows direct-company vacancies with their company logos", async () => {
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 130,
-        jobsAdded: 130,
+        jobsFound: 131,
+        jobsAdded: 131,
         sourceErrors: {},
         warning: null,
       });
@@ -3547,6 +3547,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Digital Realty Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Equans Switzerland")).toBeInTheDocument();
   expect(screen.getByText("Bison Group")).toBeInTheDocument();
+  expect(screen.getByText("PRODYNA Switzerland")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
@@ -3582,7 +3583,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 130 of 130 vacancies from Gilead Sciences Switzerland + Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + Komax Group + BearingPoint Switzerland + Julius Baer Switzerland + BKW Switzerland + Swiss National Bank (SNB) + AMAG Group + Bayer Switzerland + Biogen Switzerland + Bristol Myers Squibb Switzerland + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH + UMB AG + Webtouch GmbH + Manor AG + Salt Mobile SA + V-ZUG AG + Lindt & Sprüngli (Schweiz) AG + PwC Switzerland + TX Group AG + Artificialy SA + cyon AG + GSK Switzerland + Sanofi Switzerland + Takeda Switzerland + Johnson & Johnson Switzerland + Zurich Insurance + Schneider Electric Switzerland + Bosch Switzerland + Eviden Switzerland + Schindler Group + Sonova Group + Elektro-Material AG + CSL Switzerland + Lonza Switzerland + Nestlé Switzerland + AFRY Switzerland + Digital Realty Switzerland + Equans Switzerland + Bison Group",
+      "Added 131 of 131 vacancies from Gilead Sciences Switzerland + Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + Komax Group + BearingPoint Switzerland + Julius Baer Switzerland + BKW Switzerland + Swiss National Bank (SNB) + AMAG Group + Bayer Switzerland + Biogen Switzerland + Bristol Myers Squibb Switzerland + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH + UMB AG + Webtouch GmbH + Manor AG + Salt Mobile SA + V-ZUG AG + Lindt & Sprüngli (Schweiz) AG + PwC Switzerland + TX Group AG + Artificialy SA + cyon AG + GSK Switzerland + Sanofi Switzerland + Takeda Switzerland + Johnson & Johnson Switzerland + Zurich Insurance + Schneider Electric Switzerland + Bosch Switzerland + Eviden Switzerland + Schindler Group + Sonova Group + Elektro-Material AG + CSL Switzerland + Lonza Switzerland + Nestlé Switzerland + AFRY Switzerland + Digital Realty Switzerland + Equans Switzerland + Bison Group + PRODYNA Switzerland",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -3732,6 +3733,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "digital_realty_switzerland",
       "equans_switzerland",
       "bison_group",
+      "prodyna_switzerland",
     ],
     aiAnalysisEnabled: true,
   });
