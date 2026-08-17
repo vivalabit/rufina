@@ -1804,7 +1804,13 @@ function getParserLabel(parser: string | undefined) {
 }
 
 function getSearchSourcesLabel(form: ParserSearchForm) {
-  return parserSearchSourceIds(form).map(getParserLabel).join(" + ");
+  const sources = normalizeParserIds(form).map(getParserLabel);
+  if (form.directCompaniesEnabled) {
+    sources.push(
+      `Direct companies (${normalizeDirectCompanyIds(form.directCompanyIds).length})`,
+    );
+  }
+  return sources.join(" + ");
 }
 
 function normalizeParserIds(form: ParserSearchForm): ParserId[] {
@@ -6879,8 +6885,8 @@ export default function HomePage() {
         ) : null}
 
         {isParserDialogOpen && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-3 py-4 backdrop-blur-sm">
-            <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[940px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 p-2 backdrop-blur-sm sm:p-3">
+            <div className="panel flex h-[calc(100dvh-16px)] w-full max-w-[1480px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:h-[calc(100dvh-24px)] sm:p-5">
               <div className="flex shrink-0 items-start justify-between gap-4">
                 <div>
                   <h2 className="text-[22px] font-bold leading-tight text-white 2xl:text-[24px]">Search vacancies</h2>
@@ -6896,9 +6902,9 @@ export default function HomePage() {
                 </button>
               </div>
 
-              <div className="job-scroll mt-5 min-h-0 flex-1 overflow-y-auto rounded-md border border-border">
-                <div className="grid min-h-0 lg:grid-cols-[334px_minmax(0,1fr)] lg:items-start">
-                  <section className="border-b border-border p-4 lg:self-start lg:border-b-0 2xl:p-5">
+              <div className="job-scroll mt-4 min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded-md border border-border">
+                <div className="grid min-h-0 md:grid-cols-[280px_minmax(0,1fr)] md:items-start xl:grid-cols-[300px_minmax(0,1fr)]">
+                  <section className="min-w-0 border-b border-border p-4 md:sticky md:top-0 md:self-start md:border-b-0 2xl:p-5">
                     <h3 className="text-sm font-bold text-white">1. Choose sources</h3>
                     <div className="mt-4 grid gap-3">
                       {([
@@ -6912,7 +6918,7 @@ export default function HomePage() {
                           <div
                             key={parserOption.id}
                             className={cn(
-                              "flex items-center rounded-md border bg-white/[0.035] p-2 transition",
+                              "flex w-full min-w-0 items-center rounded-md border bg-white/[0.035] p-2 transition",
                               isActive
                                 ? "border-accent shadow-[0_0_0_1px_rgba(255,90,0,0.18)]"
                                 : "border-border hover:border-white/20 hover:bg-white/[0.055]",
@@ -6929,7 +6935,7 @@ export default function HomePage() {
                                 {parserOption.mark}
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-2">
                                   <h4 className="text-sm font-bold text-white">{parserOption.label}</h4>
                                   {parserOption.id === "linkedin" && (
                                     <span className="rounded bg-success/18 px-2 py-0.5 text-[11px] font-bold text-success">Recommended</span>
@@ -6957,7 +6963,7 @@ export default function HomePage() {
                       })}
                       <div
                         className={cn(
-                          "flex items-center rounded-md border bg-white/[0.035] p-2 transition",
+                          "flex w-full min-w-0 items-center rounded-md border bg-white/[0.035] p-2 transition",
                           activeSearchSource === "direct_companies"
                             ? "border-[#8b5cf6] shadow-[0_0_0_1px_rgba(139,92,246,0.20)]"
                             : "border-border hover:border-white/20 hover:bg-white/[0.055]",
@@ -7001,9 +7007,9 @@ export default function HomePage() {
                     </div>
                   </section>
 
-                  <section className="p-4 lg:border-l lg:border-border 2xl:p-5">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
+                  <section className="min-w-0 p-4 md:border-l md:border-border 2xl:p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div className="min-w-0">
                         <h3 className="text-sm font-bold text-white">
                           2. Configure {activeSearchSource === "direct_companies" ? "Direct Companies" : getParserLabel(activeSearchSource)}
                         </h3>
@@ -7188,7 +7194,8 @@ export default function HomePage() {
                   </section>
                 </div>
 
-                <section className="border-t border-border p-4 2xl:p-5">
+                <div className="grid border-t border-border xl:grid-cols-2">
+                <section className="min-w-0 p-4 xl:border-r xl:border-border 2xl:p-5">
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div>
                       <h3 className="text-sm font-bold text-white">3. Source query configs</h3>
@@ -7287,7 +7294,7 @@ export default function HomePage() {
                   </div>
                 </section>
 
-                <section className="border-t border-border p-4 2xl:p-5">
+                <section className="min-w-0 border-t border-border p-4 xl:border-t-0 2xl:p-5">
                   <h3 className="text-sm font-bold text-white">4. Common profiles</h3>
                   <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
                     <label className="grid gap-2 md:col-span-2">
@@ -7374,6 +7381,7 @@ export default function HomePage() {
                     </Button>
                   </div>
                 </section>
+                </div>
               </div>
 
               <div className="mt-4 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">

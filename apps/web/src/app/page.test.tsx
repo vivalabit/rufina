@@ -3557,6 +3557,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByRole("button", { name: "Select all" })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Add company" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Select all" }));
+  expect(screen.getByText("Direct companies (151)")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("checkbox", { name: /SBB CFF FFS/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Swisscom/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Galaxus/ }));

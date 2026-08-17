@@ -49,13 +49,13 @@ export function DirectCompaniesSource({
   }
 
   return (
-    <div className="rounded-md border border-[#8b5cf6]/40 bg-[#8b5cf6]/[0.055] p-3">
+    <div className="min-w-0 rounded-md border border-[#8b5cf6]/40 bg-[#8b5cf6]/[0.055] p-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
           <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-[#6d45c8] text-white">
             <Building2 className="h-5 w-5" />
           </div>
-          <div>
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h4 className="text-sm font-bold text-white">Direct company pages</h4>
               <span className="rounded bg-[#8b5cf6]/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-[#c8b5ff]">
@@ -107,14 +107,14 @@ export function DirectCompaniesSource({
           <p className="mt-1 text-xs font-medium text-muted">Try another name or domain.</p>
         </div>
       ) : (
-        <div className="job-scroll mt-3 grid max-h-64 gap-2 overflow-y-auto pr-1">
+        <div className="job-scroll mt-3 grid w-full min-w-0 max-h-56 gap-2 overflow-x-hidden overflow-y-auto pr-1 2xl:max-h-64">
           {filteredCompanies.map((company) => {
             const selected = selectedIds.has(company.id);
             return (
               <label
                 key={company.id}
                 className={cn(
-                  "flex cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 transition",
+                  "flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 transition",
                   selected
                     ? "border-[#8b5cf6]/70 bg-[#8b5cf6]/12"
                     : "border-white/[0.10] bg-[#0d131a]/80 hover:border-white/20 hover:bg-white/[0.045]",
