@@ -1842,3 +1842,25 @@ describe("cross-ING Switzerland Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("NetApp Switzerland Direct Company catalog entry", () => {
+  it("uses the official Swiss jobs filter and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "netapp_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "netapp_switzerland",
+      name: "NetApp Switzerland",
+      careersUrl:
+        "https://careers.netapp.com/location/switzerland-jobs/27600/2658434/2",
+      logoSrc: "/company-logos/netapp.svg",
+      logoAlt: "NetApp Switzerland logo",
+      logoWidth: 122,
+      logoHeight: 22,
+    });
+    expect(getDirectCompanyByJobId("netapp_switzerland-98797033984")).toBe(
+      company,
+    );
+  });
+});

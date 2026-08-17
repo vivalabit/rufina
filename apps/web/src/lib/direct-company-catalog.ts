@@ -1413,6 +1413,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 137,
     logoHeight: 36,
   },
+  {
+    id: "netapp_switzerland",
+    name: "NetApp Switzerland",
+    careersUrl:
+      "https://careers.netapp.com/location/switzerland-jobs/27600/2658434/2",
+    logoSrc: "/company-logos/netapp.svg",
+    logoAlt: "NetApp Switzerland logo",
+    logoWidth: 122,
+    logoHeight: 22,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

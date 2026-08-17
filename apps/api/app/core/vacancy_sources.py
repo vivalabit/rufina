@@ -2505,6 +2505,29 @@ DIRECT_COMPANY_PARSERS = (
             ("max_jobs", "crossing_switzerland_jobs_max_jobs"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="netapp_switzerland",
+        name="NetApp Switzerland",
+        careers_url=(
+            "https://careers.netapp.com/location/switzerland-jobs/"
+            "27600/2658434/2"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.netapp_switzerland:"
+            "NetAppSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "netapp_switzerland_jobs_base_url"),
+            ("timeout_seconds", "netapp_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "netapp_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "netapp_switzerland_jobs_max_catalog_passes",
+            ),
+            ("page_workers", "netapp_switzerland_jobs_page_workers"),
+            ("detail_workers", "netapp_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
