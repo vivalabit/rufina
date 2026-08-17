@@ -1864,3 +1864,26 @@ describe("NetApp Switzerland Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("Sharp Switzerland Direct Company catalog entry", () => {
+  it("uses the official Swiss careers page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "sharp_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "sharp_switzerland",
+      name: "Sharp Switzerland",
+      careersUrl: "https://www.sharp.ch/de/jobs-bei-sharp",
+      logoSrc: "/company-logos/sharp.svg",
+      logoAlt: "Sharp Switzerland logo",
+      logoWidth: 152,
+      logoHeight: 22,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "sharp_switzerland-account-manager-mwd-region-romandie",
+      ),
+    ).toBe(company);
+  });
+});

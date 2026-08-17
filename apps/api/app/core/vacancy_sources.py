@@ -2528,6 +2528,21 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "netapp_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="sharp_switzerland",
+        name="Sharp Switzerland",
+        careers_url="https://www.sharp.ch/de/jobs-bei-sharp",
+        parser_path=(
+            "app.services.parsers.companies.sharp_switzerland:"
+            "SharpSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "sharp_switzerland_jobs_base_url"),
+            ("timeout_seconds", "sharp_switzerland_jobs_timeout_seconds"),
+            ("max_jobs", "sharp_switzerland_jobs_max_jobs"),
+            ("detail_workers", "sharp_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

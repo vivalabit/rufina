@@ -1423,6 +1423,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 122,
     logoHeight: 22,
   },
+  {
+    id: "sharp_switzerland",
+    name: "Sharp Switzerland",
+    careersUrl: "https://www.sharp.ch/de/jobs-bei-sharp",
+    logoSrc: "/company-logos/sharp.svg",
+    logoAlt: "Sharp Switzerland logo",
+    logoWidth: 152,
+    logoHeight: 22,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
