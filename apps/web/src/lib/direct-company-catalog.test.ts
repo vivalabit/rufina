@@ -1779,3 +1779,23 @@ describe("Equans Switzerland Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("Bison Group Direct Company catalog entry", () => {
+  it("uses the official jobs page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "bison_group",
+    );
+
+    expect(company).toEqual({
+      id: "bison_group",
+      name: "Bison Group",
+      careersUrl:
+        "https://www.bison-group.com/karriere/offene-stellen/",
+      logoSrc: "/company-logos/bison-group.svg",
+      logoAlt: "Bison Group logo",
+      logoWidth: 40,
+      logoHeight: 40,
+    });
+    expect(getDirectCompanyByJobId("bison_group-10143471")).toBe(company);
+  });
+});

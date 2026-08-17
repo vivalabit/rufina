@@ -2447,6 +2447,27 @@ DIRECT_COMPANY_PARSERS = (
             ),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="bison_group",
+        name="Bison Group",
+        careers_url=(
+            "https://www.bison-group.com/karriere/offene-stellen/"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.bison_group:BisonGroupJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "bison_group_jobs_base_url"),
+            ("api_url", "bison_group_jobs_api_url"),
+            ("timeout_seconds", "bison_group_jobs_timeout_seconds"),
+            ("max_pages", "bison_group_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "bison_group_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "bison_group_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

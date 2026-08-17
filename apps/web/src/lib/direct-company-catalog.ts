@@ -1384,6 +1384,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 134,
     logoHeight: 40,
   },
+  {
+    id: "bison_group",
+    name: "Bison Group",
+    careersUrl:
+      "https://www.bison-group.com/karriere/offene-stellen/",
+    logoSrc: "/company-logos/bison-group.svg",
+    logoAlt: "Bison Group logo",
+    logoWidth: 40,
+    logoHeight: 40,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
