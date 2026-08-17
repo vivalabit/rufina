@@ -1364,6 +1364,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 174,
     logoHeight: 40,
   },
+  {
+    id: "digital_realty_switzerland",
+    name: "Digital Realty Switzerland",
+    careersUrl:
+      "https://hdep.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/jobs?location=Switzerland&locationId=300000000361301&locationLevel=country&mode=job-location",
+    logoSrc: "/company-logos/digital-realty.svg",
+    logoAlt: "Digital Realty Switzerland logo",
+    logoWidth: 114,
+    logoHeight: 40,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

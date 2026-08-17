@@ -1735,3 +1735,25 @@ describe("AFRY Switzerland Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("Digital Realty Switzerland Direct Company catalog entry", () => {
+  it("uses the official Swiss jobs page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "digital_realty_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "digital_realty_switzerland",
+      name: "Digital Realty Switzerland",
+      careersUrl:
+        "https://hdep.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/sites/CX/jobs?location=Switzerland&locationId=300000000361301&locationLevel=country&mode=job-location",
+      logoSrc: "/company-logos/digital-realty.svg",
+      logoAlt: "Digital Realty Switzerland logo",
+      logoWidth: 114,
+      logoHeight: 40,
+    });
+    expect(getDirectCompanyByJobId("digital_realty_switzerland-8361")).toBe(
+      company,
+    );
+  });
+});

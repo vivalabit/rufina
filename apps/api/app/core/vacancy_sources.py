@@ -2393,6 +2393,36 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "afry_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="digital_realty_switzerland",
+        name="Digital Realty Switzerland",
+        careers_url=(
+            "https://hdep.fa.us2.oraclecloud.com/hcmUI/CandidateExperience/en/"
+            "sites/CX/jobs?location=Switzerland&locationId=300000000361301&"
+            "locationLevel=country&mode=job-location"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.digital_realty_switzerland:"
+            "DigitalRealtySwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "digital_realty_switzerland_jobs_base_url"),
+            ("api_url", "digital_realty_switzerland_jobs_api_url"),
+            (
+                "timeout_seconds",
+                "digital_realty_switzerland_jobs_timeout_seconds",
+            ),
+            ("max_pages", "digital_realty_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "digital_realty_switzerland_jobs_max_catalog_passes",
+            ),
+            (
+                "detail_workers",
+                "digital_realty_switzerland_jobs_detail_workers",
+            ),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
