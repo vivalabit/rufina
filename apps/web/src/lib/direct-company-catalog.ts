@@ -1403,6 +1403,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 141,
     logoHeight: 24,
   },
+  {
+    id: "crossing_switzerland",
+    name: "cross-ING Switzerland",
+    careersUrl:
+      "https://crossing.recruitee.com/?jobs-c88dea0d%5Bcountry%5D%5B%5D=CH",
+    logoSrc: "/company-logos/crossing.svg",
+    logoAlt: "cross-ING Switzerland logo",
+    logoWidth: 137,
+    logoHeight: 36,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

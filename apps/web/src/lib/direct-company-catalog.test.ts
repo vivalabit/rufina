@@ -1820,3 +1820,25 @@ describe("PRODYNA Switzerland Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("cross-ING Switzerland Direct Company catalog entry", () => {
+  it("uses the official Swiss jobs filter and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "crossing_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "crossing_switzerland",
+      name: "cross-ING Switzerland",
+      careersUrl:
+        "https://crossing.recruitee.com/?jobs-c88dea0d%5Bcountry%5D%5B%5D=CH",
+      logoSrc: "/company-logos/crossing.svg",
+      logoAlt: "cross-ING Switzerland logo",
+      logoWidth: 137,
+      logoHeight: 36,
+    });
+    expect(getDirectCompanyByJobId("crossing_switzerland-2652347")).toBe(
+      company,
+    );
+  });
+});

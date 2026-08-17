@@ -2487,6 +2487,24 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "prodyna_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="crossing_switzerland",
+        name="cross-ING Switzerland",
+        careers_url=(
+            "https://crossing.recruitee.com/?jobs-c88dea0d%5Bcountry%5D"
+            "%5B%5D=CH"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.crossing_switzerland:"
+            "CrossingSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "crossing_switzerland_jobs_base_url"),
+            ("api_url", "crossing_switzerland_jobs_api_url"),
+            ("timeout_seconds", "crossing_switzerland_jobs_timeout_seconds"),
+            ("max_jobs", "crossing_switzerland_jobs_max_jobs"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
