@@ -1692,3 +1692,25 @@ describe("Lonza Switzerland Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("lonza_switzerland-R78588")).toBe(company);
   });
 });
+
+describe("Nestlé Switzerland Direct Company catalog entry", () => {
+  it("uses the official Swiss jobs filter and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "nestle_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "nestle_switzerland",
+      name: "Nestlé Switzerland",
+      careersUrl:
+        "https://www.nestle.com/jobs/search-jobs?keyword=&country=CH&location=&career_area=All",
+      logoSrc: "/company-logos/nestle.svg",
+      logoAlt: "Nestlé Switzerland logo",
+      logoWidth: 154,
+      logoHeight: 40,
+    });
+    expect(getDirectCompanyByJobId("nestle_switzerland-1386110633")).toBe(
+      company,
+    );
+  });
+});

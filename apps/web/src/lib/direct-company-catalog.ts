@@ -1345,6 +1345,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 155,
     logoHeight: 28,
   },
+  {
+    id: "nestle_switzerland",
+    name: "Nestlé Switzerland",
+    careersUrl:
+      "https://www.nestle.com/jobs/search-jobs?keyword=&country=CH&location=&career_area=All",
+    logoSrc: "/company-logos/nestle.svg",
+    logoAlt: "Nestlé Switzerland logo",
+    logoWidth: 154,
+    logoHeight: 40,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

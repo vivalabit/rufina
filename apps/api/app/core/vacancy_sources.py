@@ -2351,6 +2351,28 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "lonza_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="nestle_switzerland",
+        name="Nestlé Switzerland",
+        careers_url=(
+            "https://www.nestle.com/jobs/search-jobs?keyword=&country=CH&"
+            "location=&career_area=All"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.nestle_switzerland:"
+            "NestleSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "nestle_switzerland_jobs_base_url"),
+            ("timeout_seconds", "nestle_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "nestle_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "nestle_switzerland_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "nestle_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
