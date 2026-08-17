@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import subprocess
+import sys
 from datetime import UTC, datetime
 from typing import Any
 
@@ -86,6 +88,25 @@ def official_sections() -> list[str]:
             "Customer Support Agent (alle) | 80-100%",
         ),
     ]
+
+
+def test_cyon_module_import_does_not_initialize_browser_fetcher() -> None:
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            (
+                "import sys; "
+                "import app.services.parsers.companies.cyon; "
+                "assert 'scrapling.fetchers' not in sys.modules"
+            ),
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode == 0, result.stderr
 
 
 def test_cyon_scans_complete_browser_rendered_catalog() -> None:

@@ -1336,6 +1336,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 53,
     logoHeight: 40,
   },
+  {
+    id: "lonza_switzerland",
+    name: "Lonza Switzerland",
+    careersUrl: "https://www.lonza.com/careers/job-search",
+    logoSrc: "/company-logos/lonza.svg",
+    logoAlt: "Lonza Switzerland logo",
+    logoWidth: 155,
+    logoHeight: 28,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

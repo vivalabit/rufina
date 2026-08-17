@@ -2332,6 +2332,25 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "csl_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="lonza_switzerland",
+        name="Lonza Switzerland",
+        careers_url="https://www.lonza.com/careers/job-search",
+        parser_path=(
+            "app.services.parsers.companies.lonza_switzerland:"
+            "LonzaSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "lonza_switzerland_jobs_base_url"),
+            ("timeout_seconds", "lonza_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "lonza_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "lonza_switzerland_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "lonza_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

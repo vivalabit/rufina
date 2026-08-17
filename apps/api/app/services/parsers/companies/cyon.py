@@ -6,8 +6,6 @@ from collections.abc import Callable, Iterable
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
-from scrapling.fetchers import StealthyFetcher
-
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import (
     DirectCompanyRequestError,
@@ -73,6 +71,10 @@ class CyonJobsParser:
         )
 
     def _fetch_with_browser(self, url: str) -> ScraplingResponse:
+        # Importing StealthyFetcher initializes browser fingerprints. Keep that
+        # side effect out of parser discovery and tests that inject fetch_page.
+        from scrapling.fetchers import StealthyFetcher
+
         options = {
             "headless": True,
             "disable_resources": True,

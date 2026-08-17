@@ -1673,3 +1673,22 @@ describe("CSL Switzerland Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("csl_switzerland-283348")).toBe(company);
   });
 });
+
+describe("Lonza Switzerland Direct Company catalog entry", () => {
+  it("uses the official Swiss-filterable catalog and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "lonza_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "lonza_switzerland",
+      name: "Lonza Switzerland",
+      careersUrl: "https://www.lonza.com/careers/job-search",
+      logoSrc: "/company-logos/lonza.svg",
+      logoAlt: "Lonza Switzerland logo",
+      logoWidth: 155,
+      logoHeight: 28,
+    });
+    expect(getDirectCompanyByJobId("lonza_switzerland-R78588")).toBe(company);
+  });
+});
