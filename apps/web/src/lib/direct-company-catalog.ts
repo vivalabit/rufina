@@ -1525,6 +1525,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 109,
     logoHeight: 24,
   },
+  {
+    id: "clavis_it",
+    name: "clavis IT ag",
+    careersUrl: "https://www.clavisit.com/karriere/jobs",
+    logoSrc: "/company-logos/clavis_it.svg",
+    logoAlt: "clavis IT ag logo",
+    logoWidth: 132,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

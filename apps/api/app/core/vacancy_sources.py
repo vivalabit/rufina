@@ -2705,6 +2705,18 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "boss_info_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="clavis_it",
+        name="clavis IT ag",
+        careers_url="https://www.clavisit.com/karriere/jobs",
+        parser_path="app.services.parsers.companies.clavis_it:ClavisItJobsParser",
+        settings_map=(
+            ("base_url", "clavis_it_jobs_base_url"),
+            ("timeout_seconds", "clavis_it_jobs_timeout_seconds"),
+            ("max_jobs", "clavis_it_jobs_max_jobs"),
+            ("detail_workers", "clavis_it_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

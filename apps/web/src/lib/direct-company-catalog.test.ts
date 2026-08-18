@@ -2090,3 +2090,22 @@ describe("Boss Info Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("boss_info-JOB-1166")).toBe(company);
   });
 });
+
+describe("clavis IT ag Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "clavis_it",
+    );
+
+    expect(company).toEqual({
+      id: "clavis_it",
+      name: "clavis IT ag",
+      careersUrl: "https://www.clavisit.com/karriere/jobs",
+      logoSrc: "/company-logos/clavis_it.svg",
+      logoAlt: "clavis IT ag logo",
+      logoWidth: 132,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("clavis_it-platform-devops")).toBe(company);
+  });
+});
