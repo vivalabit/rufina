@@ -2071,3 +2071,22 @@ describe("Bossard Switzerland Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("Boss Info Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "boss_info",
+    );
+
+    expect(company).toEqual({
+      id: "boss_info",
+      name: "Boss Info",
+      careersUrl: "https://www.bossinfo.com/karriere/jobs/",
+      logoSrc: "/company-logos/boss_info.svg",
+      logoAlt: "Boss Info logo",
+      logoWidth: 109,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("boss_info-JOB-1166")).toBe(company);
+  });
+});

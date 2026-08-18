@@ -187,7 +187,8 @@ function importedJobData({
     | "artificialy"
     | "cyon"
     | "blueworks"
-    | "bossard_switzerland";
+    | "bossard_switzerland"
+    | "boss_info";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -561,7 +562,10 @@ function importedJobData({
                                                                                                                                                                                                                                                                           : source ===
                                                                                                                                                                                                                                                                               "bossard_switzerland"
                                                                                                                                                                                                                                                                             ? "Bossard Switzerland"
-                                                                                                                                                                                                                                                                            : "LinkedIn";
+                                                                                                                                                                                                                                                                            : source ===
+                                                                                                                                                                                                                                                                                "boss_info"
+                                                                                                                                                                                                                                                                              ? "Boss Info"
+                                                                                                                                                                                                                                                                              : "LinkedIn";
   return {
     id,
     company:
@@ -932,7 +936,10 @@ function importedJobData({
                                                                                                                                                                                                                                                                         : source ===
                                                                                                                                                                                                                                                                             "bossard_switzerland"
                                                                                                                                                                                                                                                                           ? "Bossard Switzerland"
-                                                                                                                                                                                                                                                                          : "Example AG",
+                                                                                                                                                                                                                                                                          : source ===
+                                                                                                                                                                                                                                                                              "boss_info"
+                                                                                                                                                                                                                                                                            ? "Boss Info AG"
+                                                                                                                                                                                                                                                                            : "Example AG",
     title,
     location: "Zurich",
     type: "Full-time",
@@ -1071,7 +1078,8 @@ function importedJobData({
       source === "artificialy" ||
       source === "cyon" ||
       source === "blueworks" ||
-      source === "bossard_switzerland"
+      source === "bossard_switzerland" ||
+      source === "boss_info"
         ? "company"
         : source,
     overview: `Imported ${title}`,
@@ -3209,6 +3217,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "Application Engineer at Bossard",
         source: "bossard_switzerland",
       });
+      const bossInfoJob = importedJobData({
+        id: "boss_info-JOB-1166",
+        title: "Projektleiter bossERP at Boss Info",
+        source: "boss_info",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -3388,11 +3401,12 @@ it("shows direct-company vacancies with their company logos", async () => {
           id: bossardSwitzerlandJob.id,
           data: bossardSwitzerlandJob,
         },
+        { id: bossInfoJob.id, data: bossInfoJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 136,
-        jobsAdded: 136,
+        jobsFound: 137,
+        jobsAdded: 137,
         sourceErrors: {},
         warning: null,
       });
@@ -3591,13 +3605,14 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Arcon Informatik AG")).toBeInTheDocument();
   expect(screen.getByText("blueworks AG")).toBeInTheDocument();
   expect(screen.getByText("Bossard Switzerland")).toBeInTheDocument();
+  expect(screen.getByText("Boss Info")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Select all" })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Add company" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Select all" }));
-  expect(screen.getByText("Direct companies (160)")).toBeInTheDocument();
+  expect(screen.getByText("Direct companies (161)")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("checkbox", { name: /SBB CFF FFS/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Swisscom/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Galaxus/ }));
@@ -3627,7 +3642,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 136 of 136 vacancies from Gilead Sciences Switzerland + Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + Komax Group + BearingPoint Switzerland + Julius Baer Switzerland + BKW Switzerland + Swiss National Bank (SNB) + AMAG Group + Bayer Switzerland + Biogen Switzerland + Bristol Myers Squibb Switzerland + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH + UMB AG + Webtouch GmbH + Manor AG + Salt Mobile SA + V-ZUG AG + Lindt & Sprüngli (Schweiz) AG + PwC Switzerland + TX Group AG + Artificialy SA + cyon AG + GSK Switzerland + Sanofi Switzerland + Takeda Switzerland + Johnson & Johnson Switzerland + Zurich Insurance + Schneider Electric Switzerland + Bosch Switzerland + Eviden Switzerland + Schindler Group + Sonova Group + Elektro-Material AG + CSL Switzerland + Lonza Switzerland + Nestlé Switzerland + AFRY Switzerland + Digital Realty Switzerland + Equans Switzerland + Bison Group + PRODYNA Switzerland + cross-ING Switzerland + NetApp Switzerland + Sharp Switzerland + Unisys Switzerland + R&M Switzerland + AbbVie Switzerland + Lyreco Switzerland + Adcubum Switzerland + aity AG + Arcon Informatik AG + blueworks AG + Bossard Switzerland",
+      "Added 137 of 137 vacancies from Gilead Sciences Switzerland + Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + Komax Group + BearingPoint Switzerland + Julius Baer Switzerland + BKW Switzerland + Swiss National Bank (SNB) + AMAG Group + Bayer Switzerland + Biogen Switzerland + Bristol Myers Squibb Switzerland + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH + UMB AG + Webtouch GmbH + Manor AG + Salt Mobile SA + V-ZUG AG + Lindt & Sprüngli (Schweiz) AG + PwC Switzerland + TX Group AG + Artificialy SA + cyon AG + GSK Switzerland + Sanofi Switzerland + Takeda Switzerland + Johnson & Johnson Switzerland + Zurich Insurance + Schneider Electric Switzerland + Bosch Switzerland + Eviden Switzerland + Schindler Group + Sonova Group + Elektro-Material AG + CSL Switzerland + Lonza Switzerland + Nestlé Switzerland + AFRY Switzerland + Digital Realty Switzerland + Equans Switzerland + Bison Group + PRODYNA Switzerland + cross-ING Switzerland + NetApp Switzerland + Sharp Switzerland + Unisys Switzerland + R&M Switzerland + AbbVie Switzerland + Lyreco Switzerland + Adcubum Switzerland + aity AG + Arcon Informatik AG + blueworks AG + Bossard Switzerland + Boss Info",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -3790,6 +3805,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "arcon",
       "blueworks",
       "bossard_switzerland",
+      "boss_info",
     ],
     aiAnalysisEnabled: true,
   });
@@ -4190,6 +4206,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Bossard Switzerland logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Boss Info logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -4447,6 +4466,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByText("Source: Bossard Switzerland").length,
   ).toBeGreaterThan(0);
+  expect(screen.getAllByText("Source: Boss Info").length).toBeGreaterThan(0);
 }, 30_000);
 
 it("shows seeded vacancies and calendar events only in demo mode", async () => {

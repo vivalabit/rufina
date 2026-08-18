@@ -1516,6 +1516,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 154,
     logoHeight: 24,
   },
+  {
+    id: "boss_info",
+    name: "Boss Info",
+    careersUrl: "https://www.bossinfo.com/karriere/jobs/",
+    logoSrc: "/company-logos/boss_info.svg",
+    logoAlt: "Boss Info logo",
+    logoWidth: 109,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

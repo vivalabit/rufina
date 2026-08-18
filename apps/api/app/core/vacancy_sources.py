@@ -2693,6 +2693,18 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "bossard_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="boss_info",
+        name="Boss Info",
+        careers_url="https://www.bossinfo.com/karriere/jobs/",
+        parser_path="app.services.parsers.companies.boss_info:BossInfoJobsParser",
+        settings_map=(
+            ("base_url", "boss_info_jobs_base_url"),
+            ("timeout_seconds", "boss_info_jobs_timeout_seconds"),
+            ("max_jobs", "boss_info_jobs_max_jobs"),
+            ("detail_workers", "boss_info_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
