@@ -2038,6 +2038,25 @@ class Settings(BaseSettings):
         ge=1,
         le=12,
     )
+    blueworks_jobs_base_url: str = "https://join.com/companies/blue"
+    blueworks_jobs_api_url: str = (
+        "https://join.com/api/public/companies/145851/jobs"
+    )
+    blueworks_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    blueworks_jobs_max_pages: int = Field(
+        default=100,
+        ge=1,
+        le=500,
+    )
+    blueworks_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

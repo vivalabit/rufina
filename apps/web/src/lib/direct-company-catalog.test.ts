@@ -2007,9 +2007,7 @@ describe("aity AG Direct Company catalog entry", () => {
       logoHeight: 24,
     });
     expect(
-      getDirectCompanyByJobId(
-        "aity-16e92662-d82d-4393-9412-c52bf1ea1053",
-      ),
+      getDirectCompanyByJobId("aity-16e92662-d82d-4393-9412-c52bf1ea1053"),
     ).toBe(company);
   });
 });
@@ -2030,5 +2028,24 @@ describe("Arcon Informatik AG Direct Company catalog entry", () => {
     expect(
       getDirectCompanyByJobId("arcon-stelleninserat-system-engineer-2"),
     ).toBe(company);
+  });
+});
+
+describe("blueworks AG Direct Company catalog entry", () => {
+  it("uses the official JOIN company page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "blueworks",
+    );
+
+    expect(company).toEqual({
+      id: "blueworks",
+      name: "blueworks AG",
+      careersUrl: "https://join.com/companies/blue",
+      logoSrc: "/company-logos/blueworks.svg",
+      logoAlt: "blueworks AG logo",
+      logoWidth: 27,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("blueworks-15934805")).toBe(company);
   });
 });

@@ -1497,6 +1497,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 113,
     logoHeight: 24,
   },
+  {
+    id: "blueworks",
+    name: "blueworks AG",
+    careersUrl: "https://join.com/companies/blue",
+    logoSrc: "/company-logos/blueworks.svg",
+    logoAlt: "blueworks AG logo",
+    logoWidth: 27,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

@@ -2660,6 +2660,21 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "arcon_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="blueworks",
+        name="blueworks AG",
+        careers_url="https://join.com/companies/blue",
+        parser_path=(
+            "app.services.parsers.companies.blueworks:BlueworksJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "blueworks_jobs_base_url"),
+            ("api_url", "blueworks_jobs_api_url"),
+            ("timeout_seconds", "blueworks_jobs_timeout_seconds"),
+            ("max_pages", "blueworks_jobs_max_pages"),
+            ("detail_workers", "blueworks_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
