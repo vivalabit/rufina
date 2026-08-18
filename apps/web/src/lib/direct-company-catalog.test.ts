@@ -1887,3 +1887,25 @@ describe("Sharp Switzerland Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("Unisys Switzerland Direct Company catalog entry", () => {
+  it("uses the official Workday country filter and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "unisys_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "unisys_switzerland",
+      name: "Unisys Switzerland",
+      careersUrl:
+        "https://unisys.wd5.myworkdayjobs.com/External?locationCountry=187134fccb084a0ea9b4b95f23890dbe",
+      logoSrc: "/company-logos/unisys.svg",
+      logoAlt: "Unisys Switzerland logo",
+      logoWidth: 26,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("unisys_switzerland-REQ573110")).toBe(
+      company,
+    );
+  });
+});

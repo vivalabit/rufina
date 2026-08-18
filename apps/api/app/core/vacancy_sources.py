@@ -2543,6 +2543,28 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "sharp_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="unisys_switzerland",
+        name="Unisys Switzerland",
+        careers_url=(
+            "https://unisys.wd5.myworkdayjobs.com/External?"
+            "locationCountry=187134fccb084a0ea9b4b95f23890dbe"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.unisys_switzerland:"
+            "UnisysSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "unisys_switzerland_jobs_base_url"),
+            ("timeout_seconds", "unisys_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "unisys_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "unisys_switzerland_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "unisys_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

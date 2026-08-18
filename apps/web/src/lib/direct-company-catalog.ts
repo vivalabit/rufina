@@ -1432,6 +1432,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 152,
     logoHeight: 22,
   },
+  {
+    id: "unisys_switzerland",
+    name: "Unisys Switzerland",
+    careersUrl:
+      "https://unisys.wd5.myworkdayjobs.com/External?locationCountry=187134fccb084a0ea9b4b95f23890dbe",
+    logoSrc: "/company-logos/unisys.svg",
+    logoAlt: "Unisys Switzerland logo",
+    logoWidth: 26,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
