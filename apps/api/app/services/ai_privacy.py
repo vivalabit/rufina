@@ -1,12 +1,11 @@
 from datetime import datetime, timedelta
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.core.identity import RequestIdentity, get_request_identity
-from app.core.settings import Settings, get_settings
 from app.models.assistant import AppliedAssistantActionRecord
 from app.models.conversations import ConversationRecord
 from app.models.documents import (
@@ -33,36 +32,30 @@ def privacy_settings_record(
     )
 
 
-def has_current_ai_consent(
-    record: AiPrivacySettingsRecord | None,
-    settings: Settings,
-) -> bool:
-    return bool(
-        record
-        and record.consented_at is not None
-        and record.consent_version == settings.ai_consent_version
-        and record.consent_backend == settings.ai_backend_mode
+def ensure_ai_privacy_settings(
+    db: Session,
+    owner_id: str,
+) -> AiPrivacySettingsRecord:
+    record = privacy_settings_record(db, owner_id)
+    if record is not None:
+        return record
+    record = AiPrivacySettingsRecord(
+        owner_id=owner_id,
+        retention_days=30,
+        last_ai_activity_at=None,
+        ai_data_expires_at=None,
+        updated_at=utc_now(),
     )
+    db.add(record)
+    db.flush()
+    return record
 
 
-def require_current_ai_consent(
+def record_ai_activity(
     identity: RequestIdentity = Depends(get_request_identity),
     db: Session = Depends(get_db),
-    settings: Settings = Depends(get_settings),
 ) -> AiPrivacySettingsRecord:
-    record = privacy_settings_record(db, identity.owner_id)
-    if not has_current_ai_consent(record, settings):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail={
-                "code": "ai_consent_required",
-                "message": "Current AI data-processing consent is required",
-                "requiredVersion": settings.ai_consent_version,
-                "requiredBackend": settings.ai_backend_mode,
-            },
-        )
-
-    assert record is not None
+    record = ensure_ai_privacy_settings(db, identity.owner_id)
     now = utc_now()
     record.last_ai_activity_at = now
     record.ai_data_expires_at = now + timedelta(days=record.retention_days)

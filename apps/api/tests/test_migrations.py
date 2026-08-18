@@ -85,7 +85,11 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
         privacy_columns = {
             column["name"] for column in inspect(engine).get_columns("ai_privacy_settings")
         }
-        assert "consent_backend" in privacy_columns
+        assert {
+            "consent_version",
+            "consent_backend",
+            "consented_at",
+        }.isdisjoint(privacy_columns)
         resume_template_columns = {
             column["name"]
             for column in inspect(engine).get_columns(
@@ -157,7 +161,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260812_0036"
+            assert revision == "20260818_0037"
             entry_it = connection.execute(
                 text(
                     "SELECT id, owner_id, name, filters "
@@ -814,7 +818,7 @@ def test_screening_persistence_migration_backfills_run_statistics(
         engine.dispose()
 
 
-def test_backend_aware_consent_migration_preserves_openclaw_consent(tmp_path) -> None:
+def test_ai_consent_columns_are_removed_after_legacy_data_is_migrated(tmp_path) -> None:
     database_url = f"sqlite:///{tmp_path / 'backend-consent.sqlite'}"
     config = get_alembic_config(database_url)
     command.upgrade(config, "20260722_0012")
@@ -832,7 +836,7 @@ def test_backend_aware_consent_migration_preserves_openclaw_consent(tmp_path) ->
                 ),
                 {"now": now},
             )
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260722_0013")
         with engine.connect() as connection:
             rows = dict(
                 connection.execute(
@@ -846,6 +850,14 @@ def test_backend_aware_consent_migration_preserves_openclaw_consent(tmp_path) ->
             "consented-owner": "openclaw_codex",
             "revoked-owner": None,
         }
+        command.upgrade(config, "head")
+        columns = {
+            column["name"]
+            for column in inspect(engine).get_columns("ai_privacy_settings")
+        }
+        assert {"consent_version", "consent_backend", "consented_at"}.isdisjoint(
+            columns
+        )
     finally:
         engine.dispose()
 
@@ -1084,7 +1096,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260812_0036"
+            assert revision == "20260818_0037"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
@@ -1124,7 +1136,7 @@ def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> Non
                     "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
                 )
             ).scalar_one()
-        assert revision == "20260812_0036"
+        assert revision == "20260818_0037"
         assert entry_it_count == 1
         assert LEGACY_RECOVERABLE_MISSING_TABLES <= set(
             inspect(engine).get_table_names()

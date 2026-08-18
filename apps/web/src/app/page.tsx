@@ -83,19 +83,6 @@ import {
 import { formatParserFailure } from "@/lib/parser-errors";
 import { cn } from "@/lib/utils";
 
-type AiPrivacySettings = {
-  providerName: string;
-  currentBackend: AiBackend;
-  currentConsentVersion: string;
-  consentVersion: string | null;
-  consentBackend: AiBackend | null;
-  consentedAt: string | null;
-  hasCurrentConsent: boolean;
-  retentionDays: number;
-  lastAiActivityAt: string | null;
-  aiDataExpiresAt: string | null;
-};
-
 type AiMatchMetadata = {
   version: string;
   revision?: string;
@@ -3095,13 +3082,6 @@ export default function HomePage() {
   const [sortBy, setSortBy] = useState<JobSortBy>("AI Match");
   const [isAnalysisMenuOpen, setIsAnalysisMenuOpen] = useState(false);
   const [bulkAnalysisScope, setBulkAnalysisScope] = useState<BulkAnalysisScope | null>(null);
-  const [pendingAiMatchRequest, setPendingAiMatchRequest] = useState<{
-    jobs: Job[];
-    force: boolean;
-  } | null>(null);
-  const [aiPrivacySettings, setAiPrivacySettings] = useState<AiPrivacySettings | null>(null);
-  const [aiConsentConfirmed, setAiConsentConfirmed] = useState(false);
-  const [isSavingAiConsent, setIsSavingAiConsent] = useState(false);
   const [isManualJobDialogOpen, setIsManualJobDialogOpen] = useState(false);
   const [manualJobDraft, setManualJobDraft] = useState<ManualJobDraft>(defaultManualJobDraft);
   const [isParserDialogOpen, setIsParserDialogOpen] = useState(false);
@@ -5835,45 +5815,6 @@ export default function HomePage() {
       }
 
       if (!response.ok) {
-        if (response.status === 403) {
-          let consentRequired = false;
-          try {
-            const payload = (await response.clone().json()) as {
-              detail?: { code?: unknown };
-            };
-            consentRequired = payload.detail?.code === "ai_consent_required";
-          } catch {
-            // A non-JSON 403 is handled by the regular API error path below.
-          }
-
-          if (consentRequired) {
-            try {
-              const privacyResponse = await fetch(`${apiBaseUrl}/privacy/ai-consent`, {
-                cache: "no-store",
-              });
-              if (!privacyResponse.ok) {
-                throw new Error(
-                  await readApiErrorMessage(
-                    privacyResponse,
-                    "AI privacy settings could not be loaded",
-                  ),
-                );
-              }
-              const privacy = (await privacyResponse.json()) as AiPrivacySettings;
-              setAiPrivacySettings(privacy);
-              setAiConsentConfirmed(false);
-              setPendingAiMatchRequest({ jobs: jobsToMatch, force });
-              return false;
-            } catch (error) {
-              reportAiMatchError(
-                error instanceof Error
-                  ? error.message
-                  : "AI privacy settings could not be loaded",
-              );
-              return false;
-            }
-          }
-        }
         const message = await readApiErrorMessage(response, "AI match run could not start");
         reportAiMatchError(message, `HTTP ${response.status}`);
         return false;
@@ -5894,49 +5835,6 @@ export default function HomePage() {
 
   function refreshAiMatch(job: Job, force = false, conflictRetry = false) {
     return refreshAiMatches([job], force, conflictRetry);
-  }
-
-  async function grantAiConsentAndResumeAnalysis() {
-    if (
-      !pendingAiMatchRequest ||
-      !aiPrivacySettings ||
-      !aiConsentConfirmed ||
-      isSavingAiConsent
-    ) return;
-
-    const pendingRequest = pendingAiMatchRequest;
-    setIsSavingAiConsent(true);
-    try {
-      const response = await fetch(`${apiBaseUrl}/privacy/ai-consent`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          version: aiPrivacySettings.currentConsentVersion,
-          backend: aiPrivacySettings.currentBackend,
-          retentionDays: aiPrivacySettings.retentionDays,
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(await readApiErrorMessage(response, "AI consent could not be saved"));
-      }
-
-      const privacy = (await response.json()) as AiPrivacySettings;
-      setAiPrivacySettings(privacy);
-      setPendingAiMatchRequest(null);
-      setAiConsentConfirmed(false);
-      const completed = await refreshAiMatches(pendingRequest.jobs, pendingRequest.force);
-      if (completed) {
-        appendAppLog({
-          level: "success",
-          area: "AI Match",
-          message: `AI analysis completed for ${pendingRequest.jobs.length} vacancies`,
-        });
-      }
-    } catch (error) {
-      reportAiMatchError(error instanceof Error ? error.message : "AI consent could not be saved");
-    } finally {
-      setIsSavingAiConsent(false);
-    }
   }
 
   async function runBulkAiAnalysis(scope: BulkAnalysisScope) {
@@ -6863,26 +6761,6 @@ export default function HomePage() {
             onSave={() => void addManualJob()}
           />
         )}
-
-        {pendingAiMatchRequest && aiPrivacySettings ? (
-          <AiMatchConsentDialog
-            privacy={aiPrivacySettings}
-            vacancyCount={pendingAiMatchRequest.jobs.length}
-            confirmed={aiConsentConfirmed}
-            isSaving={isSavingAiConsent}
-            onConfirmedChange={setAiConsentConfirmed}
-            onRetentionDaysChange={(retentionDays) =>
-              setAiPrivacySettings((current) =>
-                current ? { ...current, retentionDays } : current,
-              )
-            }
-            onCancel={() => {
-              setPendingAiMatchRequest(null);
-              setAiConsentConfirmed(false);
-            }}
-            onContinue={() => void grantAiConsentAndResumeAnalysis()}
-          />
-        ) : null}
 
         {isParserDialogOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 p-2 backdrop-blur-sm sm:p-3">
@@ -7962,111 +7840,6 @@ function CalendarView({
         </div>
       ) : null}
     </section>
-  );
-}
-
-function AiMatchConsentDialog({
-  privacy,
-  vacancyCount,
-  confirmed,
-  isSaving,
-  onConfirmedChange,
-  onRetentionDaysChange,
-  onCancel,
-  onContinue,
-}: {
-  privacy: AiPrivacySettings;
-  vacancyCount: number;
-  confirmed: boolean;
-  isSaving: boolean;
-  onConfirmedChange: (confirmed: boolean) => void;
-  onRetentionDaysChange: (retentionDays: number) => void;
-  onCancel: () => void;
-  onContinue: () => void;
-}) {
-  return (
-    <div className="fixed inset-0 z-[60] grid place-items-center bg-black/75 p-4 backdrop-blur-sm">
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="ai-match-consent-title"
-        className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#111821] p-5 shadow-2xl sm:p-6"
-      >
-        <div className="flex items-start gap-3">
-          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-accent">
-            <ShieldCheck className="h-5 w-5" />
-          </span>
-          <div>
-            <p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">
-              AI data disclosure · {privacy.currentConsentVersion}
-            </p>
-            <h2 id="ai-match-consent-title" className="mt-1 text-lg font-bold text-white">
-              Analyze vacancies with {privacy.providerName}
-            </h2>
-          </div>
-        </div>
-
-        <p className="mt-4 text-xs leading-5 text-[#cbd3df]">
-          Rufina will send your candidate profile and the text of {vacancyCount} selected {vacancyCount === 1 ? "vacancy" : "vacancies"} to {privacy.providerName} to calculate AI Match results.
-        </p>
-
-        <div className="mt-4 space-y-2 rounded-xl border border-white/[0.08] bg-black/20 p-4 text-[11px] leading-5 text-muted">
-          <p><span className="font-bold text-white">Purpose:</span> compare the selected vacancies with your profile and generate match scores, explanations, gaps, and recommendations.</p>
-          <p><span className="font-bold text-white">Rufina storage:</span> AI-generated results are deleted after your selected retention period.</p>
-          <p><span className="font-bold text-white">AI provider:</span> {privacy.providerName}.</p>
-          <p><span className="font-bold text-white">Provider retention:</span> processing and retention follow {privacy.providerName}&apos;s policy.</p>
-        </div>
-
-        <label className="mt-4 block text-xs font-semibold text-[#dce2ea]">
-          Keep AI results for (days)
-          <input
-            type="number"
-            min={1}
-            max={365}
-            value={privacy.retentionDays}
-            onChange={(event) =>
-              onRetentionDaysChange(
-                Math.min(365, Math.max(1, Number(event.target.value) || 1)),
-              )
-            }
-            className="mt-2 h-10 w-full rounded-xl border border-white/10 bg-[#0b1119] px-3 text-xs text-white"
-          />
-        </label>
-
-        <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.025] p-3 text-xs leading-5 text-[#dce2ea]">
-          <input
-            type="checkbox"
-            checked={confirmed}
-            onChange={(event) => onConfirmedChange(event.target.checked)}
-            className="mt-1 h-4 w-4 accent-[#ff5a00]"
-          />
-          <span>
-            I understand and agree to send this profile and vacancy context to the AI provider for the requested analysis.
-          </span>
-        </label>
-
-        <div className="mt-5 flex justify-end gap-2">
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onCancel}
-            disabled={isSaving}
-            className="h-10 rounded-xl border border-white/10 px-4 text-xs"
-          >
-            Cancel
-          </Button>
-          <Button
-            type="button"
-            disabled={!confirmed || isSaving}
-            onClick={onContinue}
-            className="h-10 rounded-xl bg-accent px-4 text-xs font-bold text-white disabled:opacity-40"
-          >
-            {isSaving ? <RotateCcw className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />}
-            Continue to AI
-          </Button>
-        </div>
-      </div>
-    </div>
   );
 }
 

@@ -33,7 +33,7 @@ from app.models.resume import (
     SeniorRecruiterAnalysisRequest,
     SeniorRecruiterAnalysisResponse,
 )
-from app.services.ai_privacy import require_current_ai_consent
+from app.services.ai_privacy import record_ai_activity
 from app.services.generation_context import (
     GenerationContextError,
     load_authoritative_application_generation_context,
@@ -135,7 +135,7 @@ def resume_tailoring_master_resume(
 )
 def run_imaginator_resume(
     payload: ImaginatorResumeRequest,
-    _consent=Depends(require_current_ai_consent),
+    _activity=Depends(record_ai_activity),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> ImaginatorResumeResponse:
@@ -244,7 +244,7 @@ def run_imaginator_resume(
 )
 def run_senior_recruiter_analysis(
     payload: SeniorRecruiterAnalysisRequest,
-    _consent=Depends(require_current_ai_consent),
+    _activity=Depends(record_ai_activity),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> SeniorRecruiterAnalysisResponse:
@@ -397,7 +397,7 @@ def run_senior_recruiter_analysis(
 )
 def run_xyz_experience_rewrite(
     payload: ExperienceRewriteRequest,
-    _consent=Depends(require_current_ai_consent),
+    _activity=Depends(record_ai_activity),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> ExperienceRewriteResponse:
@@ -529,7 +529,7 @@ def run_xyz_experience_rewrite(
 )
 def run_ats_final_review(
     payload: AtsFinalReviewRequest,
-    _consent=Depends(require_current_ai_consent),
+    _activity=Depends(record_ai_activity),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> AtsFinalReviewResponse:

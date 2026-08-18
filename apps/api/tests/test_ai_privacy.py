@@ -9,8 +9,8 @@ from sqlalchemy.pool import StaticPool
 from app.api import assistant as assistant_api
 from app.core.database import Base, get_db
 from app.core.settings import Settings, get_settings
-from app.models.applications import CandidateConfirmationRecord
 from app.main import app
+from app.models.applications import CandidateConfirmationRecord
 from app.models.assistant import AppliedAssistantActionRecord
 from app.models.conversations import ConversationRecord
 from app.models.documents import DocumentRecord, DocumentTemplateRecord
@@ -36,13 +36,12 @@ def privacy_client() -> tuple[TestClient, sessionmaker[Session]]:
 
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_settings] = lambda: Settings(
-        ai_consent_version="privacy-v1",
         openclaw_assistant_enabled=True,
     )
     return TestClient(app), testing_session_local
 
 
-def test_ai_calls_require_current_server_side_consent(monkeypatch) -> None:
+def test_ai_calls_run_directly_and_track_retention(monkeypatch) -> None:
     calls = 0
 
     async def run_assistant(**_kwargs):
@@ -58,44 +57,7 @@ def test_ai_calls_require_current_server_side_consent(monkeypatch) -> None:
         db.commit()
 
     try:
-        initial = client.get("/privacy/ai-consent", headers=headers)
-        denied = client.post(
-            "/assistant/chat",
-            headers=headers,
-            json={
-                "threadId": "privacy-thread",
-                "message": "Review my profile",
-                "contextKind": "profile",
-            },
-        )
-        denied_match = client.post(
-            "/jobs/ai-match",
-            headers=headers,
-            json={"jobs": []},
-        )
-        denied_resume_import = client.post(
-            "/profile/import-experience-from-resume",
-            headers=headers,
-            json={"resume_file_name": "resume.txt", "resume_data_url": ""},
-        )
-        stale = client.put(
-            "/privacy/ai-consent",
-            headers=headers,
-            json={
-                "version": "privacy-v0",
-                "backend": "openclaw_codex",
-                "retentionDays": 7,
-            },
-        )
-        granted = client.put(
-            "/privacy/ai-consent",
-            headers=headers,
-            json={
-                "version": "privacy-v1",
-                "backend": "openclaw_codex",
-                "retentionDays": 7,
-            },
-        )
+        initial = client.get("/privacy/ai-retention", headers=headers)
         allowed = client.post(
             "/assistant/chat",
             headers=headers,
@@ -105,16 +67,22 @@ def test_ai_calls_require_current_server_side_consent(monkeypatch) -> None:
                 "contextKind": "profile",
             },
         )
+        allowed_match = client.post(
+            "/jobs/ai-match",
+            headers=headers,
+            json={"jobs": []},
+        )
+        resume_import = client.post(
+            "/profile/import-experience-from-resume",
+            headers=headers,
+            json={"resume_file_name": "resume.txt", "resume_data_url": ""},
+        )
         retention = client.put(
             "/privacy/ai-retention",
             headers=headers,
             json={"retentionDays": 3},
         )
-        app.dependency_overrides[get_settings] = lambda: Settings(
-            ai_consent_version="privacy-v2",
-            openclaw_assistant_enabled=True,
-        )
-        denied_after_version_change = client.post(
+        after_retention_change = client.post(
             "/assistant/chat",
             headers=headers,
             json={
@@ -129,96 +97,45 @@ def test_ai_calls_require_current_server_side_consent(monkeypatch) -> None:
     assert initial.status_code == 200
     assert initial.json()["providerName"] == "OpenAI via OpenClaw/Codex"
     assert initial.json()["currentBackend"] == "openclaw_codex"
-    assert initial.json()["consentBackend"] is None
-    assert initial.json()["hasCurrentConsent"] is False
-    assert denied.status_code == 403
-    assert denied.json()["detail"]["code"] == "ai_consent_required"
-    assert denied_match.status_code == 403
-    assert denied_resume_import.status_code == 403
-    assert calls == 1
-    assert stale.status_code == 409
-    assert granted.status_code == 200
-    assert granted.json()["hasCurrentConsent"] is True
-    assert granted.json()["consentBackend"] == "openclaw_codex"
-    assert granted.json()["retentionDays"] == 7
-    assert granted.json()["consentedAt"]
     assert allowed.status_code == 200
+    assert allowed_match.status_code == 200
+    assert resume_import.status_code != 403
     assert retention.status_code == 200
     assert retention.json()["retentionDays"] == 3
-    assert denied_after_version_change.status_code == 403
-    assert calls == 1
+    assert after_retention_change.status_code == 200
+    assert calls == 2
 
     with testing_session_local() as db:
         record = db.get(AiPrivacySettingsRecord, "privacy-owner")
         assert record is not None
-        assert record.consent_version == "privacy-v1"
-        assert record.consent_backend == "openclaw_codex"
         assert record.last_ai_activity_at is not None
         assert record.ai_data_expires_at is not None
         assert record.ai_data_expires_at - record.last_ai_activity_at == timedelta(days=3)
 
 
-def test_ai_consent_is_invalidated_when_backend_changes() -> None:
-    client, testing_session_local = privacy_client()
-    headers = {"X-Rufina-Owner-Id": "backend-consent-owner"}
+def test_retention_settings_survive_backend_changes() -> None:
+    client, _ = privacy_client()
+    headers = {"X-Rufina-Owner-Id": "backend-switch-owner"}
 
     try:
-        granted = client.put(
-            "/privacy/ai-consent",
+        configured = client.put(
+            "/privacy/ai-retention",
             headers=headers,
-            json={
-                "version": "privacy-v1",
-                "backend": "openclaw_codex",
-                "retentionDays": 30,
-            },
+            json={"retentionDays": 14},
         )
         app.dependency_overrides[get_settings] = lambda: Settings(
             ai_backend_mode="openai_api",
             openai_api_key="test-key",
-            ai_consent_version="privacy-v1",
         )
-        after_switch = client.get("/privacy/ai-consent", headers=headers)
-        stale_route = client.put(
-            "/privacy/ai-consent",
-            headers=headers,
-            json={
-                "version": "privacy-v1",
-                "backend": "openclaw_codex",
-                "retentionDays": 30,
-            },
-        )
-        renewed = client.put(
-            "/privacy/ai-consent",
-            headers=headers,
-            json={
-                "version": "privacy-v1",
-                "backend": "openai_api",
-                "retentionDays": 30,
-            },
-        )
+        after_switch = client.get("/privacy/ai-retention", headers=headers)
     finally:
         app.dependency_overrides.clear()
 
-    assert granted.json()["hasCurrentConsent"] is True
+    assert configured.status_code == 200
     assert after_switch.status_code == 200
     assert after_switch.json()["providerName"] == "OpenAI Responses API"
     assert after_switch.json()["currentBackend"] == "openai_api"
-    assert after_switch.json()["consentBackend"] == "openclaw_codex"
-    assert after_switch.json()["hasCurrentConsent"] is False
-    assert stale_route.status_code == 409
-    assert stale_route.json()["detail"] == {
-        "code": "ai_consent_backend_mismatch",
-        "requiredBackend": "openai_api",
-        "providerName": "OpenAI Responses API",
-    }
-    assert renewed.status_code == 200
-    assert renewed.json()["consentBackend"] == "openai_api"
-    assert renewed.json()["hasCurrentConsent"] is True
-
-    with testing_session_local() as db:
-        record = db.get(AiPrivacySettingsRecord, "backend-consent-owner")
-        assert record is not None
-        assert record.consent_backend == "openai_api"
+    assert after_switch.json()["retentionDays"] == 14
 
 
 def test_expired_ttl_deletes_only_the_owners_ai_data() -> None:
@@ -237,9 +154,6 @@ def test_expired_ttl_deletes_only_the_owners_ai_data() -> None:
                 [
                     AiPrivacySettingsRecord(
                         owner_id=owner_id,
-                        consent_version="privacy-v1",
-                        consent_backend="openclaw_codex",
-                        consented_at=now - timedelta(days=2),
                         retention_days=1,
                         last_ai_activity_at=now - timedelta(days=2),
                         ai_data_expires_at=(
@@ -371,11 +285,10 @@ def test_expired_ttl_deletes_only_the_owners_ai_data() -> None:
         ) is not None
         expired_settings = db.get(AiPrivacySettingsRecord, "expired-owner")
         assert expired_settings is not None
-        assert expired_settings.consent_version == "privacy-v1"
         assert expired_settings.ai_data_expires_at is None
 
 
-def test_revoke_consent_deletes_owner_ai_data_but_preserves_other_owners() -> None:
+def test_delete_ai_data_preserves_other_owners() -> None:
     client, testing_session_local = privacy_client()
     now = datetime.now(UTC)
     with testing_session_local() as db:
@@ -384,9 +297,6 @@ def test_revoke_consent_deletes_owner_ai_data_but_preserves_other_owners() -> No
                 [
                     AiPrivacySettingsRecord(
                         owner_id=owner_id,
-                        consent_version="privacy-v1",
-                        consent_backend="openclaw_codex",
-                        consented_at=now,
                         retention_days=30,
                         last_ai_activity_at=now,
                         ai_data_expires_at=now + timedelta(days=30),
@@ -407,19 +317,17 @@ def test_revoke_consent_deletes_owner_ai_data_but_preserves_other_owners() -> No
         db.commit()
 
     try:
-        revoked = client.delete(
-            "/privacy/ai-consent",
+        deleted = client.delete(
+            "/privacy/ai-data",
             headers={"X-Rufina-Owner-Id": "delete-owner"},
         )
     finally:
         app.dependency_overrides.clear()
 
-    assert revoked.status_code == 204
+    assert deleted.status_code == 204
     with testing_session_local() as db:
         deleted_settings = db.get(AiPrivacySettingsRecord, "delete-owner")
         assert deleted_settings is not None
-        assert deleted_settings.consent_version is None
-        assert deleted_settings.consent_backend is None
-        assert deleted_settings.consented_at is None
+        assert deleted_settings.ai_data_expires_at is None
         assert db.get(ConversationRecord, "conversation-delete-owner") is None
         assert db.get(ConversationRecord, "conversation-keep-owner") is not None

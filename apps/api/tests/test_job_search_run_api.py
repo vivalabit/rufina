@@ -21,7 +21,7 @@ from app.models.jobs import DiscoveredVacancyRecord, StoredJobRecord
 from app.models.parsers import ParsedJob, ParserSearchResponse
 from app.models.privacy import AiPrivacySettingsRecord
 from app.services import job_search_execution
-from app.services.job_search_execution import AI_CONSENT_WARNING, parsed_job_id
+from app.services.job_search_execution import parsed_job_id
 from app.services.vacancy_search import VacancySearchRunResult
 
 
@@ -49,7 +49,6 @@ def api_context() -> Generator[ApiContext, None, None]:
     settings = Settings(
         app_env="local",
         database_url="sqlite://",
-        ai_consent_version="job-search-test-v1",
     )
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_settings] = lambda: settings
@@ -351,7 +350,7 @@ def test_manual_run_accepts_inline_config_without_creating_schedule(
         "create_job_screening_ai_facade",
         lambda _settings: screening,
     )
-    grant_ai_consent(api_context, owner_id="manual-owner")
+    seed_ai_privacy_settings(api_context, owner_id="manual-owner")
     caplog.set_level(logging.INFO, logger="uvicorn.error")
 
     response = api_context.client.post(
@@ -460,7 +459,7 @@ def test_manual_parser_run_persists_and_analyzes_only_accepted_vacancies(
         "match_new_jobs_if_allowed",
         capture_analysis,
     )
-    grant_ai_consent(api_context, owner_id=owner_id)
+    seed_ai_privacy_settings(api_context, owner_id=owner_id)
 
     response = api_context.client.post(
         "/job-search/run",
@@ -577,7 +576,7 @@ def test_manual_screening_persists_and_matches_only_keep_and_reuses_cache(
         "match_new_jobs_if_allowed",
         capture_new_jobs,
     )
-    grant_ai_consent(api_context, owner_id=owner_id)
+    seed_ai_privacy_settings(api_context, owner_id=owner_id)
     config_id, schedule_id = create_search(
         api_context.client,
         headers,
@@ -790,7 +789,7 @@ def test_screening_audit_is_owner_scoped_rechecks_and_allows_without_full_match(
         "create_vacancy_matching_ai_facade",
         expensive_match,
     )
-    grant_ai_consent(api_context, owner_id=owner_id)
+    seed_ai_privacy_settings(api_context, owner_id=owner_id)
     filters = screening_filters()
     filters["screening"]["hardRules"] = [
         {
@@ -898,7 +897,7 @@ def test_inventory_rescreens_rejected_vacancy_when_cache_identity_changes(
         "create_job_screening_ai_facade",
         lambda _settings: facade,
     )
-    grant_ai_consent(api_context, owner_id=owner_id)
+    seed_ai_privacy_settings(api_context, owner_id=owner_id)
     config_id, schedule_id = create_search(
         api_context.client,
         headers,
@@ -1082,7 +1081,7 @@ def test_final_screening_matrix_only_persists_and_analyzes_entry_product_manager
         "match_new_jobs_if_allowed",
         capture_analysis,
     )
-    grant_ai_consent(api_context, owner_id=owner_id)
+    seed_ai_privacy_settings(api_context, owner_id=owner_id)
     filters = screening_filters()
     filters["search"]["keywords"] = "Product Manager"
     filters["screening"] = {
@@ -1120,15 +1119,15 @@ def test_final_screening_matrix_only_persists_and_analyzes_entry_product_manager
     assert "Senior Product Manager" not in visible_titles
 
 
-def test_screening_without_consent_is_uncertain_and_never_calls_models(
+def test_screening_runs_without_a_confirmation_gate(
     api_context: ApiContext,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    owner_id = "screening-no-consent-owner"
+    owner_id = "screening-direct-owner"
     headers = {"X-Rufina-Owner-Id": owner_id}
     job = parsed_job(
         title="Product Manager",
-        url="https://www.linkedin.com/jobs/view/no-consent-pm",
+        url="https://www.linkedin.com/jobs/view/direct-pm",
     )
     runner = FakeRunner(
         VacancySearchRunResult(
@@ -1137,12 +1136,7 @@ def test_screening_without_consent_is_uncertain_and_never_calls_models(
             source_errors={},
         )
     )
-    cheap_model = Mock(
-        side_effect=AssertionError("screening model called without consent")
-    )
-    expensive_model = Mock(
-        side_effect=AssertionError("full match called without consent")
-    )
+    screening = FakeScreeningFacade({job.title: "keep"})
     monkeypatch.setattr(
         job_search_api,
         "create_vacancy_search_runner",
@@ -1151,12 +1145,7 @@ def test_screening_without_consent_is_uncertain_and_never_calls_models(
     monkeypatch.setattr(
         job_search_execution,
         "create_job_screening_ai_facade",
-        cheap_model,
-    )
-    monkeypatch.setattr(
-        job_search_execution,
-        "create_vacancy_matching_ai_facade",
-        expensive_model,
+        lambda _settings: screening,
     )
     _, schedule_id = create_search(
         api_context.client,
@@ -1170,22 +1159,21 @@ def test_screening_without_consent_is_uncertain_and_never_calls_models(
     )
 
     assert response.status_code == 200
-    assert response.json()["status"] == "partial"
-    assert response.json()["jobsUncertain"] == 1
-    assert response.json()["screeningErrors"] == 1
-    assert response.json()["jobsAdded"] == 0
+    assert response.json()["status"] == "completed"
+    assert response.json()["jobsUncertain"] == 0
+    assert response.json()["screeningErrors"] == 0
+    assert response.json()["jobsAdded"] == 1
     assert response.json()["jobsAnalyzed"] == 0
-    assert "consent is missing" in response.json()["warning"]
-    assert api_context.client.get("/jobs", headers=headers).json() == []
-    assert cheap_model.call_count == 0
-    assert expensive_model.call_count == 0
+    assert response.json()["warning"] is None
+    assert len(api_context.client.get("/jobs", headers=headers).json()) == 1
+    assert len(screening.calls) == 1
     audit = api_context.client.get(
         "/job-search/screening-audit",
         headers=headers,
     ).json()
     assert len(audit) == 1
-    assert audit[0]["decision"] == "uncertain"
-    assert audit[0]["reasonCode"] == "screening_error"
+    assert audit[0]["decision"] == "keep"
+    assert audit[0]["reasonCode"] == "target_role_match"
     with api_context.sessions() as db:
         inventory = list(
             db.scalars(
@@ -1196,24 +1184,6 @@ def test_screening_without_consent_is_uncertain_and_never_calls_models(
         )
     assert len(inventory) == 1
     assert inventory[0].data["title"] == job.title
-
-    retry_facade = FakeScreeningFacade({job.title: "reject"})
-    monkeypatch.setattr(
-        job_search_execution,
-        "create_job_screening_ai_facade",
-        lambda _settings: retry_facade,
-    )
-    grant_ai_consent(api_context, owner_id=owner_id)
-    retry = api_context.client.post(
-        f"/job-search/schedules/{schedule_id}/run",
-        headers=headers,
-    )
-    assert retry.status_code == 200
-    assert retry.json()["jobsScreeningAiCalls"] == 1
-    assert retry.json()["jobsRejected"] == 1
-    assert len(retry_facade.calls) == 1
-    assert api_context.client.get("/jobs", headers=headers).json() == []
-
 
 def test_manual_screening_error_is_partial_and_fail_closed(
     api_context: ApiContext,
@@ -1258,7 +1228,7 @@ def test_manual_screening_error_is_partial_and_fail_closed(
         "match_new_jobs_if_allowed",
         capture_new_jobs,
     )
-    grant_ai_consent(api_context, owner_id=owner_id)
+    seed_ai_privacy_settings(api_context, owner_id=owner_id)
     _, schedule_id = create_search(
         api_context.client,
         headers,
@@ -1317,7 +1287,7 @@ def test_existing_imported_jobs_require_dry_run_and_can_be_rescreened(
     )
     assert config_response.status_code == 201
     config_id = config_response.json()["id"]
-    grant_ai_consent(api_context, owner_id=owner_id)
+    seed_ai_privacy_settings(api_context, owner_id=owner_id)
 
     with api_context.sessions() as db:
         db.add_all(
@@ -1686,7 +1656,7 @@ def test_rescreen_groups_jobs_by_original_config_and_uses_explicit_fallback(
         headers,
         filters=sales_filters,
     )
-    grant_ai_consent(api_context, owner_id=owner_id)
+    seed_ai_privacy_settings(api_context, owner_id=owner_id)
 
     with api_context.sessions() as db:
         db.add_all(
@@ -1848,11 +1818,10 @@ def test_rescreen_groups_jobs_by_original_config_and_uses_explicit_fallback(
     assert records["jobs_ch-grouped-missing-config"].status == "screened_out"
 
 
-def test_run_now_persists_jobs_snapshot_and_no_consent_warning(
+def test_run_now_persists_jobs_snapshot_without_warning(
     api_context: ApiContext,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    api_context.settings.auto_ai_match_enabled = True
     owner_a = {"X-Rufina-Owner-Id": "owner-a"}
     owner_b = {"X-Rufina-Owner-Id": "owner-b"}
     job = parsed_job(
@@ -1896,7 +1865,7 @@ def test_run_now_persists_jobs_snapshot_and_no_consent_warning(
     assert payload["jobsAdded"] == 1
     assert payload["jobsAnalyzed"] == 0
     assert payload["screeningErrors"] == 0
-    assert payload["warning"] == AI_CONSENT_WARNING
+    assert payload["warning"] is None
     assert payload["configSnapshot"]["id"] == config_id
     normalized_config = payload["configSnapshot"]["filters"]
     assert normalized_config["schemaVersion"] == 2
@@ -2313,15 +2282,12 @@ def stored_job_statuses(
     return {record.id: record.status for record in records}
 
 
-def grant_ai_consent(context: ApiContext, *, owner_id: str) -> None:
+def seed_ai_privacy_settings(context: ApiContext, *, owner_id: str) -> None:
     now = datetime.now(UTC)
     with context.sessions() as db:
         db.add(
             AiPrivacySettingsRecord(
                 owner_id=owner_id,
-                consent_version=context.settings.ai_consent_version,
-                consent_backend=context.settings.ai_backend_mode,
-                consented_at=now,
                 retention_days=30,
                 updated_at=now,
             )

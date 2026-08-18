@@ -30,7 +30,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { getAiSourceLabel, type AiBackend, type AiSource } from "@/lib/ai-source";
+import { getAiSourceLabel, type AiSource } from "@/lib/ai-source";
 import { cn } from "@/lib/utils";
 
 export type AssistantLaunch = {
@@ -80,15 +80,6 @@ type AssistantApplication = {
 
 type AssistantContextKind = AssistantLaunch["contextKind"];
 type AssistantConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting" | "disconnected";
-
-type AiPrivacySettings = {
-  providerName: string;
-  currentBackend: AiBackend;
-  consentBackend: AiBackend | null;
-  currentConsentVersion: string;
-  hasCurrentConsent: boolean;
-  retentionDays: number;
-};
 
 type AssistantSseEvent = {
   event: string;
@@ -202,14 +193,6 @@ type AssistantViewProps = {
 const legacyAssistantThreadsStorageKey = "tasko.assistantThreads.v1";
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const assistantMessageMaxChars = 6_000;
-const defaultAiPrivacySettings: AiPrivacySettings = {
-  providerName: "OpenAI via OpenClaw/Codex",
-  currentBackend: "openclaw_codex",
-  consentBackend: null,
-  currentConsentVersion: "2026-07-18.v2",
-  hasCurrentConsent: false,
-  retentionDays: 30,
-};
 const assistantActionMarkerPattern = /\s*<!--TASKO_ACTIONS:([A-Za-z0-9_\-=]+)-->\s*$/;
 
 const quickActions = [
@@ -687,12 +670,8 @@ export function AssistantView({
   const [isDocumentSaving, setIsDocumentSaving] = useState(false);
   const [documentError, setDocumentError] = useState("");
   const [assistantError, setAssistantError] = useState("");
-  const [aiPrivacy, setAiPrivacy] = useState(defaultAiPrivacySettings);
-  const [aiConsentConfirmed, setAiConsentConfirmed] = useState(false);
-  const [pendingConsentPrompt, setPendingConsentPrompt] = useState<string | null>(null);
   const [pendingAutoSubmitLaunch, setPendingAutoSubmitLaunch] =
     useState<AssistantLaunch | null>(null);
-  const [isSavingAiConsent, setIsSavingAiConsent] = useState(false);
   const launchedIdRef = useRef("");
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const streamAbortControllerRef = useRef<AbortController | null>(null);
@@ -771,26 +750,6 @@ export function AssistantView({
       })
       .catch(() => {
         if (!cancelled) setDocumentError("Documents are temporarily unavailable");
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, []);
-
-  useEffect(() => {
-    let cancelled = false;
-    fetch(`${apiBaseUrl}/privacy/ai-consent`, { cache: "no-store" })
-      .then(async (response) => {
-        if (!response.ok) throw new Error(await readAssistantApiError(response));
-        return response.json() as Promise<AiPrivacySettings>;
-      })
-      .then((privacy) => {
-        if (!cancelled) setAiPrivacy(privacy);
-      })
-      .catch((error) => {
-        if (!cancelled) {
-          setAssistantError(error instanceof Error ? error.message : "AI privacy settings are unavailable");
-        }
       });
     return () => {
       cancelled = true;
@@ -1143,16 +1102,11 @@ export function AssistantView({
     }
   }
 
-  async function submitMessage(explicitPrompt?: string, consentGranted = false) {
+  async function submitMessage(explicitPrompt?: string) {
     const prompt = (explicitPrompt ?? draft).trim();
     if (!prompt || isGenerating) return;
     if (prompt.length > assistantMessageMaxChars) {
       setAssistantError(`Message is too long. The limit is ${assistantMessageMaxChars.toLocaleString()} characters.`);
-      return;
-    }
-    if (!aiPrivacy.hasCurrentConsent && !consentGranted) {
-      setAiConsentConfirmed(false);
-      setPendingConsentPrompt(prompt);
       return;
     }
     setAssistantError("");
@@ -1353,46 +1307,6 @@ export function AssistantView({
       streamAbortControllerRef.current = null;
       activeRequestIdRef.current = "";
       if (completed) setConnectionStatus("idle");
-    }
-  }
-
-  async function grantAiConsent() {
-    if (!aiConsentConfirmed || !pendingConsentPrompt) return;
-    setIsSavingAiConsent(true);
-    try {
-      const response = await fetch(`${apiBaseUrl}/privacy/ai-consent`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          version: aiPrivacy.currentConsentVersion,
-          backend: aiPrivacy.currentBackend,
-          retentionDays: aiPrivacy.retentionDays,
-        }),
-      });
-      if (!response.ok) throw new Error(await readAssistantApiError(response));
-      const privacy = await response.json() as AiPrivacySettings;
-      const prompt = pendingConsentPrompt;
-      setAiPrivacy(privacy);
-      setPendingConsentPrompt(null);
-      void submitMessage(prompt, true);
-    } catch (error) {
-      setAssistantError(error instanceof Error ? error.message : "AI consent could not be saved");
-    } finally {
-      setIsSavingAiConsent(false);
-    }
-  }
-
-  async function revokeAiConsent() {
-    try {
-      const response = await fetch(`${apiBaseUrl}/privacy/ai-consent`, { method: "DELETE" });
-      if (!response.ok) throw new Error(await readAssistantApiError(response));
-      setAiPrivacy((privacy) => ({ ...privacy, hasCurrentConsent: false }));
-      setAiConsentConfirmed(false);
-      setThreads([]);
-      setActiveThreadId("");
-      setDocuments([]);
-    } catch (error) {
-      setAssistantError(error instanceof Error ? error.message : "AI consent could not be revoked");
     }
   }
 
@@ -1743,7 +1657,7 @@ export function AssistantView({
                 )}
               </div>
             </div>
-            <p className="mt-1.5 text-center text-[9px] text-muted">Rufina may make mistakes. Verify generated claims before using them. {aiPrivacy.hasCurrentConsent ? <button type="button" onClick={() => void revokeAiConsent()} className="font-bold text-amber-200 hover:text-white">Revoke AI consent</button> : <span className="font-bold text-amber-200">AI consent required</span>}</p>
+            <p className="mt-1.5 text-center text-[9px] text-muted">Rufina may make mistakes. Verify generated claims before using them.</p>
           </div>
         </main>
 
@@ -1956,22 +1870,6 @@ export function AssistantView({
         </div>
       </div>
     )}
-    {pendingConsentPrompt ? (
-      <div className="fixed inset-0 z-[60] grid place-items-center bg-black/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="assistant-ai-consent-title">
-        <div className="w-full max-w-lg rounded-xl border border-border bg-[#111821] p-5 shadow-2xl">
-          <div className="flex items-start gap-3">
-            <span className="grid h-10 w-10 shrink-0 place-items-center rounded-lg border border-accent/25 bg-accent/10 text-accent"><ShieldCheck className="h-5 w-5" /></span>
-            <div><p className="text-[10px] font-black uppercase tracking-[0.12em] text-accent">AI data disclosure · {aiPrivacy.currentConsentVersion}</p><h2 id="assistant-ai-consent-title" className="mt-1 text-lg font-bold text-white">Send selected context to {aiPrivacy.providerName}</h2></div>
-          </div>
-          <p className="mt-4 text-xs leading-5 text-[#cbd3df]">Rufina sends your message and selected profile, vacancy, or application context using {aiPrivacy.providerName}. AI results are deleted after your selected retention period.</p>
-          <label className="mt-4 block text-xs font-semibold text-[#dce2ea]">Keep AI results for (days)
-            <input type="number" min={1} max={365} value={aiPrivacy.retentionDays} onChange={(event) => setAiPrivacy((privacy) => ({ ...privacy, retentionDays: Math.min(365, Math.max(1, Number(event.target.value) || 1)) }))} className="mt-2 h-10 w-full rounded-lg border border-border bg-[#0b1119] px-3 text-xs text-white" />
-          </label>
-          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-white/[0.025] p-3 text-xs leading-5 text-[#dce2ea]"><input type="checkbox" checked={aiConsentConfirmed} onChange={(event) => setAiConsentConfirmed(event.target.checked)} className="mt-1 h-4 w-4 accent-[#ff5a00]" /><span>I understand and agree to send this context to the AI provider.</span></label>
-          <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" onClick={() => setPendingConsentPrompt(null)} className="h-9 border border-border px-3 text-xs">Cancel</Button><Button disabled={!aiConsentConfirmed || isSavingAiConsent} onClick={() => void grantAiConsent()} className="h-9 bg-accent px-3 text-xs font-bold text-white disabled:opacity-40">{isSavingAiConsent ? <RefreshCw className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />} Continue to AI</Button></div>
-        </div>
-      </div>
-    ) : null}
     </>
   );
 }

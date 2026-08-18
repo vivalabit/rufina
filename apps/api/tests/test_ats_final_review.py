@@ -39,7 +39,7 @@ from app.models.resume import (
 )
 from app.models.resume_templates import ResumeTemplateDefinitionRecord
 from app.services.ai_backend import AIRequest, AIResult, AIUsage
-from app.services.ai_privacy import require_current_ai_consent
+from app.services.ai_privacy import record_ai_activity
 from app.services.document_export import render_final_resume_json
 from app.services.resume_pdf_renderer import (
     ResumeTemplateNotFoundError,
@@ -71,8 +71,8 @@ from app.services.resume_tailoring import (
 
 
 @pytest.fixture(autouse=True)
-def bypass_ai_consent_boundary() -> Generator[None, None, None]:
-    app.dependency_overrides[require_current_ai_consent] = lambda: None
+def bypass_ai_activity_tracking() -> Generator[None, None, None]:
+    app.dependency_overrides[record_ai_activity] = lambda: None
     try:
         yield
     finally:

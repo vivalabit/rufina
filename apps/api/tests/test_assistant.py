@@ -34,12 +34,21 @@ from app.models.documents import DocumentGenerationArtifactRecord, DocumentTempl
 from app.models.jobs import JobMatchRecord, StoredJobRecord
 from app.models.profile import ProfilePayload, ProfileRecord
 from app.services.ai_backend import AIBackendError, AIResult, AIUsage
+from app.services.ai_match import (
+    DEFAULT_AI_MATCH_MODEL,
+    MATCH_PROMPT_VERSION,
+    MATCHER_VERSION,
+    build_job_snapshot,
+    build_job_snapshot_hash,
+    build_profile_hash,
+)
+from app.services.ai_privacy import record_ai_activity
 from app.services.assistant import (
     AssistantAIFacade,
     AssistantError,
     AssistantRunMetrics,
-    OpenClawAssistantRun,
     OpenClawAssistantError,
+    OpenClawAssistantRun,
     OpenClawAssistantTimeoutError,
     analyze_openclaw_assistant_context,
     build_openclaw_assistant_prompt,
@@ -49,25 +58,16 @@ from app.services.assistant import (
     preflight_source_documents,
     run_openclaw_assistant,
 )
-from app.services.ai_match import (
-    DEFAULT_AI_MATCH_MODEL,
-    MATCHER_VERSION,
-    MATCH_PROMPT_VERSION,
-    build_job_snapshot,
-    build_job_snapshot_hash,
-    build_profile_hash,
-)
-from app.services.ai_privacy import require_current_ai_consent
 from app.services.job_match_store import APPLICATION_GUIDE_STORAGE_KEY
 
 
 @pytest.fixture(autouse=True)
-def bypass_ai_consent_boundary() -> Generator[None, None, None]:
-    app.dependency_overrides[require_current_ai_consent] = lambda: None
+def bypass_ai_activity_tracking() -> Generator[None, None, None]:
+    app.dependency_overrides[record_ai_activity] = lambda: None
     try:
         yield
     finally:
-        app.dependency_overrides.pop(require_current_ai_consent, None)
+        app.dependency_overrides.pop(record_ai_activity, None)
 
 
 def test_extract_openclaw_assistant_text_reads_payload_wrapper() -> None:
@@ -87,11 +87,10 @@ def test_extract_openclaw_assistant_text_reads_payload_wrapper() -> None:
     assert response == "Here is your evidence-based interview plan."
 
 
-def test_assistant_config_exposes_provider_and_consent_version() -> None:
+def test_assistant_config_exposes_provider_and_backend() -> None:
     app.dependency_overrides[get_settings] = lambda: Settings(
         ai_backend_mode="openai_api",
         openai_api_key="test-key",
-        ai_consent_version="consent-v3",
     )
     try:
         response = TestClient(app).get("/assistant/config")
@@ -102,7 +101,6 @@ def test_assistant_config_exposes_provider_and_consent_version() -> None:
     assert response.json() == {
         "providerName": "OpenAI Responses API",
         "backend": "openai_api",
-        "consentVersion": "consent-v3",
     }
 
 

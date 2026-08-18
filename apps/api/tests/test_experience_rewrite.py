@@ -23,7 +23,7 @@ from app.models.resume import (
     SeniorRecruiterAnalysisRecord,
 )
 from app.services.ai_backend import AIRequest, AIResult, AIUsage
-from app.services.ai_privacy import require_current_ai_consent
+from app.services.ai_privacy import record_ai_activity
 from app.services.resume_tailoring import (
     EXPERIENCE_REWRITE_PROMPT_VERSION,
     ExperienceRewriteOutcome,
@@ -33,8 +33,8 @@ from app.services.resume_tailoring import (
 
 
 @pytest.fixture(autouse=True)
-def bypass_ai_consent_boundary() -> Generator[None, None, None]:
-    app.dependency_overrides[require_current_ai_consent] = lambda: None
+def bypass_ai_activity_tracking() -> Generator[None, None, None]:
+    app.dependency_overrides[record_ai_activity] = lambda: None
     try:
         yield
     finally:

@@ -33,8 +33,7 @@ from app.models.parsers import LinkedInSearchRequest, ParsedJob
 from app.models.profile import ProfilePayload, ProfileRecord
 from app.services.ai_match import AiMatchError, create_vacancy_matching_ai_facade
 from app.services.ai_privacy import (
-    has_current_ai_consent,
-    privacy_settings_record,
+    ensure_ai_privacy_settings,
 )
 from app.services.candidate_snapshot import (
     CandidateSnapshotError,
@@ -74,11 +73,6 @@ from app.services.vacancy_search import (
 )
 
 logger = logging.getLogger("uvicorn.error")
-
-AI_CONSENT_WARNING = "AI Match was skipped because current AI data-processing consent is missing"
-SCREENING_CONSENT_WARNING = (
-    "Vacancy screening was skipped because current AI data-processing consent is missing"
-)
 
 EXPERIENCE_LEVEL_SENIORITY = {
     "Entry level": ["intern", "entry", "junior"],
@@ -762,28 +756,10 @@ def screen_new_job_candidates(
         ai_calls=0,
     )
 
-    consent = privacy_settings_record(db, get_bound_owner_id())
+    privacy = ensure_ai_privacy_settings(db, get_bound_owner_id())
     external_screening_attempted = False
     ai_calls = 0
-    missing_consent = bool(
-        uncached and not has_current_ai_consent(consent, settings)
-    )
-    if missing_consent:
-        for candidate in uncached:
-            decisions_by_id[candidate.job_id] = JobScreeningDecision.model_validate(
-                uncertain_or_keep_decision(
-                    candidate.job_id,
-                    reason_code="screening_error",
-                    reason="Current AI data-processing consent is missing",
-                )
-            )
-        emit_screening_progress(
-            progress_callback,
-            total=len(candidates),
-            decisions=decisions_by_id,
-            ai_calls=ai_calls,
-        )
-    elif uncached:
+    if uncached:
         external_screening_attempted = True
         allowed_rule_ids = screening_rule_ids(screening_config)
         batch_size = settings.job_screening_batch_size
@@ -845,13 +821,13 @@ def screen_new_job_candidates(
                     ai_calls=ai_calls,
                 )
 
-    if external_screening_attempted and consent is not None:
+    if external_screening_attempted:
         activity_at = datetime.now(UTC)
-        consent.last_ai_activity_at = activity_at
-        consent.ai_data_expires_at = activity_at + timedelta(
-            days=consent.retention_days
+        privacy.last_ai_activity_at = activity_at
+        privacy.ai_data_expires_at = activity_at + timedelta(
+            days=privacy.retention_days
         )
-        consent.updated_at = activity_at
+        privacy.updated_at = activity_at
 
     for candidate in [*deterministic, *uncached]:
         persist_screening_decision(
@@ -884,12 +860,8 @@ def screen_new_job_candidates(
     warning = None
     if error_count:
         warning = (
-            SCREENING_CONSENT_WARNING
-            if missing_consent
-            else (
-                f"Vacancy screening failed for {error_count} "
-                "vacancies; unverified vacancies were skipped"
-            )
+            f"Vacancy screening failed for {error_count} "
+            "vacancies; unverified vacancies were skipped"
         )
 
     return ScreeningPipelineResult(
@@ -1070,9 +1042,7 @@ def match_new_jobs_if_allowed(
 ) -> str | None:
     if not enabled or not jobs:
         return None
-    consent = privacy_settings_record(db, owner_id)
-    if not has_current_ai_consent(consent, settings):
-        return AI_CONSENT_WARNING
+    privacy = ensure_ai_privacy_settings(db, owner_id)
 
     try:
         profile_record = db.get(ProfileRecord, "default")
@@ -1099,11 +1069,10 @@ def match_new_jobs_if_allowed(
                 job=matched_job,
                 profile_hash=candidate_snapshot.profile_hash,
             )
-        assert consent is not None
         activity_at = datetime.now(UTC)
-        consent.last_ai_activity_at = activity_at
-        consent.ai_data_expires_at = activity_at + timedelta(days=consent.retention_days)
-        consent.updated_at = activity_at
+        privacy.last_ai_activity_at = activity_at
+        privacy.ai_data_expires_at = activity_at + timedelta(days=privacy.retention_days)
+        privacy.updated_at = activity_at
         db.commit()
         return None
     except (AiMatchError, CandidateSnapshotError, ValidationError) as exc:

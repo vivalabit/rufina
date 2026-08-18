@@ -274,20 +274,6 @@ type GeneratedDocument = {
 type AiConfiguration = {
   providerName: string;
   backend: AiBackend;
-  consentVersion: string;
-};
-
-type AiPrivacySettings = {
-  providerName: string;
-  currentBackend: AiBackend;
-  currentConsentVersion: string;
-  consentVersion: string | null;
-  consentBackend: AiBackend | null;
-  consentedAt: string | null;
-  hasCurrentConsent: boolean;
-  retentionDays: number;
-  lastAiActivityAt: string | null;
-  aiDataExpiresAt: string | null;
 };
 
 type PackStageId = "resume_generation" | "resume_validation" | "cover_letter_generation" | "saving";
@@ -335,12 +321,6 @@ type DocumentTemplate = {
   updatedAt: string;
 };
 
-type PendingAiGeneration = {
-  action: GeneratedDocument["type"] | "pack" | "question";
-  instruction?: string;
-  fromDocumentChat?: boolean;
-} | null;
-
 type DocumentChatTarget = GeneratedDocument["type"] | "question";
 
 type DocumentChatMessage = {
@@ -373,11 +353,9 @@ type ApplicationWorkspaceProps = {
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const docxContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-const legacyAiDisclosureStorageKey = "tasko.ai-cv-disclosure.v1";
 const defaultAiConfiguration: AiConfiguration = {
   providerName: "OpenAI via OpenClaw/Codex",
   backend: "openclaw_codex",
-  consentVersion: "2026-07-18.v2",
 };
 const confirmationAnswerMaxChars = 1_500;
 const documentRevisionMessageMaxChars = 7_000;
@@ -861,12 +839,7 @@ export function ApplicationWorkspace({
   const [activeWorkspaceStep, setActiveWorkspaceStep] = useState<WorkspaceStep>(
     () => hasCurrentApplicationGuide(application?.job.aiMatch) ? "create" : "review",
   );
-  const [aiDisclosureAccepted, setAiDisclosureAccepted] = useState(false);
-  const [aiDisclosureConfirmed, setAiDisclosureConfirmed] = useState(false);
-  const [pendingAiGeneration, setPendingAiGeneration] = useState<PendingAiGeneration>(null);
   const [aiConfiguration, setAiConfiguration] = useState<AiConfiguration>(defaultAiConfiguration);
-  const [aiRetentionDays, setAiRetentionDays] = useState(30);
-  const [isSavingAiConsent, setIsSavingAiConsent] = useState(false);
   const [apiHealth, setApiHealth] = useState<"checking" | "available" | "unavailable">("checking");
   const [apiRetryVersion, setApiRetryVersion] = useState(0);
 
@@ -968,16 +941,14 @@ export function ApplicationWorkspace({
       fetchWithTimeout(`${apiBaseUrl}/documents/templates/library`, { signal: controller.signal }),
       fetchWithTimeout(`${apiBaseUrl}/resume-templates`, { cache: "no-store", signal: controller.signal }),
       fetchWithTimeout(`${apiBaseUrl}/assistant/config`, { signal: controller.signal }),
-      fetchWithTimeout(`${apiBaseUrl}/privacy/ai-consent`, { cache: "no-store", signal: controller.signal }),
       fetchWithTimeout(`${apiBaseUrl}/profile/master-resume`, { cache: "no-store", signal: controller.signal }),
     ])
-      .then(async ([documentsResponse, templatesResponse, resumeTemplatesResponse, aiConfigurationResponse, aiPrivacyResponse, masterResumeResponse]) => {
-        if (!documentsResponse.ok || !templatesResponse.ok || !resumeTemplatesResponse.ok || !aiConfigurationResponse.ok || !aiPrivacyResponse.ok || (!masterResumeResponse.ok && masterResumeResponse.status !== 404)) throw new Error("Application documents are temporarily unavailable");
+      .then(async ([documentsResponse, templatesResponse, resumeTemplatesResponse, aiConfigurationResponse, masterResumeResponse]) => {
+        if (!documentsResponse.ok || !templatesResponse.ok || !resumeTemplatesResponse.ok || !aiConfigurationResponse.ok || (!masterResumeResponse.ok && masterResumeResponse.status !== 404)) throw new Error("Application documents are temporarily unavailable");
         const loadedDocuments = await documentsResponse.json() as GeneratedDocument[];
         const loadedTemplates = await templatesResponse.json() as DocumentTemplate[];
         const loadedResumeTemplates = await resumeTemplatesResponse.json() as ResumeTemplate[];
         const loadedAiConfiguration = await aiConfigurationResponse.json() as AiConfiguration;
-        const loadedAiPrivacy = await aiPrivacyResponse.json() as AiPrivacySettings;
         const loadedMasterResume = masterResumeResponse.ok
           ? await masterResumeResponse.json() as CurrentMasterResume
           : null;
@@ -1014,12 +985,8 @@ export function ApplicationWorkspace({
           }
         }
         setAiConfiguration(loadedAiConfiguration);
-        setAiRetentionDays(loadedAiPrivacy.retentionDays);
         setCurrentMasterResume(loadedMasterResume);
         setMasterResumeLoaded(true);
-        window.localStorage.removeItem(legacyAiDisclosureStorageKey);
-        window.localStorage.removeItem("tasko.ai-consent");
-        setAiDisclosureAccepted(loadedAiPrivacy.hasCurrentConsent);
         setDocumentsLoaded(true);
       })
       .catch((error) => {
@@ -1798,20 +1765,6 @@ export function ApplicationWorkspace({
     action: GeneratedDocument["type"] | "pack",
     instruction = "",
   ) {
-    const canRenderSavedFinalResumeWithoutAi =
-      action === "tailored_resume" &&
-      Boolean(
-        reusableResumeSource(
-          latestResume,
-          isResumeOutdated,
-          selectedResumeGenerationMode,
-        ),
-      );
-    if (!aiDisclosureAccepted && !canRenderSavedFinalResumeWithoutAi) {
-      setAiDisclosureConfirmed(false);
-      setPendingAiGeneration({ action, instruction });
-      return;
-    }
     if (action === "pack") void generatePack();
     else void generateDocument(action, instruction);
   }
@@ -1877,70 +1830,10 @@ export function ApplicationWorkspace({
       { id: createId("document-chat-user"), role: "user", text: instruction },
     ]);
     setDocumentChatInput("");
-    if (!aiDisclosureAccepted) {
-      setAiDisclosureConfirmed(false);
-      setPendingAiGeneration({
-        action: documentChatTarget,
-        instruction,
-        fromDocumentChat: true,
-      });
-      return;
-    }
     if (documentChatTarget === "question") {
       void runDocumentChatQuestion(instruction);
     } else {
       void runDocumentChatRevision(documentChatTarget, instruction);
-    }
-  }
-
-  async function acceptAiDisclosure() {
-    if (!aiDisclosureConfirmed || !pendingAiGeneration) return;
-    const pending = pendingAiGeneration;
-    setIsSavingAiConsent(true);
-    try {
-      const response = await fetchWithTimeout(`${apiBaseUrl}/privacy/ai-consent`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          version: aiConfiguration.consentVersion,
-          backend: aiConfiguration.backend,
-          retentionDays: aiRetentionDays,
-        }),
-      });
-      if (!response.ok) throw new Error(await readApiError(response, "AI consent could not be saved"));
-      const privacy = await response.json() as AiPrivacySettings;
-      setAiDisclosureAccepted(privacy.hasCurrentConsent);
-      setAiRetentionDays(privacy.retentionDays);
-      setPendingAiGeneration(null);
-      if (pending.action === "question") {
-        if (pending.instruction) {
-          void runDocumentChatQuestion(pending.instruction);
-        }
-      } else if (pending.action === "pack") void generatePack();
-      else if (pending.fromDocumentChat && pending.instruction) {
-        void runDocumentChatRevision(pending.action, pending.instruction);
-      } else {
-        void generateDocument(pending.action, pending.instruction);
-      }
-    } catch (error) {
-      setDocumentError(error instanceof Error ? error.message : "AI consent could not be saved");
-    } finally {
-      setIsSavingAiConsent(false);
-    }
-  }
-
-  async function revokeAiConsent() {
-    try {
-      const response = await fetchWithTimeout(`${apiBaseUrl}/privacy/ai-consent`, {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error(await readApiError(response, "AI consent could not be revoked"));
-      setAiDisclosureAccepted(false);
-      setAiDisclosureConfirmed(false);
-      setDocuments([]);
-      setAdvice("");
-    } catch (error) {
-      setDocumentError(error instanceof Error ? error.message : "AI consent could not be revoked");
     }
   }
 
@@ -2286,7 +2179,7 @@ export function ApplicationWorkspace({
             <section className="overflow-hidden border-y border-white/[0.08] bg-[#091019]/45">
               <div className="flex flex-col gap-4 border-b border-white/[0.07] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">03 · Create documents</p><h2 className="mt-1 text-lg font-bold text-white">Application package</h2><p className="mt-1 text-xs leading-5 text-muted">Prepare, generate and download both application documents from one workspace.</p></div>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] text-muted"><span>AI provider: <strong className="text-white">{aiConfiguration.providerName}</strong></span>{aiDisclosureAccepted ? <button type="button" onClick={revokeAiConsent} className="font-bold text-amber-200 hover:text-white">Revoke consent</button> : <span className="font-bold text-amber-200">Consent required</span>}</div>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] text-muted"><span>AI provider: <strong className="text-white">{aiConfiguration.providerName}</strong></span></div>
               </div>
               <div className="border-b border-white/[0.07] px-5 py-4 sm:px-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
@@ -2597,28 +2490,6 @@ export function ApplicationWorkspace({
         </div>
       </div>
     </section>
-    {pendingAiGeneration ? (
-      <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 p-4 backdrop-blur-sm" role="dialog" aria-modal="true" aria-labelledby="ai-disclosure-title">
-        <div className="w-full max-w-lg rounded-2xl border border-white/10 bg-[#111821] p-5 shadow-2xl sm:p-6">
-          <div className="flex items-start gap-3">
-            <span className="grid h-11 w-11 shrink-0 place-items-center rounded-xl border border-accent/25 bg-accent/10 text-accent"><ShieldCheck className="h-5 w-5" /></span>
-            <div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">AI data disclosure · {aiConfiguration.consentVersion}</p><h2 id="ai-disclosure-title" className="mt-1 text-lg font-bold text-white">Your application context will be sent to {aiConfiguration.providerName}</h2></div>
-          </div>
-          <p className="mt-4 text-xs leading-5 text-[#cbd3df]">To tailor your application, Rufina sends the built-in document template together with relevant profile details, vacancy text, verified company-header research, and your confirmations using {aiConfiguration.providerName}.</p>
-          <div className="mt-4 space-y-2 rounded-xl border border-white/[0.08] bg-black/20 p-4 text-[11px] leading-5 text-muted">
-            <p><span className="font-bold text-white">Purpose:</span> provide the AI assistance or generate the application documents you requested.</p>
-            <p><span className="font-bold text-white">Rufina storage:</span> the built-in template is maintained by Rufina; AI results are deleted after your selected retention period.</p>
-            <p><span className="font-bold text-white">AI provider:</span> {aiConfiguration.providerName}.</p>
-            <p><span className="font-bold text-white">Provider retention:</span> processing and retention follow {aiConfiguration.providerName}&apos;s policy.</p>
-          </div>
-          <label className="mt-4 block text-xs font-semibold text-[#dce2ea]">Keep AI results for (days)
-            <input type="number" min={1} max={365} value={aiRetentionDays} onChange={(event) => setAiRetentionDays(Math.min(365, Math.max(1, Number(event.target.value) || 1)))} className="mt-2 h-10 w-full rounded-xl border border-white/10 bg-[#0b1119] px-3 text-xs text-white" />
-          </label>
-          <label className="mt-4 flex cursor-pointer items-start gap-3 rounded-xl border border-white/[0.08] bg-white/[0.025] p-3 text-xs leading-5 text-[#dce2ea]"><input type="checkbox" checked={aiDisclosureConfirmed} onChange={(event) => setAiDisclosureConfirmed(event.target.checked)} className="mt-1 h-4 w-4 accent-[#ff5a00]" /><span>I understand and agree to send this application context to the AI provider for the requested assistance.</span></label>
-          <div className="mt-5 flex justify-end gap-2"><Button variant="ghost" onClick={() => setPendingAiGeneration(null)} className="h-10 rounded-xl border border-white/10 px-4 text-xs">Cancel</Button><Button disabled={!aiDisclosureConfirmed || isSavingAiConsent} onClick={() => void acceptAiDisclosure()} className="h-10 rounded-xl bg-accent px-4 text-xs font-bold text-white disabled:opacity-40">{isSavingAiConsent ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Bot className="h-4 w-4" />} Continue to AI</Button></div>
-        </div>
-      </div>
-    ) : null}
     </>
   );
 }

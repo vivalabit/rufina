@@ -22,16 +22,6 @@ it("auto-sends a launched match explanation with the selected job context", asyn
     if (url.pathname === "/documents" && method === "GET") {
       return Response.json([]);
     }
-    if (url.pathname === "/privacy/ai-consent" && method === "GET") {
-      return Response.json({
-        providerName: "OpenAI via OpenClaw/Codex",
-        currentBackend: "openclaw_codex",
-        consentBackend: "openclaw_codex",
-        currentConsentVersion: "privacy-v1",
-        hasCurrentConsent: true,
-        retentionDays: 30,
-      });
-    }
     if (url.pathname === "/assistant/chat/stream" && method === "POST") {
       streamBodies.push(
         JSON.parse(String(init?.body)) as Record<string, unknown>,
@@ -118,7 +108,7 @@ it("auto-sends a launched match explanation with the selected job context", asyn
   });
 });
 
-it("grants versioned server consent with a user TTL before streaming", async () => {
+it("streams immediately", async () => {
   const requests: Array<{ path: string; method: string; body?: unknown }> = [];
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
     const requestUrl = typeof input === "string"
@@ -137,26 +127,6 @@ it("grants versioned server consent with a user TTL before streaming", async () 
     if (url.pathname === "/documents" && method === "GET") {
       return Response.json([]);
     }
-    if (url.pathname === "/privacy/ai-consent" && method === "GET") {
-      return Response.json({
-        providerName: "OpenAI via OpenClaw/Codex",
-        currentBackend: "openclaw_codex",
-        consentBackend: null,
-        currentConsentVersion: "privacy-v1",
-        hasCurrentConsent: false,
-        retentionDays: 30,
-      });
-    }
-    if (url.pathname === "/privacy/ai-consent" && method === "PUT") {
-      return Response.json({
-        providerName: "OpenAI via OpenClaw/Codex",
-        currentBackend: "openclaw_codex",
-        consentBackend: "openclaw_codex",
-        currentConsentVersion: "privacy-v1",
-        hasCurrentConsent: true,
-        retentionDays: (body as { retentionDays: number }).retentionDays,
-      });
-    }
     if (url.pathname === "/assistant/chat/stream" && method === "POST") {
       return new Response([
         "event: connected\ndata: {}",
@@ -164,9 +134,6 @@ it("grants versioned server consent with a user TTL before streaming", async () 
         "event: done\ndata: {\"metadata\":{\"backend\":\"openclaw_codex\"}}",
         "",
       ].join("\n\n"), { headers: { "Content-Type": "text/event-stream" } });
-    }
-    if (url.pathname === "/privacy/ai-consent" && method === "DELETE") {
-      return new Response(null, { status: 204 });
     }
     throw new Error(`Unhandled request: ${method} ${url.pathname}`);
   });
@@ -198,34 +165,16 @@ it("grants versioned server consent with a user TTL before streaming", async () 
     />,
   );
 
-  await screen.findByText("AI consent required");
+  await screen.findByText("No conversations yet");
   expect(screen.queryByText("Tailor my resume")).not.toBeInTheDocument();
   fireEvent.change(screen.getByPlaceholderText("Ask anything about your job search…"), {
     target: { value: "Review my profile" },
   });
   fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
-  expect(await screen.findByRole("dialog", { name: /Send selected context/ })).toBeInTheDocument();
-  fireEvent.change(screen.getByRole("spinbutton", { name: /Keep AI results/ }), {
-    target: { value: "7" },
-  });
-  fireEvent.click(screen.getByRole("checkbox"));
-  fireEvent.click(screen.getByRole("button", { name: "Continue to AI" }));
-
   expect(await screen.findByText("AI reply")).toBeInTheDocument();
   expect(screen.queryByText("Save tailored resume")).not.toBeInTheDocument();
   expect(screen.getByText("Codex credits via OpenClaw")).toBeInTheDocument();
-  expect(requests.find((request) => request.path === "/privacy/ai-consent" && request.method === "PUT")?.body).toEqual({
-    version: "privacy-v1",
-    backend: "openclaw_codex",
-    retentionDays: 7,
-  });
-
-  fireEvent.click(screen.getByRole("button", { name: "Revoke AI consent" }));
-  await waitFor(() => {
-    expect(requests.some((request) => request.path === "/privacy/ai-consent" && request.method === "DELETE")).toBe(true);
-    expect(screen.getByText("AI consent required")).toBeInTheDocument();
-  });
 });
 
 it("resumes a dropped SSE chat from its offset and requires action-preview confirmation", async () => {
@@ -269,16 +218,6 @@ it("resumes a dropped SSE chat from its offset and requires action-preview confi
     }
     if (url.pathname === "/documents" && method === "GET") {
       return Response.json([]);
-    }
-    if (url.pathname === "/privacy/ai-consent" && method === "GET") {
-      return Response.json({
-        providerName: "OpenAI via OpenClaw/Codex",
-        currentBackend: "openclaw_codex",
-        consentBackend: "openclaw_codex",
-        currentConsentVersion: "privacy-v1",
-        hasCurrentConsent: true,
-        retentionDays: 30,
-      });
     }
     if (url.pathname === "/assistant/chat/stream" && method === "POST") {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
@@ -354,7 +293,7 @@ it("resumes a dropped SSE chat from its offset and requires action-preview confi
     />,
   );
 
-  await screen.findByRole("button", { name: "Revoke AI consent" });
+  await screen.findByText("No conversations yet");
   fireEvent.change(
     screen.getByPlaceholderText("Ask anything about your job search…"),
     {

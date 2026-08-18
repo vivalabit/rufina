@@ -29,7 +29,7 @@ from app.models.resume import (
 )
 from app.services import resume_imaginator as resume_imaginator_service
 from app.services.ai_backend import AIResult, AIUsage
-from app.services.ai_privacy import require_current_ai_consent
+from app.services.ai_privacy import record_ai_activity
 from app.services.resume_imaginator import (
     ImaginatorOutcome,
     ResumeImaginatorError,
@@ -47,8 +47,8 @@ JOB_ID = "job-imaginator-api"
 
 
 @pytest.fixture(autouse=True)
-def bypass_ai_consent_boundary() -> Generator[None, None, None]:
-    app.dependency_overrides[require_current_ai_consent] = lambda: None
+def bypass_ai_activity_tracking() -> Generator[None, None, None]:
+    app.dependency_overrides[record_ai_activity] = lambda: None
     try:
         yield
     finally:

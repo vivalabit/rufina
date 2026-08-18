@@ -55,12 +55,6 @@ describe("cover letter generation prompt", () => {
   });
 });
 
-const consent = {
-  consentVersion: "2026-07-18.v2",
-  consentedAt: "2026-07-25T10:00:00.000Z",
-  hasCurrentConsent: true,
-};
-
 const resumeDesign = {
   accentColor: "#2B2B2B",
   fontFamily: "Georgia",
@@ -351,7 +345,6 @@ describe("ApplicationWorkspace", () => {
     const saved = generatedPdfDocument();
     const timeoutSpy = vi.spyOn(globalThis, "setTimeout");
     const fetchMock = installApplicationWorkspaceApiMock({
-      aiPrivacySettings: consent,
       requestHandler: async (url, method, init) => {
         if (
           url.pathname
@@ -496,7 +489,7 @@ describe("ApplicationWorkspace", () => {
   });
 
   it("shows the current three-stage pipeline as the first CV generation mode", async () => {
-    installApplicationWorkspaceApiMock({ aiPrivacySettings: consent });
+    installApplicationWorkspaceApiMock();
     renderApplicationWorkspace(createV3WorkspaceApplication());
 
     const modeMenu = await screen.findByRole("combobox", {
@@ -539,7 +532,6 @@ describe("ApplicationWorkspace", () => {
     const saved = generatedImaginatorPdfDocument();
     const requestOrder: string[] = [];
     const fetchMock = installApplicationWorkspaceApiMock({
-      aiPrivacySettings: consent,
       requestHandler: async (url, method, init) => {
         if (
           url.pathname === "/resume-tailoring/imaginator"
@@ -634,7 +626,6 @@ describe("ApplicationWorkspace", () => {
 
   it("passes the selected document language into CV generation", async () => {
     const fetchMock = installApplicationWorkspaceApiMock({
-      aiPrivacySettings: consent,
       requestHandler: async (url, method) => {
         if (
           url.pathname === "/resume-tailoring/senior-recruiter-analysis"
@@ -688,7 +679,6 @@ describe("ApplicationWorkspace", () => {
     const fetchMock = installApplicationWorkspaceApiMock({
       documents: [classic],
       resumeTemplates: generationResumeTemplates,
-      aiPrivacySettings: { hasCurrentConsent: false },
       requestHandler: async (url, method, init) => {
         if (
           url.pathname === `/documents/${classic.id}` &&
@@ -811,7 +801,6 @@ describe("ApplicationWorkspace", () => {
     const fetchMock = installApplicationWorkspaceApiMock({
       documents: [classic],
       resumeTemplates: generationResumeTemplates,
-      aiPrivacySettings: { hasCurrentConsent: false },
       requestHandler: async (url, method) => {
         if (
           url.pathname ===
@@ -1053,7 +1042,6 @@ describe("ApplicationWorkspace", () => {
 
   it("answers application questions in the bottom AI chat", async () => {
     installApplicationWorkspaceApiMock({
-      aiPrivacySettings: consent,
       requestHandler: async (url, method) => {
         if (url.pathname === "/assistant/chat" && method === "POST") {
           return Response.json({
@@ -1083,7 +1071,6 @@ describe("ApplicationWorkspace", () => {
 
   it("passes a CV revision request into a fresh resume-tailoring run", async () => {
     const fetchMock = installApplicationWorkspaceApiMock({
-      aiPrivacySettings: consent,
       documents: [generatedPdfDocument()],
       requestHandler: async (url, method) => {
         if (

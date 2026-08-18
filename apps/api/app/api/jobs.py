@@ -1,10 +1,9 @@
 from datetime import UTC, datetime
 from typing import Any
 
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session, sessionmaker
-
-from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.database import get_db
 from app.core.identity import (
@@ -29,8 +28,8 @@ from app.services.ai_match import (
     create_vacancy_matching_ai_facade,
 )
 from app.services.ai_match_jobs import ai_match_jobs
+from app.services.ai_privacy import record_ai_activity
 from app.services.candidate_snapshot import CandidateSnapshotError, get_candidate_match_snapshot
-from app.services.ai_privacy import require_current_ai_consent
 from app.services.job_match_store import (
     calibrate_job_with_feedback,
     hydrate_job_data,
@@ -115,7 +114,7 @@ def upsert_jobs(request: StoredJobsRequest, db: Session = Depends(get_db)) -> li
 def match_jobs(
     request: StoredJobsRequest,
     force: bool = False,
-    _consent=Depends(require_current_ai_consent),
+    _activity=Depends(record_ai_activity),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> list[StoredJobPayload]:
@@ -195,7 +194,7 @@ def run_match_jobs(
     request: StoredJobsRequest,
     force: bool = False,
     identity: RequestIdentity = Depends(get_request_identity),
-    _consent=Depends(require_current_ai_consent),
+    _activity=Depends(record_ai_activity),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> AiMatchJobStatus:

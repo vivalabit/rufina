@@ -239,7 +239,7 @@ def test_automatic_screening_error_is_persisted_and_fail_closed(
         next_run_at=due_at,
         filters=screening_filters(),
     )
-    seed_ai_consent(sessions, settings=settings)
+    seed_ai_privacy_settings(sessions, settings=settings)
     job = ParsedJob(
         source="linkedin",
         title="Automatic Unchecked Engineer",
@@ -300,7 +300,7 @@ def test_automatic_screening_persists_only_keep(
         next_run_at=due_at,
         filters=screening_filters(),
     )
-    seed_ai_consent(sessions, settings=settings)
+    seed_ai_privacy_settings(sessions, settings=settings)
     keep = worker_job("Automatic Software Engineer", "automatic-keep")
     reject = worker_job("Automatic Sales Manager", "automatic-reject")
 
@@ -411,7 +411,7 @@ def screening_filters() -> dict[str, object]:
     }
 
 
-def seed_ai_consent(
+def seed_ai_privacy_settings(
     sessions: sessionmaker[Session],
     *,
     settings: Settings,
@@ -421,9 +421,6 @@ def seed_ai_consent(
         db.add(
             AiPrivacySettingsRecord(
                 owner_id="worker-owner",
-                consent_version=settings.ai_consent_version,
-                consent_backend=settings.ai_backend_mode,
-                consented_at=now,
                 retention_days=30,
                 updated_at=now,
             )
@@ -446,6 +443,5 @@ def worker_settings() -> Settings:
     return Settings(
         app_env="local",
         database_url="sqlite://",
-        ai_consent_version="job-search-worker-test-v1",
         job_search_poll_interval_seconds=30,
     )

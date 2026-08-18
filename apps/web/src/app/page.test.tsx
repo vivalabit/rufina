@@ -1820,10 +1820,10 @@ it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selecte
   );
 });
 
-it("collects current AI consent and resumes the requested 24-hour analysis", async () => {
+it("starts the requested 24-hour analysis immediately", async () => {
   window.history.replaceState(null, "", "#jobs");
   const recentJob = importedJobData({
-    id: "linkedin-recent-consent-job",
+    id: "linkedin-recent-direct-job",
     title: "Data Engineer",
   });
   window.localStorage.setItem(
@@ -1832,7 +1832,6 @@ it("collects current AI consent and resumes the requested 24-hour analysis", asy
   );
 
   let aiMatchAttempts = 0;
-  const consentRequests: Array<Record<string, unknown>> = [];
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
     const requestUrl =
       typeof input === "string"
@@ -1859,57 +1858,14 @@ it("collects current AI consent and resumes the requested 24-hour analysis", asy
       return Response.json(configuredAppSettings);
     if (url.pathname === "/jobs/ai-match/run" && method === "POST") {
       aiMatchAttempts += 1;
-      if (aiMatchAttempts === 1) {
-        return Response.json(
-          {
-            detail: {
-              code: "ai_consent_required",
-              message: "Current AI data-processing consent is required",
-              requiredVersion: "2026-07-18.v2",
-            },
-          },
-          { status: 403 },
-        );
-      }
       return Response.json({
-        runId: "consented-match-run",
+        runId: "direct-match-run",
         status: "completed",
         total: 1,
         processed: 1,
         updatedJobs: [],
       });
     }
-    if (url.pathname === "/privacy/ai-consent" && method === "GET") {
-      return Response.json({
-        providerName: "OpenAI via OpenClaw/Codex",
-        currentBackend: "openclaw_codex",
-        currentConsentVersion: "2026-07-18.v2",
-        consentVersion: null,
-        consentBackend: null,
-        consentedAt: null,
-        hasCurrentConsent: false,
-        retentionDays: 30,
-        lastAiActivityAt: null,
-        aiDataExpiresAt: null,
-      });
-    }
-    if (url.pathname === "/privacy/ai-consent" && method === "PUT") {
-      const request = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      consentRequests.push(request);
-      return Response.json({
-        providerName: "OpenAI via OpenClaw/Codex",
-        currentBackend: "openclaw_codex",
-        currentConsentVersion: "2026-07-18.v2",
-        consentVersion: request.version,
-        consentBackend: request.backend,
-        consentedAt: "2026-08-12T10:00:00.000Z",
-        hasCurrentConsent: true,
-        retentionDays: request.retentionDays,
-        lastAiActivityAt: null,
-        aiDataExpiresAt: null,
-      });
-    }
-
     throw new Error(`Unhandled request: ${method} ${url.pathname}`);
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -1925,32 +1881,8 @@ it("collects current AI consent and resumes the requested 24-hour analysis", asy
     ),
   );
 
-  const consentDialog = await screen.findByRole("dialog", {
-    name: "Analyze vacancies with OpenAI via OpenClaw/Codex",
-  });
-  expect(
-    screen.queryByText("Current AI data-processing consent is required"),
-  ).not.toBeInTheDocument();
-  fireEvent.click(within(consentDialog).getByRole("checkbox"));
-  fireEvent.click(
-    within(consentDialog).getByRole("button", { name: "Continue to AI" }),
-  );
-
-  await waitFor(() => expect(aiMatchAttempts).toBe(2));
-  expect(consentRequests).toEqual([
-    {
-      version: "2026-07-18.v2",
-      backend: "openclaw_codex",
-      retentionDays: 30,
-    },
-  ]);
-  await waitFor(() =>
-    expect(
-      screen.queryByRole("dialog", {
-        name: "Analyze vacancies with OpenAI via OpenClaw/Codex",
-      }),
-    ).not.toBeInTheDocument(),
-  );
+  await waitFor(() => expect(aiMatchAttempts).toBe(1));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
 });
 
 it("does not re-add a vacancy whose deleted id was synchronized with the server", async () => {
@@ -4625,11 +4557,6 @@ it("offers decision-focused assistant questions on the Jobs page", async () => {
     value: vi.fn(),
   });
   installApplicationWorkspaceApiMock({
-    aiPrivacySettings: {
-      consentVersion: "2026-07-18.v2",
-      consentBackend: "openclaw_codex",
-      hasCurrentConsent: true,
-    },
     requestHandler: async (url, method, init) => {
       if (url.pathname === "/job-search/configs" && method === "GET")
         return Response.json([]);

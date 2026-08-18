@@ -9,14 +9,13 @@ from datetime import datetime, timedelta
 from typing import Literal
 from uuid import uuid4
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy import func, select
 from sqlalchemy.engine import Connection, Engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-
-from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.responses import StreamingResponse
 
 from app.core.database import get_db
 from app.core.identity import (
@@ -53,7 +52,7 @@ from app.models.documents import (
 from app.models.jobs import StoredJobRecord
 from app.models.profile import ProfilePayload, ProfileRecord
 from app.services.ai_backend import ai_backend_provider_name
-from app.services.ai_privacy import require_current_ai_consent
+from app.services.ai_privacy import record_ai_activity
 from app.services.assistant import (
     AIAssistantRun,
     AssistantAIFacade,
@@ -66,16 +65,16 @@ from app.services.assistant import (
     extract_assistant_action_previews,
     preflight_source_documents,
 )
+from app.services.cover_letter_header_research import (
+    CoverLetterHeaderResearch,
+    research_cover_letter_header,
+)
+from app.services.document_export import ensure_cover_letter_date_replacement
 from app.services.generation_context import (
     AuthoritativeGenerationContext,
     GenerationContextError,
     clarification_questions,
     load_authoritative_generation_context,
-)
-from app.services.document_export import ensure_cover_letter_date_replacement
-from app.services.cover_letter_header_research import (
-    CoverLetterHeaderResearch,
-    research_cover_letter_header,
 )
 from app.services.job_match_store import (
     latest_job_match_record,
@@ -296,14 +295,13 @@ def get_assistant_config(settings: Settings = Depends(get_settings)) -> dict[str
     return {
         "providerName": ai_backend_provider_name(settings.ai_backend_mode),
         "backend": settings.ai_backend_mode,
-        "consentVersion": settings.ai_consent_version,
     }
 
 
 @router.post("/chat", response_model=AssistantChatResponse)
 async def chat_with_assistant(
     request: AssistantChatRequest,
-    _consent=Depends(require_current_ai_consent),
+    _activity=Depends(record_ai_activity),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),
 ) -> AssistantChatResponse:
@@ -485,7 +483,7 @@ async def chat_with_assistant(
 @router.post("/chat/stream")
 async def stream_chat_with_assistant(
     request: AssistantStreamRequest,
-    _consent=Depends(require_current_ai_consent),
+    _activity=Depends(record_ai_activity),
     identity: RequestIdentity = Depends(get_request_identity),
     db: Session = Depends(get_db),
     settings: Settings = Depends(get_settings),

@@ -30,7 +30,7 @@ from app.services.ai_match import (
     parse_number,
     score_with_openclaw,
 )
-from app.services.ai_privacy import require_current_ai_consent
+from app.services.ai_privacy import record_ai_activity
 from app.services.ai_backend import AIRequest, AIResult, AIUsage, OpenAIAPIBackend
 from app.services.candidate_snapshot import (
     CandidateSnapshotError,
@@ -148,12 +148,12 @@ def valid_match_result(job_id: str = "job-strict") -> dict[str, object]:
 
 
 @pytest.fixture(autouse=True)
-def bypass_ai_consent_boundary() -> Generator[None, None, None]:
-    app.dependency_overrides[require_current_ai_consent] = lambda: None
+def bypass_ai_activity_tracking() -> Generator[None, None, None]:
+    app.dependency_overrides[record_ai_activity] = lambda: None
     try:
         yield
     finally:
-        app.dependency_overrides.pop(require_current_ai_consent, None)
+        app.dependency_overrides.pop(record_ai_activity, None)
 
 
 def install_openclaw_fakes(monkeypatch: pytest.MonkeyPatch) -> None:

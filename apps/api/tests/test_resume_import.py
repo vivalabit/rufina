@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 
 from app.core.settings import Settings, get_settings
 from app.main import app
-from app.services.ai_privacy import require_current_ai_consent
+from app.services.ai_privacy import record_ai_activity
 from app.services.ai_backend import AIRequest, AIResult, AIUsage
 from app.services.resume_import import (
     OpenClawResumeImportError,
@@ -26,12 +26,12 @@ from app.services.resume_import import (
 
 
 @pytest.fixture(autouse=True)
-def bypass_ai_consent_boundary() -> Generator[None, None, None]:
-    app.dependency_overrides[require_current_ai_consent] = lambda: None
+def bypass_ai_activity_tracking() -> Generator[None, None, None]:
+    app.dependency_overrides[record_ai_activity] = lambda: None
     try:
         yield
     finally:
-        app.dependency_overrides.pop(require_current_ai_consent, None)
+        app.dependency_overrides.pop(record_ai_activity, None)
 
 
 def test_parse_experience_from_resume_text() -> None:

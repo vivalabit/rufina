@@ -75,7 +75,6 @@ class Settings(BaseSettings):
     openclaw_assistant_agent_id: str = "rufina-assistant"
     openclaw_assistant_model: str = "openai/gpt-5.6-terra"
     ai_provider_name: str = "OpenAI"
-    ai_consent_version: str = "2026-07-18.v2"
     storage_cleanup_interval_seconds: int = Field(default=300, ge=1, le=86_400)
     openclaw_assistant_thinking: str = "off"
     openclaw_assistant_timeout_seconds: int = Field(default=120, ge=10, le=600)
@@ -95,7 +94,7 @@ class Settings(BaseSettings):
         le=30,
     )
     brightdata_snapshot_poll_timeout_seconds: float = Field(
-        default=30.0,
+        default=180.0,
         ge=0,
         le=600,
     )

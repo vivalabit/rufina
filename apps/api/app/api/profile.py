@@ -1,11 +1,10 @@
 from binascii import Error as BinasciiError
 from uuid import uuid4
 
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
-
-from fastapi import APIRouter, Depends, HTTPException, status
 
 from app.core.database import get_db
 from app.core.identity import bind_request_identity
@@ -30,6 +29,11 @@ from app.models.resume import (
     ResumeMasterVersionRecord,
     ResumeSourceExtraction,
 )
+from app.services.ai_privacy import record_ai_activity
+from app.services.profile_versions import (
+    is_suspicious_profile_replacement,
+    record_profile_version,
+)
 from app.services.resume_import import (
     ResumeImportError,
     create_resume_import_ai_facade,
@@ -41,20 +45,15 @@ from app.services.resume_master_import import (
     MasterResumeImportOutcome,
     create_master_resume_import_ai_facade,
 )
-from app.services.resume_source_extraction import (
-    ResumeSourceExtractionError,
-    extract_resume_source,
-)
 from app.services.resume_master_review import (
     MasterResumeReviewError,
     build_master_resume_review_sections,
     confirm_master_resume,
     persist_master_resume_import_source,
 )
-from app.services.ai_privacy import require_current_ai_consent
-from app.services.profile_versions import (
-    is_suspicious_profile_replacement,
-    record_profile_version,
+from app.services.resume_source_extraction import (
+    ResumeSourceExtractionError,
+    extract_resume_source,
 )
 
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
@@ -244,7 +243,7 @@ def get_current_master_resume(
 @router.post("/import-experience-from-resume", response_model=ResumeExperienceImportResponse)
 def import_experience_from_resume(
     payload: ResumeExperienceImportRequest,
-    _consent=Depends(require_current_ai_consent),
+    _activity=Depends(record_ai_activity),
     settings: Settings = Depends(get_settings),
 ) -> ResumeExperienceImportResponse:
     text = extract_resume_text(payload.resume_file_name, payload.resume_data_url)
@@ -286,7 +285,7 @@ def import_experience_from_resume(
 )
 def import_master_resume(
     payload: MasterResumeImportRequest,
-    _consent=Depends(require_current_ai_consent),
+    _activity=Depends(record_ai_activity),
     settings: Settings = Depends(get_settings),
     db: Session = Depends(get_db),
 ) -> MasterResumeImportResponse:
@@ -390,7 +389,7 @@ def confirm_imported_master_resume(
 @router.post("/import-education-from-resume", response_model=ResumeEducationImportResponse)
 def import_education_from_resume(
     payload: ResumeExperienceImportRequest,
-    _consent=Depends(require_current_ai_consent),
+    _activity=Depends(record_ai_activity),
     settings: Settings = Depends(get_settings),
 ) -> ResumeEducationImportResponse:
     text = extract_resume_text(payload.resume_file_name, payload.resume_data_url)
@@ -429,7 +428,7 @@ def import_education_from_resume(
 @router.post("/import-skills-from-resume", response_model=ResumeSkillsImportResponse)
 def import_skills_from_resume(
     payload: ResumeExperienceImportRequest,
-    _consent=Depends(require_current_ai_consent),
+    _activity=Depends(record_ai_activity),
     settings: Settings = Depends(get_settings),
 ) -> ResumeSkillsImportResponse:
     text = extract_resume_text(payload.resume_file_name, payload.resume_data_url)

@@ -21,16 +21,6 @@ type WorkspaceApiOptions = {
   documents?: unknown[];
   resumeTemplates?: unknown[];
   templates?: unknown[];
-  aiPrivacySettings?: Partial<{
-    currentBackend: "openclaw_codex" | "openai_api";
-    consentBackend: "openclaw_codex" | "openai_api" | null;
-    consentVersion: string | null;
-    consentedAt: string | null;
-    hasCurrentConsent: boolean;
-    retentionDays: number;
-    lastAiActivityAt: string | null;
-    aiDataExpiresAt: string | null;
-  }>;
   requestHandler?: (
     url: URL,
     method: string,
@@ -283,7 +273,6 @@ export function installApplicationWorkspaceApiMock({
       updatedAt: "2026-07-28T10:00:00.000Z",
     },
   ],
-  aiPrivacySettings = {},
   requestHandler,
 }: WorkspaceApiOptions = {}) {
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
@@ -361,41 +350,7 @@ export function installApplicationWorkspaceApiMock({
       return Response.json({
         providerName: "OpenAI via OpenClaw/Codex",
         backend: "openclaw_codex",
-        consentVersion: "2026-07-18.v2",
       });
-    }
-    if (url.pathname === "/privacy/ai-consent" && method === "GET") {
-      return Response.json({
-        providerName: "OpenAI via OpenClaw/Codex",
-        currentBackend: "openclaw_codex",
-        currentConsentVersion: "2026-07-18.v2",
-        consentVersion: null,
-        consentBackend: null,
-        consentedAt: null,
-        hasCurrentConsent: false,
-        retentionDays: 30,
-        lastAiActivityAt: null,
-        aiDataExpiresAt: null,
-        ...aiPrivacySettings,
-      });
-    }
-    if (url.pathname === "/privacy/ai-consent" && method === "PUT") {
-      const request = JSON.parse(String(init?.body)) as { backend: "openclaw_codex" | "openai_api"; version: string; retentionDays: number };
-      return Response.json({
-        providerName: "OpenAI via OpenClaw/Codex",
-        currentBackend: "openclaw_codex",
-        currentConsentVersion: "2026-07-18.v2",
-        consentVersion: request.version,
-        consentBackend: request.backend,
-        consentedAt: "2026-07-19T10:00:00.000Z",
-        hasCurrentConsent: true,
-        retentionDays: request.retentionDays,
-        lastAiActivityAt: null,
-        aiDataExpiresAt: null,
-      });
-    }
-    if (url.pathname === "/privacy/ai-consent" && method === "DELETE") {
-      return new Response(null, { status: 204 });
     }
     if (url.pathname === "/profile/master-resume" && method === "GET") {
       return currentMasterResume
