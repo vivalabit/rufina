@@ -2675,6 +2675,24 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "blueworks_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="bossard_switzerland",
+        name="Bossard Switzerland",
+        careers_url=(
+            "https://bossard.wd103.myworkdayjobs.com/BossardJobs?"
+            "locations=d01e352fee0010065272fe1496210000"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.bossard_switzerland:"
+            "BossardSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "bossard_switzerland_jobs_base_url"),
+            ("timeout_seconds", "bossard_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "bossard_switzerland_jobs_max_pages"),
+            ("detail_workers", "bossard_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

@@ -2049,3 +2049,25 @@ describe("blueworks AG Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("blueworks-15934805")).toBe(company);
   });
 });
+
+describe("Bossard Switzerland Direct Company catalog entry", () => {
+  it("uses the official Zug Workday facet and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "bossard_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "bossard_switzerland",
+      name: "Bossard Switzerland",
+      careersUrl:
+        "https://bossard.wd103.myworkdayjobs.com/BossardJobs?locations=d01e352fee0010065272fe1496210000",
+      logoSrc: "/company-logos/bossard.svg",
+      logoAlt: "Bossard Switzerland logo",
+      logoWidth: 154,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("bossard_switzerland-4000000001")).toBe(
+      company,
+    );
+  });
+});

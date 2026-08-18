@@ -2057,6 +2057,25 @@ class Settings(BaseSettings):
         ge=1,
         le=20,
     )
+    bossard_switzerland_jobs_base_url: str = (
+        "https://bossard.wd103.myworkdayjobs.com/BossardJobs?"
+        "locations=d01e352fee0010065272fe1496210000"
+    )
+    bossard_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    bossard_switzerland_jobs_max_pages: int = Field(
+        default=100,
+        ge=1,
+        le=500,
+    )
+    bossard_switzerland_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=12,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

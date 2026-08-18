@@ -1506,6 +1506,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 27,
     logoHeight: 24,
   },
+  {
+    id: "bossard_switzerland",
+    name: "Bossard Switzerland",
+    careersUrl:
+      "https://bossard.wd103.myworkdayjobs.com/BossardJobs?locations=d01e352fee0010065272fe1496210000",
+    logoSrc: "/company-logos/bossard.svg",
+    logoAlt: "Bossard Switzerland logo",
+    logoWidth: 154,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
