@@ -1479,6 +1479,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 112,
     logoHeight: 24,
   },
+  {
+    id: "aity",
+    name: "aity AG",
+    careersUrl: "https://aity.ch/jobs",
+    logoSrc: "/company-logos/aity.svg",
+    logoAlt: "aity AG logo",
+    logoWidth: 30,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

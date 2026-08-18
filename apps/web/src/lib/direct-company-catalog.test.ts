@@ -1992,3 +1992,24 @@ describe("Adcubum Switzerland Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("aity AG Direct Company catalog entry", () => {
+  it("uses the official jobs page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "aity");
+
+    expect(company).toEqual({
+      id: "aity",
+      name: "aity AG",
+      careersUrl: "https://aity.ch/jobs",
+      logoSrc: "/company-logos/aity.svg",
+      logoAlt: "aity AG logo",
+      logoWidth: 30,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "aity-16e92662-d82d-4393-9412-c52bf1ea1053",
+      ),
+    ).toBe(company);
+  });
+});

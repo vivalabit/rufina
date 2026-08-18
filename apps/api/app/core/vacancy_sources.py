@@ -2635,6 +2635,19 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "adcubum_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="aity",
+        name="aity AG",
+        careers_url="https://aity.ch/jobs",
+        parser_path="app.services.parsers.companies.aity:AityJobsParser",
+        settings_map=(
+            ("base_url", "aity_jobs_base_url"),
+            ("career_center_url", "aity_jobs_career_center_url"),
+            ("timeout_seconds", "aity_jobs_timeout_seconds"),
+            ("max_jobs", "aity_jobs_max_jobs"),
+            ("detail_workers", "aity_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
