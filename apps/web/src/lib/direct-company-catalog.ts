@@ -1387,8 +1387,7 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
   {
     id: "bison_group",
     name: "Bison Group",
-    careersUrl:
-      "https://www.bison-group.com/karriere/offene-stellen/",
+    careersUrl: "https://www.bison-group.com/karriere/offene-stellen/",
     logoSrc: "/company-logos/bison-group.svg",
     logoAlt: "Bison Group logo",
     logoWidth: 40,
@@ -1441,6 +1440,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoAlt: "Unisys Switzerland logo",
     logoWidth: 26,
     logoHeight: 24,
+  },
+  {
+    id: "rdm_switzerland",
+    name: "R&M Switzerland",
+    careersUrl: "https://www.rdm.com/career/jobs/?mf-job_country%5B0%5D=ch",
+    logoSrc: "/company-logos/rdm.svg",
+    logoAlt: "R&M Switzerland logo",
+    logoWidth: 108,
+    logoHeight: 28,
   },
 ];
 

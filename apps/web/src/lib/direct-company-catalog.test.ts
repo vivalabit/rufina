@@ -190,9 +190,7 @@ describe("Eviden Switzerland Direct Company catalog entry", () => {
       logoWidth: 160,
       logoHeight: 32,
     });
-    expect(getDirectCompanyByJobId("eviden_switzerland-550075")).toBe(
-      company,
-    );
+    expect(getDirectCompanyByJobId("eviden_switzerland-550075")).toBe(company);
   });
 });
 
@@ -376,9 +374,9 @@ describe("Bayer Switzerland Direct Company catalog entry", () => {
       logoWidth: 24,
       logoHeight: 24,
     });
-    expect(
-      getDirectCompanyByJobId("bayer_switzerland-562949978313882"),
-    ).toBe(company);
+    expect(getDirectCompanyByJobId("bayer_switzerland-562949978313882")).toBe(
+      company,
+    );
   });
 });
 
@@ -1789,8 +1787,7 @@ describe("Bison Group Direct Company catalog entry", () => {
     expect(company).toEqual({
       id: "bison_group",
       name: "Bison Group",
-      careersUrl:
-        "https://www.bison-group.com/karriere/offene-stellen/",
+      careersUrl: "https://www.bison-group.com/karriere/offene-stellen/",
       logoSrc: "/company-logos/bison-group.svg",
       logoAlt: "Bison Group logo",
       logoWidth: 40,
@@ -1907,5 +1904,24 @@ describe("Unisys Switzerland Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("unisys_switzerland-REQ573110")).toBe(
       company,
     );
+  });
+});
+
+describe("R&M Switzerland Direct Company catalog entry", () => {
+  it("uses the official Swiss country filter and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "rdm_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "rdm_switzerland",
+      name: "R&M Switzerland",
+      careersUrl: "https://www.rdm.com/career/jobs/?mf-job_country%5B0%5D=ch",
+      logoSrc: "/company-logos/rdm.svg",
+      logoAlt: "R&M Switzerland logo",
+      logoWidth: 108,
+      logoHeight: 28,
+    });
+    expect(getDirectCompanyByJobId("rdm_switzerland-907278")).toBe(company);
   });
 });

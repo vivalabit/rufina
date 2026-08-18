@@ -2565,6 +2565,23 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "unisys_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="rdm_switzerland",
+        name="R&M Switzerland",
+        careers_url=(
+            "https://www.rdm.com/career/jobs/?mf-job_country%5B0%5D=ch"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.rdm_switzerland:"
+            "RdmSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "rdm_switzerland_jobs_base_url"),
+            ("timeout_seconds", "rdm_switzerland_jobs_timeout_seconds"),
+            ("max_jobs", "rdm_switzerland_jobs_max_jobs"),
+            ("detail_workers", "rdm_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
