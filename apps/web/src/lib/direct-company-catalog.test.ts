@@ -2013,3 +2013,22 @@ describe("aity AG Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("Arcon Informatik AG Direct Company catalog entry", () => {
+  it("uses the official anchored jobs page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "arcon");
+
+    expect(company).toEqual({
+      id: "arcon",
+      name: "Arcon Informatik AG",
+      careersUrl: "https://www.arcon.ch/ict-und-abacus-jobs/#OffeneStellen",
+      logoSrc: "/company-logos/arcon.svg",
+      logoAlt: "Arcon Informatik AG logo",
+      logoWidth: 113,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId("arcon-stelleninserat-system-engineer-2"),
+    ).toBe(company);
+  });
+});

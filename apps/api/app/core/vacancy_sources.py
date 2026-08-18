@@ -2648,6 +2648,18 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "aity_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="arcon",
+        name="Arcon Informatik AG",
+        careers_url="https://www.arcon.ch/ict-und-abacus-jobs/#OffeneStellen",
+        parser_path="app.services.parsers.companies.arcon:ArconJobsParser",
+        settings_map=(
+            ("base_url", "arcon_jobs_base_url"),
+            ("timeout_seconds", "arcon_jobs_timeout_seconds"),
+            ("max_jobs", "arcon_jobs_max_jobs"),
+            ("detail_workers", "arcon_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

@@ -1488,6 +1488,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 30,
     logoHeight: 24,
   },
+  {
+    id: "arcon",
+    name: "Arcon Informatik AG",
+    careersUrl: "https://www.arcon.ch/ict-und-abacus-jobs/#OffeneStellen",
+    logoSrc: "/company-logos/arcon.svg",
+    logoAlt: "Arcon Informatik AG logo",
+    logoWidth: 113,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
