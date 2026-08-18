@@ -1969,3 +1969,26 @@ describe("Lyreco Switzerland Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("Adcubum Switzerland Direct Company catalog entry", () => {
+  it("uses the official global job list and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "adcubum_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "adcubum_switzerland",
+      name: "Adcubum Switzerland",
+      careersUrl: "https://www.adcubum.com/en/job/list",
+      logoSrc: "/company-logos/adcubum.svg",
+      logoAlt: "Adcubum Switzerland logo",
+      logoWidth: 112,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "adcubum_switzerland-c89b287b-48eb-c741-767d-ab82b38295ad",
+      ),
+    ).toBe(company);
+  });
+});

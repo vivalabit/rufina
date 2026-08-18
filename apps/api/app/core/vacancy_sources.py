@@ -2620,6 +2620,21 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "lyreco_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="adcubum_switzerland",
+        name="Adcubum Switzerland",
+        careers_url="https://www.adcubum.com/en/job/list",
+        parser_path=(
+            "app.services.parsers.companies.adcubum_switzerland:"
+            "AdcubumSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "adcubum_switzerland_jobs_base_url"),
+            ("timeout_seconds", "adcubum_switzerland_jobs_timeout_seconds"),
+            ("max_jobs", "adcubum_switzerland_jobs_max_jobs"),
+            ("detail_workers", "adcubum_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

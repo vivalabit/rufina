@@ -1987,6 +1987,22 @@ class Settings(BaseSettings):
         ge=1,
         le=20,
     )
+    adcubum_switzerland_jobs_base_url: str = "https://www.adcubum.com/en/job/list"
+    adcubum_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    adcubum_switzerland_jobs_max_jobs: int = Field(
+        default=500,
+        ge=1,
+        le=5_000,
+    )
+    adcubum_switzerland_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

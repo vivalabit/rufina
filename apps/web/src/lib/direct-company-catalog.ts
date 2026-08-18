@@ -1470,6 +1470,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 88,
     logoHeight: 40,
   },
+  {
+    id: "adcubum_switzerland",
+    name: "Adcubum Switzerland",
+    careersUrl: "https://www.adcubum.com/en/job/list",
+    logoSrc: "/company-logos/adcubum.svg",
+    logoAlt: "Adcubum Switzerland logo",
+    logoWidth: 112,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
