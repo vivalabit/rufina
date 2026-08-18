@@ -1460,6 +1460,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 112,
     logoHeight: 20,
   },
+  {
+    id: "lyreco_switzerland",
+    name: "Lyreco Switzerland",
+    careersUrl:
+      "https://www.lyreco.com/group/switzerland/de/jobs?f%5B0%5D=job_location%3Adietikon%20zh",
+    logoSrc: "/company-logos/lyreco.svg",
+    logoAlt: "Lyreco Switzerland logo",
+    logoWidth: 88,
+    logoHeight: 40,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

@@ -2601,6 +2601,25 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "abbvie_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="lyreco_switzerland",
+        name="Lyreco Switzerland",
+        careers_url=(
+            "https://www.lyreco.com/group/switzerland/de/jobs?"
+            "f%5B0%5D=job_location%3Adietikon%20zh"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.lyreco_switzerland:"
+            "LyrecoSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "lyreco_switzerland_jobs_base_url"),
+            ("timeout_seconds", "lyreco_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "lyreco_switzerland_jobs_max_pages"),
+            ("max_jobs", "lyreco_switzerland_jobs_max_jobs"),
+            ("detail_workers", "lyreco_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

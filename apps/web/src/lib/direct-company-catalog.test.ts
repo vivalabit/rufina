@@ -1947,3 +1947,25 @@ describe("AbbVie Switzerland Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("Lyreco Switzerland Direct Company catalog entry", () => {
+  it("uses the official Dietikon filter and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "lyreco_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "lyreco_switzerland",
+      name: "Lyreco Switzerland",
+      careersUrl:
+        "https://www.lyreco.com/group/switzerland/de/jobs?f%5B0%5D=job_location%3Adietikon%20zh",
+      logoSrc: "/company-logos/lyreco.svg",
+      logoAlt: "Lyreco Switzerland logo",
+      logoWidth: 88,
+      logoHeight: 40,
+    });
+    expect(getDirectCompanyByJobId("lyreco_switzerland-JR-1000030699")).toBe(
+      company,
+    );
+  });
+});
