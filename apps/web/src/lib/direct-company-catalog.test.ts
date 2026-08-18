@@ -1925,3 +1925,25 @@ describe("R&M Switzerland Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("rdm_switzerland-907278")).toBe(company);
   });
 });
+
+describe("AbbVie Switzerland Direct Company catalog entry", () => {
+  it("uses the official Zürich-area filter and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "abbvie_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "abbvie_switzerland",
+      name: "AbbVie Switzerland",
+      careersUrl:
+        "https://careers.abbvie.com/en/jobs?q=&options=&page=1&la=47.3768866&lo=8.541694&ln=Z%C3%BCrich%2C+Switzerland&lr=100",
+      logoSrc: "/company-logos/abbvie.svg",
+      logoAlt: "AbbVie Switzerland logo",
+      logoWidth: 112,
+      logoHeight: 20,
+    });
+    expect(getDirectCompanyByJobId("abbvie_switzerland-R00148442")).toBe(
+      company,
+    );
+  });
+});

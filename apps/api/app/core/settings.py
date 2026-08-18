@@ -1939,6 +1939,30 @@ class Settings(BaseSettings):
         ge=1,
         le=12,
     )
+    abbvie_switzerland_jobs_base_url: str = (
+        "https://careers.abbvie.com/en/jobs?q=&options=&page=1&"
+        "la=47.3768866&lo=8.541694&ln=Z%C3%BCrich%2C+Switzerland&lr=100"
+    )
+    abbvie_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    abbvie_switzerland_jobs_max_pages: int = Field(
+        default=100,
+        ge=1,
+        le=500,
+    )
+    abbvie_switzerland_jobs_max_jobs: int = Field(
+        default=1_000,
+        ge=1,
+        le=5_000,
+    )
+    abbvie_switzerland_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=20,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

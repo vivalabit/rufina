@@ -2582,6 +2582,25 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "rdm_switzerland_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="abbvie_switzerland",
+        name="AbbVie Switzerland",
+        careers_url=(
+            "https://careers.abbvie.com/en/jobs?q=&options=&page=1&"
+            "la=47.3768866&lo=8.541694&ln=Z%C3%BCrich%2C+Switzerland&lr=100"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.abbvie_switzerland:"
+            "AbbVieSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "abbvie_switzerland_jobs_base_url"),
+            ("timeout_seconds", "abbvie_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "abbvie_switzerland_jobs_max_pages"),
+            ("max_jobs", "abbvie_switzerland_jobs_max_jobs"),
+            ("detail_workers", "abbvie_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

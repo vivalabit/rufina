@@ -1450,6 +1450,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 108,
     logoHeight: 28,
   },
+  {
+    id: "abbvie_switzerland",
+    name: "AbbVie Switzerland",
+    careersUrl:
+      "https://careers.abbvie.com/en/jobs?q=&options=&page=1&la=47.3768866&lo=8.541694&ln=Z%C3%BCrich%2C+Switzerland&lr=100",
+    logoSrc: "/company-logos/abbvie.svg",
+    logoAlt: "AbbVie Switzerland logo",
+    logoWidth: 112,
+    logoHeight: 20,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
