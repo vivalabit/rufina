@@ -1,25 +1,23 @@
 from __future__ import annotations
 
 import base64
-from io import BytesIO
 import json
 import os
-from pathlib import Path
 import subprocess
 import tempfile
 import time
 import unittest
+import zipfile
+from io import BytesIO
+from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
-import zipfile
 
 from playwright.sync_api import Page, expect, sync_playwright
-
 
 OWNER_ID = "workspace-e2e-owner"
 APPLICATION_ID = "application-workspace-e2e"
 JOB_ID = "job-workspace-e2e"
-CONSENT_VERSION = "e2e-consent-v1"
 AI_BACKEND = "openclaw_codex"
 
 
@@ -177,12 +175,8 @@ class WorkspaceDockerE2E(unittest.TestCase):
         cls.api_request("PUT", "/jobs", {"jobs": [{"id": JOB_ID, "data": job}]})
         cls.api_request(
             "PUT",
-            "/privacy/ai-consent",
-            {
-                "version": CONSENT_VERSION,
-                "backend": AI_BACKEND,
-                "retentionDays": 7,
-            },
+            "/privacy/ai-retention",
+            {"retentionDays": 7},
         )
         cls.api_request(
             "POST",
@@ -220,7 +214,6 @@ class WorkspaceDockerE2E(unittest.TestCase):
                 ],
             },
         )
-        cls.api_request("DELETE", "/privacy/ai-consent?deleteData=false", expected_status=204)
         cls.api_request("PUT", "/profile?allow_destructive=true", {})
 
     def legacy_fixture(self) -> tuple[dict[str, object], dict[str, object]]:
@@ -436,10 +429,6 @@ class WorkspaceDockerE2E(unittest.TestCase):
             generate_cv = page.get_by_role("button", name="Generate Tailored CV")
             expect(generate_cv).to_be_enabled(timeout=30_000)
             generate_cv.click()
-            expect(page.get_by_role("dialog", name="Your application context will be sent to OpenAI")).to_be_visible()
-            page.get_by_role("spinbutton", name="Keep AI results for (days)").fill("7")
-            page.get_by_role("checkbox").check()
-            page.get_by_role("button", name="Continue to AI").click()
             deadline = time.monotonic() + 180
             while time.monotonic() < deadline:
                 documents = self.api_request(
@@ -506,10 +495,11 @@ class WorkspaceDockerE2E(unittest.TestCase):
             )
             expect(page.get_by_text("Unvalidated · v2")).to_be_visible(timeout=30_000)
 
-            privacy = self.api_request("GET", "/privacy/ai-consent")
-            self.assertTrue(privacy["hasCurrentConsent"])
+            privacy = self.api_request("GET", "/privacy/ai-retention")
             self.assertEqual(privacy["currentBackend"], AI_BACKEND)
             self.assertEqual(privacy["retentionDays"], 7)
+            self.assertIsNotNone(privacy["lastAiActivityAt"])
+            self.assertIsNotNone(privacy["aiDataExpiresAt"])
             confirmations = self.api_request(
                 "GET", f"/applications/{APPLICATION_ID}/confirmations"
             )

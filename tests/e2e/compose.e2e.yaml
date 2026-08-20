@@ -11,7 +11,6 @@ services:
       BRIGHTDATA_API_KEY: ""
       DATABASE_URL: postgresql+psycopg://tasko:tasko@postgres:5432/tasko_e2e
       TASKO_SETTINGS_FILE: /dev/null
-      AI_CONSENT_VERSION: e2e-consent-v1
       CORS_ORIGINS: '["http://127.0.0.1:${WEB_PORT:-13000}"]'
       OPENCLAW_COMMAND: /workspace/tests/e2e/fake_openclaw.py
       OPENCLAW_ASSISTANT_MODEL: e2e-model
