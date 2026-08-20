@@ -8,10 +8,12 @@ import {
   Plus,
   Search,
   Settings,
+  ShieldCheck,
 } from "lucide-react";
 
 import { AutoSearchDialog } from "@/components/auto-search-dialog";
 import { Button } from "@/components/ui/button";
+import { VacancyFilterDialog } from "@/components/vacancy-filter-dialog";
 import { cn } from "@/lib/utils";
 
 export type BulkAnalysisScope = "recent" | "missing";
@@ -57,6 +59,7 @@ export function JobsToolbar({
   onVacanciesChanged,
 }: JobsToolbarProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isVacancyFilterOpen, setIsVacancyFilterOpen] = useState(false);
   const [analysisMenuLeft, setAnalysisMenuLeft] = useState(0);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const analysisButtonRef = useRef<HTMLButtonElement>(null);
@@ -143,17 +146,31 @@ export function JobsToolbar({
 
         <Button
           variant="ghost"
-          size="icon"
-          aria-label="Jobs settings"
+          aria-label="Auto Search"
           aria-haspopup="dialog"
           className={cn(
             secondaryButtonClass,
-            "w-10 px-0 2xl:w-12 2xl:px-0",
             isSettingsOpen && "border-[#8b5cf6]/80 bg-[#231a37] text-white",
           )}
           onClick={() => setIsSettingsOpen(true)}
         >
           <Settings className="h-[18px] w-[18px] 2xl:h-5 2xl:w-5" />
+          Auto Search
+        </Button>
+
+        <Button
+          variant="ghost"
+          aria-label="Vacancy Filter"
+          aria-haspopup="dialog"
+          className={cn(
+            secondaryButtonClass,
+            isVacancyFilterOpen &&
+              "border-[#8b5cf6]/80 bg-[#231a37] text-white",
+          )}
+          onClick={() => setIsVacancyFilterOpen(true)}
+        >
+          <ShieldCheck className="h-[18px] w-[18px] 2xl:h-5 2xl:w-5" />
+          Vacancy Filter
         </Button>
 
         <div>
@@ -225,6 +242,10 @@ export function JobsToolbar({
         open={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         onVacanciesChanged={onVacanciesChanged}
+      />
+      <VacancyFilterDialog
+        open={isVacancyFilterOpen}
+        onClose={() => setIsVacancyFilterOpen(false)}
       />
     </>
   );

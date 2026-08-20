@@ -18,6 +18,7 @@ from app.core.vacancy_sources import (
     SUPPORTED_VACANCY_SOURCE_IDS,
     direct_company_definition,
 )
+from app.models.job_filter import JobFilterSettings
 from app.models.job_search import (
     JobSearchConfigRecord,
     JobSearchConfigV2,
@@ -45,6 +46,11 @@ from app.services.discovered_vacancies import (
     mark_missing_vacancies_inactive,
     stable_job_id,
     upsert_discovered_vacancies,
+)
+from app.services.job_filter_settings import (
+    get_job_filter_settings,
+    job_filter_settings_from_snapshot,
+    job_filter_settings_snapshot,
 )
 from app.services.job_match_store import persist_job_and_match
 from app.services.job_screening import (
@@ -80,9 +86,14 @@ EXPERIENCE_LEVEL_SENIORITY = {
     "Mid-Senior level": ["mid", "senior", "lead"],
     "Director": ["director", "executive"],
 }
+JOB_FILTER_SNAPSHOT_KEY = "jobFilter"
 
 
 class JobSearchExecutionError(RuntimeError):
+    pass
+
+
+class ScreeningConfigConflict(ValueError):
     pass
 
 
@@ -135,6 +146,7 @@ def effective_screening_config(
     config: JobSearchConfigV2,
     *,
     screening_required: bool,
+    job_filter: JobFilterSettings | None = None,
 ) -> ScreeningConfig:
     screening = config.screening
     derived_levels = EXPERIENCE_LEVEL_SENIORITY.get(
@@ -153,7 +165,7 @@ def effective_screening_config(
     if screening_required and not target_roles and config.search.keywords:
         target_roles = [config.search.keywords]
 
-    return ScreeningConfig.model_validate(
+    effective = ScreeningConfig.model_validate(
         {
             **screening.model_dump(by_alias=True),
             "enabled": bool(
@@ -161,6 +173,78 @@ def effective_screening_config(
             ),
             "targetRoles": target_roles,
             "allowedSeniority": allowed_seniority,
+            # Technology constraints are global-user-filter-only. Ignore any
+            # values embedded in a per-search config.
+            "targetTechnologies": None,
+            "excludedTechnologies": None,
+        }
+    )
+    if (
+        job_filter is None
+        or not job_filter.enabled
+        or not job_filter_has_criteria(job_filter)
+    ):
+        return effective
+    return combine_screening_with_job_filter(effective, job_filter)
+
+
+def job_filter_has_criteria(job_filter: JobFilterSettings) -> bool:
+    return bool(
+        job_filter.allowed_seniority
+        or job_filter.excluded_seniority
+        or job_filter.target_technologies
+        or job_filter.excluded_technologies
+    )
+
+
+def combine_screening_with_job_filter(
+    screening: ScreeningConfig,
+    job_filter: JobFilterSettings,
+) -> ScreeningConfig:
+    config_allowed = list(screening.allowed_seniority)
+    user_allowed = list(job_filter.allowed_seniority)
+    if config_allowed and user_allowed:
+        allowed_seniority = [
+            level for level in config_allowed if level in set(user_allowed)
+        ]
+        if not allowed_seniority:
+            raise ScreeningConfigConflict(
+                "Search config and global vacancy filter have incompatible "
+                "allowed seniority levels"
+            )
+    else:
+        allowed_seniority = config_allowed or user_allowed
+
+    excluded_seniority = list(
+        dict.fromkeys(
+            [
+                *screening.excluded_seniority,
+                *job_filter.excluded_seniority,
+            ]
+        )
+    )
+    if allowed_seniority:
+        allowed_seniority = [
+            level
+            for level in allowed_seniority
+            if level not in set(excluded_seniority)
+        ]
+        if not allowed_seniority:
+            raise ScreeningConfigConflict(
+                "Search config and global vacancy filter exclude every allowed "
+                "seniority level"
+            )
+
+    target_technologies = list(job_filter.target_technologies) or None
+    excluded_technologies = list(job_filter.excluded_technologies) or None
+    return ScreeningConfig.model_validate(
+        {
+            **screening.model_dump(by_alias=True, exclude_none=True),
+            "enabled": True,
+            "allowedSeniority": allowed_seniority,
+            "excludedSeniority": excluded_seniority,
+            "targetTechnologies": target_technologies,
+            "excludedTechnologies": excluded_technologies,
         }
     )
 
@@ -184,7 +268,9 @@ def execute_job_search(
     screening_required: bool = False,
 ) -> JobSearchExecutionResult:
     started_at = now or datetime.now(UTC)
-    if config_snapshot is None:
+    if reserved_run is not None:
+        config_snapshot = deepcopy(reserved_run.config_snapshot)
+    elif config_snapshot is None:
         if config is None:
             raise ValueError("config or config_snapshot is required")
         config_snapshot = build_config_snapshot(
@@ -195,6 +281,11 @@ def execute_job_search(
         config_snapshot = {
             **config_snapshot,
             "sourceConfigs": build_source_config_snapshots(source_configs),
+        }
+    if JOB_FILTER_SNAPSHOT_KEY not in config_snapshot:
+        config_snapshot = {
+            **config_snapshot,
+            JOB_FILTER_SNAPSHOT_KEY: current_job_filter_snapshot(db),
         }
     run_sources = list(sources if sources is not None else schedule.sources if schedule else [])
     if not run_sources:
@@ -216,6 +307,7 @@ def execute_job_search(
         db.add(run)
     else:
         run = reserved_run
+        run.config_snapshot = config_snapshot
         run.status = "running"
         run.jobs_found = 0
         run.jobs_already_known = 0
@@ -242,11 +334,15 @@ def execute_job_search(
             config.filters if config is not None else {},
         )
         normalized_config = normalize_job_search_config(config_data)
+        job_filter = job_filter_settings_from_snapshot(
+            run.config_snapshot.get(JOB_FILTER_SNAPSHOT_KEY)
+        )
         normalized_config = normalized_config.model_copy(
             update={
                 "screening": effective_screening_config(
                     normalized_config,
                     screening_required=screening_required,
+                    job_filter=job_filter,
                 )
             }
         )
@@ -269,6 +365,18 @@ def execute_job_search(
             source_requests=source_requests,
             wait_for_snapshots=True,
         )
+    except ScreeningConfigConflict as exc:
+        completed_at = datetime.now(UTC)
+        finish_failed_run(
+            run,
+            schedule,
+            completed_at=completed_at,
+            source_errors={"config": str(exc)[:500]},
+            recalculate_schedule=recalculate_schedule,
+        )
+        db.commit()
+        log_job_search_finished(run)
+        raise JobSearchExecutionError(str(exc)) from exc
     except (TypeError, ValidationError, ValueError) as exc:
         completed_at = datetime.now(UTC)
         finish_failed_run(
@@ -557,6 +665,7 @@ def build_config_snapshot(
     config: JobSearchConfigRecord,
     *,
     source_configs: dict[str, JobSourceConfigRecord] | None = None,
+    job_filter_snapshot: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     try:
         normalized_config = normalize_job_search_config(config.filters).model_dump(
@@ -574,7 +683,21 @@ def build_config_snapshot(
     }
     if source_configs:
         snapshot["sourceConfigs"] = build_source_config_snapshots(source_configs)
+    if job_filter_snapshot is not None:
+        snapshot[JOB_FILTER_SNAPSHOT_KEY] = deepcopy(job_filter_snapshot)
     return snapshot
+
+
+def current_job_filter_snapshot(
+    db: Session,
+    *,
+    owner_id: str | None = None,
+) -> dict[str, Any]:
+    settings = get_job_filter_settings(
+        db,
+        owner_id or get_bound_owner_id(),
+    )
+    return job_filter_settings_snapshot(settings)
 
 
 def build_source_config_snapshots(

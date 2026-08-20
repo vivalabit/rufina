@@ -8,6 +8,7 @@ import app.models.assistant  # noqa: F401
 import app.models.applications  # noqa: F401
 import app.models.conversations  # noqa: F401
 import app.models.documents  # noqa: F401
+import app.models.job_filter  # noqa: F401
 import app.models.job_screening  # noqa: F401
 import app.models.job_search  # noqa: F401
 import app.models.jobs  # noqa: F401

@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 from app.core.identity import get_bound_owner_id
 from app.core.settings import Settings
 from app.core.vacancy_sources import SUPPORTED_VACANCY_SOURCE_IDS
+from app.models.job_filter import JobFilterSettings
 from app.models.job_search import (
     JobSearchConfigRecord,
     JobSearchRescreenConfigGroupPayload,
@@ -19,6 +20,7 @@ from app.models.job_search import (
 )
 from app.models.jobs import StoredJobRecord
 from app.models.parsers import ParsedJob
+from app.services.job_filter_settings import get_job_filter_settings
 from app.services.job_screening import JOB_SCREENING_PROMPT_VERSION
 from app.services.job_screening_store import (
     build_screening_config_hash,
@@ -28,6 +30,7 @@ from app.services.job_screening_store import (
 from app.services.job_search_execution import (
     JobImportProvenance,
     NewJobCandidate,
+    ScreeningConfigConflict,
     apply_job_import_provenance,
     combine_warnings,
     compact_screening_job,
@@ -85,12 +88,17 @@ def rescreen_stored_jobs(
     use_selected_config_as_fallback: bool,
     confirmation_token: str | None,
 ) -> JobSearchRescreenPayload:
-    selected_context = require_rescreen_context(config)
+    job_filter = get_job_filter_settings(db, get_bound_owner_id())
+    selected_context = require_rescreen_context(
+        config,
+        job_filter=job_filter,
+    )
     eligible = eligible_stored_jobs(db)
     groups, skipped_reasons = group_jobs_by_source_config(
         db,
         eligible=eligible,
         selected_context=selected_context,
+        job_filter=job_filter,
         use_selected_config_as_fallback=use_selected_config_as_fallback,
     )
     decision_by_id: dict[str, Any] = {}
@@ -244,28 +252,42 @@ def eligible_stored_jobs(db: Session) -> list[EligibleStoredJob]:
 
 def require_rescreen_context(
     config: JobSearchConfigRecord,
+    *,
+    job_filter: JobFilterSettings,
 ) -> RescreenConfigContext:
-    context, reason = build_rescreen_context(config)
+    context, reason = build_rescreen_context(
+        config,
+        job_filter=job_filter,
+    )
     if context is not None:
         return context
     if reason == "source_config_screening_disabled":
         raise JobRescreeningError(
             "The selected search config does not have screening enabled"
         )
+    if reason == "screening_config_conflict":
+        raise JobRescreeningError(
+            "The selected search config conflicts with the global vacancy filter"
+        )
     raise JobRescreeningError("The selected search config is invalid")
 
 
 def build_rescreen_context(
     config: JobSearchConfigRecord,
+    *,
+    job_filter: JobFilterSettings,
 ) -> tuple[RescreenConfigContext | None, str | None]:
     try:
         normalized_config = normalize_job_search_config(config.filters)
+        screening = effective_screening_config(
+            normalized_config,
+            screening_required=False,
+            job_filter=job_filter,
+        )
+    except ScreeningConfigConflict:
+        return None, "screening_config_conflict"
     except ValidationError:
         return None, "source_config_invalid"
-    screening = effective_screening_config(
-        normalized_config,
-        screening_required=False,
-    )
     if not screening.enabled:
         return None, "source_config_screening_disabled"
     config_hash = build_screening_config_hash(screening)
@@ -295,6 +317,7 @@ def group_jobs_by_source_config(
     *,
     eligible: list[EligibleStoredJob],
     selected_context: RescreenConfigContext,
+    job_filter: JobFilterSettings,
     use_selected_config_as_fallback: bool,
 ) -> tuple[list[RescreenConfigGroup], dict[str, int]]:
     source_config_ids = {
@@ -321,7 +344,10 @@ def group_jobs_by_source_config(
         if config is None:
             unavailable_reasons[config_id] = "source_config_not_found"
             continue
-        context, reason = build_rescreen_context(config)
+        context, reason = build_rescreen_context(
+            config,
+            job_filter=job_filter,
+        )
         if context is None:
             unavailable_reasons[config_id] = (
                 reason or "source_config_invalid"

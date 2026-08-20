@@ -90,6 +90,14 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "consent_backend",
             "consented_at",
         }.isdisjoint(privacy_columns)
+        job_filter_columns = {
+            column["name"]
+            for column in inspect(engine).get_columns("job_filter_settings")
+        }
+        assert job_filter_columns == {"owner_id", "data", "updated_at"}
+        assert inspect(engine).get_pk_constraint("job_filter_settings")[
+            "constrained_columns"
+        ] == ["owner_id"]
         resume_template_columns = {
             column["name"]
             for column in inspect(engine).get_columns(
@@ -161,7 +169,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260818_0037"
+            assert revision == "20260820_0038"
             entry_it = connection.execute(
                 text(
                     "SELECT id, owner_id, name, filters "
@@ -1096,7 +1104,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260818_0037"
+            assert revision == "20260820_0038"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
@@ -1136,7 +1144,7 @@ def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> Non
                     "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
                 )
             ).scalar_one()
-        assert revision == "20260818_0037"
+        assert revision == "20260820_0038"
         assert entry_it_count == 1
         assert LEGACY_RECOVERABLE_MISSING_TABLES <= set(
             inspect(engine).get_table_names()

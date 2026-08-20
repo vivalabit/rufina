@@ -6,8 +6,10 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
+import app.models.applications  # noqa: F401
 from app.core.database import Base
 from app.core.settings import Settings
+from app.models.job_filter import JobFilterSettingsRecord
 from app.models.job_screening import JobScreeningDecisionRecord
 from app.models.job_search import (
     JobSearchConfigRecord,
@@ -19,7 +21,11 @@ from app.models.parsers import ParsedJob, ParserSearchResponse
 from app.models.privacy import AiPrivacySettingsRecord
 from app.services import job_search_execution
 from app.services.job_search_execution import build_config_snapshot
-from app.services.job_search_worker import run_job_search_cycle
+from app.services.job_search_worker import (
+    execute_reserved_job_search,
+    reserve_due_job_searches,
+    run_job_search_cycle,
+)
 from app.services.vacancy_search import VacancySearchRunResult
 
 
@@ -352,6 +358,84 @@ def test_automatic_screening_persists_only_keep(
     assert run.warning is None
     assert [record.data["title"] for record in stored] == [keep.title]
     assert {decision.decision for decision in decisions} == {"keep", "reject"}
+
+
+def test_automatic_reservation_keeps_filter_snapshot_when_settings_change(
+    tmp_path,
+) -> None:
+    sessions = create_sessions(tmp_path / "automatic-filter-snapshot.sqlite")
+    due_at = datetime(2026, 7, 23, 6, 0, tzinfo=UTC)
+    now = datetime(2026, 7, 23, 10, 0, tzinfo=UTC)
+    seed_schedule(
+        sessions,
+        next_run_at=due_at,
+        filters={
+            "schemaVersion": 2,
+            "search": {
+                "keywords": "Backend Engineer",
+                "location": "Zurich",
+            },
+            "screening": {
+                "enabled": True,
+                "allowedSeniority": ["junior"],
+            },
+        },
+    )
+    reserved_filter = {
+        "schemaVersion": 1,
+        "enabled": True,
+        "allowedSeniority": ["junior"],
+        "excludedSeniority": [],
+        "targetTechnologies": ["Python"],
+        "excludedTechnologies": [],
+    }
+    with sessions() as db:
+        db.add(
+            JobFilterSettingsRecord(
+                owner_id="worker-owner",
+                data=reserved_filter,
+            )
+        )
+        db.commit()
+
+    reserved_ids = reserve_due_job_searches(sessions, now=now)
+    assert len(reserved_ids) == 1
+
+    with sessions() as db:
+        run = db.get(JobSearchRunRecord, reserved_ids[0])
+        settings_record = db.get(JobFilterSettingsRecord, "worker-owner")
+        assert run is not None
+        assert settings_record is not None
+        assert run.config_snapshot["jobFilter"] == reserved_filter
+        settings_record.data = {
+            **reserved_filter,
+            # This would conflict with the config if execution re-read current
+            # settings instead of using the reservation snapshot.
+            "allowedSeniority": ["senior"],
+            "targetTechnologies": ["Go"],
+        }
+        db.commit()
+
+    runner = RecordingRunner()
+    assert execute_reserved_job_search(
+        reserved_ids[0],
+        settings=worker_settings(),
+        session_factory=sessions,
+        runner_factory=lambda _settings: runner,
+    )
+
+    assert runner.calls == 1
+    with sessions() as db:
+        run = db.get(JobSearchRunRecord, reserved_ids[0])
+        assert run is not None
+        assert run.status == "completed"
+        assert run.config_snapshot["jobFilter"] == reserved_filter
+        assert run.config_snapshot["filters"]["screening"][
+            "allowedSeniority"
+        ] == ["junior"]
+        assert run.config_snapshot["filters"]["screening"][
+            "targetTechnologies"
+        ] == ["Python"]
 
 
 def create_sessions(database_path) -> sessionmaker[Session]:

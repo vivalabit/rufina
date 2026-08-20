@@ -10,6 +10,7 @@ from app.api.assistant import router as assistant_router
 from app.api.conversations import router as conversations_router
 from app.api.documents import router as documents_router
 from app.api.health import router as health_router
+from app.api.job_filter import router as job_filter_router
 from app.api.job_search import router as job_search_router
 from app.api.jobs import router as jobs_router
 from app.api.parsers import router as parsers_router
@@ -80,6 +81,7 @@ app.add_middleware(
 app.include_router(health_router, prefix="/health", tags=["health"])
 app.include_router(jobs_router, prefix="/jobs", tags=["jobs"])
 app.include_router(job_search_router, prefix="/job-search", tags=["job search"])
+app.include_router(job_filter_router, prefix="/job-search", tags=["job filter"])
 app.include_router(applications_router, prefix="/applications", tags=["applications"])
 app.include_router(assistant_router, prefix="/assistant", tags=["assistant"])
 app.include_router(

@@ -470,6 +470,16 @@ class ScreeningConfig(BaseModel):
         max_length=9,
         alias="excludedSeniority",
     )
+    target_technologies: list[str] | None = Field(
+        default=None,
+        max_length=50,
+        alias="targetTechnologies",
+    )
+    excluded_technologies: list[str] | None = Field(
+        default=None,
+        max_length=50,
+        alias="excludedTechnologies",
+    )
     hard_rules: list[ScreeningRule] = Field(
         default_factory=list,
         max_length=100,
@@ -492,6 +502,29 @@ class ScreeningConfig(BaseModel):
             raise ValueError("role entries must be at most 160 characters")
         return normalized
 
+    @field_validator("target_technologies", "excluded_technologies")
+    @classmethod
+    def normalize_technologies(
+        cls,
+        value: list[str] | None,
+    ) -> list[str] | None:
+        if value is None:
+            return None
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for technology in value:
+            item = technology.strip()
+            key = item.casefold()
+            if key in seen:
+                continue
+            normalized.append(item)
+            seen.add(key)
+        if any(not technology for technology in normalized):
+            raise ValueError("technology lists must not contain empty values")
+        if any(len(technology) > 160 for technology in normalized):
+            raise ValueError("technology entries must be at most 160 characters")
+        return normalized
+
     @field_validator("allowed_seniority", "excluded_seniority")
     @classmethod
     def deduplicate_seniority(
@@ -507,6 +540,23 @@ class ScreeningConfig(BaseModel):
             conflicting = ", ".join(sorted(overlap))
             raise ValueError(
                 "allowedSeniority and excludedSeniority must not overlap: "
+                f"{conflicting}"
+            )
+        target_technologies = {
+            technology.casefold()
+            for technology in self.target_technologies or []
+        }
+        excluded_technologies = {
+            technology.casefold()
+            for technology in self.excluded_technologies or []
+        }
+        technology_overlap = target_technologies.intersection(
+            excluded_technologies
+        )
+        if technology_overlap:
+            conflicting = ", ".join(sorted(technology_overlap))
+            raise ValueError(
+                "targetTechnologies and excludedTechnologies must not overlap: "
                 f"{conflicting}"
             )
         return self

@@ -48,11 +48,12 @@ it("renders the requested action order and opens auto-searches locally", async (
     "Search vacancies",
     "Saved Jobs (2)",
     "Archived (3)",
-    "Jobs settings",
+    "Auto Search",
+    "Vacancy Filter",
     "Analysis",
   ]);
 
-  fireEvent.click(within(toolbar).getByRole("button", { name: "Jobs settings" }));
+  fireEvent.click(within(toolbar).getByRole("button", { name: "Auto Search" }));
   expect(
     screen.getByRole("dialog", { name: "Automatic searches" }),
   ).toBeInTheDocument();
@@ -60,6 +61,18 @@ it("renders the requested action order and opens auto-searches locally", async (
   fireEvent.keyDown(window, { key: "Escape" });
   expect(
     screen.queryByRole("dialog", { name: "Automatic searches" }),
+  ).not.toBeInTheDocument();
+
+  fireEvent.click(
+    within(toolbar).getByRole("button", { name: "Vacancy Filter" }),
+  );
+  expect(
+    screen.getByRole("dialog", { name: "Vacancy Filter" }),
+  ).toBeInTheDocument();
+
+  fireEvent.keyDown(window, { key: "Escape" });
+  expect(
+    screen.queryByRole("dialog", { name: "Vacancy Filter" }),
   ).not.toBeInTheDocument();
 });
 

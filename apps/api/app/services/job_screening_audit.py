@@ -6,6 +6,7 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.identity import get_bound_owner_id
 from app.core.settings import Settings
 from app.models.job_screening import (
     JobScreeningAuditPayload,
@@ -17,6 +18,7 @@ from app.models.job_search import (
 )
 from app.models.jobs import StoredJobRecord
 from app.models.parsers import ParsedJob
+from app.services.job_filter_settings import get_job_filter_settings
 from app.services.job_screening import (
     JOB_SCREENING_PROMPT_VERSION,
     CompactScreeningJob,
@@ -28,6 +30,7 @@ from app.services.job_screening_store import (
 from app.services.job_search_execution import (
     JobImportProvenance,
     NewJobCandidate,
+    ScreeningConfigConflict,
     apply_job_import_provenance,
     effective_screening_config,
     persist_new_jobs,
@@ -72,14 +75,15 @@ def recheck_screening_decision(
     config = require_audit_config(db, record)
     try:
         normalized_config = normalize_job_search_config(config.filters)
-    except ValidationError as exc:
+        screening = effective_screening_config(
+            normalized_config,
+            screening_required=False,
+            job_filter=get_job_filter_settings(db, get_bound_owner_id()),
+        )
+    except (ScreeningConfigConflict, ValidationError) as exc:
         raise JobScreeningAuditActionUnavailable(
             "The screening config is invalid"
         ) from exc
-    screening = effective_screening_config(
-        normalized_config,
-        screening_required=False,
-    )
     if not screening.enabled:
         raise JobScreeningAuditActionUnavailable(
             "Screening is disabled in this config"
@@ -334,8 +338,12 @@ def audit_record_provenance(
     if config is None:
         return None
     try:
-        screening = normalize_job_search_config(config.filters).screening
-    except ValidationError:
+        screening = effective_screening_config(
+            normalize_job_search_config(config.filters),
+            screening_required=False,
+            job_filter=get_job_filter_settings(db, get_bound_owner_id()),
+        )
+    except (ScreeningConfigConflict, ValidationError):
         return None
     return JobImportProvenance(
         search_config_id=config.id,

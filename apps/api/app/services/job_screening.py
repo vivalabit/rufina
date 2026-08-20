@@ -33,7 +33,7 @@ from app.services.resume_import import (
     summarize_openclaw_error,
 )
 
-JOB_SCREENING_PROMPT_VERSION = "job-screening-prompt-v2"
+JOB_SCREENING_PROMPT_VERSION = "job-screening-prompt-v3"
 MAX_SCREENING_REASON_CHARS = 500
 MAX_COMPACT_TEXT_CHARS = 1_000
 MAX_SCREENING_JOBS_PER_RESPONSE = 100
@@ -574,6 +574,7 @@ def build_job_screening_prompt(
     config_payload = screening_config.model_dump(
         by_alias=True,
         exclude={"enabled"},
+        exclude_none=True,
     )
     config_payload["hardRules"] = [
         {
@@ -625,6 +626,14 @@ def build_job_screening_prompt(
         "- allowedSeniority is a strict allow-list and excludedSeniority is a strict "
         "deny-list. Explicit vacancy seniority and role-title markers are evidence; "
         "when seniority is required but cannot be established, return uncertain.\n"
+        "- targetTechnologies is an ANY-match allow-list: when it is present, keep only "
+        "when at least one listed technology is clearly primary to the role or explicitly "
+        "required. If no listed technology has that level of evidence, return uncertain.\n"
+        "- excludedTechnologies is a deny-list, but reject only when a listed technology "
+        "is clearly primary to the role or explicitly required. An incidental, optional, "
+        "nice-to-have, legacy, migration-source, or integration-only mention neither "
+        "satisfies targetTechnologies nor triggers excludedTechnologies. A qualifying "
+        "excluded technology takes precedence over a target technology match.\n"
         "Use matchedRuleIds only for hard-rule IDs that directly affected the decision. "
         "Use [] when no hard rule matched.\n"
         "reasonCode must be a stable lowercase snake_case token. reason must be a "

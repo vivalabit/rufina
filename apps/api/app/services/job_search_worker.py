@@ -20,6 +20,7 @@ from app.models.job_search import (
 )
 from app.services.job_search_execution import (
     build_config_snapshot,
+    current_job_filter_snapshot,
     execute_job_search,
     recalculate_next_schedule_run,
 )
@@ -160,6 +161,10 @@ def _reserve_due_job_searches(
                 config_snapshot=build_config_snapshot(
                     config,
                     source_configs=source_configs_for_schedule(db, schedule),
+                    job_filter_snapshot=current_job_filter_snapshot(
+                        db,
+                        owner_id=schedule.owner_id,
+                    ),
                 ),
                 sources=list(schedule.sources),
                 status="queued",
