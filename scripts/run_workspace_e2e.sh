@@ -3,6 +3,11 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 compose_project="${E2E_COMPOSE_PROJECT:-tasko-workspace-e2e}"
+if [[ ! "${compose_project}" =~ ^tasko-workspace-e2e(-[a-z0-9][a-z0-9_-]*)?$ ]]; then
+  echo "E2E_COMPOSE_PROJECT must be tasko-workspace-e2e or use the tasko-workspace-e2e-* namespace." >&2
+  exit 2
+fi
+
 export API_PORT="${API_PORT:-18000}"
 export WEB_PORT="${WEB_PORT:-13000}"
 export POSTGRES_PORT="${POSTGRES_PORT:-15432}"

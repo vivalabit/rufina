@@ -169,7 +169,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260820_0038"
+            assert revision == "20260820_0039"
             entry_it = connection.execute(
                 text(
                     "SELECT id, owner_id, name, filters "
@@ -1104,7 +1104,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260820_0038"
+            assert revision == "20260820_0039"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
@@ -1144,7 +1144,7 @@ def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> Non
                     "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
                 )
             ).scalar_one()
-        assert revision == "20260820_0038"
+        assert revision == "20260820_0039"
         assert entry_it_count == 1
         assert LEGACY_RECOVERABLE_MISSING_TABLES <= set(
             inspect(engine).get_table_names()
@@ -1341,6 +1341,488 @@ def test_job_owner_scoping_migration_backfills_and_allows_shared_ids(tmp_path) -
                 text("SELECT data FROM stored_jobs WHERE id = 'shared-job'")
             ).scalar_one()
         assert retained_job == '{"id":"shared-job","title":"Legacy vacancy"}'
+    finally:
+        engine.dispose()
+
+
+def test_screenshot_demo_cleanup_removes_only_known_local_owner_records(
+    tmp_path,
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'screenshot-demo-cleanup.sqlite'}"
+    config = get_alembic_config(database_url)
+    command.upgrade(config, "20260820_0038")
+    demo_application_ids = (
+        "application-manual-job-demo-novara",
+        "application-manual-job-demo-cirruspay",
+        "application-manual-job-demo-alpine-grid",
+        "application-manual-job-demo-luma-health",
+    )
+    demo_job_ids = (
+        "manual-job-demo-novara",
+        "manual-job-demo-cirruspay",
+        "manual-job-demo-alpine-grid",
+        "manual-job-demo-luma-health",
+        "manual-job-demo-fieldnote",
+        "manual-job-demo-greenline",
+    )
+    retained_application_id = "application-manual-job-demo-user-created"
+    retained_job_id = "manual-job-demo-user-created"
+    now = datetime(2026, 8, 20, 12, tzinfo=UTC).isoformat()
+
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text("INSERT INTO profiles (id, data) VALUES ('default', :data)"),
+                {"data": json.dumps({"name": "Real User"})},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO ai_privacy_settings "
+                    "(owner_id, retention_days, last_ai_activity_at, "
+                    "ai_data_expires_at, updated_at) "
+                    "VALUES ('local-owner', 45, :now, :now, :now)"
+                ),
+                {"now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO stored_applications (id, data, owner_id) "
+                    "VALUES (:id, :data, 'local-owner')"
+                ),
+                [
+                    {
+                        "id": application_id,
+                        "data": json.dumps({"id": application_id, "fixture": True}),
+                    }
+                    for application_id in (*demo_application_ids, retained_application_id)
+                ],
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO stored_application_events "
+                    "(id, application_id, data, owner_id) "
+                    "VALUES (:id, :application_id, :data, 'local-owner')"
+                ),
+                [
+                    {
+                        "id": "demo-event-cleanup",
+                        "application_id": demo_application_ids[0],
+                        "data": "{}",
+                    },
+                    {
+                        "id": "user-event-retained",
+                        "application_id": retained_application_id,
+                        "data": "{}",
+                    },
+                ],
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO candidate_confirmations "
+                    "(application_id, question_id, requirement, response, "
+                    "example_text, blocking, updated_at, owner_id) "
+                    "VALUES (:application_id, :question_id, 'Requirement', 'yes', "
+                    "'Example', 0, :now, 'local-owner')"
+                ),
+                [
+                    {
+                        "application_id": demo_application_ids[0],
+                        "question_id": "demo-question",
+                        "now": now,
+                    },
+                    {
+                        "application_id": retained_application_id,
+                        "question_id": "user-question",
+                        "now": now,
+                    },
+                ],
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO documents "
+                    "(id, type, title, job_id, current_version, created_at, "
+                    "updated_at, owner_id) "
+                    "VALUES (:id, 'cover_letter', :title, NULL, 1, :now, :now, :owner_id)"
+                ),
+                [
+                    {
+                        "id": "demo-owner-document",
+                        "title": "Demo owner document",
+                        "now": now,
+                        "owner_id": "local-owner",
+                    },
+                    {
+                        "id": "user-owner-document",
+                        "title": "User document",
+                        "now": now,
+                        "owner_id": "local-owner",
+                    },
+                    {
+                        "id": "foreign-owner-document",
+                        "title": "Foreign document",
+                        "now": now,
+                        "owner_id": "other-owner",
+                    },
+                ],
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO document_attachments "
+                    "(id, document_id, application_id, created_at) "
+                    "VALUES (:id, :document_id, :application_id, :now)"
+                ),
+                [
+                    {
+                        "id": "demo-attachment",
+                        "document_id": "demo-owner-document",
+                        "application_id": demo_application_ids[0],
+                        "now": now,
+                    },
+                    {
+                        "id": "user-attachment",
+                        "document_id": "user-owner-document",
+                        "application_id": retained_application_id,
+                        "now": now,
+                    },
+                    {
+                        "id": "foreign-attachment",
+                        "document_id": "foreign-owner-document",
+                        "application_id": demo_application_ids[0],
+                        "now": now,
+                    },
+                ],
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO workspace_source_documents "
+                    "(id, application_id, category, title, language, file_name, "
+                    "content_type, content, created_at, updated_at, owner_id) "
+                    "VALUES (:id, :application_id, 'resume', :title, 'en', "
+                    "'resume.pdf', 'application/pdf', :content, :now, :now, 'local-owner')"
+                ),
+                [
+                    {
+                        "id": "demo-workspace-document",
+                        "application_id": demo_application_ids[0],
+                        "title": "Demo resume",
+                        "content": b"demo",
+                        "now": now,
+                    },
+                    {
+                        "id": "user-workspace-document",
+                        "application_id": retained_application_id,
+                        "title": "User resume",
+                        "content": b"user",
+                        "now": now,
+                    },
+                ],
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO imaginator_resumes "
+                    "(id, resume_master_id, resume_master_version_id, target_job_id, "
+                    "application_id, vacancy_hash, input_fingerprint, constraints_version, "
+                    "prompt_version, result, render_input, claim_ledger, model, backend, "
+                    "provider_session_id, input_tokens, output_tokens, total_tokens, "
+                    "token_count_source, latency_ms, created_at, owner_id, "
+                    "protected_facts_audit) "
+                    "VALUES (:id, 'cleanup-master', 'cleanup-master-version', :job_id, "
+                    ":application_id, :vacancy_hash, :input_fingerprint, 'test-constraints', "
+                    "'test-prompt', '{}', '{}', '[]', 'test-model', 'openai_api', '', "
+                    "0, 0, 0, 'unavailable', 0, :now, 'local-owner', '{}')"
+                ),
+                [
+                    {
+                        "id": "demo-imaginator-resume",
+                        "job_id": demo_job_ids[0],
+                        "application_id": demo_application_ids[0],
+                        "vacancy_hash": "7" * 64,
+                        "input_fingerprint": "8" * 64,
+                        "now": now,
+                    },
+                    {
+                        "id": "user-imaginator-resume",
+                        "job_id": retained_job_id,
+                        "application_id": retained_application_id,
+                        "vacancy_hash": "9" * 64,
+                        "input_fingerprint": "0" * 64,
+                        "now": now,
+                    },
+                ],
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO document_templates "
+                    "(id, type, name, file_name, content_type, content, extracted_text, "
+                    "created_at, updated_at, content_sha256, owner_id) "
+                    "VALUES ('cleanup-template', 'cover_letter', 'Cleanup template', "
+                    "'template.docx', 'application/vnd.openxmlformats-officedocument."
+                    "wordprocessingml.document', :content, '', :now, :now, :hash, "
+                    "'local-owner')"
+                ),
+                {"content": b"template", "now": now, "hash": "t" * 64},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO document_generation_artifacts "
+                    "(id, application_id, job_id, document_type, template_id, "
+                    "template_content, input_snapshot, generation_fingerprint, "
+                    "input_versions, validation_evidence, status, result_content, "
+                    "generation_model, consumed_at, expires_at, created_at, completed_at, "
+                    "owner_id, generation_backend) "
+                    "VALUES (:id, :application_id, :job_id, 'cover_letter', "
+                    "'cleanup-template', :content, '{}', :fingerprint, '{}', '{}', "
+                    "'completed', 'result', 'test-model', NULL, :now, :now, :now, "
+                    "'local-owner', 'openai_api')"
+                ),
+                [
+                    {
+                        "id": "demo-generation-artifact",
+                        "application_id": demo_application_ids[0],
+                        "job_id": demo_job_ids[0],
+                        "content": b"demo",
+                        "fingerprint": "a" * 64,
+                        "now": now,
+                    },
+                    {
+                        "id": "user-generation-artifact",
+                        "application_id": retained_application_id,
+                        "job_id": retained_job_id,
+                        "content": b"user",
+                        "fingerprint": "b" * 64,
+                        "now": now,
+                    },
+                ],
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO document_validation_artifacts "
+                    "(id, application_id, document_type, template_id, template_hash, "
+                    "result_hash, evidence_hash, rendered_hash, rendered_content, "
+                    "validation_report, consumed_at, expires_at, created_at, owner_id, "
+                    "generation_artifact_id) "
+                    "VALUES (:id, :application_id, 'cover_letter', 'cleanup-template', "
+                    ":template_hash, :result_hash, :evidence_hash, :rendered_hash, "
+                    ":content, '{}', NULL, :now, :now, 'local-owner', :generation_id)"
+                ),
+                [
+                    {
+                        "id": "demo-validation-artifact",
+                        "application_id": demo_application_ids[0],
+                        "template_hash": "c" * 64,
+                        "result_hash": "d" * 64,
+                        "evidence_hash": "e" * 64,
+                        "rendered_hash": "f" * 64,
+                        "content": b"demo",
+                        "now": now,
+                        "generation_id": "demo-generation-artifact",
+                    },
+                    {
+                        "id": "user-validation-artifact",
+                        "application_id": retained_application_id,
+                        "template_hash": "1" * 64,
+                        "result_hash": "2" * 64,
+                        "evidence_hash": "3" * 64,
+                        "rendered_hash": "4" * 64,
+                        "content": b"user",
+                        "now": now,
+                        "generation_id": "user-generation-artifact",
+                    },
+                ],
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO document_pack_jobs "
+                    "(id, request_fingerprint, application_id, persistence_mode, status, "
+                    "document_ids, stages, message, created_at, updated_at, expires_at, "
+                    "owner_id) "
+                    "VALUES (:id, :fingerprint, :application_id, 'persist', 'completed', "
+                    "'[]', '[]', '', :now, :now, :now, 'local-owner')"
+                ),
+                [
+                    {
+                        "id": "demo-pack-job",
+                        "fingerprint": "5" * 64,
+                        "application_id": demo_application_ids[0],
+                        "now": now,
+                    },
+                    {
+                        "id": "user-pack-job",
+                        "fingerprint": "6" * 64,
+                        "application_id": retained_application_id,
+                        "now": now,
+                    },
+                ],
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO stored_jobs (owner_id, id, data, status) "
+                    "VALUES (:owner_id, :id, :data, 'active')"
+                ),
+                [
+                    {
+                        "owner_id": "local-owner",
+                        "id": job_id,
+                        "data": json.dumps({"id": job_id, "fixture": True}),
+                    }
+                    for job_id in (*demo_job_ids, retained_job_id)
+                ]
+                + [
+                    {
+                        "owner_id": "other-owner",
+                        "id": demo_job_ids[0],
+                        "data": json.dumps({"id": demo_job_ids[0], "fixture": False}),
+                    }
+                ],
+            )
+            match_rows = []
+            feedback_rows = []
+            for index, job_id in enumerate((*demo_job_ids, retained_job_id)):
+                match_rows.append(
+                    {
+                        "id": f"local-match-{index}",
+                        "job_id": job_id,
+                        "cache_key": f"{index:064d}",
+                        "owner_id": "local-owner",
+                    }
+                )
+                feedback_rows.append(
+                    {
+                        "id": f"local-feedback-{index}",
+                        "job_id": job_id,
+                        "owner_id": "local-owner",
+                    }
+                )
+            match_rows.append(
+                {
+                    "id": "foreign-match",
+                    "job_id": demo_job_ids[0],
+                    "cache_key": "9" * 64,
+                    "owner_id": "other-owner",
+                }
+            )
+            feedback_rows.append(
+                {
+                    "id": "foreign-feedback",
+                    "job_id": demo_job_ids[0],
+                    "owner_id": "other-owner",
+                }
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO job_matches "
+                    "(id, job_id, profile_hash, matcher_version, cache_key, score, source, "
+                    "confidence, breakdown, reasons, gaps, heuristic_score, provider_error, "
+                    "created_at, owner_id, vacancy_hash, model, prompt_version, backend) "
+                    "VALUES (:id, :job_id, :profile_hash, 'ai-match-v3', :cache_key, 80, "
+                    "'openai_api', 'high', '{}', '[]', '[]', 80, NULL, :now, :owner_id, "
+                    ":vacancy_hash, 'test-model', 'test-prompt', 'openai_api')"
+                ),
+                [
+                    {
+                        **row,
+                        "profile_hash": "p" * 64,
+                        "vacancy_hash": "v" * 64,
+                        "now": now,
+                    }
+                    for row in match_rows
+                ],
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO job_match_feedback "
+                    "(id, job_id, profile_hash, matcher_version, feedback, created_at, "
+                    "owner_id) VALUES (:id, :job_id, :profile_hash, 'ai-match-v3', "
+                    "'good_match', :now, :owner_id)"
+                ),
+                [
+                    {**row, "profile_hash": "p" * 64, "now": now}
+                    for row in feedback_rows
+                ],
+            )
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            remaining_applications = set(
+                connection.execute(
+                    text("SELECT id FROM stored_applications")
+                ).scalars()
+            )
+            assert remaining_applications == {retained_application_id}
+
+            for table_name in (
+                "stored_application_events",
+                "candidate_confirmations",
+                "workspace_source_documents",
+                "document_generation_artifacts",
+                "document_validation_artifacts",
+                "document_pack_jobs",
+            ):
+                application_ids = set(
+                    connection.execute(
+                        text(f"SELECT application_id FROM {table_name}")
+                    ).scalars()
+                )
+                assert application_ids == {retained_application_id}
+
+            imaginator_application_ids = dict(
+                connection.execute(
+                    text("SELECT id, application_id FROM imaginator_resumes")
+                ).all()
+            )
+            assert imaginator_application_ids == {
+                "demo-imaginator-resume": None,
+                "user-imaginator-resume": retained_application_id,
+            }
+
+            assert set(
+                connection.execute(
+                    text("SELECT id FROM document_attachments")
+                ).scalars()
+            ) == {"user-attachment", "foreign-attachment"}
+
+            assert set(
+                connection.execute(
+                    text("SELECT owner_id, id FROM stored_jobs")
+                ).all()
+            ) == {
+                ("local-owner", retained_job_id),
+                ("other-owner", demo_job_ids[0]),
+            }
+            assert set(
+                connection.execute(
+                    text("SELECT owner_id, job_id FROM job_matches")
+                ).all()
+            ) == {
+                ("local-owner", retained_job_id),
+                ("other-owner", demo_job_ids[0]),
+            }
+            assert set(
+                connection.execute(
+                    text("SELECT owner_id, job_id FROM job_match_feedback")
+                ).all()
+            ) == {
+                ("local-owner", retained_job_id),
+                ("other-owner", demo_job_ids[0]),
+            }
+
+            profile = connection.execute(
+                text("SELECT data FROM profiles WHERE id = 'default'")
+            ).scalar_one()
+            privacy = connection.execute(
+                text(
+                    "SELECT retention_days FROM ai_privacy_settings "
+                    "WHERE owner_id = 'local-owner'"
+                )
+            ).scalar_one()
+            assert json.loads(profile) == {"name": "Real User"}
+            assert privacy == 45
     finally:
         engine.dispose()
 

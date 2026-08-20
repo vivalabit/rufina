@@ -133,7 +133,16 @@ class WorkspaceDockerE2E(unittest.TestCase):
         deadline = time.monotonic() + timeout
         while time.monotonic() < deadline:
             try:
-                cls.compose("exec", "-T", "postgres", "pg_isready", "-U", "tasko", "-d", "tasko")
+                cls.compose(
+                    "exec",
+                    "-T",
+                    "postgres",
+                    "pg_isready",
+                    "-U",
+                    "tasko",
+                    "-d",
+                    "tasko_e2e",
+                )
                 return
             except subprocess.CalledProcessError:
                 time.sleep(1)

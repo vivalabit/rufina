@@ -1,7 +1,15 @@
+name: tasko-screenshots
+
 services:
   api:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
+      APP_ENV: local
+      AI_BACKEND: openclaw_codex
+      OPENAI_API_KEY: ""
+      BRIGHTDATA_API_KEY: ""
+      DATABASE_URL: postgresql+psycopg://tasko:tasko@postgres:5432/tasko_screenshots
+      TASKO_SETTINGS_FILE: /dev/null
       CORS_ORIGINS: '["http://localhost:${WEB_PORT:-3001}","http://127.0.0.1:${WEB_PORT:-3001}"]'
       OPENCLAW_AI_MATCH_ENABLED: "false"
       OPENCLAW_ASSISTANT_ENABLED: "false"
@@ -25,6 +33,12 @@ services:
     environment:
       NEXT_PUBLIC_API_URL: http://localhost:${API_PORT:-8001}
       NEXT_PUBLIC_SCREENSHOT_SESSION_ID: ${SCREENSHOT_SESSION_ID:-screenshot-default}
+
+  postgres:
+    environment:
+      POSTGRES_DB: tasko_screenshots
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tasko -d tasko_screenshots"]
 
 volumes:
   screenshot-openclaw-home:

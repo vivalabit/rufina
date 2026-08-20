@@ -1,9 +1,16 @@
+name: tasko-workspace-e2e
+
 services:
   api:
     entrypoint: []
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000
     environment:
       APP_ENV: e2e
+      AI_BACKEND: openclaw_codex
+      OPENAI_API_KEY: ""
+      BRIGHTDATA_API_KEY: ""
+      DATABASE_URL: postgresql+psycopg://tasko:tasko@postgres:5432/tasko_e2e
+      TASKO_SETTINGS_FILE: /dev/null
       AI_CONSENT_VERSION: e2e-consent-v1
       CORS_ORIGINS: '["http://127.0.0.1:${WEB_PORT:-13000}"]'
       OPENCLAW_COMMAND: /workspace/tests/e2e/fake_openclaw.py
@@ -12,9 +19,29 @@ services:
       OPENCLAW_ASSISTANT_RETRY_BACKOFF_SECONDS: "0"
     volumes:
       - .:/workspace
+      - e2e-openclaw-home:/root/.openclaw
+      - e2e-openclaw-shared-state:/root/.openclaw-shared-state
+      - e2e-openclaw-state:/root/.openclaw/state
+      - e2e-openclaw-npm:${HOME}/.openclaw/npm
+      - e2e-openclaw-workspace:${HOME}/.openclaw/workspace-rufina-assistant
+      - e2e-openclaw-agent:${HOME}/.openclaw/agents/rufina-assistant
   web:
     build:
       args:
         NEXT_PUBLIC_API_URL: http://127.0.0.1:${API_PORT:-18000}
     environment:
       NEXT_PUBLIC_API_URL: http://127.0.0.1:${API_PORT:-18000}
+
+  postgres:
+    environment:
+      POSTGRES_DB: tasko_e2e
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tasko -d tasko_e2e"]
+
+volumes:
+  e2e-openclaw-home:
+  e2e-openclaw-shared-state:
+  e2e-openclaw-state:
+  e2e-openclaw-npm:
+  e2e-openclaw-workspace:
+  e2e-openclaw-agent:

@@ -13,6 +13,8 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 API_ROOT = Path(__file__).resolve().parents[1] / "apps" / "api"
@@ -21,7 +23,6 @@ if str(API_ROOT) not in sys.path:
 
 from app.core.database import SessionLocal
 from app.core.identity import DEFAULT_OWNER_ID, current_owner_id
-from app.core.settings import Settings, get_settings
 from app.models.applications import (
     StoredApplicationEventRecord,
     StoredApplicationRecord,
@@ -33,13 +34,14 @@ from app.models.jobs import (
 )
 from app.models.privacy import AiPrivacySettingsRecord
 from app.models.profile import ProfilePayload, ProfileRecord
-from app.services.ai_match import MATCHER_VERSION, MATCH_PROMPT_VERSION, WEIGHTS
+from app.services.ai_match import MATCH_PROMPT_VERSION, MATCHER_VERSION, WEIGHTS
 from app.services.candidate_snapshot import get_candidate_match_snapshot
 from app.services.job_match_store import build_match_record
 
 DEMO_JOB_PREFIX = "manual-job-demo-"
 DEMO_APPLICATION_PREFIX = "application-manual-job-demo-"
 DEMO_EVENT_PREFIX = "demo-event-"
+SCREENSHOT_DATABASE_NAME = "tasko_screenshots"
 
 
 @dataclass(frozen=True)
@@ -65,7 +67,9 @@ def build_demo_resume_data_url() -> str:
             b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
             b"/Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R >>"
         ),
-        b"<< /Length " + str(len(content)).encode("ascii") + b" >>\nstream\n"
+        b"<< /Length "
+        + str(len(content)).encode("ascii")
+        + b" >>\nstream\n"
         + content
         + b"\nendstream",
         b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
@@ -573,17 +577,29 @@ def delete_existing_demo_records(db: Session) -> None:
     db.query(JobMatchFeedbackRecord).filter(
         JobMatchFeedbackRecord.job_id.like(f"{DEMO_JOB_PREFIX}%")
     ).delete(synchronize_session=False)
-    db.query(JobMatchRecord).filter(
-        JobMatchRecord.job_id.like(f"{DEMO_JOB_PREFIX}%")
-    ).delete(synchronize_session=False)
-    db.query(StoredJobRecord).filter(
-        StoredJobRecord.id.like(f"{DEMO_JOB_PREFIX}%")
-    ).delete(synchronize_session=False)
+    db.query(JobMatchRecord).filter(JobMatchRecord.job_id.like(f"{DEMO_JOB_PREFIX}%")).delete(
+        synchronize_session=False
+    )
+    db.query(StoredJobRecord).filter(StoredJobRecord.id.like(f"{DEMO_JOB_PREFIX}%")).delete(
+        synchronize_session=False
+    )
+
+
+def require_screenshot_database(db: Session) -> None:
+    try:
+        database_name = db.scalar(text("SELECT current_database()"))
+    except SQLAlchemyError as exc:
+        raise SystemExit(
+            "Refusing to seed: could not verify the screenshot database name."
+        ) from exc
+    if database_name != SCREENSHOT_DATABASE_NAME:
+        raise SystemExit(
+            f"Refusing to seed database {database_name!r}; expected {SCREENSHOT_DATABASE_NAME!r}."
+        )
 
 
 def seed_database(
     db: Session,
-    settings: Settings,
     *,
     now: datetime | None = None,
 ) -> dict[str, int | str]:
@@ -640,18 +656,14 @@ def seed_database(
 
         privacy = db.get(AiPrivacySettingsRecord, DEFAULT_OWNER_ID)
         if privacy:
-            privacy.consent_version = settings.ai_consent_version
-            privacy.consent_backend = settings.ai_backend_mode
-            privacy.consented_at = resolved_now
             privacy.retention_days = 30
+            privacy.last_ai_activity_at = None
+            privacy.ai_data_expires_at = None
             privacy.updated_at = resolved_now
         else:
             db.add(
                 AiPrivacySettingsRecord(
                     owner_id=DEFAULT_OWNER_ID,
-                    consent_version=settings.ai_consent_version,
-                    consent_backend=settings.ai_backend_mode,
-                    consented_at=resolved_now,
                     retention_days=30,
                     last_ai_activity_at=None,
                     ai_data_expires_at=None,
@@ -681,7 +693,8 @@ def main() -> None:
         )
 
     with SessionLocal() as db:
-        summary = seed_database(db, get_settings())
+        require_screenshot_database(db)
+        summary = seed_database(db)
     print(json.dumps(summary, ensure_ascii=False, sort_keys=True))
 
 

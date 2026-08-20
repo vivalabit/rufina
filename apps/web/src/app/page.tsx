@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { RefObject } from "react";
 import Image from "next/image";
 import {
@@ -718,6 +718,10 @@ const applicationsStorageKey = "tasko.applications.v1";
 const legacyDemoApplicationIds = new Set([
   "application-stripe-senior-product-designer",
   "application-figma-product-design-lead",
+  "application-manual-job-demo-novara",
+  "application-manual-job-demo-cirruspay",
+  "application-manual-job-demo-alpine-grid",
+  "application-manual-job-demo-luma-health",
 ]);
 const applicationEventsStorageKey = "tasko.applicationEvents.v1";
 const profileStorageKey = "tasko.profile.v1";
@@ -2648,6 +2652,12 @@ function removeLegacyDemoApplications(applications: TrackedApplication[]) {
   return applications.filter((application) => !legacyDemoApplicationIds.has(application.id));
 }
 
+function removeLegacyDemoApplicationEvents(events: ApplicationEvent[]) {
+  return events.filter(
+    (event) => !legacyDemoApplicationIds.has(event.applicationId),
+  );
+}
+
 function normalizeStoredApplicationEvents(value: unknown) {
   if (!Array.isArray(value)) return [];
 
@@ -3081,10 +3091,24 @@ export default function HomePage() {
   const [deletedJobIds, setDeletedJobIds] = useState<string[]>([]);
   const [showSavedJobs, setShowSavedJobs] = useState(false);
   const [showArchivedJobs, setShowArchivedJobs] = useState(false);
-  const [applications, setApplications] = useState<TrackedApplication[]>([]);
+  const [applications, setApplicationsState] = useState<TrackedApplication[]>([]);
+  const applicationsRevisionRef = useRef(0);
+  const setApplications = useCallback(
+    (
+      update:
+        | TrackedApplication[]
+        | ((currentApplications: TrackedApplication[]) => TrackedApplication[]),
+    ) => {
+      applicationsRevisionRef.current += 1;
+      setApplicationsState(update);
+    },
+    [],
+  );
   const [selectedApplicationId, setSelectedApplicationId] = useState("");
   const [workspaceApplicationId, setWorkspaceApplicationId] = useState<string | null>(null);
   const [areApplicationsLoaded, setAreApplicationsLoaded] = useState(false);
+  const applicationMutationQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const deletedApplicationIdsRef = useRef<Set<string>>(new Set());
   const [matchingApplicationIds, setMatchingApplicationIds] = useState<string[]>([]);
   const [applicationEvents, setApplicationEvents] = useState<ApplicationEvent[]>([]);
   const [areApplicationEventsLoaded, setAreApplicationEventsLoaded] = useState(false);
@@ -3243,6 +3267,18 @@ export default function HomePage() {
   );
   const selectedApplication = trackedApplications.find((application) => application.id === selectedApplicationId) ?? trackedApplications[0] ?? null;
   const workspaceApplication = findWorkspaceApplication(applications, workspaceApplicationId);
+
+  const enqueueApplicationMutation = useCallback(
+    (mutation: () => Promise<void>) => {
+      const queuedMutation = applicationMutationQueueRef.current.then(
+        mutation,
+        mutation,
+      );
+      applicationMutationQueueRef.current = queuedMutation.catch(() => undefined);
+      return queuedMutation;
+    },
+    [],
+  );
 
   function openAiMatchSection(section: "analysis" | "recommendations") {
     setActiveTab("AI Match");
@@ -3462,17 +3498,16 @@ export default function HomePage() {
     } finally {
       setAreApplicationsLoaded(true);
     }
-  }, []);
+  }, [setApplications]);
 
   useEffect(() => {
     if (!areApplicationsLoaded) return;
 
     window.localStorage.setItem(applicationsStorageKey, JSON.stringify(applications));
-
-    const abortController = new AbortController();
+    const applicationsRevision = applicationsRevisionRef.current;
 
     async function saveStoredApplications() {
-      try {
+      await enqueueApplicationMutation(async () => {
         const response = await fetch(`${apiBaseUrl}/applications`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -3482,16 +3517,28 @@ export default function HomePage() {
               data: application,
             })),
           }),
-          signal: abortController.signal,
         });
-        if (!response.ok) return;
+        if (!response.ok) {
+          throw new Error(
+            await readApiErrorMessage(
+              response,
+              "Applications could not be saved",
+            ),
+          );
+        }
         const storedApplications = (await response.json()) as Array<{
           id: string;
           data: unknown;
         }>;
-        const authoritativeApplications = normalizeStoredApplications(
-          storedApplications.map((application) => application.data),
+        const authoritativeApplications = removeLegacyDemoApplications(
+          normalizeStoredApplications(
+            storedApplications.map((application) => application.data),
+          ),
+        ).filter(
+          (application) =>
+            !deletedApplicationIdsRef.current.has(application.id),
         );
+        if (applicationsRevisionRef.current !== applicationsRevision) return;
         if (authoritativeApplications.length === 0) return;
         setApplications((currentApplications) => {
           if (
@@ -3502,22 +3549,34 @@ export default function HomePage() {
           }
           return authoritativeApplications;
         });
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-      }
+      });
     }
 
-    saveStoredApplications();
-
-    return () => {
-      abortController.abort();
-    };
-  }, [areApplicationsLoaded, applications]);
+    void saveStoredApplications().catch((error) => {
+      appendAppLog({
+        level: "error",
+        area: "Applications",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Applications could not be saved",
+      });
+    });
+  }, [
+    areApplicationsLoaded,
+    applications,
+    enqueueApplicationMutation,
+    setApplications,
+  ]);
 
   useEffect(() => {
     try {
       const rawEvents = window.localStorage.getItem(applicationEventsStorageKey);
-      const storedEvents = normalizeStoredApplicationEvents(rawEvents ? JSON.parse(rawEvents) : []);
+      const storedEvents = removeLegacyDemoApplicationEvents(
+        normalizeStoredApplicationEvents(
+          rawEvents ? JSON.parse(rawEvents) : [],
+        ),
+      );
       setApplicationEvents(sortApplicationEvents(storedEvents));
     } catch {
       window.localStorage.removeItem(applicationEventsStorageKey);
@@ -3531,33 +3590,50 @@ export default function HomePage() {
 
     window.localStorage.setItem(applicationEventsStorageKey, JSON.stringify(applicationEvents));
 
-    const abortController = new AbortController();
-
     async function saveStoredApplicationEvents() {
-      try {
-        await fetch(`${apiBaseUrl}/applications/events`, {
+      await enqueueApplicationMutation(async () => {
+        const response = await fetch(`${apiBaseUrl}/applications/events`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            events: applicationEvents.map((event) => ({
-              id: event.id,
-              application_id: event.applicationId,
-              data: event,
-            })),
+            events: applicationEvents
+              .filter(
+                (event) =>
+                  !deletedApplicationIdsRef.current.has(event.applicationId),
+              )
+              .map((event) => ({
+                id: event.id,
+                application_id: event.applicationId,
+                data: event,
+              })),
           }),
-          signal: abortController.signal,
         });
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-      }
+        if (!response.ok) {
+          throw new Error(
+            await readApiErrorMessage(
+              response,
+              "Application events could not be saved",
+            ),
+          );
+        }
+      });
     }
 
-    saveStoredApplicationEvents();
-
-    return () => {
-      abortController.abort();
-    };
-  }, [areApplicationEventsLoaded, applicationEvents]);
+    void saveStoredApplicationEvents().catch((error) => {
+      appendAppLog({
+        level: "error",
+        area: "Applications",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Application events could not be saved",
+      });
+    });
+  }, [
+    areApplicationEventsLoaded,
+    applicationEvents,
+    enqueueApplicationMutation,
+  ]);
 
   useEffect(() => {
     try {
@@ -3675,6 +3751,9 @@ export default function HomePage() {
         const storedApplications = (await response.json()) as Array<{ id: string; data: unknown }>;
         const loadedApplications = removeLegacyDemoApplications(
           normalizeStoredApplications(storedApplications.map((application) => application.data)),
+        ).filter(
+          (application) =>
+            !deletedApplicationIdsRef.current.has(application.id),
         );
         if (loadedApplications.length === 0) return;
 
@@ -3696,7 +3775,16 @@ export default function HomePage() {
         if (!response.ok) return;
 
         const storedEvents = (await response.json()) as Array<{ id: string; data: unknown }>;
-        const loadedEvents = sortApplicationEvents(normalizeStoredApplicationEvents(storedEvents.map((event) => event.data)));
+        const loadedEvents = sortApplicationEvents(
+          removeLegacyDemoApplicationEvents(
+            normalizeStoredApplicationEvents(
+              storedEvents.map((event) => event.data),
+            ),
+          ).filter(
+            (event) =>
+              !deletedApplicationIdsRef.current.has(event.applicationId),
+          ),
+        );
         if (loadedEvents.length === 0) return;
 
         setApplicationEvents(loadedEvents);
@@ -3772,7 +3860,7 @@ export default function HomePage() {
     return () => {
       abortController.abort();
     };
-  }, []);
+  }, [setApplications]);
 
   function changeView(view: View, applicationId?: string) {
     setActiveView(view);
@@ -3847,6 +3935,9 @@ export default function HomePage() {
   function markJobApplied(job: Job) {
     const application = createApplicationFromJob(job);
     const existingApplication = applications.find((item) => item.job.id === job.id);
+    deletedApplicationIdsRef.current.delete(
+      existingApplication?.id ?? application.id,
+    );
 
     if (existingApplication) {
       setApplications((currentApplications) => currentApplications.map((item) =>
@@ -3871,6 +3962,7 @@ export default function HomePage() {
       changeView("ApplicationWorkspace", existingApplication.id);
     } else {
       const application = createApplicationFromJob(job, "draft");
+      deletedApplicationIdsRef.current.delete(application.id);
       setApplications((currentApplications) => [application, ...currentApplications]);
       setSelectedApplicationId(application.id);
       changeView("ApplicationWorkspace", application.id);
@@ -3884,6 +3976,7 @@ export default function HomePage() {
 
   function addManualApplication(draft: ManualApplicationDraft) {
     const application = createApplicationFromManualDraft(draft);
+    deletedApplicationIdsRef.current.delete(application.id);
 
     setApplications((currentApplications) => [application, ...currentApplications]);
     setSelectedApplicationId(application.id);
@@ -4151,6 +4244,17 @@ export default function HomePage() {
   }
 
   function deleteApplication(applicationId: string) {
+    const deletedApplication = applications.find(
+      (application) => application.id === applicationId,
+    );
+    const deletedApplicationIndex = applications.findIndex(
+      (application) => application.id === applicationId,
+    );
+    const deletedEvents = applicationEvents.filter(
+      (event) => event.applicationId === applicationId,
+    );
+    deletedApplicationIdsRef.current.add(applicationId);
+
     setApplications((currentApplications) => {
       const nextApplications = currentApplications.filter((application) => application.id !== applicationId);
       setSelectedApplicationId((currentId) => (currentId === applicationId ? nextApplications[0]?.id || "" : currentId));
@@ -4158,9 +4262,66 @@ export default function HomePage() {
     });
     setApplicationEvents((currentEvents) => currentEvents.filter((event) => event.applicationId !== applicationId));
 
-    void fetch(`${apiBaseUrl}/applications/${encodeURIComponent(applicationId)}`, {
-      method: "DELETE",
-    }).catch(() => undefined);
+    void enqueueApplicationMutation(async () => {
+      const response = await fetch(
+        `${apiBaseUrl}/applications/${encodeURIComponent(applicationId)}`,
+        { method: "DELETE" },
+      );
+      if (!response.ok && response.status !== 404) {
+        throw new Error(
+          await readApiErrorMessage(
+            response,
+            "Application could not be deleted",
+          ),
+        );
+      }
+    }).then(
+      () => undefined,
+      (error) => {
+        deletedApplicationIdsRef.current.delete(applicationId);
+
+        if (deletedApplication) {
+          setApplications((currentApplications) => {
+            if (
+              currentApplications.some(
+                (application) => application.id === applicationId,
+              )
+            ) {
+              return currentApplications;
+            }
+            const nextApplications = [...currentApplications];
+            nextApplications.splice(
+              Math.max(0, deletedApplicationIndex),
+              0,
+              deletedApplication,
+            );
+            return nextApplications;
+          });
+          setSelectedApplicationId((currentId) => currentId || applicationId);
+        }
+        if (deletedEvents.length > 0) {
+          setApplicationEvents((currentEvents) =>
+            sortApplicationEvents([
+              ...deletedEvents,
+              ...currentEvents.filter(
+                (event) => event.applicationId !== applicationId,
+              ),
+            ]),
+          );
+        }
+
+        const message =
+          error instanceof Error
+            ? error.message
+            : "Application could not be deleted";
+        appendAppLog({
+          level: "error",
+          area: "Applications",
+          message,
+        });
+        window.alert(message);
+      },
+    );
   }
 
   function saveApplicationEvent(event: ApplicationEvent) {
@@ -4180,24 +4341,66 @@ export default function HomePage() {
     }
 
     if (isExistingEvent) {
-      void fetch(`${apiBaseUrl}/applications/events/${encodeURIComponent(event.id)}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: event.id,
-          application_id: event.applicationId,
-          data: event,
-        }),
-      }).catch(() => undefined);
+      void enqueueApplicationMutation(async () => {
+        const response = await fetch(
+          `${apiBaseUrl}/applications/events/${encodeURIComponent(event.id)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              id: event.id,
+              application_id: event.applicationId,
+              data: event,
+            }),
+          },
+        );
+        if (!response.ok && response.status !== 404) {
+          throw new Error(
+            await readApiErrorMessage(
+              response,
+              "Application event could not be saved",
+            ),
+          );
+        }
+      }).catch((error) => {
+        appendAppLog({
+          level: "error",
+          area: "Applications",
+          message:
+            error instanceof Error
+              ? error.message
+              : "Application event could not be saved",
+        });
+      });
     }
   }
 
   function deleteApplicationEvent(eventId: string) {
     setApplicationEvents((currentEvents) => currentEvents.filter((event) => event.id !== eventId));
 
-    void fetch(`${apiBaseUrl}/applications/events/${encodeURIComponent(eventId)}`, {
-      method: "DELETE",
-    }).catch(() => undefined);
+    void enqueueApplicationMutation(async () => {
+      const response = await fetch(
+        `${apiBaseUrl}/applications/events/${encodeURIComponent(eventId)}`,
+        { method: "DELETE" },
+      );
+      if (!response.ok && response.status !== 404) {
+        throw new Error(
+          await readApiErrorMessage(
+            response,
+            "Application event could not be deleted",
+          ),
+        );
+      }
+    }).catch((error) => {
+      appendAppLog({
+        level: "error",
+        area: "Applications",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Application event could not be deleted",
+      });
+    });
   }
 
   function toggleSaved(jobId: string) {
