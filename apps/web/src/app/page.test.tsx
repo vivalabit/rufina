@@ -28,7 +28,7 @@ const configuredAppSettings = {
   ai_match_timeout_seconds: 120,
   ai_match_max_attempts: 2,
   auto_ai_match_enabled: false,
-  job_screening_model: "openai/gpt-5-mini",
+  job_screening_model: "openai/gpt-5.6-luna",
   job_screening_reasoning: "off",
   job_screening_batch_size: 10,
   job_screening_timeout_seconds: 60,
@@ -1325,7 +1325,7 @@ it("saves a selectable AI backend without overwriting unrelated settings", async
     screen.getByText("OpenAI API key saved but not in use"),
   ).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Vacancy pre-screening model"), {
-    target: { value: "openai/gpt-5-mini-fast" },
+    target: { value: "openai/gpt-5.5" },
   });
   fireEvent.change(
     screen.getByRole("combobox", { name: "Vacancy pre-screening reasoning" }),
@@ -1334,7 +1334,7 @@ it("saves a selectable AI backend without overwriting unrelated settings", async
     },
   );
   fireEvent.change(screen.getByLabelText("Full AI Match model"), {
-    target: { value: "openai/gpt-5.6-sol" },
+    target: { value: "openai/gpt-5.6-luna" },
   });
   fireEvent.change(
     screen.getByRole("spinbutton", { name: "Full AI Match batch size" }),
@@ -1358,11 +1358,11 @@ it("saves a selectable AI backend without overwriting unrelated settings", async
     .at(-1)?.body;
   expect(openClawUpdate).toMatchObject({
     ai_backend: "openclaw_codex",
-    ai_match_model: "openai/gpt-5.6-sol",
+    ai_match_model: "openai/gpt-5.6-luna",
     ai_match_batch_size: 4,
     auto_ai_match_enabled: true,
-    job_screening_model: "openai/gpt-5-mini-fast",
-    job_screening_reasoning: "low",
+    job_screening_model: "openai/gpt-5.5",
+    job_screening_reasoning: "off",
   });
   expect(openClawUpdate).not.toHaveProperty("openai_api_key");
   await screen.findByText("AI backend settings saved and activated");
@@ -1400,13 +1400,13 @@ it("saves a selectable AI backend without overwriting unrelated settings", async
     openai_api_timeout_seconds: 90,
     openai_api_max_attempts: 2,
     openai_api_retry_backoff_seconds: 0.8,
-    ai_match_model: "openai/gpt-5.6-sol",
-    ai_match_reasoning: "low",
+    ai_match_model: "openai/gpt-5.6-luna",
+    ai_match_reasoning: "off",
     ai_match_batch_size: 4,
     ai_match_timeout_seconds: 120,
     ai_match_max_attempts: 2,
-    job_screening_model: "openai/gpt-5-mini-fast",
-    job_screening_reasoning: "low",
+    job_screening_model: "openai/gpt-5.5",
+    job_screening_reasoning: "off",
     job_screening_batch_size: 10,
     job_screening_timeout_seconds: 60,
     job_screening_max_attempts: 2,
@@ -1486,7 +1486,11 @@ it("validates OpenAI API mode before saving", async () => {
 
   render(<HomePage />);
 
-  await screen.findByDisplayValue("openai/gpt-5-mini");
+  expect(
+    await screen.findByRole("combobox", {
+      name: "Vacancy pre-screening model",
+    }),
+  ).toHaveValue("openai/gpt-5.6-luna");
   const openAiMode = screen.getByRole("radio", { name: /OpenAI API/ });
   fireEvent.click(openAiMode);
   await waitFor(() => expect(openAiMode).toBeChecked());
@@ -1598,6 +1602,9 @@ it("adds a manual vacancy to Jobs, persists it, and starts AI analysis", async (
   fireEvent.change(within(dialog).getByLabelText("Location"), {
     target: { value: "Zurich / Remote" },
   });
+  fireEvent.change(within(dialog).getByLabelText("Job posting URL"), {
+    target: { value: "jobs.example.test/backend-engineer" },
+  });
   fireEvent.change(within(dialog).getByLabelText("Vacancy description *"), {
     target: {
       value:
@@ -1612,6 +1619,14 @@ it("adds a manual vacancy to Jobs, persists it, and starts AI analysis", async (
   expect(
     screen.getByRole("button", { name: "Force AI match rerun" }),
   ).toBeDisabled();
+  expect(screen.getByRole("link", { name: "Open vacancy" })).toHaveAttribute(
+    "href",
+    "https://jobs.example.test/backend-engineer",
+  );
+  expect(screen.getByRole("link", { name: "Open vacancy" })).toHaveAttribute(
+    "target",
+    "_blank",
+  );
 
   await waitFor(() => {
     expect(

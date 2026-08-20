@@ -17,9 +17,10 @@ from app.main import app
 from app.models.jobs import JobMatchFeedbackRecord, JobMatchRecord, StoredJobRecord
 from app.models.profile import CandidateMatchSnapshotRecord, ProfilePayload, ProfileRecord
 from app.services import ai_match as ai_match_service
+from app.services.ai_backend import AIRequest, AIResult, AIUsage, OpenAIAPIBackend
 from app.services.ai_match import (
-    OpenClawAiMatchPayload,
     OpenClawAiMatchError,
+    OpenClawAiMatchPayload,
     build_cache_key,
     build_job_snapshot,
     build_openclaw_ai_match_prompt,
@@ -31,7 +32,6 @@ from app.services.ai_match import (
     score_with_openclaw,
 )
 from app.services.ai_privacy import record_ai_activity
-from app.services.ai_backend import AIRequest, AIResult, AIUsage, OpenAIAPIBackend
 from app.services.candidate_snapshot import (
     CandidateSnapshotError,
     build_openclaw_candidate_snapshot_prompt,
@@ -797,6 +797,7 @@ def test_matching_facade_uses_direct_api_configuration() -> None:
             openai_api_key="test-key",
             openai_api_model="gpt-5.6-terra",
             openai_api_reasoning_effort="high",
+            ai_match_reasoning="high",
             openai_api_timeout_seconds=75,
             openai_api_max_attempts=3,
             openai_api_retry_backoff_seconds=1.25,

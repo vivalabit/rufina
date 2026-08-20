@@ -19,6 +19,7 @@ DEFAULT_SCREENING_MODEL = "openai/gpt-5.6-luna"
 LEGACY_SCREENING_MODELS = {
     "openai/gpt-5-mini",
     "openai/gpt-5.4-nano",
+    "openai/gpt-screening",
 }
 REPO_ROOT = Path(__file__).resolve().parents[1]
 TEMPLATE_DIR = REPO_ROOT / "openclaw" / AGENT_ID

@@ -142,7 +142,7 @@ def test_default_openclaw_resume_tailoring_model_disables_reasoning(
 
 
 def test_job_screening_settings_use_dedicated_environment_variables(monkeypatch) -> None:
-    monkeypatch.setenv("JOB_SCREENING_MODEL", "openai/gpt-screening")
+    monkeypatch.setenv("JOB_SCREENING_MODEL", "openai/gpt-5.5")
     monkeypatch.setenv("JOB_SCREENING_REASONING", "low")
     monkeypatch.setenv("JOB_SCREENING_BATCH_SIZE", "25")
     monkeypatch.setenv("JOB_SCREENING_TIMEOUT_SECONDS", "45")
@@ -152,13 +152,23 @@ def test_job_screening_settings_use_dedicated_environment_variables(monkeypatch)
 
     settings = Settings()
 
-    assert settings.job_screening_model == "openai/gpt-screening"
+    assert settings.job_screening_model == "openai/gpt-5.5"
     assert settings.job_screening_reasoning == "low"
     assert settings.job_screening_batch_size == 25
     assert settings.job_screening_timeout_seconds == 45
     assert settings.job_screening_max_attempts == 3
     assert settings.job_screening_max_description_chars == 18_000
     assert settings.openai_api_model == "gpt-full-match"
+
+
+def test_legacy_placeholder_workload_models_use_allowed_defaults(monkeypatch) -> None:
+    monkeypatch.setenv("AI_MATCH_MODEL", "openai/gpt-main")
+    monkeypatch.setenv("JOB_SCREENING_MODEL", "openai/gpt-screening")
+
+    settings = Settings()
+
+    assert settings.ai_match_model_value() == "openai/gpt-5.6-terra"
+    assert settings.job_screening_model == "openai/gpt-5.6-luna"
 
 
 def test_settings_never_returns_full_openai_key(monkeypatch) -> None:
@@ -255,7 +265,7 @@ def test_job_screening_settings_api_updates_only_screening_configuration(
         response = TestClient(app).put(
             "/settings",
             json={
-                "job_screening_model": "openai/gpt-screening",
+                "job_screening_model": "openai/gpt-5.5",
                 "job_screening_reasoning": "low",
                 "job_screening_batch_size": 20,
                 "job_screening_timeout_seconds": 75,
@@ -268,8 +278,8 @@ def test_job_screening_settings_api_updates_only_screening_configuration(
         get_settings.cache_clear()
 
     assert response.status_code == 200
-    assert response.json()["job_screening_model"] == "openai/gpt-screening"
-    assert response.json()["job_screening_reasoning"] == "low"
+    assert response.json()["job_screening_model"] == "openai/gpt-5.5"
+    assert response.json()["job_screening_reasoning"] == "off"
     assert response.json()["job_screening_batch_size"] == 20
     assert response.json()["job_screening_timeout_seconds"] == 75
     assert response.json()["job_screening_max_attempts"] == 3
@@ -279,7 +289,8 @@ def test_job_screening_settings_api_updates_only_screening_configuration(
     env_text = env_path.read_text(encoding="utf-8")
     assert "OPENAI_API_MODEL=gpt-full-match" in env_text
     assert "OPENCLAW_AI_MATCH_MODEL=openai/gpt-full-match" in env_text
-    assert 'JOB_SCREENING_MODEL="openai/gpt-screening"' in env_text
+    assert 'JOB_SCREENING_MODEL="openai/gpt-5.5"' in env_text
+    assert "JOB_SCREENING_REASONING=off" in env_text
 
 
 def test_ai_match_settings_api_persists_backend_neutral_overrides(
@@ -299,7 +310,7 @@ def test_ai_match_settings_api_persists_backend_neutral_overrides(
         response = TestClient(app).put(
             "/settings",
             json={
-                "ai_match_model": "openai/gpt-main",
+                "ai_match_model": "openai/gpt-5.6-luna",
                 "ai_match_reasoning": "high",
                 "ai_match_batch_size": 4,
                 "ai_match_timeout_seconds": 180,
@@ -311,16 +322,16 @@ def test_ai_match_settings_api_persists_backend_neutral_overrides(
         get_settings.cache_clear()
 
     assert response.status_code == 200
-    assert response.json()["ai_match_model"] == "openai/gpt-main"
-    assert response.json()["ai_match_reasoning"] == "high"
+    assert response.json()["ai_match_model"] == "openai/gpt-5.6-luna"
+    assert response.json()["ai_match_reasoning"] == "off"
     assert response.json()["ai_match_batch_size"] == 4
     assert response.json()["ai_match_timeout_seconds"] == 180
     assert response.json()["ai_match_max_attempts"] == 3
-    assert refreshed.ai_match_model_value() == "openai/gpt-main"
+    assert refreshed.ai_match_model_value() == "openai/gpt-5.6-luna"
     assert refreshed.ai_match_batch_size_value() == 4
     env_text = (tmp_path / ".env").read_text(encoding="utf-8")
-    assert 'AI_MATCH_MODEL="openai/gpt-main"' in env_text
-    assert "AI_MATCH_REASONING=high" in env_text
+    assert 'AI_MATCH_MODEL="openai/gpt-5.6-luna"' in env_text
+    assert "AI_MATCH_REASONING=off" in env_text
 
 
 def test_auto_ai_match_setting_is_opt_in_and_persisted(

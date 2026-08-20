@@ -5,7 +5,12 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, SecretStr
 
-from app.core.settings import REPO_ROOT, get_settings
+from app.core.settings import (
+    REPO_ROOT,
+    get_settings,
+    normalize_ai_match_model,
+    normalize_job_screening_model,
+)
 
 router = APIRouter()
 
@@ -168,9 +173,7 @@ def build_settings_response() -> AppSettingsResponse:
         ai_match_max_attempts=settings.ai_match_max_attempts_value(),
         auto_ai_match_enabled=settings.auto_ai_match_enabled,
         job_screening_model=settings.job_screening_model,
-        job_screening_reasoning=settings.normalize_reasoning_for_backend(
-            settings.job_screening_reasoning
-        ),
+        job_screening_reasoning=settings.job_screening_reasoning_value(),
         job_screening_batch_size=settings.job_screening_batch_size,
         job_screening_timeout_seconds=settings.job_screening_timeout_seconds,
         job_screening_max_attempts=settings.job_screening_max_attempts,
@@ -223,7 +226,7 @@ def update_app_settings(payload: AppSettingsUpdateRequest) -> AppSettingsRespons
             payload.openai_api_retry_backoff_seconds
         )
     if payload.ai_match_model is not None:
-        ai_match_model = payload.ai_match_model.strip()
+        ai_match_model = str(normalize_ai_match_model(payload.ai_match_model)).strip()
         if not ai_match_model:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -241,7 +244,9 @@ def update_app_settings(payload: AppSettingsUpdateRequest) -> AppSettingsRespons
     if payload.auto_ai_match_enabled is not None:
         updates[AUTO_AI_MATCH_ENABLED_ENV] = str(payload.auto_ai_match_enabled).lower()
     if payload.job_screening_model is not None:
-        screening_model = payload.job_screening_model.strip()
+        screening_model = str(
+            normalize_job_screening_model(payload.job_screening_model)
+        ).strip()
         if not screening_model:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
@@ -276,6 +281,9 @@ def update_app_settings(payload: AppSettingsUpdateRequest) -> AppSettingsRespons
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Configure an OpenAI API key before enabling openai_api",
         )
+    if next_backend == "openclaw_codex":
+        updates[AI_MATCH_REASONING_ENV] = "off"
+        updates[JOB_SCREENING_REASONING_ENV] = "off"
 
     if not updates:
         return build_settings_response()

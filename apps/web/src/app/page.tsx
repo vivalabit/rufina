@@ -352,6 +352,15 @@ const defaultAppSettings: AppSettings = {
   job_screening_max_description_chars: 12_000,
 };
 
+const AI_WORKLOAD_MODEL_OPTIONS = [
+  { value: "openai/gpt-5.6-terra", label: "GPT-5.6 Terra" },
+  { value: "openai/gpt-5.6-luna", label: "GPT-5.6 Luna" },
+  { value: "openai/gpt-5.5", label: "GPT-5.5" },
+] as const;
+
+const isAllowedAIWorkloadModel = (model: string) =>
+  AI_WORKLOAD_MODEL_OPTIONS.some((option) => option.value === model);
+
 type UiSettings = {
   showLogs: boolean;
 };
@@ -2732,7 +2741,8 @@ function createProfileResumeApplicationDocument(profile: CandidateProfile): Appl
 }
 
 function getJobApplyUrl(job: Job) {
-  return job.applyUrl || job.sourceUrl || "";
+  const normalizedUrl = normalizeExternalUrl(job.applyUrl || job.sourceUrl || "");
+  return /^https?:\/\//i.test(normalizedUrl) ? normalizedUrl : "";
 }
 
 function getApplicationEventTypeLabel(type: ApplicationEventType) {
@@ -3213,6 +3223,7 @@ export default function HomePage() {
   }, [availableJobs, jobFilters, query, savedJobs, showArchivedJobs, showSavedJobs, sortBy]);
 
   const selectedJob = filteredJobs.find((job) => job.id === selectedJobId) ?? filteredJobs[0] ?? null;
+  const selectedJobPostingUrl = selectedJob ? getJobApplyUrl(selectedJob) : "";
   const isSelectedSaved = selectedJob ? savedJobs.includes(selectedJob.id) : false;
   const selectedJobPreparation = selectedJob
     ? applications.find((application) => application.job.id === selectedJob.id)
@@ -6549,6 +6560,33 @@ export default function HomePage() {
                 </div>
 
                 <div className="grid w-full content-start gap-2.5 sm:grid-cols-2 lg:max-w-[420px] lg:justify-self-end 2xl:max-w-[460px]">
+                  {selectedJobPostingUrl ? (
+                    <Button
+                      asChild
+                      variant="ghost"
+                      className="h-10 rounded-md border border-[#2f80ed]/45 bg-[#2f80ed]/10 px-3 text-xs font-bold text-[#8cc7ff] shadow-none hover:border-[#2f80ed]/70 hover:bg-[#2f80ed]/18 hover:text-white sm:col-span-2 xl:text-[13px] 2xl:h-11 2xl:text-sm"
+                    >
+                      <a
+                        href={selectedJobPostingUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="h-4 w-4 2xl:h-[18px] 2xl:w-[18px]" />
+                        Open vacancy
+                      </a>
+                    </Button>
+                  ) : (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      disabled
+                      title="Vacancy link unavailable"
+                      className="h-10 rounded-md border border-border bg-transparent px-3 text-xs font-bold text-muted shadow-none sm:col-span-2 xl:text-[13px] 2xl:h-11 2xl:text-sm"
+                    >
+                      <ExternalLink className="h-4 w-4 2xl:h-[18px] 2xl:w-[18px]" />
+                      Vacancy link unavailable
+                    </Button>
+                  )}
                   <Button
                     className={cn(
                       "h-10 rounded-md border border-white/[0.14] bg-white/[0.025] px-3 text-xs font-bold text-[#e3e8ef] shadow-none hover:border-white/[0.24] hover:bg-white/[0.06] hover:text-white xl:text-[13px] 2xl:h-11 2xl:text-sm",
@@ -9530,8 +9568,8 @@ function SettingsView({
               ? "OpenAI retry backoff must be between 0 and 10 seconds."
               : ""
     : "";
-  const aiMatchValidationMessage = !aiMatchModelDraft.trim()
-    ? "Enter a model for Full AI Match."
+  const aiMatchValidationMessage = !isAllowedAIWorkloadModel(aiMatchModelDraft)
+    ? "Select an allowed model for Full AI Match."
     : !Number.isInteger(aiMatchBatchSizeDraft) || aiMatchBatchSizeDraft < 1 || aiMatchBatchSizeDraft > 100
       ? "Full AI Match batch size must be between 1 and 100."
       : !Number.isFinite(aiMatchTimeoutDraft) || aiMatchTimeoutDraft < 10 || aiMatchTimeoutDraft > 600
@@ -9539,8 +9577,8 @@ function SettingsView({
         : !Number.isInteger(aiMatchAttemptsDraft) || aiMatchAttemptsDraft < 1 || aiMatchAttemptsDraft > 4
           ? "Full AI Match max attempts must be between 1 and 4."
           : "";
-  const screeningValidationMessage = !screeningModelDraft.trim()
-    ? "Enter a model for vacancy pre-screening."
+  const screeningValidationMessage = !isAllowedAIWorkloadModel(screeningModelDraft)
+    ? "Select an allowed model for vacancy pre-screening."
     : !Number.isInteger(screeningBatchSizeDraft) || screeningBatchSizeDraft < 1 || screeningBatchSizeDraft > 100
       ? "Pre-screening batch size must be between 1 and 100."
       : !Number.isFinite(screeningTimeoutDraft) || screeningTimeoutDraft < 10 || screeningTimeoutDraft > 600
@@ -9616,13 +9654,13 @@ function SettingsView({
       openai_api_max_attempts: openAiAttemptsDraft,
       openai_api_retry_backoff_seconds: openAiBackoffDraft,
       ai_match_model: aiMatchModelDraft.trim(),
-      ai_match_reasoning: aiMatchReasoningDraft,
+      ai_match_reasoning: aiBackendDraft === "openclaw_codex" ? "off" : aiMatchReasoningDraft,
       ai_match_batch_size: aiMatchBatchSizeDraft,
       ai_match_timeout_seconds: aiMatchTimeoutDraft,
       ai_match_max_attempts: aiMatchAttemptsDraft,
       auto_ai_match_enabled: autoAiMatchEnabledDraft,
       job_screening_model: screeningModelDraft.trim(),
-      job_screening_reasoning: screeningReasoningDraft,
+      job_screening_reasoning: aiBackendDraft === "openclaw_codex" ? "off" : screeningReasoningDraft,
       job_screening_batch_size: screeningBatchSizeDraft,
       job_screening_timeout_seconds: screeningTimeoutDraft,
       job_screening_max_attempts: screeningAttemptsDraft,
@@ -9840,13 +9878,16 @@ function SettingsView({
 
                 <label className="grid gap-2">
                   <span className="text-sm font-bold text-[#d8dee8]">Model</span>
-                  <input
+                  <select
                     aria-label="Vacancy pre-screening model"
                     value={screeningModelDraft}
                     onChange={(event) => setScreeningModelDraft(event.target.value)}
-                    placeholder="openai/gpt-5.6-luna"
-                    className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/60 focus:border-amber-300/60"
-                  />
+                    className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-amber-300/60"
+                  >
+                    {AI_WORKLOAD_MODEL_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
                 </label>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -9854,8 +9895,9 @@ function SettingsView({
                     <span className="text-sm font-bold text-[#d8dee8]">Reasoning</span>
                     <select
                       aria-label="Vacancy pre-screening reasoning"
-                      value={screeningReasoningDraft}
+                      value={aiBackendDraft === "openclaw_codex" ? "off" : screeningReasoningDraft}
                       onChange={(event) => setScreeningReasoningDraft(event.target.value as AIWorkloadReasoningEffort)}
+                      disabled={aiBackendDraft === "openclaw_codex"}
                       className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-amber-300/60"
                     >
                       {(["off", "low", "medium", "high", "xhigh", "max"] as AIWorkloadReasoningEffort[]).map((effort) => (
@@ -9963,13 +10005,16 @@ function SettingsView({
 
                 <label className="grid gap-2">
                   <span className="text-sm font-bold text-[#d8dee8]">Model</span>
-                  <input
+                  <select
                     aria-label="Full AI Match model"
                     value={aiMatchModelDraft}
                     onChange={(event) => setAiMatchModelDraft(event.target.value)}
-                    placeholder="openai/gpt-5.6-terra"
-                    className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/60 focus:border-accent/70"
-                  />
+                    className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                  >
+                    {AI_WORKLOAD_MODEL_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>{option.label}</option>
+                    ))}
+                  </select>
                 </label>
 
                 <div className="grid gap-4 sm:grid-cols-2">
@@ -9977,8 +10022,9 @@ function SettingsView({
                     <span className="text-sm font-bold text-[#d8dee8]">Reasoning</span>
                     <select
                       aria-label="Full AI Match reasoning"
-                      value={aiMatchReasoningDraft}
+                      value={aiBackendDraft === "openclaw_codex" ? "off" : aiMatchReasoningDraft}
                       onChange={(event) => setAiMatchReasoningDraft(event.target.value as AIWorkloadReasoningEffort)}
+                      disabled={aiBackendDraft === "openclaw_codex"}
                       className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
                     >
                       {(["off", "low", "medium", "high", "xhigh", "max"] as AIWorkloadReasoningEffort[]).map((effort) => (

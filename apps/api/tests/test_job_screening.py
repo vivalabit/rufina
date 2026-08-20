@@ -589,7 +589,7 @@ def test_facade_uses_only_dedicated_screening_runtime_settings(
         lambda *args, **kwargs: backend,
     )
     settings = Settings(
-        job_screening_model="openai/gpt-screening",
+        job_screening_model="openai/gpt-5.5",
         job_screening_reasoning="low",
         job_screening_batch_size=7,
         job_screening_timeout_seconds=45,
@@ -603,8 +603,8 @@ def test_facade_uses_only_dedicated_screening_runtime_settings(
     facade = create_job_screening_ai_facade(settings)
 
     assert facade.backend is backend
-    assert facade.model == "openai/gpt-screening"
-    assert facade.reasoning == "low"
+    assert facade.model == "openai/gpt-5.5"
+    assert facade.reasoning == "off"
     assert facade.batch_size == 7
     assert facade.timeout_seconds == 45
     assert facade.max_attempts == 3

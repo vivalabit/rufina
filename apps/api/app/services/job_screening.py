@@ -361,9 +361,7 @@ def create_job_screening_ai_facade(settings: Settings) -> JobScreeningAIFacade:
         ),
         agent_id=settings.openclaw_agent_id,
         model=settings.job_screening_model,
-        reasoning=settings.normalize_reasoning_for_backend(
-            settings.job_screening_reasoning
-        ),
+        reasoning=settings.job_screening_reasoning_value(),
         batch_size=settings.job_screening_batch_size,
         timeout_seconds=settings.job_screening_timeout_seconds,
         max_attempts=settings.job_screening_max_attempts,

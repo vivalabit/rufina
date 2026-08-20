@@ -2,10 +2,26 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Literal
 
-from pydantic import AliasChoices, Field, model_validator
+from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
+DEFAULT_AI_MATCH_MODEL = "openai/gpt-5.6-terra"
+DEFAULT_JOB_SCREENING_MODEL = "openai/gpt-5.6-luna"
+LEGACY_AI_MATCH_MODELS = {"openai/gpt-main"}
+LEGACY_JOB_SCREENING_MODELS = {"openai/gpt-screening"}
+
+
+def normalize_ai_match_model(value: object) -> object:
+    if isinstance(value, str) and value.strip() in LEGACY_AI_MATCH_MODELS:
+        return DEFAULT_AI_MATCH_MODEL
+    return value
+
+
+def normalize_job_screening_model(value: object) -> object:
+    if isinstance(value, str) and value.strip() in LEGACY_JOB_SCREENING_MODELS:
+        return DEFAULT_JOB_SCREENING_MODEL
+    return value
 
 
 class Settings(BaseSettings):
@@ -40,7 +56,7 @@ class Settings(BaseSettings):
         le=600,
     )
     openclaw_ai_match_enabled: bool = True
-    openclaw_ai_match_model: str = "openai/gpt-5.6-terra"
+    openclaw_ai_match_model: str = DEFAULT_AI_MATCH_MODEL
     # The default OpenClaw matching model does not expose reasoning levels.
     # Passing "low" makes OpenClaw reject the request before generation starts.
     openclaw_ai_match_thinking: str = "off"
@@ -56,7 +72,7 @@ class Settings(BaseSettings):
     ai_match_max_attempts: int | None = Field(default=None, ge=1, le=4)
     auto_ai_match_enabled: bool = False
     job_screening_model: str = Field(
-        default="openai/gpt-5.6-luna",
+        default=DEFAULT_JOB_SCREENING_MODEL,
         min_length=1,
         max_length=256,
     )
@@ -84,6 +100,13 @@ class Settings(BaseSettings):
     openclaw_assistant_max_user_message_chars: int = Field(default=6_000, ge=200, le=12_000)
     openclaw_assistant_max_history_messages: int = Field(default=12, ge=0, le=100)
     openclaw_assistant_max_history_chars: int = Field(default=8_000, ge=0, le=100_000)
+
+    _normalize_ai_match_model = field_validator("ai_match_model", mode="before")(
+        normalize_ai_match_model
+    )
+    _normalize_job_screening_model = field_validator(
+        "job_screening_model", mode="before"
+    )(normalize_job_screening_model)
     brightdata_api_key: str | None = None
     brightdata_api_url: str = "https://api.brightdata.com/datasets/v3"
     brightdata_linkedin_jobs_dataset_id: str = "gd_lpfll7v5hcqtkxl6l"
@@ -2182,10 +2205,17 @@ class Settings(BaseSettings):
         )
 
     def ai_match_reasoning_value(self) -> str:
+        if self.ai_backend_mode == "openclaw_codex":
+            return "off"
         reasoning = self.ai_match_reasoning or self.ai_reasoning_for(
             self.openclaw_ai_match_thinking
         )
         return self.normalize_reasoning_for_backend(reasoning)
+
+    def job_screening_reasoning_value(self) -> str:
+        if self.ai_backend_mode == "openclaw_codex":
+            return "off"
+        return self.normalize_reasoning_for_backend(self.job_screening_reasoning)
 
     def ai_match_batch_size_value(self) -> int:
         return self.ai_match_batch_size or self.openclaw_ai_match_max_jobs
