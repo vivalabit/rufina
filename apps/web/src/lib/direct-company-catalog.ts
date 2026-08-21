@@ -1543,6 +1543,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 86,
     logoHeight: 24,
   },
+  {
+    id: "datahouse_zurich",
+    name: "Datahouse Zurich",
+    careersUrl: "https://www.datahouse.ch/en/career/",
+    logoSrc: "/company-logos/datahouse.svg",
+    logoAlt: "Datahouse Zurich logo",
+    logoWidth: 111,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

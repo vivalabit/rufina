@@ -2130,3 +2130,24 @@ describe("Consulteer Switzerland Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("Datahouse Zurich Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "datahouse_zurich",
+    );
+
+    expect(company).toEqual({
+      id: "datahouse_zurich",
+      name: "Datahouse Zurich",
+      careersUrl: "https://www.datahouse.ch/en/career/",
+      logoSrc: "/company-logos/datahouse.svg",
+      logoAlt: "Datahouse Zurich logo",
+      logoWidth: 111,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("datahouse_zurich-744000141111111")).toBe(
+      company,
+    );
+  });
+});
