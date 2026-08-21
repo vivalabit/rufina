@@ -5,6 +5,27 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("Intersim AG Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "intersim");
+
+    expect(company).toEqual({
+      id: "intersim",
+      name: "Intersim AG",
+      careersUrl: "https://www.intersim.ch/jobs/",
+      logoSrc: "/company-logos/intersim.svg",
+      logoAlt: "Intersim AG logo",
+      logoWidth: 24,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "intersim-b69eec5b-cd89-4dcf-a304-9a23429003ee",
+      ),
+    ).toBe(company);
+  });
+});
+
 describe("Gilead Sciences Switzerland Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(

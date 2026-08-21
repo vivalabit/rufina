@@ -2266,6 +2266,25 @@ class Settings(BaseSettings):
         ge=1,
         le=12,
     )
+    intersim_jobs_base_url: str = "https://www.intersim.ch/jobs/"
+    intersim_jobs_portal_url: str = (
+        "https://jobs.dualoo.com/portal/dlpdkskq?lang=DE"
+    )
+    intersim_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    intersim_jobs_max_jobs: int = Field(
+        default=100,
+        ge=1,
+        le=1_000,
+    )
+    intersim_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=12,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

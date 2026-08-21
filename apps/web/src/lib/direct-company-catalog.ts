@@ -1599,6 +1599,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 63,
     logoHeight: 24,
   },
+  {
+    id: "intersim",
+    name: "Intersim AG",
+    careersUrl: "https://www.intersim.ch/jobs/",
+    logoSrc: "/company-logos/intersim.svg",
+    logoAlt: "Intersim AG logo",
+    logoWidth: 24,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

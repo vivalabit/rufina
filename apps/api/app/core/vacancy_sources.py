@@ -2825,6 +2825,19 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "hint_ag_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="intersim",
+        name="Intersim AG",
+        careers_url="https://www.intersim.ch/jobs/",
+        parser_path="app.services.parsers.companies.intersim:IntersimJobsParser",
+        settings_map=(
+            ("base_url", "intersim_jobs_base_url"),
+            ("portal_url", "intersim_jobs_portal_url"),
+            ("timeout_seconds", "intersim_jobs_timeout_seconds"),
+            ("max_jobs", "intersim_jobs_max_jobs"),
+            ("detail_workers", "intersim_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
