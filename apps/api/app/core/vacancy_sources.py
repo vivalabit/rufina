@@ -2760,6 +2760,30 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "esurance_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="franke_switzerland",
+        name="Franke Switzerland",
+        careers_url=(
+            "https://jobs.franke.com/search/?createNewAlert=false&q="
+            "&locationsearch=switzerland&optionsFacetsDD_country="
+            "&optionsFacetsDD_customfield2=&optionsFacetsDD_customfield1="
+            "&optionsFacetsDD_customfield3="
+        ),
+        parser_path=(
+            "app.services.parsers.companies.franke_switzerland:"
+            "FrankeSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "franke_switzerland_jobs_base_url"),
+            ("timeout_seconds", "franke_switzerland_jobs_timeout_seconds"),
+            ("max_pages", "franke_switzerland_jobs_max_pages"),
+            (
+                "max_catalog_passes",
+                "franke_switzerland_jobs_max_catalog_passes",
+            ),
+            ("detail_workers", "franke_switzerland_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

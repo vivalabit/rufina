@@ -1561,6 +1561,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 135,
     logoHeight: 24,
   },
+  {
+    id: "franke_switzerland",
+    name: "Franke Switzerland",
+    careersUrl:
+      "https://jobs.franke.com/search/?createNewAlert=false&q=&locationsearch=switzerland&optionsFacetsDD_country=&optionsFacetsDD_customfield2=&optionsFacetsDD_customfield1=&optionsFacetsDD_customfield3=",
+    logoSrc: "/company-logos/franke.svg",
+    logoAlt: "Franke Switzerland logo",
+    logoWidth: 74,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

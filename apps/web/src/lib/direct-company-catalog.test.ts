@@ -2168,3 +2168,25 @@ describe("esurance AG Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("esurance-2759674")).toBe(company);
   });
 });
+
+describe("Franke Switzerland Direct Company catalog entry", () => {
+  it("uses the official Switzerland search and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "franke_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "franke_switzerland",
+      name: "Franke Switzerland",
+      careersUrl:
+        "https://jobs.franke.com/search/?createNewAlert=false&q=&locationsearch=switzerland&optionsFacetsDD_country=&optionsFacetsDD_customfield2=&optionsFacetsDD_customfield1=&optionsFacetsDD_customfield3=",
+      logoSrc: "/company-logos/franke.svg",
+      logoAlt: "Franke Switzerland logo",
+      logoWidth: 74,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("franke_switzerland-1428534833")).toBe(
+      company,
+    );
+  });
+});
