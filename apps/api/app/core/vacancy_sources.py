@@ -2851,6 +2851,18 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "kaiko_ai_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="karakun",
+        name="Karakun AG",
+        careers_url="https://karakun.com/en/jobs/",
+        parser_path="app.services.parsers.companies.karakun:KarakunJobsParser",
+        settings_map=(
+            ("base_url", "karakun_jobs_base_url"),
+            ("timeout_seconds", "karakun_jobs_timeout_seconds"),
+            ("max_jobs", "karakun_jobs_max_jobs"),
+            ("detail_workers", "karakun_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

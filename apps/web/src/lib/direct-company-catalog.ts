@@ -1617,6 +1617,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 24,
     logoHeight: 24,
   },
+  {
+    id: "karakun",
+    name: "Karakun AG",
+    careersUrl: "https://karakun.com/en/jobs/",
+    logoSrc: "/company-logos/karakun.svg",
+    logoAlt: "Karakun AG logo",
+    logoWidth: 24,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

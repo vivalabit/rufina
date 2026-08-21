@@ -5,6 +5,23 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("Karakun AG Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "karakun");
+
+    expect(company).toEqual({
+      id: "karakun",
+      name: "Karakun AG",
+      careersUrl: "https://karakun.com/en/jobs/",
+      logoSrc: "/company-logos/karakun.svg",
+      logoAlt: "Karakun AG logo",
+      logoWidth: 24,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("karakun-fsse-en")).toBe(company);
+  });
+});
+
 describe("Intersim AG Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "intersim");
