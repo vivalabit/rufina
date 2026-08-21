@@ -198,7 +198,7 @@ def test_ai_settings_update_is_partial_and_refreshes_cache(
         "OPENAI_API_KEY=\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(settings_api, "REPO_ROOT", tmp_path)
+    monkeypatch.setenv("TASKO_SETTINGS_FILE", str(tmp_path / ".env"))
     monkeypatch.setenv("BRIGHTDATA_API_KEY", "bright-existing-key")
     monkeypatch.setenv("AI_BACKEND", "openclaw_codex")
     monkeypatch.setenv("OPENAI_API_KEY", "")
@@ -249,7 +249,7 @@ def test_job_screening_settings_api_updates_only_screening_configuration(
         "OPENCLAW_AI_MATCH_MODEL=openai/gpt-full-match\n",
         encoding="utf-8",
     )
-    monkeypatch.setattr(settings_api, "REPO_ROOT", tmp_path)
+    monkeypatch.setenv("TASKO_SETTINGS_FILE", str(tmp_path / ".env"))
     monkeypatch.setenv("AI_BACKEND", "openclaw_codex")
     monkeypatch.setenv("OPENAI_API_MODEL", "gpt-full-match")
     monkeypatch.setenv("OPENCLAW_AI_MATCH_MODEL", "openai/gpt-full-match")
@@ -297,7 +297,7 @@ def test_ai_match_settings_api_persists_backend_neutral_overrides(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(settings_api, "REPO_ROOT", tmp_path)
+    monkeypatch.setenv("TASKO_SETTINGS_FILE", str(tmp_path / ".env"))
     monkeypatch.setenv("AI_BACKEND", "openclaw_codex")
     monkeypatch.setenv("AI_MATCH_MODEL", "openai/gpt-5.6-terra")
     monkeypatch.setenv("AI_MATCH_REASONING", "low")
@@ -338,7 +338,7 @@ def test_auto_ai_match_setting_is_opt_in_and_persisted(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(settings_api, "REPO_ROOT", tmp_path)
+    monkeypatch.setenv("TASKO_SETTINGS_FILE", str(tmp_path / ".env"))
     monkeypatch.setenv("AUTO_AI_MATCH_ENABLED", "false")
     get_settings.cache_clear()
 
@@ -378,7 +378,7 @@ def test_job_screening_settings_api_rejects_invalid_values(
     field: str,
     value: object,
 ) -> None:
-    monkeypatch.setattr(settings_api, "REPO_ROOT", tmp_path)
+    monkeypatch.setenv("TASKO_SETTINGS_FILE", str(tmp_path / ".env"))
     get_settings.cache_clear()
 
     try:
@@ -394,7 +394,7 @@ def test_openai_api_cannot_be_enabled_without_a_key(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(settings_api, "REPO_ROOT", tmp_path)
+    monkeypatch.setenv("TASKO_SETTINGS_FILE", str(tmp_path / ".env"))
     monkeypatch.setenv("AI_BACKEND", "openclaw_codex")
     monkeypatch.setenv("OPENAI_API_KEY", "")
     get_settings.cache_clear()
@@ -416,7 +416,7 @@ def test_openai_api_cannot_be_enabled_without_a_key(
 
 def test_rejected_openai_key_is_not_echoed(monkeypatch, tmp_path: Path) -> None:
     rejected_key = "sk-" + "secret" * 700
-    monkeypatch.setattr(settings_api, "REPO_ROOT", tmp_path)
+    monkeypatch.setenv("TASKO_SETTINGS_FILE", str(tmp_path / ".env"))
     monkeypatch.setenv("AI_BACKEND", "openclaw_codex")
     monkeypatch.setenv("OPENAI_API_KEY", "")
     get_settings.cache_clear()
@@ -438,7 +438,7 @@ def test_brightdata_only_update_keeps_active_ai_configuration(
     monkeypatch,
     tmp_path: Path,
 ) -> None:
-    monkeypatch.setattr(settings_api, "REPO_ROOT", tmp_path)
+    monkeypatch.setenv("TASKO_SETTINGS_FILE", str(tmp_path / ".env"))
     monkeypatch.setenv("BRIGHTDATA_API_KEY", "old-bright-key")
     monkeypatch.setenv("AI_BACKEND", "openai_api")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-existing-key")
