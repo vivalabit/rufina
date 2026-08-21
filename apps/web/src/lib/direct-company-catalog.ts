@@ -1580,6 +1580,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 31,
     logoHeight: 24,
   },
+  {
+    id: "helsana",
+    name: "Helsana",
+    careersUrl:
+      "https://www.helsana.ch/de/helsana-gruppe/jobs/stellenangebote.html",
+    logoSrc: "/company-logos/helsana.svg",
+    logoAlt: "Helsana logo",
+    logoWidth: 127,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

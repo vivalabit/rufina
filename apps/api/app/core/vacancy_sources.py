@@ -2796,6 +2796,22 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "helga_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="helsana",
+        name="Helsana",
+        careers_url=(
+            "https://www.helsana.ch/de/helsana-gruppe/jobs/stellenangebote.html"
+        ),
+        parser_path="app.services.parsers.companies.helsana:HelsanaJobsParser",
+        settings_map=(
+            ("base_url", "helsana_jobs_base_url"),
+            ("career_center_url", "helsana_jobs_career_center_url"),
+            ("timeout_seconds", "helsana_jobs_timeout_seconds"),
+            ("max_pages", "helsana_jobs_max_pages"),
+            ("max_catalog_passes", "helsana_jobs_max_catalog_passes"),
+            ("detail_workers", "helsana_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

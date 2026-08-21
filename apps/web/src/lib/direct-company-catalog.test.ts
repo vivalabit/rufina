@@ -2209,3 +2209,23 @@ describe("Helga Digitalagentur Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("Helsana Direct Company catalog entry", () => {
+  it("uses the official open positions page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "helsana");
+
+    expect(company).toEqual({
+      id: "helsana",
+      name: "Helsana",
+      careersUrl:
+        "https://www.helsana.ch/de/helsana-gruppe/jobs/stellenangebote.html",
+      logoSrc: "/company-logos/helsana.svg",
+      logoAlt: "Helsana logo",
+      logoWidth: 127,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId("helsana-71324d82-0065-4246-9fce-b490e927ad89"),
+    ).toBe(company);
+  });
+});

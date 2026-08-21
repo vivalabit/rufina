@@ -2223,6 +2223,30 @@ class Settings(BaseSettings):
         ge=1,
         le=12,
     )
+    helsana_jobs_base_url: str = (
+        "https://www.helsana.ch/de/helsana-gruppe/jobs/stellenangebote.html"
+    )
+    helsana_jobs_career_center_url: str = "https://jobs.helsana.ch/?lang=de"
+    helsana_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    helsana_jobs_max_pages: int = Field(
+        default=20,
+        ge=1,
+        le=100,
+    )
+    helsana_jobs_max_catalog_passes: int = Field(
+        default=3,
+        ge=1,
+        le=10,
+    )
+    helsana_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=12,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,
