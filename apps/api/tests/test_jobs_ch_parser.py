@@ -11,6 +11,7 @@ from app.services.parsers.jobs_ch import (
     JobsChRequestError,
     extract_job_posting_schema,
     extract_js_object,
+    normalize_jobs_ch_url,
 )
 
 
@@ -139,13 +140,25 @@ def test_jobs_ch_search_and_detail_normalize_job() -> None:
     assert job.location == "Zürich"
     assert job.employment_type == "Permanent position"
     assert job.description == "Build Python services & cloud platforms."
-    assert job.apply_url == "https://www.jobs.ch/en/vacancies/detail/vac-1/apply"
+    assert job.apply_url == "https://www.jobs.ch/en/vacancies/detail/vac-1/"
     assert job.salary == "CHF 105000-125000 / year"
     assert job.salary_min == 105000
     assert job.salary_max == 125000
     assert job.salary_currency == "CHF"
     assert job.salary_unit == "YEAR"
     assert any("term=Platform+Engineer" in url for url in requested_urls)
+
+
+def test_jobs_ch_normalizes_broken_apply_suffix_only_for_jobs_ch() -> None:
+    assert normalize_jobs_ch_url(
+        "https://www.jobs.ch/en/vacancies/detail/vac-1/apply/"
+    ) == "https://www.jobs.ch/en/vacancies/detail/vac-1/"
+    assert normalize_jobs_ch_url(
+        "https://jobs.ch/en/vacancies/detail/vac-1/apply?source=test#form"
+    ) == "https://jobs.ch/en/vacancies/detail/vac-1/?source=test#form"
+    assert normalize_jobs_ch_url(
+        "https://employer.example/jobs/vac-1/apply"
+    ) == "https://employer.example/jobs/vac-1/apply"
 
 
 def test_jobs_ch_keeps_listing_when_detail_request_fails() -> None:

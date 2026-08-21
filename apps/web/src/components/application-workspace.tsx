@@ -44,6 +44,7 @@ import {
   type CandidateConfirmationResponse,
 } from "@/lib/candidate-confirmations";
 import { isGeneratedDocumentOutdated } from "@/lib/generation-provenance";
+import { normalizeJobsChJobUrl } from "@/lib/job-url";
 import {
   canReuseResumeRenderSource,
   resumeArtifactGenerationMode,
@@ -1234,7 +1235,9 @@ export function ApplicationWorkspace({
     : documentChatTarget === "cover_letter"
       ? "Generate the cover letter and complete the contact names before requesting a revision."
       : "Application context is still loading.";
-  const jobUrl = activeApplication.job.applyUrl || activeApplication.job.sourceUrl || "";
+  const jobUrl = normalizeJobsChJobUrl(
+    activeApplication.job.applyUrl || activeApplication.job.sourceUrl || "",
+  );
   const profileReady = Boolean(profile.name && (profile.experience || profile.resume_file_name));
   const confirmationsReady = hasCurrentAnalysis
     && unansweredBlockingQuestions.length === 0

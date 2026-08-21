@@ -1,16 +1,15 @@
 from __future__ import annotations
 
-from concurrent.futures import ThreadPoolExecutor, as_completed
 import html
 import json
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import httpx
 
 from app.models.parsers import JobsChSearchRequest, ParsedJob, ParserSearchResponse
-
 
 JOBS_CH_BASE_URL = "https://www.jobs.ch"
 JOBS_CH_HEADERS = {
@@ -150,7 +149,9 @@ class JobsChParser:
         schema = record.get("job_posting_schema")
         schema = schema if isinstance(schema, dict) else {}
         vacancy_id = str(record.get("id") or "").strip()
-        url = first_string(schema.get("url")) or self.build_detail_url(vacancy_id)
+        url = normalize_jobs_ch_url(first_string(schema.get("url"))) or self.build_detail_url(
+            vacancy_id
+        )
         description_html = first_string(schema.get("description"))
         salary = record.get("detail_salary")
         salary = salary if isinstance(salary, dict) else {}
@@ -161,7 +162,7 @@ class JobsChParser:
             company=extract_company(record, schema),
             location=extract_location(record, schema),
             url=url,
-            apply_url=extract_apply_url(schema) or url,
+            apply_url=normalize_jobs_ch_url(extract_apply_url(schema)) or url,
             posted_at=(
                 first_string(schema.get("datePosted"))
                 or first_string(record.get("publicationDate"))
@@ -501,6 +502,22 @@ def extract_apply_url(schema: dict[str, Any]) -> str | None:
     if isinstance(target, dict):
         return first_string(target.get("urlTemplate")) or first_string(target.get("url"))
     return first_string(target)
+
+
+def normalize_jobs_ch_url(value: str | None) -> str | None:
+    """Turn jobs.ch's broken terminal /apply route into the vacancy detail URL."""
+    if not value:
+        return None
+
+    parts = urlsplit(value)
+    hostname = (parts.hostname or "").casefold()
+    if hostname != "jobs.ch" and not hostname.endswith(".jobs.ch"):
+        return value
+
+    normalized_path = re.sub(r"/apply/?$", "/", parts.path, flags=re.IGNORECASE)
+    if normalized_path == parts.path:
+        return value
+    return urlunsplit(parts._replace(path=normalized_path))
 
 
 def extract_seniority(schema: dict[str, Any]) -> str | None:

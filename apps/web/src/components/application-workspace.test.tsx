@@ -227,6 +227,27 @@ describe("ApplicationWorkspace", () => {
     ).toBeInTheDocument();
   });
 
+  it("opens jobs.ch vacancies without the broken apply suffix", () => {
+    installApplicationWorkspaceApiMock();
+    const open = vi.spyOn(window, "open").mockImplementation(() => null);
+    renderApplicationWorkspace(
+      createV3WorkspaceApplication({
+        job: {
+          applyUrl:
+            "https://www.jobs.ch/en/vacancies/detail/de866122-37da-4c9d-ad34-c2fa0bc45d5f/apply/",
+        },
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "View vacancy" }));
+
+    expect(open).toHaveBeenCalledWith(
+      "https://www.jobs.ch/en/vacancies/detail/de866122-37da-4c9d-ad34-c2fa0bc45d5f/",
+      "_blank",
+      "noopener,noreferrer",
+    );
+  });
+
   it("renders legacy and current application-analysis states", async () => {
     installApplicationWorkspaceApiMock();
     const legacy = renderApplicationWorkspace(createLegacyWorkspaceApplication());

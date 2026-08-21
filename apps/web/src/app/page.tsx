@@ -85,6 +85,7 @@ import {
   getJobSearchProgress,
   type JobSearchProgressPhase,
 } from "@/lib/job-search-progress";
+import { normalizeJobsChJobUrl } from "@/lib/job-url";
 import { cn } from "@/lib/utils";
 
 type AiMatchMetadata = {
@@ -2793,7 +2794,9 @@ function createProfileResumeApplicationDocument(profile: CandidateProfile): Appl
 
 function getJobApplyUrl(job: Job) {
   const normalizedUrl = normalizeExternalUrl(job.applyUrl || job.sourceUrl || "");
-  return /^https?:\/\//i.test(normalizedUrl) ? normalizedUrl : "";
+  return /^https?:\/\//i.test(normalizedUrl)
+    ? normalizeJobsChJobUrl(normalizedUrl)
+    : "";
 }
 
 function getApplicationEventTypeLabel(type: ApplicationEventType) {
@@ -8234,7 +8237,7 @@ function ApplicationsView({
   function openApplicationPosting() {
     if (!visibleSelectedApplication) return;
 
-    const postingUrl = visibleSelectedApplication.job.applyUrl || visibleSelectedApplication.job.sourceUrl;
+    const postingUrl = getJobApplyUrl(visibleSelectedApplication.job);
     if (!postingUrl) return;
 
     window.open(postingUrl, "_blank", "noopener,noreferrer");
@@ -8508,7 +8511,7 @@ function ApplicationsView({
                       </p>
                       {visibleSelectedApplication.job.applyUrl || visibleSelectedApplication.job.sourceUrl ? (
                         <a
-                          href={visibleSelectedApplication.job.applyUrl || visibleSelectedApplication.job.sourceUrl}
+                          href={getJobApplyUrl(visibleSelectedApplication.job)}
                           target="_blank"
                           rel="noreferrer"
                           className="mt-1 inline-flex items-center gap-1.5 text-[10px] font-bold text-[#8cc7ff] hover:text-white 2xl:text-xs"
