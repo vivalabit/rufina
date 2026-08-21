@@ -193,7 +193,8 @@ function importedJobData({
     | "consulteer_switzerland"
     | "datahouse_zurich"
     | "esurance"
-    | "franke_switzerland";
+    | "franke_switzerland"
+    | "helga";
 }) {
   const sourceLabel =
     source === "indeed"
@@ -584,7 +585,11 @@ function importedJobData({
                                                                                                                                                                                                                                                                                       ? "esurance AG"
                                                                                                                                                                                                                                                                                       : "LinkedIn";
   const normalizedSourceLabel =
-    source === "franke_switzerland" ? "Franke Switzerland" : sourceLabel;
+    source === "franke_switzerland"
+      ? "Franke Switzerland"
+      : source === "helga"
+        ? "Helga Digitalagentur"
+        : sourceLabel;
   return {
     id,
     company:
@@ -980,6 +985,7 @@ function importedJobData({
     department: `${normalizedSourceLabel} import`,
     match: 50,
     logo:
+      source === "helga" ||
       source === "franke_switzerland" ||
       source === "sbb" ||
       source === "swisscom" ||
@@ -1126,7 +1132,11 @@ function importedJobData({
     companyInfo: "Example vacancy",
     reviews: [],
     similarJobs: [],
-    ...(source === "franke_switzerland" ? { company: "Franke Group" } : {}),
+    ...(source === "franke_switzerland"
+      ? { company: "Franke Group" }
+      : source === "helga"
+        ? { company: "Helga Digitalagentur GmbH" }
+        : {}),
     addedAt: new Date().toISOString(),
   };
 }
@@ -3251,6 +3261,11 @@ it("shows direct-company vacancies with their company logos", async () => {
         title: "CX-Solution Project Manager at Franke",
         source: "franke_switzerland",
       });
+      const helgaJob = importedJobData({
+        id: "helga-senior-backend-developer-drupal",
+        title: "Senior Drupal Developer at Helga",
+        source: "helga",
+      });
       storedJobs = [
         { id: migrosBankJob.id, data: migrosBankJob },
         { id: diePostJob.id, data: diePostJob },
@@ -3439,11 +3454,12 @@ it("shows direct-company vacancies with their company logos", async () => {
         { id: datahouseZurichJob.id, data: datahouseZurichJob },
         { id: esuranceJob.id, data: esuranceJob },
         { id: frankeSwitzerlandJob.id, data: frankeSwitzerlandJob },
+        { id: helgaJob.id, data: helgaJob },
       ];
       return Response.json({
         status: "completed",
-        jobsFound: 142,
-        jobsAdded: 142,
+        jobsFound: 143,
+        jobsAdded: 143,
         sourceErrors: {},
         warning: null,
       });
@@ -3648,13 +3664,14 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getByText("Datahouse Zurich")).toBeInTheDocument();
   expect(screen.getByText("esurance AG")).toBeInTheDocument();
   expect(screen.getByText("Franke Switzerland")).toBeInTheDocument();
+  expect(screen.getByText("Helga Digitalagentur")).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText("Search companies or career pages..."),
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Select all" })).toBeEnabled();
   expect(screen.queryByRole("button", { name: "Add company" })).toBeNull();
   fireEvent.click(screen.getByRole("button", { name: "Select all" }));
-  expect(screen.getByText("Direct companies (166)")).toBeInTheDocument();
+  expect(screen.getByText("Direct companies (167)")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("checkbox", { name: /SBB CFF FFS/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Swisscom/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Galaxus/ }));
@@ -3684,7 +3701,7 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(
     await screen.findByText(
-      "Added 142 of 142 vacancies from Gilead Sciences Switzerland + Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + Komax Group + BearingPoint Switzerland + Julius Baer Switzerland + BKW Switzerland + Swiss National Bank (SNB) + AMAG Group + Bayer Switzerland + Biogen Switzerland + Bristol Myers Squibb Switzerland + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH + UMB AG + Webtouch GmbH + Manor AG + Salt Mobile SA + V-ZUG AG + Lindt & Sprüngli (Schweiz) AG + PwC Switzerland + TX Group AG + Artificialy SA + cyon AG + GSK Switzerland + Sanofi Switzerland + Takeda Switzerland + Johnson & Johnson Switzerland + Zurich Insurance + Schneider Electric Switzerland + Bosch Switzerland + Eviden Switzerland + Schindler Group + Sonova Group + Elektro-Material AG + CSL Switzerland + Lonza Switzerland + Nestlé Switzerland + AFRY Switzerland + Digital Realty Switzerland + Equans Switzerland + Bison Group + PRODYNA Switzerland + cross-ING Switzerland + NetApp Switzerland + Sharp Switzerland + Unisys Switzerland + R&M Switzerland + AbbVie Switzerland + Lyreco Switzerland + Adcubum Switzerland + aity AG + Arcon Informatik AG + blueworks AG + Bossard Switzerland + Boss Info + clavis IT ag + Consulteer Switzerland + Datahouse Zurich + esurance AG + Franke Switzerland",
+      "Added 143 of 143 vacancies from Gilead Sciences Switzerland + Migros Bank + Die Post + Raiffeisen + Bundesverwaltung + AXA Schweiz + Sunrise + ISS Schweiz + Accenture + CSEM + Deloitte + Zürcher Kantonalbank + Flughafen Zürich + UBS Students & Graduates + ABB Schweiz + Huawei Switzerland + BDO Switzerland + Endress+Hauser Switzerland + Microsoft Switzerland + SAP Switzerland + s-peers + Mobiliar + Emmi + Sulzer Switzerland + Siegfried + Switch + Huber+Suhner Switzerland + Stadler IT Switzerland + EBP Switzerland + RUAG Switzerland + Cyberlink + Ergon + LogObject + ti&m Switzerland + Novartis Switzerland + Pictet Switzerland + Swiss Re + Baloise + ELCA + Aveniq + Mimacom + Unit8 Switzerland + Axpo Switzerland + Ringier + MSD + SRG SSR + IBM + Google + Bühler Schweiz + Oracle Switzerland + Adnovum + EY Switzerland + ETH Zürich + Siemens Schweiz + KPMG Switzerland + Swissgrid + Suva + AO Foundation + Skyguide + Roche Switzerland + Logitech Switzerland + Swatch Group + Amazon Switzerland + Cognizant Technology Solutions AG + FISBA + GRITEC + Helbling + Maerki Baumann + Electrosuisse + Detecon Switzerland + Lufthansa Group Switzerland + Adesso Switzerland + Cudos + Eraneos Switzerland + ERNI Switzerland + Bachem + Georg Fischer Switzerland + ALSO + Bedag + Nexplore + NTT Global Data Centers + Teradata Switzerland + Swiss Life Switzerland + Sika Switzerland + Centris + Edorex + Dätwyler IT Infra + Komax Group + BearingPoint Switzerland + Julius Baer Switzerland + BKW Switzerland + Swiss National Bank (SNB) + AMAG Group + Bayer Switzerland + Biogen Switzerland + Bristol Myers Squibb Switzerland + InfoGuard + SIX + Comerge + Abraxas Informatik AG + AKROS AG + amétiq ag + BSI Software + CM Informatik AG + EGELI Informatik AG + emineo AG + Hostpoint AG + Hürlimann Informatik AG + Infosoft Systems AG + isolutions AG + IWF AG + Löwenfels Partner AG + M&S Software Engineering AG + Opacc Software AG + Panter AG + Digital Architects Zurich GmbH + UMB AG + Webtouch GmbH + Manor AG + Salt Mobile SA + V-ZUG AG + Lindt & Sprüngli (Schweiz) AG + PwC Switzerland + TX Group AG + Artificialy SA + cyon AG + GSK Switzerland + Sanofi Switzerland + Takeda Switzerland + Johnson & Johnson Switzerland + Zurich Insurance + Schneider Electric Switzerland + Bosch Switzerland + Eviden Switzerland + Schindler Group + Sonova Group + Elektro-Material AG + CSL Switzerland + Lonza Switzerland + Nestlé Switzerland + AFRY Switzerland + Digital Realty Switzerland + Equans Switzerland + Bison Group + PRODYNA Switzerland + cross-ING Switzerland + NetApp Switzerland + Sharp Switzerland + Unisys Switzerland + R&M Switzerland + AbbVie Switzerland + Lyreco Switzerland + Adcubum Switzerland + aity AG + Arcon Informatik AG + blueworks AG + Bossard Switzerland + Boss Info + clavis IT ag + Consulteer Switzerland + Datahouse Zurich + esurance AG + Franke Switzerland + Helga Digitalagentur",
     ),
   ).toBeInTheDocument();
   expect(runRequests).toHaveLength(1);
@@ -3853,6 +3870,7 @@ it("shows direct-company vacancies with their company logos", async () => {
       "datahouse_zurich",
       "esurance",
       "franke_switzerland",
+      "helga",
     ],
     aiAnalysisEnabled: true,
   });
@@ -4271,6 +4289,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(
     screen.getAllByRole("img", { name: "Franke Switzerland logo" }).length,
   ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByRole("img", { name: "Helga Digitalagentur logo" }).length,
+  ).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Die Post").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Migros Bank").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Source: Raiffeisen").length).toBeGreaterThan(0);
@@ -4539,6 +4560,9 @@ it("shows direct-company vacancies with their company logos", async () => {
   expect(screen.getAllByText("Source: esurance AG").length).toBeGreaterThan(0);
   expect(
     screen.getAllByText("Source: Franke Switzerland").length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("Source: Helga Digitalagentur").length,
   ).toBeGreaterThan(0);
 }, 30_000);
 

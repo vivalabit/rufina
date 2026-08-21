@@ -1571,6 +1571,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 74,
     logoHeight: 24,
   },
+  {
+    id: "helga",
+    name: "Helga Digitalagentur",
+    careersUrl: "https://www.helga.ch/jobs",
+    logoSrc: "/company-logos/helga.svg",
+    logoAlt: "Helga Digitalagentur logo",
+    logoWidth: 31,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

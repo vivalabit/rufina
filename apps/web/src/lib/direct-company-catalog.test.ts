@@ -2190,3 +2190,22 @@ describe("Franke Switzerland Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("Helga Digitalagentur Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "helga");
+
+    expect(company).toEqual({
+      id: "helga",
+      name: "Helga Digitalagentur",
+      careersUrl: "https://www.helga.ch/jobs",
+      logoSrc: "/company-logos/helga.svg",
+      logoAlt: "Helga Digitalagentur logo",
+      logoWidth: 31,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId("helga-senior-backend-developer-drupal"),
+    ).toBe(company);
+  });
+});

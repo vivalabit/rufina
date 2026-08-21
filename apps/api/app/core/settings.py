@@ -2207,6 +2207,22 @@ class Settings(BaseSettings):
         ge=1,
         le=12,
     )
+    helga_jobs_base_url: str = "https://www.helga.ch/jobs"
+    helga_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    helga_jobs_max_jobs: int = Field(
+        default=100,
+        ge=1,
+        le=1_000,
+    )
+    helga_jobs_detail_workers: int = Field(
+        default=6,
+        ge=1,
+        le=12,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,
