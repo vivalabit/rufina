@@ -2717,6 +2717,21 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "clavis_it_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="consulteer_switzerland",
+        name="Consulteer Switzerland",
+        careers_url="https://www.consulteer.com/careers",
+        parser_path=(
+            "app.services.parsers.companies.consulteer_switzerland:"
+            "ConsulteerSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "consulteer_switzerland_jobs_base_url"),
+            ("api_url", "consulteer_switzerland_jobs_api_url"),
+            ("timeout_seconds", "consulteer_switzerland_jobs_timeout_seconds"),
+            ("max_jobs", "consulteer_switzerland_jobs_max_jobs"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

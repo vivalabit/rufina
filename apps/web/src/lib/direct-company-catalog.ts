@@ -1534,6 +1534,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 132,
     logoHeight: 24,
   },
+  {
+    id: "consulteer_switzerland",
+    name: "Consulteer Switzerland",
+    careersUrl: "https://www.consulteer.com/careers",
+    logoSrc: "/company-logos/consulteer.svg",
+    logoAlt: "Consulteer Switzerland logo",
+    logoWidth: 86,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

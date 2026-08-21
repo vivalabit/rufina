@@ -2109,3 +2109,24 @@ describe("clavis IT ag Direct Company catalog entry", () => {
     expect(getDirectCompanyByJobId("clavis_it-platform-devops")).toBe(company);
   });
 });
+
+describe("Consulteer Switzerland Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "consulteer_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "consulteer_switzerland",
+      name: "Consulteer Switzerland",
+      careersUrl: "https://www.consulteer.com/careers",
+      logoSrc: "/company-logos/consulteer.svg",
+      logoAlt: "Consulteer Switzerland logo",
+      logoWidth: 86,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("consulteer_switzerland-1780463")).toBe(
+      company,
+    );
+  });
+});

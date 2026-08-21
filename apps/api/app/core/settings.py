@@ -2130,6 +2130,22 @@ class Settings(BaseSettings):
         ge=1,
         le=12,
     )
+    consulteer_switzerland_jobs_base_url: str = (
+        "https://www.consulteer.com/careers"
+    )
+    consulteer_switzerland_jobs_api_url: str = (
+        "https://consulteer1.recruitee.com/api/offers/"
+    )
+    consulteer_switzerland_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    consulteer_switzerland_jobs_max_jobs: int = Field(
+        default=500,
+        ge=1,
+        le=5_000,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,
