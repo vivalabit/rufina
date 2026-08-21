@@ -2158,9 +2158,15 @@ it("loads a server config and refreshes backend-persisted search results", async
   fireEvent.click(
     await screen.findByRole("button", { name: "Search vacancies" }),
   );
-  fireEvent.change(await screen.findByLabelText("Existing configs"), {
-    target: { value: "entry-it" },
+  const linkedInConfig = await screen.findByLabelText(
+    "LinkedIn query config",
+  );
+  await waitFor(() => {
+    expect(linkedInConfig).toHaveValue("entry-it-linkedin");
   });
+  expect(
+    within(linkedInConfig).getByRole("option", { name: "Entry IT" }),
+  ).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
 
   expect(
@@ -2180,7 +2186,7 @@ it("loads a server config and refreshes backend-persisted search results", async
   ).toBeGreaterThan(0);
 });
 
-it("loads a run preset with a separate query config for every aggregator", async () => {
+it("selects a separate query config inside each source's settings", async () => {
   window.history.replaceState(null, "", "#jobs");
   const runBodies: Array<Record<string, unknown>> = [];
   const entryItConfig = {
@@ -2199,15 +2205,35 @@ it("loads a run preset with a separate query config for every aggregator", async
     indeed: "entry-it-indeed",
     jobs_ch: "entry-it-jobs-ch",
   };
-  const sourceConfigs = Object.entries(sourceConfigIds).map(([source, id]) => ({
-    id,
-    name: `Entry IT · ${source}`,
-    configId: "entry-it",
-    source,
-    filters: { keywords: `${source} query`, resultsLimit: 50 },
-    createdAt: "2026-07-21T00:00:00.000Z",
-    updatedAt: "2026-07-21T00:00:00.000Z",
-  }));
+  const sourceConfigs = [
+    {
+      id: sourceConfigIds.linkedin,
+      name: "Entry IT · LinkedIn",
+      configId: "entry-it",
+      source: "linkedin",
+      filters: { keywords: "linkedin query", resultsLimit: 50 },
+      createdAt: "2026-07-21T00:00:00.000Z",
+      updatedAt: "2026-07-21T00:00:00.000Z",
+    },
+    {
+      id: sourceConfigIds.indeed,
+      name: "Indeed entry roles",
+      configId: "entry-it",
+      source: "indeed",
+      filters: { keywords: "indeed query", resultsLimit: 50 },
+      createdAt: "2026-07-21T00:00:00.000Z",
+      updatedAt: "2026-07-21T00:00:00.000Z",
+    },
+    {
+      id: sourceConfigIds.jobs_ch,
+      name: "Swiss entry roles",
+      configId: "entry-it",
+      source: "jobs_ch",
+      filters: { keywords: "jobs_ch query", resultsLimit: 50 },
+      createdAt: "2026-07-21T00:00:00.000Z",
+      updatedAt: "2026-07-21T00:00:00.000Z",
+    },
+  ];
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
     const requestUrl =
       typeof input === "string"
@@ -2222,19 +2248,6 @@ it("loads a run preset with a separate query config for every aggregator", async
     }
     if (url.pathname === "/job-search/source-configs" && method === "GET") {
       return Response.json(sourceConfigs);
-    }
-    if (url.pathname === "/job-search/presets" && method === "GET") {
-      return Response.json([
-        {
-          id: "entry-it-all-sources",
-          name: "Entry IT · all sources",
-          configId: "entry-it",
-          sources: ["linkedin", "indeed", "jobs_ch"],
-          sourceConfigIds,
-          createdAt: "2026-07-21T00:00:00.000Z",
-          updatedAt: "2026-07-21T00:00:00.000Z",
-        },
-      ]);
     }
     if (url.pathname === "/job-search/run" && method === "POST") {
       runBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
@@ -2264,31 +2277,58 @@ it("loads a run preset with a separate query config for every aggregator", async
   fireEvent.click(
     await screen.findByRole("button", { name: "Search vacancies" }),
   );
-  fireEvent.change(await screen.findByLabelText("Saved run preset"), {
-    target: { value: "entry-it-all-sources" },
-  });
-
-  expect(screen.getByLabelText("LinkedIn query config")).toHaveValue(
-    "entry-it-linkedin",
+  const linkedInConfig = await screen.findByLabelText(
+    "LinkedIn query config",
   );
+  await waitFor(() => {
+    expect(linkedInConfig).toHaveValue("entry-it-linkedin");
+  });
+  expect(
+    within(linkedInConfig).getByRole("option", { name: "Entry IT" }),
+  ).toBeInTheDocument();
   expect(
     screen.getByPlaceholderText(
       "e.g. Product Designer, UX Designer, Design System",
     ),
   ).toHaveValue("linkedin query");
-  fireEvent.click(screen.getByRole("button", { name: "Configure Indeed" }));
-  expect(screen.getByLabelText("Indeed query config")).toHaveValue(
-    "entry-it-indeed",
+  fireEvent.click(
+    screen.getByRole("button", { name: "Include Indeed in search" }),
   );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Include jobs.ch in search" }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Configure Indeed" }));
+  const indeedConfig = screen.getByLabelText("Indeed query config");
+  expect(indeedConfig).toHaveValue("");
+  expect(
+    within(indeedConfig).queryByRole("option", { name: "Entry IT" }),
+  ).toBeNull();
+  expect(
+    screen.getByPlaceholderText(
+      "e.g. Product Designer, UX Designer, Design System",
+    ),
+  ).toHaveValue("");
+  fireEvent.change(indeedConfig, {
+    target: { value: "entry-it-indeed" },
+  });
+  expect(indeedConfig).toHaveValue("entry-it-indeed");
   expect(
     screen.getByPlaceholderText(
       "e.g. Product Designer, UX Designer, Design System",
     ),
   ).toHaveValue("indeed query");
   fireEvent.click(screen.getByRole("button", { name: "Configure jobs.ch" }));
+  fireEvent.change(screen.getByLabelText("jobs.ch query config"), {
+    target: { value: "entry-it-jobs-ch" },
+  });
   expect(screen.getByLabelText("jobs.ch query config")).toHaveValue(
     "entry-it-jobs-ch",
   );
+  expect(
+    screen.getByPlaceholderText(
+      "e.g. Product Designer, UX Designer, Design System",
+    ),
+  ).toHaveValue("jobs_ch query");
   fireEvent.change(screen.getByLabelText("jobs.ch query config"), {
     target: { value: "" },
   });
@@ -2312,6 +2352,119 @@ it("loads a run preset with a separate query config for every aggregator", async
     sources: ["linkedin", "indeed", "jobs_ch"],
     sourceConfigIds,
   });
+});
+
+it("clears hidden drafts when a source switches to another profile", async () => {
+  window.history.replaceState(null, "", "#jobs");
+  const commonConfigs = [
+    {
+      id: "entry-it",
+      name: "Entry IT",
+      createdAt: "2026-07-21T00:00:00.000Z",
+      updatedAt: "2026-07-21T00:00:00.000Z",
+      filters: {
+        schemaVersion: 2,
+        search: { keywords: "entry fallback" },
+        screening: { enabled: true },
+      },
+    },
+    {
+      id: "senior-it",
+      name: "Senior IT",
+      createdAt: "2026-07-21T00:00:00.000Z",
+      updatedAt: "2026-07-21T00:00:00.000Z",
+      filters: {
+        schemaVersion: 2,
+        search: { keywords: "senior fallback" },
+        screening: { enabled: true },
+      },
+    },
+  ];
+  const sourceConfigs = [
+    {
+      id: "entry-it-linkedin",
+      name: "Entry IT · LinkedIn",
+      configId: "entry-it",
+      source: "linkedin",
+      filters: { keywords: "linkedin entry query" },
+      createdAt: "2026-07-21T00:00:00.000Z",
+      updatedAt: "2026-07-21T00:00:00.000Z",
+    },
+    {
+      id: "senior-it-indeed",
+      name: "Senior IT · Indeed",
+      configId: "senior-it",
+      source: "indeed",
+      filters: { keywords: "indeed senior query" },
+      createdAt: "2026-07-21T00:00:00.000Z",
+      updatedAt: "2026-07-21T00:00:00.000Z",
+    },
+  ];
+  const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+    const url = new URL(requestUrl, "http://localhost");
+    const method = init?.method ?? "GET";
+    if (url.pathname === "/job-search/configs" && method === "GET") {
+      return Response.json(commonConfigs);
+    }
+    if (url.pathname === "/job-search/source-configs" && method === "GET") {
+      return Response.json(sourceConfigs);
+    }
+    if (
+      (url.pathname === "/jobs" ||
+        url.pathname === "/jobs/dismissed-ids" ||
+        url.pathname === "/applications" ||
+        url.pathname === "/applications/events") &&
+      method === "GET"
+    ) {
+      return Response.json([]);
+    }
+    if (url.pathname === "/profile" && method === "GET") {
+      return Response.json({});
+    }
+    if (url.pathname === "/settings" && method === "GET") {
+      return Response.json(configuredAppSettings);
+    }
+    if (
+      (url.pathname === "/applications" ||
+        url.pathname === "/applications/events") &&
+      method === "PUT"
+    ) {
+      return Response.json([]);
+    }
+    throw new Error(`Unhandled request: ${method} ${url.pathname}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<HomePage />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Search vacancies" }),
+  );
+  await waitFor(() => {
+    expect(screen.getByLabelText("LinkedIn query config")).toHaveValue(
+      "entry-it-linkedin",
+    );
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Configure Indeed" }));
+  fireEvent.change(screen.getByLabelText("Indeed query config"), {
+    target: { value: "senior-it-indeed" },
+  });
+
+  expect(
+    screen.getByText("Cleared incompatible configs for LinkedIn"),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Configure LinkedIn" }));
+  expect(screen.getByLabelText("LinkedIn query config")).toHaveValue("");
+  expect(
+    screen.getByPlaceholderText(
+      "e.g. Product Designer, UX Designer, Design System",
+    ),
+  ).toHaveValue("");
 });
 
 it("imports legacy local search configs to the server only once", async () => {
@@ -2442,13 +2595,8 @@ it("imports legacy local search configs to the server only once", async () => {
   expect(configWrites).toHaveLength(1);
 });
 
-it("saves and deletes manual-search configs through the API", async () => {
+it("keeps query configs in source settings and removes the legacy panels", async () => {
   window.history.replaceState(null, "", "#jobs");
-  const configRequests: Array<{
-    path: string;
-    method: string;
-    body?: Record<string, unknown>;
-  }> = [];
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
     const requestUrl =
       typeof input === "string"
@@ -2459,41 +2607,128 @@ it("saves and deletes manual-search configs through the API", async () => {
     const url = new URL(requestUrl, "http://localhost");
     const method = init?.method ?? "GET";
 
-    if (url.pathname === "/job-search/configs" && method === "GET") {
+    if (
+      (url.pathname === "/job-search/configs" ||
+        url.pathname === "/job-search/source-configs" ||
+        url.pathname === "/jobs" ||
+        url.pathname === "/jobs/dismissed-ids" ||
+        url.pathname === "/applications" ||
+        url.pathname === "/applications/events") &&
+      method === "GET"
+    ) {
       return Response.json([]);
     }
-    if (url.pathname === "/job-search/configs" && method === "POST") {
-      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      configRequests.push({ path: url.pathname, method, body });
-      return Response.json(
-        {
-          id: "manual-config-1",
-          ...body,
-          createdAt: "2026-07-23T10:00:00.000Z",
-          updatedAt: "2026-07-23T10:00:00.000Z",
-        },
-        { status: 201 },
-      );
+    if (url.pathname === "/profile" && method === "GET") {
+      return Response.json({});
+    }
+    if (url.pathname === "/settings" && method === "GET") {
+      return Response.json(configuredAppSettings);
     }
     if (
-      url.pathname === "/job-search/configs/manual-config-1" &&
-      method === "DELETE"
+      (url.pathname === "/applications" ||
+        url.pathname === "/applications/events") &&
+      method === "PUT"
     ) {
-      configRequests.push({ path: url.pathname, method });
-      return new Response(null, { status: 204 });
-    }
-    if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
-    if (url.pathname === "/jobs/dismissed-ids" && method === "GET") {
       return Response.json([]);
     }
-    if (url.pathname === "/applications" && method === "GET") {
+    throw new Error(`Unhandled request: ${method} ${url.pathname}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  render(<HomePage />);
+
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Search vacancies" }),
+  );
+
+  const linkedInHeading = screen.getByText("2. Configure LinkedIn");
+  const linkedInSettings = linkedInHeading.closest("section");
+  expect(linkedInSettings).not.toBeNull();
+  expect(
+    within(linkedInSettings as HTMLElement).getByLabelText(
+      "LinkedIn query config",
+    ),
+  ).toBeInTheDocument();
+  expect(screen.queryByText("3. Source query configs")).toBeNull();
+  expect(screen.queryByText("4. Common profiles")).toBeNull();
+  expect(screen.queryByLabelText("Saved run preset")).toBeNull();
+  expect(screen.queryByLabelText("Existing configs")).toBeNull();
+  expect(
+    screen.queryByPlaceholderText("e.g. Product Designer Remote Jobs"),
+  ).toBeNull();
+
+  fireEvent.click(screen.getByRole("button", { name: "Configure Indeed" }));
+  const indeedSettings = screen
+    .getByText("2. Configure Indeed")
+    .closest("section");
+  expect(indeedSettings).not.toBeNull();
+  expect(
+    within(indeedSettings as HTMLElement).getByLabelText(
+      "Indeed query config",
+    ),
+  ).toBeInTheDocument();
+});
+
+it("uses the current fields for a direct-company-only search", async () => {
+  window.history.replaceState(null, "", "#jobs");
+  const runBodies: Array<Record<string, unknown>> = [];
+  const entryItConfig = {
+    id: "entry-it",
+    name: "Entry IT",
+    createdAt: "2026-07-21T00:00:00.000Z",
+    updatedAt: "2026-07-21T00:00:00.000Z",
+    filters: {
+      schemaVersion: 2,
+      search: { keywords: "linkedin entry query" },
+      screening: { enabled: true },
+    },
+  };
+  const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+    const url = new URL(requestUrl, "http://localhost");
+    const method = init?.method ?? "GET";
+    if (url.pathname === "/job-search/configs" && method === "GET") {
+      return Response.json([entryItConfig]);
+    }
+    if (url.pathname === "/job-search/source-configs" && method === "GET") {
+      return Response.json([
+        {
+          id: "entry-it-linkedin",
+          name: "Entry IT · LinkedIn",
+          configId: "entry-it",
+          source: "linkedin",
+          filters: { keywords: "linkedin entry query" },
+          createdAt: "2026-07-21T00:00:00.000Z",
+          updatedAt: "2026-07-21T00:00:00.000Z",
+        },
+      ]);
+    }
+    if (url.pathname === "/job-search/run" && method === "POST") {
+      runBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return Response.json({
+        status: "completed",
+        jobsFound: 0,
+        jobsAdded: 0,
+        sourceErrors: {},
+        warning: null,
+      });
+    }
+    if (
+      (url.pathname === "/jobs" ||
+        url.pathname === "/jobs/dismissed-ids" ||
+        url.pathname === "/applications" ||
+        url.pathname === "/applications/events") &&
+      method === "GET"
+    ) {
       return Response.json([]);
     }
-    if (url.pathname === "/applications/events" && method === "GET") {
-      return Response.json([]);
-    }
-    if (url.pathname === "/profile" && method === "GET")
+    if (url.pathname === "/profile" && method === "GET") {
       return Response.json({});
+    }
     if (url.pathname === "/settings" && method === "GET") {
       return Response.json(configuredAppSettings);
     }
@@ -2512,69 +2747,48 @@ it("saves and deletes manual-search configs through the API", async () => {
   fireEvent.click(
     await screen.findByRole("button", { name: "Search vacancies" }),
   );
-  fireEvent.change(
-    screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
-    {
-      target: { value: "Remote platform roles" },
-    },
+  await waitFor(() => {
+    expect(screen.getByLabelText("LinkedIn query config")).toHaveValue(
+      "entry-it-linkedin",
+    );
+  });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Configure Direct Companies" }),
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Include Direct Companies in search" }),
+  );
+  fireEvent.click(screen.getByRole("checkbox", { name: /SBB CFF FFS/ }));
+  fireEvent.click(
+    screen.getByRole("button", { name: "Include LinkedIn in search" }),
   );
   fireEvent.change(
     screen.getByPlaceholderText(
       "e.g. Product Designer, UX Designer, Design System",
     ),
-    {
-      target: { value: "Platform Engineer" },
-    },
+    { target: { value: "direct company query" } },
   );
-  fireEvent.click(screen.getByRole("button", { name: "Save config" }));
+  fireEvent.click(screen.getByRole("button", { name: "Start search" }));
 
   expect(
-    await screen.findByText("Saved config: Remote platform roles"),
+    await screen.findByText("No vacancies returned from SBB CFF FFS"),
   ).toBeInTheDocument();
-  expect(configRequests[0]).toMatchObject({
-    path: "/job-search/configs",
-    method: "POST",
-    body: {
-      name: "Remote platform roles",
+  expect(runBodies).toHaveLength(1);
+  expect(runBodies[0]).not.toHaveProperty("configId");
+  expect(runBodies[0]).toMatchObject({
+    sources: ["sbb"],
+    sourceConfigIds: {},
+    config: {
+      name: "Entry IT",
       filters: {
-        schemaVersion: 2,
-        search: {
-          keywords: "Platform Engineer",
-          resultsLimit: 10,
-          deduplicate: true,
-        },
-        screening: {
-          enabled: true,
-          targetRoles: ["Platform Engineer"],
-        },
+        search: { keywords: "direct company query" },
       },
     },
   });
-  expect(
-    (
-      (configRequests[0].body as Record<string, unknown>).filters as Record<
-        string,
-        unknown
-      >
-    ).search as Record<string, unknown>,
-  ).not.toHaveProperty("sources");
-
-  fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-  expect(
-    await screen.findByText("Deleted config: Remote platform roles"),
-  ).toBeInTheDocument();
-  expect(configRequests[1]).toEqual({
-    path: "/job-search/configs/manual-config-1",
-    method: "DELETE",
-  });
-  expect(
-    window.localStorage.getItem("tasko.parserSearchConfigs.v2"),
-  ).toBeNull();
 });
 
 it("shows direct-company vacancies with their company logos", async () => {
   window.history.replaceState(null, "", "#jobs");
-  const configWrites: Array<Record<string, unknown>> = [];
   const runRequests: Array<Record<string, unknown>> = [];
   let storedJobs: Array<{ id: string; data: unknown }> = [];
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
@@ -2589,19 +2803,6 @@ it("shows direct-company vacancies with their company logos", async () => {
 
     if (url.pathname === "/job-search/configs" && method === "GET") {
       return Response.json([]);
-    }
-    if (url.pathname === "/job-search/configs" && method === "POST") {
-      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      configWrites.push(body);
-      return Response.json(
-        {
-          id: "direct-companies-config",
-          ...body,
-          createdAt: "2026-08-01T10:00:00.000Z",
-          updatedAt: "2026-08-01T10:00:00.000Z",
-        },
-        { status: 201 },
-      );
     }
     if (url.pathname === "/job-search/run" && method === "POST") {
       runRequests.push(
@@ -3701,28 +3902,6 @@ it("shows direct-company vacancies with their company logos", async () => {
   fireEvent.click(screen.getByRole("checkbox", { name: /SBB CFF FFS/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Swisscom/ }));
   fireEvent.click(screen.getByRole("checkbox", { name: /Galaxus/ }));
-  fireEvent.change(
-    screen.getByPlaceholderText("e.g. Product Designer Remote Jobs"),
-    { target: { value: "Direct companies" } },
-  );
-  fireEvent.click(screen.getByRole("button", { name: "Save config" }));
-
-  expect(
-    await screen.findByText("Saved config: Direct companies"),
-  ).toBeInTheDocument();
-  expect(configWrites).toHaveLength(1);
-  expect(configWrites[0]).toMatchObject({
-    name: "Direct companies",
-    filters: {
-      schemaVersion: 2,
-    },
-  });
-  const savedFilters = configWrites[0].filters as Record<string, unknown>;
-  const savedSearch = savedFilters.search as Record<string, unknown>;
-  expect(savedSearch).not.toHaveProperty("sources");
-  expect(savedSearch).not.toHaveProperty("directCompaniesEnabled");
-  expect(savedSearch).not.toHaveProperty("directCompanyIds");
-  expect(savedSearch).not.toHaveProperty("directCompanies");
 
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(

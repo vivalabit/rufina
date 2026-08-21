@@ -445,16 +445,6 @@ type JobSourceConfigPayload = {
   updatedAt: string;
 };
 
-type JobSearchPresetPayload = {
-  id: string;
-  name: string;
-  configId: string;
-  sources: string[];
-  sourceConfigIds: Partial<Record<ParserId, string>>;
-  createdAt: string;
-  updatedAt: string;
-};
-
 type JobSearchRunPayload = {
   id: string;
   runType: "manual" | "automatic";
@@ -2227,6 +2217,53 @@ function sourceSearchDraftFromFilters(
   };
 }
 
+function getSourceSearchConfigLabel(config: JobSourceConfigPayload) {
+  return (
+    config.name
+      .replace(/\s*·\s*(?:LinkedIn|Indeed|jobs(?:\.|_)?ch)$/i, "")
+      .trim() || config.name
+  );
+}
+
+function getDefaultLinkedInSearchSelection(
+  configs: ParserSearchConfig[],
+  sourceConfigs: JobSourceConfigPayload[],
+) {
+  const sourceConfig =
+    sourceConfigs.find(
+      (config) =>
+        config.source === "linkedin" && config.id === "entry-it-linkedin",
+    ) ??
+    sourceConfigs.find(
+      (config) =>
+        config.source === "linkedin" &&
+        getSourceSearchConfigLabel(config).toLowerCase() === "entry it",
+    );
+  if (!sourceConfig) return null;
+
+  const commonConfig = configs.find(
+    (config) => config.id === sourceConfig.configId,
+  );
+  const fallback = commonConfig?.form ?? defaultParserSearchForm;
+  const draft = sourceSearchDraftFromFilters(sourceConfig.filters, fallback);
+
+  return {
+    commonConfigId: sourceConfig.configId,
+    sourceConfigId: sourceConfig.id,
+    draft,
+    form: {
+      ...defaultParserSearchForm,
+      ...fallback,
+      ...draft,
+      parsers: ["linkedin"] as ParserId[],
+      directCompaniesEnabled: false,
+      directCompanyIds: [],
+      searchName:
+        commonConfig?.name ?? getSourceSearchConfigLabel(sourceConfig),
+    },
+  };
+}
+
 function parserSearchConfigFromApi(
   config: JobSearchConfigPayload,
 ): ParserSearchConfig {
@@ -3129,14 +3166,13 @@ export default function HomePage() {
   const [aiMatchErrorMessage, setAiMatchErrorMessage] = useState("");
   const [matchFeedbackSavingJobId, setMatchFeedbackSavingJobId] = useState("");
   const [parserSearchForm, setParserSearchForm] = useState<ParserSearchForm>(defaultParserSearchForm);
+  const hasParserSearchInteractionRef = useRef(false);
   const [activeSearchSource, setActiveSearchSource] = useState<ActiveSearchSource>("linkedin");
   const [sourceSearchDrafts, setSourceSearchDrafts] = useState<Partial<Record<ParserId, SourceSearchDraft>>>({});
   const [parserSearchConfigs, setParserSearchConfigs] = useState<ParserSearchConfig[]>([]);
   const [selectedParserSearchConfigId, setSelectedParserSearchConfigId] = useState("");
   const [sourceSearchConfigs, setSourceSearchConfigs] = useState<JobSourceConfigPayload[]>([]);
-  const [searchPresets, setSearchPresets] = useState<JobSearchPresetPayload[]>([]);
   const [selectedSourceConfigIds, setSelectedSourceConfigIds] = useState<Partial<Record<ParserId, string>>>({});
-  const [selectedSearchPresetId, setSelectedSearchPresetId] = useState("");
   const [profile, setProfile] = useState<CandidateProfile>(defaultCandidateProfile);
   const [profileDraft, setProfileDraft] = useState<CandidateProfile>(defaultCandidateProfile);
   const [isProfileLoaded, setIsProfileLoaded] = useState(false);
@@ -3439,21 +3475,30 @@ export default function HomePage() {
           window.localStorage.removeItem(parserSearchConfigsStorageKey);
         }
 
-        const [sourceConfigsResponse, presetsResponse] = await Promise.all([
-          fetch(`${apiBaseUrl}/job-search/source-configs`, { cache: "no-store" }).catch(() => null),
-          fetch(`${apiBaseUrl}/job-search/presets`, { cache: "no-store" }).catch(() => null),
-        ]);
+        const sourceConfigsResponse = await fetch(
+          `${apiBaseUrl}/job-search/source-configs`,
+          { cache: "no-store" },
+        ).catch(() => null);
         const loadedSourceConfigs = sourceConfigsResponse?.ok
           ? (await sourceConfigsResponse.json()) as JobSourceConfigPayload[]
           : [];
-        const loadedPresets = presetsResponse?.ok
-          ? (await presetsResponse.json()) as JobSearchPresetPayload[]
-          : [];
+        const normalizedConfigs = serverConfigs.map(parserSearchConfigFromApi);
+        const defaultSelection = getDefaultLinkedInSearchSelection(
+          normalizedConfigs,
+          loadedSourceConfigs,
+        );
 
         if (!isMounted) return;
-        setParserSearchConfigs(serverConfigs.map(parserSearchConfigFromApi));
+        setParserSearchConfigs(normalizedConfigs);
         setSourceSearchConfigs(loadedSourceConfigs);
-        setSearchPresets(loadedPresets);
+        if (defaultSelection && !hasParserSearchInteractionRef.current) {
+          setParserSearchForm(defaultSelection.form);
+          setSelectedParserSearchConfigId(defaultSelection.commonConfigId);
+          setSelectedSourceConfigIds({
+            linkedin: defaultSelection.sourceConfigId,
+          });
+          setSourceSearchDrafts({ linkedin: defaultSelection.draft });
+        }
       } catch (error) {
         if (!isMounted) return;
         setParserSearchStatus("error");
@@ -4491,6 +4536,7 @@ export default function HomePage() {
     field: Field,
     value: (typeof parserSearchForm)[Field],
   ) {
+    hasParserSearchInteractionRef.current = true;
     setParserSearchForm((current) => {
       const next = { ...current, [field]: value };
       if (
@@ -4513,6 +4559,7 @@ export default function HomePage() {
   }
 
   function toggleParser(parser: ParserId) {
+    hasParserSearchInteractionRef.current = true;
     setParserSearchForm((current) => {
       const isSelected = current.parsers.includes(parser);
       return {
@@ -4522,7 +4569,6 @@ export default function HomePage() {
           : [...current.parsers, parser],
       };
     });
-    setSelectedSearchPresetId("");
     setParserSearchStatus("idle");
     setParserSearchMessage("");
   }
@@ -4536,15 +4582,20 @@ export default function HomePage() {
       (config) => config.id === selectedConfigId && config.source === source,
     );
     const commonConfig = parserSearchConfigs.find(
-      (config) => config.id === selectedParserSearchConfigId,
+      (config) =>
+        config.id ===
+        (selectedConfig?.configId ?? selectedParserSearchConfigId),
     );
-    const fallback = commonConfig?.form ?? defaultParserSearchForm;
     return selectedConfig
-      ? sourceSearchDraftFromFilters(selectedConfig.filters, fallback)
-      : sourceSearchDraftFromForm(fallback);
+      ? sourceSearchDraftFromFilters(
+          selectedConfig.filters,
+          commonConfig?.form ?? defaultParserSearchForm,
+        )
+      : sourceSearchDraftFromForm(defaultParserSearchForm);
   }
 
   function activateSearchSource(source: ActiveSearchSource) {
+    hasParserSearchInteractionRef.current = true;
     setActiveSearchSource(source);
     if (source !== "direct_companies") {
       const draft = sourceDraftFor(source);
@@ -4556,6 +4607,7 @@ export default function HomePage() {
   }
 
   function toggleDirectCompanies() {
+    hasParserSearchInteractionRef.current = true;
     setParserSearchForm((current) => {
       const directCompaniesEnabled = !current.directCompaniesEnabled;
       return {
@@ -4567,61 +4619,129 @@ export default function HomePage() {
             : current.parsers,
       };
     });
-    setSelectedSearchPresetId("");
     setParserSearchStatus("idle");
     setParserSearchMessage("");
   }
 
   function updateSelectedDirectCompanies(companyIds: string[]) {
+    hasParserSearchInteractionRef.current = true;
     setParserSearchForm((current) => ({
       ...current,
       directCompanyIds: normalizeDirectCompanyIds(companyIds),
     }));
-    setSelectedSearchPresetId("");
     setParserSearchStatus("idle");
     setParserSearchMessage("");
   }
 
-  function defaultSourceConfigMapping(
-    configId: string,
-    sources: ParserId[],
-  ): Partial<Record<ParserId, string>> {
-    return Object.fromEntries(
-      sources.flatMap((source) => {
-        const sourceConfig = sourceSearchConfigs.find(
-          (config) => config.configId === configId && config.source === source,
-        );
-        return sourceConfig ? [[source, sourceConfig.id]] : [];
-      }),
+  function resetParserSearch() {
+    hasParserSearchInteractionRef.current = true;
+    const defaultSelection = getDefaultLinkedInSearchSelection(
+      parserSearchConfigs,
+      sourceSearchConfigs,
     );
+    setParserSearchForm(
+      defaultSelection?.form ?? { ...defaultParserSearchForm },
+    );
+    setActiveSearchSource("linkedin");
+    setSourceSearchDrafts(
+      defaultSelection ? { linkedin: defaultSelection.draft } : {},
+    );
+    setSelectedParserSearchConfigId(
+      defaultSelection?.commonConfigId ?? "",
+    );
+    setSelectedSourceConfigIds(
+      defaultSelection
+        ? { linkedin: defaultSelection.sourceConfigId }
+        : {},
+    );
+    setParserSearchStatus("idle");
+    setParserSearchMessage("");
   }
 
   function selectSourceSearchConfig(source: ParserId, configId: string) {
-    setSelectedSourceConfigIds((current) => ({
-      ...current,
-      [source]: configId || undefined,
-    }));
+    hasParserSearchInteractionRef.current = true;
     const selectedConfig = sourceSearchConfigs.find(
       (config) => config.id === configId && config.source === source,
     );
+    const incompatibleSources = selectedConfig
+      ? (["linkedin", "indeed", "jobs_ch"] as const).filter(
+          (mappedSource) => {
+            const mappedConfig = sourceSearchConfigs.find(
+              (config) => config.id === selectedSourceConfigIds[mappedSource],
+            );
+            return Boolean(
+              mappedSource !== source &&
+                mappedConfig &&
+                mappedConfig.configId !== selectedConfig.configId,
+            );
+          },
+        )
+      : [];
+    setSelectedSourceConfigIds((current) => {
+      const next = { ...current };
+      if (!selectedConfig) {
+        delete next[source];
+        return next;
+      }
+
+      for (const mappedSource of ["linkedin", "indeed", "jobs_ch"] as const) {
+        const mappedConfig = sourceSearchConfigs.find(
+          (config) => config.id === next[mappedSource],
+        );
+        if (
+          mappedConfig &&
+          mappedConfig.configId !== selectedConfig.configId
+        ) {
+          delete next[mappedSource];
+        }
+      }
+      next[source] = selectedConfig.id;
+      return next;
+    });
+    if (selectedConfig) {
+      setSelectedParserSearchConfigId(selectedConfig.configId);
+    }
     const commonConfig = parserSearchConfigs.find(
-      (config) => config.id === selectedParserSearchConfigId,
+      (config) =>
+        config.id ===
+        (selectedConfig?.configId ?? selectedParserSearchConfigId),
     );
     const draft = selectedConfig
       ? sourceSearchDraftFromFilters(
           selectedConfig.filters,
           commonConfig?.form ?? defaultParserSearchForm,
         )
-      : sourceSearchDraftFromForm(
-          commonConfig?.form ?? defaultParserSearchForm,
-        );
-    setSourceSearchDrafts((current) => ({ ...current, [source]: draft }));
+      : sourceSearchDraftFromForm(defaultParserSearchForm);
+    setSourceSearchDrafts((current) => {
+      const next = { ...current, [source]: draft };
+      for (const incompatibleSource of incompatibleSources) {
+        delete next[incompatibleSource];
+      }
+      return next;
+    });
     if (activeSearchSource === source) {
-      setParserSearchForm((current) => ({ ...current, ...draft }));
+      setParserSearchForm((current) => ({
+        ...current,
+        ...draft,
+        ...(commonConfig
+          ? {
+              searchName: commonConfig.name,
+              folder: commonConfig.form.folder,
+            }
+          : {}),
+      }));
     }
-    setSelectedSearchPresetId("");
-    setParserSearchStatus("idle");
-    setParserSearchMessage("");
+    if (incompatibleSources.length > 0) {
+      setParserSearchStatus("ready");
+      setParserSearchMessage(
+        `Cleared incompatible configs for ${incompatibleSources
+          .map(getParserLabel)
+          .join(", ")}`,
+      );
+    } else {
+      setParserSearchStatus("idle");
+      setParserSearchMessage("");
+    }
   }
 
   async function saveSourceSearchConfig(source: ParserId) {
@@ -4675,7 +4795,6 @@ export default function HomePage() {
           : [saved, ...current],
       );
       setSelectedSourceConfigIds((current) => ({ ...current, [source]: saved.id }));
-      setSelectedSearchPresetId("");
       setParserSearchStatus("ready");
       setParserSearchMessage(`Saved ${sourceLabel} query config`);
     } catch (error) {
@@ -4683,113 +4802,6 @@ export default function HomePage() {
       setParserSearchMessage(
         error instanceof Error ? error.message : `${sourceLabel} config save failed`,
       );
-    }
-  }
-
-  function loadSearchPreset(presetId: string) {
-    const preset = searchPresets.find((item) => item.id === presetId);
-    if (!preset) {
-      setSelectedSearchPresetId("");
-      return;
-    }
-    loadParserSearchConfig(preset.configId);
-    const parserIds = preset.sources.filter(
-      (source): source is ParserId =>
-        source === "linkedin" || source === "indeed" || source === "jobs_ch",
-    );
-    const directCompanyIds = normalizeDirectCompanyIds(preset.sources);
-    const nextActiveSource: ActiveSearchSource =
-      parserIds.length > 0
-        ? parserIds[0]
-        : directCompanyIds.length > 0
-          ? "direct_companies"
-          : "linkedin";
-    setParserSearchForm((current) => ({
-      ...current,
-      parsers: parserIds,
-      directCompaniesEnabled: directCompanyIds.length > 0,
-      directCompanyIds,
-    }));
-    setSelectedSourceConfigIds(preset.sourceConfigIds);
-    const activeSourceConfig =
-      nextActiveSource === "direct_companies"
-        ? undefined
-        : sourceSearchConfigs.find(
-            (config) =>
-              config.id === preset.sourceConfigIds[nextActiveSource] &&
-              config.source === nextActiveSource,
-          );
-    const activeSourceDraft = activeSourceConfig
-      ? sourceSearchDraftFromFilters(
-          activeSourceConfig.filters,
-          parserSearchConfigs.find((config) => config.id === preset.configId)?.form ??
-            defaultParserSearchForm,
-        )
-      : undefined;
-    setSourceSearchDrafts(
-      nextActiveSource !== "direct_companies" && activeSourceDraft
-        ? { [nextActiveSource]: activeSourceDraft }
-        : {},
-    );
-    if (activeSourceDraft) {
-      setParserSearchForm((current) => ({
-        ...current,
-        ...activeSourceDraft,
-        parsers: parserIds,
-        directCompaniesEnabled: directCompanyIds.length > 0,
-        directCompanyIds,
-      }));
-    }
-    setActiveSearchSource(nextActiveSource);
-    setSelectedSearchPresetId(presetId);
-    setParserSearchStatus("ready");
-    setParserSearchMessage(`Loaded preset: ${preset.name}`);
-  }
-
-  async function saveSearchPreset() {
-    if (!selectedParserSearchConfigId) {
-      setParserSearchStatus("error");
-      setParserSearchMessage("Select a saved common profile first");
-      return;
-    }
-    const sources = parserSearchSourceIds(parserSearchForm);
-    const missingSource = parserSearchForm.parsers.find(
-      (source) => !selectedSourceConfigIds[source],
-    );
-    if (missingSource) {
-      setParserSearchStatus("error");
-      setParserSearchMessage(`Select a query config for ${getParserLabel(missingSource)}`);
-      return;
-    }
-    const commonConfig = parserSearchConfigs.find(
-      (config) => config.id === selectedParserSearchConfigId,
-    );
-    setParserSearchStatus("loading");
-    setParserSearchMessage("Saving source preset...");
-    try {
-      const response = await fetch(`${apiBaseUrl}/job-search/presets`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          name: `${commonConfig?.name ?? "Search"} · ${sources.length} sources`,
-          configId: selectedParserSearchConfigId,
-          sources,
-          sourceConfigIds: Object.fromEntries(
-            parserSearchForm.parsers.map((source) => [source, selectedSourceConfigIds[source]]),
-          ),
-        }),
-      });
-      if (!response.ok) {
-        throw new Error(await readApiErrorMessage(response, "Preset save failed"));
-      }
-      const saved = (await response.json()) as JobSearchPresetPayload;
-      setSearchPresets((current) => [saved, ...current]);
-      setSelectedSearchPresetId(saved.id);
-      setParserSearchStatus("ready");
-      setParserSearchMessage(`Saved preset: ${saved.name}`);
-    } catch (error) {
-      setParserSearchStatus("error");
-      setParserSearchMessage(error instanceof Error ? error.message : "Preset save failed");
     }
   }
 
@@ -4841,166 +4853,6 @@ export default function HomePage() {
     } catch (error) {
       setAiSettingsSaveStatus("error");
       setAiSettingsSaveMessage(error instanceof Error ? error.message : "AI settings save failed");
-    }
-  }
-
-  async function saveParserSearchConfig() {
-    const configName = parserSearchForm.searchName.trim();
-    if (!configName) {
-      setParserSearchStatus("error");
-      setParserSearchMessage("Enter a config name before saving");
-      return;
-    }
-    const formToSave = { ...parserSearchForm, searchName: configName };
-    const isUpdate = Boolean(selectedParserSearchConfigId);
-    setParserSearchStatus("loading");
-    setParserSearchMessage(
-      `${isUpdate ? "Updating" : "Saving"} config: ${configName}`,
-    );
-
-    try {
-      let currentFilters =
-        parserSearchConfigs.find(
-          (config) => config.id === selectedParserSearchConfigId,
-        )?.filters ?? {};
-      if (isUpdate) {
-        const currentResponse = await fetch(
-          `${apiBaseUrl}/job-search/configs/${encodeURIComponent(
-            selectedParserSearchConfigId,
-          )}`,
-          { cache: "no-store" },
-        );
-        if (!currentResponse.ok) {
-          throw new Error(
-            await readApiErrorMessage(
-              currentResponse,
-              "Current search config could not be loaded",
-            ),
-          );
-        }
-        currentFilters = (
-          (await currentResponse.json()) as JobSearchConfigPayload
-        ).filters;
-      }
-      const response = await fetch(
-        `${apiBaseUrl}/job-search/configs${
-          isUpdate
-            ? `/${encodeURIComponent(selectedParserSearchConfigId)}`
-            : ""
-        }`,
-        {
-          method: isUpdate ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: configName,
-            filters: parserSearchFiltersFromForm(
-              formToSave,
-              currentFilters,
-            ),
-          }),
-        },
-      );
-      if (!response.ok) {
-        throw new Error(
-          await readApiErrorMessage(response, "Search config save failed"),
-        );
-      }
-
-      const savedConfig = parserSearchConfigFromApi(
-        (await response.json()) as JobSearchConfigPayload,
-      );
-      setParserSearchConfigs((currentConfigs) =>
-        currentConfigs.some((config) => config.id === savedConfig.id)
-          ? currentConfigs.map((config) =>
-              config.id === savedConfig.id ? savedConfig : config,
-            )
-          : [savedConfig, ...currentConfigs],
-      );
-      setSelectedParserSearchConfigId(savedConfig.id);
-      setSelectedSourceConfigIds(
-        defaultSourceConfigMapping(savedConfig.id, parserSearchForm.parsers),
-      );
-      setSelectedSearchPresetId("");
-      setParserSearchForm((currentForm) => ({
-        ...defaultParserSearchForm,
-        ...savedConfig.form,
-        parsers: currentForm.parsers,
-        directCompaniesEnabled: currentForm.directCompaniesEnabled,
-        directCompanyIds: currentForm.directCompanyIds,
-        searchName: savedConfig.name,
-      }));
-      setParserSearchStatus("ready");
-      setParserSearchMessage(`Saved config: ${configName}`);
-    } catch (error) {
-      setParserSearchStatus("error");
-      setParserSearchMessage(
-        error instanceof Error ? error.message : "Search config save failed",
-      );
-    }
-  }
-
-  function loadParserSearchConfig(configId: string) {
-    const config = parserSearchConfigs.find((item) => item.id === configId);
-    setSelectedParserSearchConfigId(configId);
-
-    if (!config) return;
-
-    const sourceConfigMapping = defaultSourceConfigMapping(
-      config.id,
-      parserSearchForm.parsers,
-    );
-    setSelectedSourceConfigIds(sourceConfigMapping);
-    setSourceSearchDrafts({});
-    setSelectedSearchPresetId("");
-
-    setParserSearchForm((currentForm) => ({
-      ...defaultParserSearchForm,
-      ...config.form,
-      parsers: currentForm.parsers,
-      directCompaniesEnabled: currentForm.directCompaniesEnabled,
-      directCompanyIds: currentForm.directCompanyIds,
-      searchName: config.name,
-    }));
-    setParserSearchStatus("ready");
-    setParserSearchMessage(`Loaded config: ${config.name}`);
-  }
-
-  async function deleteParserSearchConfig() {
-    if (!selectedParserSearchConfigId) return;
-
-    const deletedConfig = parserSearchConfigs.find((config) => config.id === selectedParserSearchConfigId);
-    setParserSearchStatus("loading");
-    setParserSearchMessage(
-      deletedConfig ? `Deleting config: ${deletedConfig.name}` : "Deleting config",
-    );
-    try {
-      const response = await fetch(
-        `${apiBaseUrl}/job-search/configs/${encodeURIComponent(selectedParserSearchConfigId)}`,
-        { method: "DELETE" },
-      );
-      if (!response.ok) {
-        throw new Error(
-          await readApiErrorMessage(response, "Search config delete failed"),
-        );
-      }
-      setParserSearchConfigs((currentConfigs) =>
-        currentConfigs.filter(
-          (config) => config.id !== selectedParserSearchConfigId,
-        ),
-      );
-      setSelectedParserSearchConfigId("");
-      setSelectedSourceConfigIds({});
-      setSourceSearchDrafts({});
-      setSelectedSearchPresetId("");
-      setParserSearchStatus("ready");
-      setParserSearchMessage(
-        deletedConfig ? `Deleted config: ${deletedConfig.name}` : "Deleted config",
-      );
-    } catch (error) {
-      setParserSearchStatus("error");
-      setParserSearchMessage(
-        error instanceof Error ? error.message : "Search config delete failed",
-      );
     }
   }
 
@@ -6161,6 +6013,7 @@ export default function HomePage() {
   }
 
   async function runParsers() {
+    hasParserSearchInteractionRef.current = true;
     const sources = parserSearchSourceIds(parserSearchForm);
     if (sources.length === 0) {
       const message = "Select at least one parser or direct company.";
@@ -6217,6 +6070,9 @@ export default function HomePage() {
       const selectedConfig = parserSearchConfigs.find(
         (config) => config.id === selectedParserSearchConfigId,
       );
+      const shouldUseSelectedConfig = Boolean(
+        selectedConfig && parserSearchForm.parsers.length > 0,
+      );
       const sourceConfigIds = Object.fromEntries(
         parserSearchForm.parsers.flatMap((source) => {
           const sourceConfigId = selectedSourceConfigIds[source];
@@ -6227,7 +6083,7 @@ export default function HomePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          ...(selectedConfig
+          ...(shouldUseSelectedConfig && selectedConfig
             ? { configId: selectedConfig.id }
             : {
                 config: {
@@ -7056,7 +6912,7 @@ export default function HomePage() {
 
         {isParserDialogOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 p-2 backdrop-blur-sm sm:p-3">
-            <div className="panel flex h-[calc(100dvh-16px)] w-full max-w-[1480px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:h-[calc(100dvh-24px)] sm:p-5">
+            <div className="panel flex h-[calc(100dvh-16px)] w-full max-w-[1280px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:h-[calc(100dvh-24px)] sm:p-5">
               <div className="flex shrink-0 items-start justify-between gap-4">
                 <div>
                   <h2 className="text-[22px] font-bold leading-tight text-white 2xl:text-[24px]">Search vacancies</h2>
@@ -7192,16 +7048,7 @@ export default function HomePage() {
                       <button
                         type="button"
                         className="inline-flex items-center gap-2 text-xs font-bold text-muted transition hover:text-white"
-                        onClick={() => {
-                          setParserSearchForm(defaultParserSearchForm);
-                          setActiveSearchSource("linkedin");
-                          setSourceSearchDrafts({});
-                          setSelectedParserSearchConfigId("");
-                          setSelectedSourceConfigIds({});
-                          setSelectedSearchPresetId("");
-                          setParserSearchStatus("idle");
-                          setParserSearchMessage("");
-                        }}
+                        onClick={resetParserSearch}
                       >
                         <RotateCcw className="h-4 w-4" />
                         Reset to defaults
@@ -7209,6 +7056,63 @@ export default function HomePage() {
                     </div>
 
                     <div className="mt-4 grid gap-4">
+                      {activeSearchSource !== "direct_companies" && (() => {
+                        const source = activeSearchSource;
+                        const availableConfigs = sourceSearchConfigs.filter(
+                          (config) => config.source === source,
+                        );
+                        const hasSelectedConfig = Boolean(
+                          selectedSourceConfigIds[source],
+                        );
+                        return (
+                          <div className="grid gap-3 rounded-md border border-accent/25 bg-accent/[0.025] p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
+                            <label className="grid gap-2">
+                              <span className="text-xs font-bold text-[#d8dee8]">
+                                Query config
+                              </span>
+                              <select
+                                aria-label={`${getParserLabel(source)} query config`}
+                                value={selectedSourceConfigIds[source] ?? ""}
+                                onChange={(event) =>
+                                  selectSourceSearchConfig(
+                                    source,
+                                    event.target.value,
+                                  )
+                                }
+                                className="h-9 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                              >
+                                <option value="">
+                                  {availableConfigs.length > 0
+                                    ? "Select query config"
+                                    : "No query configs available"}
+                                </option>
+                                {availableConfigs.map((config) => (
+                                  <option key={config.id} value={config.id}>
+                                    {getSourceSearchConfigLabel(config)}
+                                  </option>
+                                ))}
+                              </select>
+                            </label>
+                            {selectedParserSearchConfigId && (
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                aria-label={`Save ${getParserLabel(source)} query config`}
+                                className="h-9 rounded-md border border-border bg-transparent px-3 text-xs text-[#e6ebf3] hover:bg-white/[0.06]"
+                                onClick={() =>
+                                  void saveSourceSearchConfig(source)
+                                }
+                              >
+                                <Save className="h-4 w-4" />
+                                {hasSelectedConfig
+                                  ? "Save changes"
+                                  : "Save as config"}
+                              </Button>
+                            )}
+                          </div>
+                        );
+                      })()}
+
                       {activeSearchSource === "direct_companies" && (
                         <DirectCompaniesSource
                           companies={directCompanyCatalog}
@@ -7228,7 +7132,7 @@ export default function HomePage() {
                         <span className="text-xs font-medium text-muted">Use keywords to find relevant vacancies</span>
                       </label>
 
-                      <div className="grid gap-4 md:grid-cols-2">
+                      <div className="grid gap-4 lg:grid-cols-2">
                         <label className="grid gap-2">
                           <span className="text-xs font-bold text-[#d8dee8]">Location</span>
                           <input
@@ -7268,7 +7172,7 @@ export default function HomePage() {
                             <option>Mid-Senior level</option>
                             <option>Director</option>
                           </select>
-                          <span className="text-xs font-medium text-muted">Applied to vacancies from every selected source</span>
+                          <span className="text-xs font-medium text-muted">Filter by experience level</span>
                         </label>
 
                         <label className="grid gap-2">
@@ -7308,7 +7212,7 @@ export default function HomePage() {
                           <h4 className="text-sm font-bold text-white">Additional settings</h4>
                           <ChevronDown className="h-4 w-4 rotate-180 text-muted" />
                         </div>
-                        <div className="mt-4 grid gap-4 md:grid-cols-2">
+                        <div className="mt-4 grid gap-4 lg:grid-cols-2">
                           <label className="grid gap-2">
                             <span className="text-xs font-bold text-[#d8dee8]">Results limit</span>
                             <input
@@ -7364,198 +7268,10 @@ export default function HomePage() {
                   </section>
                 </div>
 
-                <div className="grid border-t border-border xl:grid-cols-2">
-                <section className="min-w-0 p-4 xl:border-r xl:border-border 2xl:p-5">
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-bold text-white">3. Source query configs</h3>
-                      <p className="mt-1 text-xs font-medium text-muted">
-                        LinkedIn, Indeed and jobs.ch each use their own query. Direct companies use the common profile.
-                      </p>
-                    </div>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-9 rounded-md border border-border bg-transparent px-4 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
-                      disabled={!selectedParserSearchConfigId || parserSearchForm.parsers.length === 0}
-                      onClick={() => void saveSearchPreset()}
-                    >
-                      <Save className="h-4 w-4" />
-                      Save source preset
-                    </Button>
-                  </div>
-
-                  <label className="mt-4 grid gap-2">
-                    <span className="text-xs font-bold text-[#d8dee8]">Saved run preset</span>
-                    <select
-                      aria-label="Saved run preset"
-                      value={selectedSearchPresetId}
-                      onChange={(event) => loadSearchPreset(event.target.value)}
-                      className="h-9 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-muted outline-none focus:border-accent/70"
-                    >
-                      <option value="">Choose profile + source mapping</option>
-                      {searchPresets.map((preset) => (
-                        <option key={preset.id} value={preset.id}>
-                          {preset.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-
-                  <div className="mt-4 grid gap-3">
-                    {activeSearchSource !== "direct_companies" && (() => {
-                      const source = activeSearchSource;
-                      const compatibleConfigs = sourceSearchConfigs.filter(
-                        (config) =>
-                          config.source === source &&
-                          config.configId === selectedParserSearchConfigId,
-                      );
-                      return (
-                        <div className="rounded-md border border-accent/30 bg-accent/[0.035] p-3">
-                          <div className="flex flex-wrap items-center justify-between gap-2">
-                            <div>
-                              <p className="text-sm font-bold text-white">{getParserLabel(source)}</p>
-                              <p className="mt-1 text-xs font-medium text-muted">
-                                {parserSearchForm.parsers.includes(source)
-                                  ? "Included in the next search"
-                                  : "Not included; configuration is still editable"}
-                              </p>
-                            </div>
-                            <span className={cn(
-                              "rounded px-2 py-1 text-[10px] font-bold uppercase tracking-wide",
-                              parserSearchForm.parsers.includes(source)
-                                ? "bg-success/15 text-success"
-                                : "bg-white/[0.06] text-muted",
-                            )}>
-                              {parserSearchForm.parsers.includes(source) ? "Enabled" : "Disabled"}
-                            </span>
-                          </div>
-                          <select
-                            aria-label={`${getParserLabel(source)} query config`}
-                            value={selectedSourceConfigIds[source] ?? ""}
-                            onChange={(event) => selectSourceSearchConfig(source, event.target.value)}
-                            className="mt-3 h-9 w-full rounded-md border border-border bg-[#0d131a] px-3 text-xs font-semibold text-muted outline-none focus:border-accent/70"
-                          >
-                            <option value="">Select query config</option>
-                            {compatibleConfigs.map((config) => (
-                              <option key={config.id} value={config.id}>{config.name}</option>
-                            ))}
-                          </select>
-                          <button
-                            type="button"
-                            className="mt-3 text-xs font-bold text-accent hover:text-[#ff8a4c]"
-                            onClick={() => void saveSourceSearchConfig(source)}
-                          >
-                            {selectedSourceConfigIds[source]
-                              ? "Update from fields above"
-                              : "Create from fields above"}
-                          </button>
-                        </div>
-                      );
-                    })()}
-                    {activeSearchSource === "direct_companies" && parserSearchForm.directCompanyIds.length > 0 && (
-                      <div className="rounded-md border border-[#8b5cf6]/30 bg-[#8b5cf6]/[0.06] p-3">
-                        <p className="text-sm font-bold text-white">Direct companies</p>
-                        <p className="mt-2 text-xs font-medium text-muted">
-                          {parserSearchForm.directCompanyIds.map(getParserLabel).join(", ")} use the common profile; no query config is needed.
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </section>
-
-                <section className="min-w-0 border-t border-border p-4 xl:border-t-0 2xl:p-5">
-                  <h3 className="text-sm font-bold text-white">4. Common profiles</h3>
-                  <div className="mt-4 grid gap-4 md:grid-cols-[minmax(0,1fr)_320px]">
-                    <label className="grid gap-2 md:col-span-2">
-                      <span className="text-xs font-bold text-[#d8dee8]">Existing configs</span>
-                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                        <select
-                          aria-label="Existing configs"
-                          value={selectedParserSearchConfigId}
-                          onChange={(event) => loadParserSearchConfig(event.target.value)}
-                          className="h-9 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-muted outline-none focus:border-accent/70"
-                        >
-                          <option value="">Select saved config</option>
-                          {parserSearchConfigs.map((config) => (
-                            <option key={config.id} value={config.id}>
-                              {config.name}
-                            </option>
-                          ))}
-                        </select>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          className="h-9 rounded-md border border-border bg-transparent px-3 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
-                          disabled={!selectedParserSearchConfigId}
-                          onClick={() => void deleteParserSearchConfig()}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                          Delete
-                        </Button>
-                      </div>
-                      <span className="text-xs font-medium text-muted">Saved on the server and available to automatic searches</span>
-                    </label>
-
-                    <label className="grid gap-2">
-                      <span className="text-xs font-bold text-[#d8dee8]">Config name</span>
-                      <input
-                        value={parserSearchForm.searchName}
-                        onChange={(event) => updateParserSearchForm("searchName", event.target.value)}
-                        placeholder="e.g. Product Designer Remote Jobs"
-                        className="h-9 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
-                      />
-                      <span className="text-xs font-medium text-muted">Name current settings to run them again later</span>
-                    </label>
-
-                    <label className="grid gap-2">
-                      <span className="text-xs font-bold text-[#d8dee8]">Save to folder</span>
-                      <select
-                        value={parserSearchForm.folder}
-                        onChange={(event) => updateParserSearchForm("folder", event.target.value)}
-                        className="h-9 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-muted outline-none focus:border-accent/70"
-                      >
-                        <option value="">Select folder (optional)</option>
-                        <option>Design roles</option>
-                        <option>Remote jobs</option>
-                        <option>High match</option>
-                      </select>
-                    </label>
-                  </div>
-                  <div className="mt-4 flex flex-wrap gap-2">
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-9 rounded-md border border-accent/55 bg-accent/12 px-4 text-[13px] text-white hover:bg-accent/18"
-                      onClick={() => void saveParserSearchConfig()}
-                    >
-                      <Save className="h-4 w-4" />
-                      Save config
-                    </Button>
-                    <Button
-                      type="button"
-                      variant="ghost"
-                      className="h-9 rounded-md border border-border bg-transparent px-4 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
-                      onClick={() => {
-                        setParserSearchForm(defaultParserSearchForm);
-                        setActiveSearchSource("linkedin");
-                        setSourceSearchDrafts({});
-                        setSelectedParserSearchConfigId("");
-                        setSelectedSourceConfigIds({});
-                        setSelectedSearchPresetId("");
-                        setParserSearchStatus("idle");
-                        setParserSearchMessage("");
-                      }}
-                    >
-                      New config
-                    </Button>
-                  </div>
-                </section>
-                </div>
               </div>
 
               <div className="mt-4 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                <p className="text-sm font-semibold text-muted">
+                <p aria-live="polite" className="text-sm font-semibold text-muted">
                   Sources: <span className="text-white">{getSearchSourcesLabel(parserSearchForm)}</span>
                   {parserSearchMessage && (
                     <span className={cn("ml-2", parserSearchStatus === "error" ? "text-[#ff7a7a]" : "text-accent")}>
