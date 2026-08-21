@@ -498,6 +498,12 @@ def execute_job_search(
         enabled=analysis_enabled,
         settings=settings,
         owner_id=get_bound_owner_id(),
+        progress_callback=lambda processed, total: update_run_ai_match_progress(
+            db,
+            run=run,
+            processed=processed,
+            total=total,
+        ),
     )
     run.jobs_analyzed = (
         len(new_jobs)
@@ -588,6 +594,31 @@ def update_run_screening_progress(
                 "uncertain": progress.uncertain,
                 "errors": progress.errors,
                 "aiCalls": progress.ai_calls,
+                "runId": run.id,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    )
+
+
+def update_run_ai_match_progress(
+    db: Session,
+    *,
+    run: JobSearchRunRecord,
+    processed: int,
+    total: int,
+) -> None:
+    run.jobs_analyzed = processed
+    db.commit()
+    logger.info(
+        json.dumps(
+            {
+                "event": "ai_match.progress",
+                "message": "Vacancy AI Match progress",
+                "sources": [source_display_name(source) for source in run.sources],
+                "processed": processed,
+                "total": total,
                 "runId": run.id,
             },
             ensure_ascii=False,
@@ -1162,6 +1193,7 @@ def match_new_jobs_if_allowed(
     enabled: bool,
     settings: Settings,
     owner_id: str,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> str | None:
     if not enabled or not jobs:
         return None
@@ -1185,6 +1217,7 @@ def match_new_jobs_if_allowed(
             profile,
             jobs,
             candidate_snapshot=candidate_snapshot.data,
+            progress_callback=progress_callback,
         )
         for matched_job in matched_jobs:
             persist_job_and_match(

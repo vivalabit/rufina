@@ -81,6 +81,10 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 import { formatParserFailure } from "@/lib/parser-errors";
+import {
+  getJobSearchProgress,
+  type JobSearchProgressPhase,
+} from "@/lib/job-search-progress";
 import { cn } from "@/lib/utils";
 
 type AiMatchMetadata = {
@@ -6206,6 +6210,7 @@ export default function HomePage() {
       sources,
       parsersLabel,
       Date.now(),
+      appSettings.auto_ai_match_enabled,
     );
 
     try {
@@ -6309,12 +6314,15 @@ export default function HomePage() {
     sources: string[],
     parsersLabel: string,
     startedAfterMs: number,
+    autoAiMatchEnabled: boolean,
   ) {
     let stopped = false;
     let timeoutId: number | null = null;
     let trackedRunId: string | null = null;
     let previousJobsFound = 0;
     let previousJobsScreened = 0;
+    let previousJobsAnalyzed = 0;
+    let previousPhase: JobSearchProgressPhase | null = null;
 
     const sameSources = (candidateSources: string[]) =>
       candidateSources.length === sources.length &&
@@ -6344,6 +6352,38 @@ export default function HomePage() {
 
           if (run) {
             trackedRunId = run.id;
+            const progress = getJobSearchProgress(
+              run,
+              parsersLabel,
+              (Date.now() - startedAfterMs) / 1_000,
+              autoAiMatchEnabled,
+            );
+            setParserSearchMessage(progress.message);
+            if (progress.phase !== previousPhase) {
+              if (progress.phase === "parsing") {
+                appendAppLog({
+                  level: "info",
+                  area: "Vacancy search",
+                  message: `${parsersLabel} parser is processing the request`,
+                  details: "Waiting for the source provider to prepare results.",
+                });
+              } else if (progress.phase === "screening") {
+                appendAppLog({
+                  level: "info",
+                  area: "Vacancy screening",
+                  message: `${parsersLabel} screening started`,
+                  details: `${progress.screeningTotal} new vacancies queued for screening.`,
+                });
+              } else if (progress.phase === "matching") {
+                appendAppLog({
+                  level: "info",
+                  area: "AI Match",
+                  message: `${parsersLabel} AI Match started`,
+                  details: `${run.jobsAdded} accepted vacancies queued for analysis.`,
+                });
+              }
+              previousPhase = progress.phase;
+            }
             if (run.jobsFound > 0 && previousJobsFound === 0) {
               appendAppLog({
                 level: "info",
@@ -6369,10 +6409,21 @@ export default function HomePage() {
                 ].join("\n"),
               });
             }
+            if (run.jobsAnalyzed > previousJobsAnalyzed) {
+              appendAppLog({
+                level: "info",
+                area: "AI Match",
+                message: `${parsersLabel}: ${run.jobsAnalyzed} of ${run.jobsAdded} vacancies analyzed`,
+              });
+            }
             previousJobsFound = Math.max(previousJobsFound, run.jobsFound);
             previousJobsScreened = Math.max(
               previousJobsScreened,
               run.jobsScreened,
+            );
+            previousJobsAnalyzed = Math.max(
+              previousJobsAnalyzed,
+              run.jobsAnalyzed,
             );
           }
         }

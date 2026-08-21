@@ -6,11 +6,19 @@ import re
 import subprocess
 import time
 import unicodedata
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Annotated, Any, Literal
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints, ValidationError, model_validator
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    StringConstraints,
+    ValidationError,
+    model_validator,
+)
 
 from app.core.settings import Settings
 from app.models.profile import ProfilePayload
@@ -291,6 +299,7 @@ class VacancyMatchingAIFacade:
         *,
         force: bool = False,
         candidate_snapshot: dict[str, Any] | None = None,
+        progress_callback: Callable[[int, int], None] | None = None,
     ) -> list[dict[str, Any]]:
         return calculate_ai_matches(
             profile,
@@ -307,6 +316,7 @@ class VacancyMatchingAIFacade:
             force=force,
             candidate_snapshot=candidate_snapshot,
             backend=self.backend,
+            progress_callback=progress_callback,
         )
 
 
@@ -341,6 +351,7 @@ def calculate_ai_matches(
     force: bool = False,
     candidate_snapshot: dict[str, Any] | None = None,
     backend: AIBackend | None = None,
+    progress_callback: Callable[[int, int], None] | None = None,
 ) -> list[dict[str, Any]]:
     if not openclaw_enabled:
         raise AiMatchError("AI vacancy matching is required but disabled")
@@ -417,6 +428,11 @@ def calculate_ai_matches(
                 if isinstance(result.get("id"), str)
             }
         )
+        if progress_callback is not None:
+            progress_callback(
+                min(start + len(chunk), len(jobs_to_score)),
+                len(jobs_to_score),
+            )
 
     scored_ids = {job_snapshot["id"] for _, job_snapshot, _ in jobs_to_score}
     missing_ids = sorted(scored_ids - set(by_id))

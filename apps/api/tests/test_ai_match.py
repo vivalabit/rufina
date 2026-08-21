@@ -669,6 +669,43 @@ def test_incomplete_ai_match_is_retried_and_never_synthetically_completed(
     ]
 
 
+def test_ai_match_reports_progress_after_each_batch(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(
+        ai_match_service,
+        "score_with_openclaw",
+        lambda *, jobs, **_: [valid_match_result(job["id"]) for job in jobs],
+    )
+    progress: list[tuple[int, int]] = []
+    jobs = [
+        {
+            "id": f"job-progress-{index}",
+            "title": "Python Engineer",
+            "company": "Acme",
+            "requirements": ["Python"],
+            "skills": ["Python"],
+        }
+        for index in range(5)
+    ]
+
+    calculate_ai_matches(
+        ProfilePayload(skills="Python"),
+        jobs,
+        command="openclaw",
+        agent_id="main",
+        thinking="low",
+        timeout_seconds=1,
+        openclaw_enabled=True,
+        openclaw_max_jobs=2,
+        progress_callback=lambda processed, total: progress.append(
+            (processed, total)
+        ),
+    )
+
+    assert progress == [(2, 5), (4, 5), (5, 5)]
+
+
 def test_ai_match_records_provider_neutral_backend_source(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
