@@ -2838,6 +2838,19 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "intersim_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="kaiko_ai",
+        name="kaiko.ai Zürich",
+        careers_url="https://jobs.kaiko.ai/jobs?location=Z%C3%BCrich",
+        parser_path="app.services.parsers.companies.kaiko_ai:KaikoAiJobsParser",
+        settings_map=(
+            ("base_url", "kaiko_ai_jobs_base_url"),
+            ("feed_url", "kaiko_ai_jobs_feed_url"),
+            ("timeout_seconds", "kaiko_ai_jobs_timeout_seconds"),
+            ("max_jobs", "kaiko_ai_jobs_max_jobs"),
+            ("detail_workers", "kaiko_ai_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

@@ -1608,6 +1608,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 24,
     logoHeight: 24,
   },
+  {
+    id: "kaiko_ai",
+    name: "kaiko.ai Zürich",
+    careersUrl: "https://jobs.kaiko.ai/jobs?location=Z%C3%BCrich",
+    logoSrc: "/company-logos/kaiko_ai.svg",
+    logoAlt: "kaiko.ai logo",
+    logoWidth: 24,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

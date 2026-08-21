@@ -26,6 +26,23 @@ describe("Intersim AG Direct Company catalog entry", () => {
   });
 });
 
+describe("kaiko.ai Zürich Direct Company catalog entry", () => {
+  it("is selectable and resolves imported vacancy IDs to the official logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "kaiko_ai");
+
+    expect(company).toEqual({
+      id: "kaiko_ai",
+      name: "kaiko.ai Zürich",
+      careersUrl: "https://jobs.kaiko.ai/jobs?location=Z%C3%BCrich",
+      logoSrc: "/company-logos/kaiko_ai.svg",
+      logoAlt: "kaiko.ai logo",
+      logoWidth: 24,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("kaiko_ai-8086622")).toBe(company);
+  });
+});
+
 describe("Gilead Sciences Switzerland Direct Company catalog entry", () => {
   it("is selectable and resolves imported vacancy IDs to the official logo", () => {
     const company = directCompanyCatalog.find(
