@@ -2247,6 +2247,25 @@ class Settings(BaseSettings):
         ge=1,
         le=12,
     )
+    hint_ag_jobs_base_url: str = "https://hintag.ch/jobs/stellenangebote/"
+    hint_ag_jobs_portal_url: str = (
+        "https://jobs.dualoo.com/portal/t1jerlne?lang=DE"
+    )
+    hint_ag_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    hint_ag_jobs_max_jobs: int = Field(
+        default=100,
+        ge=1,
+        le=1_000,
+    )
+    hint_ag_jobs_detail_workers: int = Field(
+        default=8,
+        ge=1,
+        le=12,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

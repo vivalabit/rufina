@@ -2812,6 +2812,19 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "helsana_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="hint_ag",
+        name="HINT AG",
+        careers_url="https://hintag.ch/jobs/stellenangebote/",
+        parser_path="app.services.parsers.companies.hint_ag:HintAgJobsParser",
+        settings_map=(
+            ("base_url", "hint_ag_jobs_base_url"),
+            ("portal_url", "hint_ag_jobs_portal_url"),
+            ("timeout_seconds", "hint_ag_jobs_timeout_seconds"),
+            ("max_jobs", "hint_ag_jobs_max_jobs"),
+            ("detail_workers", "hint_ag_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

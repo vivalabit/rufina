@@ -2229,3 +2229,22 @@ describe("Helsana Direct Company catalog entry", () => {
     ).toBe(company);
   });
 });
+
+describe("HINT AG Direct Company catalog entry", () => {
+  it("uses the official open positions page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "hint_ag");
+
+    expect(company).toEqual({
+      id: "hint_ag",
+      name: "HINT AG",
+      careersUrl: "https://hintag.ch/jobs/stellenangebote/",
+      logoSrc: "/company-logos/hint_ag.svg",
+      logoAlt: "HINT AG logo",
+      logoWidth: 63,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId("hint_ag-78ded90e-40e4-468e-8702-53698e58d2b3"),
+    ).toBe(company);
+  });
+});

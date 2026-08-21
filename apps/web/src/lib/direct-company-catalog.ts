@@ -1590,6 +1590,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 127,
     logoHeight: 24,
   },
+  {
+    id: "hint_ag",
+    name: "HINT AG",
+    careersUrl: "https://hintag.ch/jobs/stellenangebote/",
+    logoSrc: "/company-logos/hint_ag.svg",
+    logoAlt: "HINT AG logo",
+    logoWidth: 63,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
