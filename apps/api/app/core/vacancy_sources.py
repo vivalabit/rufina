@@ -2748,6 +2748,18 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "datahouse_zurich_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="esurance",
+        name="esurance AG",
+        careers_url="https://esurance.ch/work-with-us/?lang=en",
+        parser_path="app.services.parsers.companies.esurance:EsuranceJobsParser",
+        settings_map=(
+            ("base_url", "esurance_jobs_base_url"),
+            ("timeout_seconds", "esurance_jobs_timeout_seconds"),
+            ("max_jobs", "esurance_jobs_max_jobs"),
+            ("detail_workers", "esurance_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

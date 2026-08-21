@@ -2151,3 +2151,20 @@ describe("Datahouse Zurich Direct Company catalog entry", () => {
     );
   });
 });
+
+describe("esurance AG Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "esurance");
+
+    expect(company).toEqual({
+      id: "esurance",
+      name: "esurance AG",
+      careersUrl: "https://esurance.ch/work-with-us/?lang=en",
+      logoSrc: "/company-logos/esurance.svg",
+      logoAlt: "esurance AG logo",
+      logoWidth: 135,
+      logoHeight: 24,
+    });
+    expect(getDirectCompanyByJobId("esurance-2759674")).toBe(company);
+  });
+});

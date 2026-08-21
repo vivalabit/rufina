@@ -1552,6 +1552,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 111,
     logoHeight: 24,
   },
+  {
+    id: "esurance",
+    name: "esurance AG",
+    careersUrl: "https://esurance.ch/work-with-us/?lang=en",
+    logoSrc: "/company-logos/esurance.svg",
+    logoAlt: "esurance AG logo",
+    logoWidth: 135,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {
