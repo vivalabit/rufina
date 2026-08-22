@@ -5,6 +5,29 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("Rey Technology Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "rey_technology",
+    );
+
+    expect(company).toEqual({
+      id: "rey_technology",
+      name: "Rey Technology",
+      careersUrl: "https://www.rey-technology.com/en/career/vacancies/",
+      logoSrc: "/company-logos/rey_technology.svg",
+      logoAlt: "Rey Technology logo",
+      logoWidth: 59,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "rey_technology-software-engineer-service-mfd",
+      ),
+    ).toBe(company);
+  });
+});
+
 describe("Operaio GmbH Direct Company catalog entry", () => {
   it("uses the official careers page and local logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "operaio");

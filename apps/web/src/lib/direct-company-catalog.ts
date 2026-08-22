@@ -1644,6 +1644,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 14,
     logoHeight: 24,
   },
+  {
+    id: "rey_technology",
+    name: "Rey Technology",
+    careersUrl: "https://www.rey-technology.com/en/career/vacancies/",
+    logoSrc: "/company-logos/rey_technology.svg",
+    logoAlt: "Rey Technology logo",
+    logoWidth: 59,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

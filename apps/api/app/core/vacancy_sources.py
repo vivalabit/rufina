@@ -2886,6 +2886,21 @@ DIRECT_COMPANY_PARSERS = (
             ("max_jobs", "operaio_jobs_max_jobs"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="rey_technology",
+        name="Rey Technology",
+        careers_url="https://www.rey-technology.com/en/career/vacancies/",
+        parser_path=(
+            "app.services.parsers.companies.rey_technology:"
+            "ReyTechnologyJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "rey_technology_jobs_base_url"),
+            ("timeout_seconds", "rey_technology_jobs_timeout_seconds"),
+            ("max_jobs", "rey_technology_jobs_max_jobs"),
+            ("detail_workers", "rey_technology_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
