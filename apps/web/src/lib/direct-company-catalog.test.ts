@@ -5,6 +5,23 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("smino AG Direct Company catalog entry", () => {
+  it("uses the official Personio careers page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "smino");
+
+    expect(company).toEqual({
+      id: "smino",
+      name: "smino AG",
+      careersUrl: "https://smino.jobs.personio.com/",
+      logoSrc: "/company-logos/smino.svg",
+      logoAlt: "smino AG logo",
+      logoWidth: 141,
+      logoHeight: 23,
+    });
+    expect(getDirectCompanyByJobId("smino-2691240")).toBe(company);
+  });
+});
+
 describe("SCHURTER AG Direct Company catalog entry", () => {
   it("uses the official Swiss careers filter and local logo", () => {
     const company = directCompanyCatalog.find(

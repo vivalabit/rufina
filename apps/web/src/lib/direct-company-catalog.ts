@@ -1663,6 +1663,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 24,
     logoHeight: 24,
   },
+  {
+    id: "smino",
+    name: "smino AG",
+    careersUrl: "https://smino.jobs.personio.com/",
+    logoSrc: "/company-logos/smino.svg",
+    logoAlt: "smino AG logo",
+    logoWidth: 141,
+    logoHeight: 23,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

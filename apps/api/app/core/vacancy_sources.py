@@ -2918,6 +2918,18 @@ DIRECT_COMPANY_PARSERS = (
             ("max_jobs", "schurter_switzerland_jobs_max_jobs"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="smino",
+        name="smino AG",
+        careers_url="https://smino.jobs.personio.com/",
+        parser_path="app.services.parsers.companies.smino:SminoJobsParser",
+        settings_map=(
+            ("base_url", "smino_jobs_base_url"),
+            ("timeout_seconds", "smino_jobs_timeout_seconds"),
+            ("max_jobs", "smino_jobs_max_jobs"),
+            ("detail_workers", "smino_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)
