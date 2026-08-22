@@ -2338,6 +2338,17 @@ class Settings(BaseSettings):
         ge=1,
         le=12,
     )
+    operaio_jobs_base_url: str = "https://www.operaio.ch/en/career"
+    operaio_jobs_timeout_seconds: float = Field(
+        default=30.0,
+        ge=1,
+        le=120,
+    )
+    operaio_jobs_max_jobs: int = Field(
+        default=100,
+        ge=1,
+        le=1_000,
+    )
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

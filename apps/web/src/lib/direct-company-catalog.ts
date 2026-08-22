@@ -1635,6 +1635,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 54,
     logoHeight: 16,
   },
+  {
+    id: "operaio",
+    name: "Operaio GmbH",
+    careersUrl: "https://www.operaio.ch/en/career",
+    logoSrc: "/company-logos/operaio.svg",
+    logoAlt: "Operaio GmbH logo",
+    logoWidth: 14,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

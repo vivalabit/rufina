@@ -2875,6 +2875,17 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "lake_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="operaio",
+        name="Operaio GmbH",
+        careers_url="https://www.operaio.ch/en/career",
+        parser_path="app.services.parsers.companies.operaio:OperaioJobsParser",
+        settings_map=(
+            ("base_url", "operaio_jobs_base_url"),
+            ("timeout_seconds", "operaio_jobs_timeout_seconds"),
+            ("max_jobs", "operaio_jobs_max_jobs"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

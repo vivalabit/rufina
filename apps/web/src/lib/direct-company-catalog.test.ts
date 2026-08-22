@@ -5,6 +5,27 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("Operaio GmbH Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "operaio");
+
+    expect(company).toEqual({
+      id: "operaio",
+      name: "Operaio GmbH",
+      careersUrl: "https://www.operaio.ch/en/career",
+      logoSrc: "/company-logos/operaio.svg",
+      logoAlt: "Operaio GmbH logo",
+      logoWidth: 14,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "operaio-e9124916-3f52-4809-a221-8aa47859e4f4",
+      ),
+    ).toBe(company);
+  });
+});
+
 describe("LAKE Solutions AG Direct Company catalog entry", () => {
   it("uses the official careers page and local logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "lake");
