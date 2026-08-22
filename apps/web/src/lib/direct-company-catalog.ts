@@ -1626,6 +1626,15 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 24,
     logoHeight: 24,
   },
+  {
+    id: "lake",
+    name: "LAKE Solutions AG",
+    careersUrl: "https://lake.ch/ueber-uns/karriere",
+    logoSrc: "/company-logos/lake.svg",
+    logoAlt: "LAKE Solutions AG logo",
+    logoWidth: 54,
+    logoHeight: 16,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

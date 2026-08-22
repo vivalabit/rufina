@@ -2863,6 +2863,18 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "karakun_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="lake",
+        name="LAKE Solutions AG",
+        careers_url="https://lake.ch/ueber-uns/karriere",
+        parser_path="app.services.parsers.companies.lake:LakeJobsParser",
+        settings_map=(
+            ("base_url", "lake_jobs_base_url"),
+            ("timeout_seconds", "lake_jobs_timeout_seconds"),
+            ("max_jobs", "lake_jobs_max_jobs"),
+            ("detail_workers", "lake_jobs_detail_workers"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

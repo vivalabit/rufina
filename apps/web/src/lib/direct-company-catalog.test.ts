@@ -5,6 +5,25 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("LAKE Solutions AG Direct Company catalog entry", () => {
+  it("uses the official careers page and local logo", () => {
+    const company = directCompanyCatalog.find((item) => item.id === "lake");
+
+    expect(company).toEqual({
+      id: "lake",
+      name: "LAKE Solutions AG",
+      careersUrl: "https://lake.ch/ueber-uns/karriere",
+      logoSrc: "/company-logos/lake.svg",
+      logoAlt: "LAKE Solutions AG logo",
+      logoWidth: 54,
+      logoHeight: 16,
+    });
+    expect(getDirectCompanyByJobId("lake-service-desk-support-engineer")).toBe(
+      company,
+    );
+  });
+});
+
 describe("Karakun AG Direct Company catalog entry", () => {
   it("uses the official careers page and local logo", () => {
     const company = directCompanyCatalog.find((item) => item.id === "karakun");
