@@ -1653,6 +1653,16 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     logoWidth: 59,
     logoHeight: 24,
   },
+  {
+    id: "schurter_switzerland",
+    name: "SCHURTER AG",
+    careersUrl:
+      "https://www.schurter.com/de/karriere/offene-stellen?country=CH",
+    logoSrc: "/company-logos/schurter_switzerland.svg",
+    logoAlt: "SCHURTER AG logo",
+    logoWidth: 24,
+    logoHeight: 24,
+  },
 ];
 
 export function getDirectCompanyByJobId(jobId: string) {

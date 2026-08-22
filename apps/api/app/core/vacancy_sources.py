@@ -2901,6 +2901,23 @@ DIRECT_COMPANY_PARSERS = (
             ("detail_workers", "rey_technology_jobs_detail_workers"),
         ),
     ),
+    DirectCompanyParserDefinition(
+        id="schurter_switzerland",
+        name="SCHURTER AG",
+        careers_url=(
+            "https://www.schurter.com/de/karriere/offene-stellen?country=CH"
+        ),
+        parser_path=(
+            "app.services.parsers.companies.schurter_switzerland:"
+            "SchurterSwitzerlandJobsParser"
+        ),
+        settings_map=(
+            ("base_url", "schurter_switzerland_jobs_base_url"),
+            ("api_url", "schurter_switzerland_jobs_api_url"),
+            ("timeout_seconds", "schurter_switzerland_jobs_timeout_seconds"),
+            ("max_jobs", "schurter_switzerland_jobs_max_jobs"),
+        ),
+    ),
 )
 
 DIRECT_COMPANY_SOURCE_IDS = tuple(item.id for item in DIRECT_COMPANY_PARSERS)

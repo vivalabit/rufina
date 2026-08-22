@@ -5,6 +5,30 @@ import {
   getDirectCompanyByJobId,
 } from "@/lib/direct-company-catalog";
 
+describe("SCHURTER AG Direct Company catalog entry", () => {
+  it("uses the official Swiss careers filter and local logo", () => {
+    const company = directCompanyCatalog.find(
+      (item) => item.id === "schurter_switzerland",
+    );
+
+    expect(company).toEqual({
+      id: "schurter_switzerland",
+      name: "SCHURTER AG",
+      careersUrl:
+        "https://www.schurter.com/de/karriere/offene-stellen?country=CH",
+      logoSrc: "/company-logos/schurter_switzerland.svg",
+      logoAlt: "SCHURTER AG logo",
+      logoWidth: 24,
+      logoHeight: 24,
+    });
+    expect(
+      getDirectCompanyByJobId(
+        "schurter_switzerland-4UYnS1iMvgbTvYCDNoIdQ5",
+      ),
+    ).toBe(company);
+  });
+});
+
 describe("Rey Technology Direct Company catalog entry", () => {
   it("uses the official careers page and local logo", () => {
     const company = directCompanyCatalog.find(
