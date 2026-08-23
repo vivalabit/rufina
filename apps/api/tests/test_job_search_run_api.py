@@ -175,6 +175,70 @@ def test_manual_run_uses_source_specific_queries_from_preset(
     assert snapshot["sourceConfigs"]["indeed"]["id"] == source_config_ids["indeed"]
 
 
+def test_manual_run_rejects_mixed_profiles_so_each_uses_its_own_run(
+    api_context: ApiContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers = {"X-Rufina-Owner-Id": "mixed-source-config-owner"}
+    runner = FakeRunner(
+        VacancySearchRunResult(jobs=[], source_results={}, source_errors={})
+    )
+    monkeypatch.setattr(
+        job_search_api,
+        "create_vacancy_search_runner",
+        lambda _settings: runner,
+    )
+    profiles = {}
+    for profile_name in ("Entry IT", "Senior IT"):
+        response = api_context.client.post(
+            "/job-search/configs",
+            headers=headers,
+            json={
+                "name": profile_name,
+                "filters": {
+                    "schemaVersion": 2,
+                    "search": {"keywords": f"{profile_name} fallback"},
+                    "screening": {"enabled": True},
+                },
+            },
+        )
+        assert response.status_code == 201
+        profiles[profile_name] = response.json()
+
+    source_config_ids = {}
+    for source, profile_name, keywords in (
+        ("linkedin", "Entry IT", "linkedin entry query"),
+        ("jobs_ch", "Senior IT", "jobs.ch senior query"),
+    ):
+        response = api_context.client.post(
+            "/job-search/source-configs",
+            headers=headers,
+            json={
+                "name": f"{profile_name} · {source}",
+                "configId": profiles[profile_name]["id"],
+                "source": source,
+                "filters": {"keywords": keywords},
+            },
+        )
+        assert response.status_code == 201
+        source_config_ids[source] = response.json()["id"]
+
+    response = api_context.client.post(
+        "/job-search/run",
+        headers=headers,
+        json={
+            "configId": profiles["Senior IT"]["id"],
+            "sources": ["linkedin", "jobs_ch"],
+            "sourceConfigIds": source_config_ids,
+            "aiAnalysisEnabled": False,
+        },
+    )
+
+    assert response.status_code == 422
+    assert "belongs to another common profile" in response.json()["detail"]
+    assert runner.requests == []
+
+
 def test_manual_run_uses_explicit_direct_company_source_with_common_config(
     api_context: ApiContext,
     monkeypatch: pytest.MonkeyPatch,

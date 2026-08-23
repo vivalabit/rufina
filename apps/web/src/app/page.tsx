@@ -4666,37 +4666,11 @@ export default function HomePage() {
     const selectedConfig = sourceSearchConfigs.find(
       (config) => config.id === configId && config.source === source,
     );
-    const incompatibleSources = selectedConfig
-      ? (["linkedin", "indeed", "jobs_ch"] as const).filter(
-          (mappedSource) => {
-            const mappedConfig = sourceSearchConfigs.find(
-              (config) => config.id === selectedSourceConfigIds[mappedSource],
-            );
-            return Boolean(
-              mappedSource !== source &&
-                mappedConfig &&
-                mappedConfig.configId !== selectedConfig.configId,
-            );
-          },
-        )
-      : [];
     setSelectedSourceConfigIds((current) => {
       const next = { ...current };
       if (!selectedConfig) {
         delete next[source];
         return next;
-      }
-
-      for (const mappedSource of ["linkedin", "indeed", "jobs_ch"] as const) {
-        const mappedConfig = sourceSearchConfigs.find(
-          (config) => config.id === next[mappedSource],
-        );
-        if (
-          mappedConfig &&
-          mappedConfig.configId !== selectedConfig.configId
-        ) {
-          delete next[mappedSource];
-        }
       }
       next[source] = selectedConfig.id;
       return next;
@@ -4715,13 +4689,7 @@ export default function HomePage() {
           commonConfig?.form ?? defaultParserSearchForm,
         )
       : sourceSearchDraftFromForm(defaultParserSearchForm);
-    setSourceSearchDrafts((current) => {
-      const next = { ...current, [source]: draft };
-      for (const incompatibleSource of incompatibleSources) {
-        delete next[incompatibleSource];
-      }
-      return next;
-    });
+    setSourceSearchDrafts((current) => ({ ...current, [source]: draft }));
     if (activeSearchSource === source) {
       setParserSearchForm((current) => ({
         ...current,
@@ -4734,17 +4702,8 @@ export default function HomePage() {
           : {}),
       }));
     }
-    if (incompatibleSources.length > 0) {
-      setParserSearchStatus("ready");
-      setParserSearchMessage(
-        `Cleared incompatible configs for ${incompatibleSources
-          .map(getParserLabel)
-          .join(", ")}`,
-      );
-    } else {
-      setParserSearchStatus("idle");
-      setParserSearchMessage("");
-    }
+    setParserSearchStatus("idle");
+    setParserSearchMessage("");
   }
 
   async function saveSourceSearchConfig(source: ParserId) {
@@ -6047,6 +6006,64 @@ export default function HomePage() {
       }
     }
     const parsersLabel = sources.map(getParserLabel).join(" + ");
+    const selectedParserSources = new Set<string>(parserSearchForm.parsers);
+    const directSources = sources.filter(
+      (source) => !selectedParserSources.has(source),
+    );
+    const runGroups = new Map<
+      string,
+      {
+        configId: string | null;
+        sources: string[];
+        sourceConfigIds: Record<string, string>;
+      }
+    >();
+    const addRunGroup = (
+      configId: string,
+      groupSources: string[],
+      sourceConfigIds: Record<string, string> = {},
+    ) => {
+      const existing = runGroups.get(configId);
+      if (existing) {
+        existing.sources.push(...groupSources);
+        Object.assign(existing.sourceConfigIds, sourceConfigIds);
+        return;
+      }
+      runGroups.set(configId, {
+        configId,
+        sources: [...groupSources],
+        sourceConfigIds: { ...sourceConfigIds },
+      });
+    };
+
+    if (selectedParserSearchConfigId && parserSearchForm.parsers.length > 0) {
+      for (const source of parserSearchForm.parsers) {
+        const sourceConfigId = selectedSourceConfigIds[source];
+        const sourceConfig = sourceSearchConfigs.find(
+          (config) => config.id === sourceConfigId && config.source === source,
+        );
+        if (!sourceConfig || !sourceConfigId) {
+          activateSearchSource(source);
+          const message = `Selected query config for ${getParserLabel(source)} is no longer available`;
+          setParserSearchStatus("error");
+          setParserSearchMessage(message);
+          return;
+        }
+        addRunGroup(sourceConfig.configId, [source], {
+          [source]: sourceConfigId,
+        });
+      }
+      if (directSources.length > 0) {
+        addRunGroup(selectedParserSearchConfigId, directSources);
+      }
+    } else {
+      runGroups.set("inline", {
+        configId: null,
+        sources,
+        sourceConfigIds: {},
+      });
+    }
+    const groupedRuns = [...runGroups.values()];
     setParserSearchStatus("loading");
     setParserSearchMessage(`Searching ${parsersLabel}...`);
     appendAppLog({
@@ -6054,7 +6071,7 @@ export default function HomePage() {
       area: "Vacancy search",
       message: `${parsersLabel} vacancy search started`,
       details: [
-        "Common source config",
+        `${groupedRuns.length} independent config ${groupedRuns.length === 1 ? "flow" : "flows"}`,
         `Keywords: ${parserSearchForm.keywords || "Any"}`,
         `Location: ${parserSearchForm.location || parserSearchForm.country || "Any"}`,
         `Remote: ${parserSearchForm.remote}`,
@@ -6062,70 +6079,110 @@ export default function HomePage() {
       ].join("\n"),
     });
 
-    const progressPolling = startJobSearchProgressPolling(
-      sources,
-      parsersLabel,
-      Date.now(),
-      appSettings.auto_ai_match_enabled,
-    );
-
     try {
-      const selectedConfig = parserSearchConfigs.find(
-        (config) => config.id === selectedParserSearchConfigId,
-      );
-      const shouldUseSelectedConfig = Boolean(
-        selectedConfig && parserSearchForm.parsers.length > 0,
-      );
-      const sourceConfigIds = Object.fromEntries(
-        parserSearchForm.parsers.flatMap((source) => {
-          const sourceConfigId = selectedSourceConfigIds[source];
-          return sourceConfigId ? [[source, sourceConfigId]] : [];
-        }),
-      );
-      const response = await fetch(`${apiBaseUrl}/job-search/run`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          ...(shouldUseSelectedConfig && selectedConfig
-            ? { configId: selectedConfig.id }
-            : {
-                config: {
-                  name:
-                    parserSearchForm.searchName.trim() ||
-                    "Manual search",
-                  filters:
-                    parserSearchFiltersFromForm(parserSearchForm),
-                },
-              }),
-          sources,
-          sourceConfigIds,
-          aiAnalysisEnabled: true,
-        }),
-      });
-      if (!response.ok) {
+      const runs: JobSearchRunPayload[] = [];
+      const requestFailures: Array<{ sources: string[]; message: string }> = [];
+      for (const group of groupedRuns) {
+        const groupLabel = group.sources.map(getParserLabel).join(" + ");
+        setParserSearchMessage(`Searching ${groupLabel}...`);
+        const progressPolling = startJobSearchProgressPolling(
+          group.sources,
+          groupLabel,
+          Date.now(),
+          appSettings.auto_ai_match_enabled,
+        );
+        try {
+          const response = await fetch(`${apiBaseUrl}/job-search/run`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...(group.configId
+                ? { configId: group.configId }
+                : {
+                    config: {
+                      name:
+                        parserSearchForm.searchName.trim() || "Manual search",
+                      filters: parserSearchFiltersFromForm(parserSearchForm),
+                    },
+                  }),
+              sources: group.sources,
+              sourceConfigIds: group.sourceConfigIds,
+              aiAnalysisEnabled: true,
+            }),
+          });
+          if (!response.ok) {
+            throw new Error(
+              await readApiErrorMessage(response, `${groupLabel} search failed`),
+            );
+          }
+          runs.push((await response.json()) as JobSearchRunPayload);
+        } catch (error) {
+          requestFailures.push({
+            sources: group.sources,
+            message:
+              error instanceof Error ? error.message : `${groupLabel} search failed`,
+          });
+        } finally {
+          progressPolling.stop();
+        }
+      }
+      if (runs.length === 0) {
         throw new Error(
-          await readApiErrorMessage(response, "Vacancy search failed"),
+          requestFailures.map((failure) => failure.message).join("; ") ||
+            "Vacancy search failed",
         );
       }
 
-      const run = (await response.json()) as JobSearchRunPayload;
+      const totals = runs.reduce(
+        (current, run) => ({
+          jobsFound: current.jobsFound + (run.jobsFound ?? 0),
+          jobsScreened: current.jobsScreened + (run.jobsScreened ?? 0),
+          jobsPassed: current.jobsPassed + (run.jobsPassed ?? 0),
+          jobsRejected: current.jobsRejected + (run.jobsRejected ?? 0),
+          jobsUncertain: current.jobsUncertain + (run.jobsUncertain ?? 0),
+          jobsDiscoveredNew:
+            current.jobsDiscoveredNew + (run.jobsDiscoveredNew ?? 0),
+          jobsAdded: current.jobsAdded + (run.jobsAdded ?? 0),
+        }),
+        {
+          jobsFound: 0,
+          jobsScreened: 0,
+          jobsPassed: 0,
+          jobsRejected: 0,
+          jobsUncertain: 0,
+          jobsDiscoveredNew: 0,
+          jobsAdded: 0,
+        },
+      );
+      const sourceErrors = Object.assign(
+        {},
+        ...runs.map((run) => run.sourceErrors ?? {}),
+      ) as Record<string, string>;
+      for (const failure of requestFailures) {
+        for (const source of failure.sources) {
+          sourceErrors[source] = failure.message;
+        }
+      }
       const refreshedJobs = await refreshStoredJobsFromServer();
-      if (run.jobsAdded > 0 && refreshedJobs.length > 0) {
+      if (totals.jobsAdded > 0 && refreshedJobs.length > 0) {
         setSelectedJobId(refreshedJobs[0].id);
         setActiveTab("Overview");
       }
-      const failedSources = Object.entries(run.sourceErrors).map(([source, error]) =>
+      const failedSources = Object.entries(sourceErrors).map(([source, error]) =>
         formatParserFailure(getParserLabel(source), error),
       );
       const finalMessage = failedSources.length
-        ? `Added ${run.jobsAdded} of ${run.jobsFound} vacancies; failed: ${failedSources.join("; ")}`
-        : run.jobsAdded > 0
-          ? `Added ${run.jobsAdded} of ${run.jobsFound} vacancies from ${parsersLabel}`
-          : run.jobsFound > 0
-            ? `Found ${run.jobsFound} vacancies; all were already saved or deleted`
+        ? `Added ${totals.jobsAdded} of ${totals.jobsFound} vacancies; failed: ${failedSources.join("; ")}`
+        : totals.jobsAdded > 0
+          ? `Added ${totals.jobsAdded} of ${totals.jobsFound} vacancies from ${parsersLabel}`
+          : totals.jobsFound > 0
+            ? `Found ${totals.jobsFound} vacancies; all were already saved or deleted`
             : `No vacancies returned from ${parsersLabel}`;
-      const parserMessage = run.warning
-        ? `${finalMessage} · ${run.warning}`
+      const warnings = Array.from(
+        new Set(runs.flatMap((run) => (run.warning ? [run.warning] : []))),
+      );
+      const parserMessage = warnings.length
+        ? `${finalMessage} · ${warnings.join(" · ")}`
         : finalMessage;
       const message = parserMessage;
 
@@ -6135,23 +6192,23 @@ export default function HomePage() {
         level:
           failedSources.length > 0
             ? "warning"
-            : run.jobsAdded > 0
+            : totals.jobsAdded > 0
               ? "success"
               : "warning",
         area: "Vacancy search",
-        message: `${parsersLabel} search finished: ${run.jobsFound} found, ${run.jobsPassed} matched config, ${run.jobsAdded} added`,
+        message: `${parsersLabel} search finished: ${totals.jobsFound} found, ${totals.jobsPassed} matched config, ${totals.jobsAdded} added`,
         details:
           failedSources.length > 0
-            ? Object.entries(run.sourceErrors)
+            ? Object.entries(sourceErrors)
                 .map(([source, error]) => `${getParserLabel(source)}: ${error}`)
                 .join("\n")
             : [
-                `Screened: ${run.jobsScreened}`,
-                `Matched config: ${run.jobsPassed}`,
-                `Rejected: ${run.jobsRejected}`,
-                `Uncertain: ${run.jobsUncertain}`,
-                `New inventory vacancies: ${run.jobsDiscoveredNew}`,
-                `Added to Jobs: ${run.jobsAdded}`,
+                `Screened: ${totals.jobsScreened}`,
+                `Matched config: ${totals.jobsPassed}`,
+                `Rejected: ${totals.jobsRejected}`,
+                `Uncertain: ${totals.jobsUncertain}`,
+                `New inventory vacancies: ${totals.jobsDiscoveredNew}`,
+                `Added to Jobs: ${totals.jobsAdded}`,
               ].join("\n"),
       });
     } catch (error) {
@@ -6164,8 +6221,6 @@ export default function HomePage() {
         area: "Vacancy search",
         message,
       });
-    } finally {
-      progressPolling.stop();
     }
   }
 
@@ -6195,6 +6250,7 @@ export default function HomePage() {
         const response = await fetch(`${apiBaseUrl}/job-search/runs?limit=20`, {
           cache: "no-store",
         });
+        if (stopped) return;
         if (response.ok) {
           const runs = (await response.json()) as JobSearchRunPayload[];
           const run = trackedRunId

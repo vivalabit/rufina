@@ -2354,8 +2354,9 @@ it("selects a separate query config inside each source's settings", async () => 
   });
 });
 
-it("clears hidden drafts when a source switches to another profile", async () => {
+it("keeps each source config selected when profiles differ", async () => {
   window.history.replaceState(null, "", "#jobs");
+  const runBodies: Array<Record<string, unknown>> = [];
   const commonConfigs = [
     {
       id: "entry-it",
@@ -2391,11 +2392,11 @@ it("clears hidden drafts when a source switches to another profile", async () =>
       updatedAt: "2026-07-21T00:00:00.000Z",
     },
     {
-      id: "senior-it-indeed",
-      name: "Senior IT · Indeed",
+      id: "senior-it-jobs-ch",
+      name: "Senior IT · jobs.ch",
       configId: "senior-it",
-      source: "indeed",
-      filters: { keywords: "indeed senior query" },
+      source: "jobs_ch",
+      filters: { keywords: "jobs.ch senior query" },
       createdAt: "2026-07-21T00:00:00.000Z",
       updatedAt: "2026-07-21T00:00:00.000Z",
     },
@@ -2414,6 +2415,16 @@ it("clears hidden drafts when a source switches to another profile", async () =>
     }
     if (url.pathname === "/job-search/source-configs" && method === "GET") {
       return Response.json(sourceConfigs);
+    }
+    if (url.pathname === "/job-search/run" && method === "POST") {
+      runBodies.push(JSON.parse(String(init?.body)) as Record<string, unknown>);
+      return Response.json({
+        status: "completed",
+        jobsFound: 0,
+        jobsAdded: 0,
+        sourceErrors: {},
+        warning: null,
+      });
     }
     if (
       (url.pathname === "/jobs" ||
@@ -2450,21 +2461,43 @@ it("clears hidden drafts when a source switches to another profile", async () =>
       "entry-it-linkedin",
     );
   });
-  fireEvent.click(screen.getByRole("button", { name: "Configure Indeed" }));
-  fireEvent.change(screen.getByLabelText("Indeed query config"), {
-    target: { value: "senior-it-indeed" },
+  fireEvent.click(
+    screen.getByRole("button", { name: "Include jobs.ch in search" }),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Configure jobs.ch" }));
+  fireEvent.change(screen.getByLabelText("jobs.ch query config"), {
+    target: { value: "senior-it-jobs-ch" },
   });
 
-  expect(
-    screen.getByText("Cleared incompatible configs for LinkedIn"),
-  ).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Configure LinkedIn" }));
-  expect(screen.getByLabelText("LinkedIn query config")).toHaveValue("");
+  expect(screen.getByLabelText("LinkedIn query config")).toHaveValue(
+    "entry-it-linkedin",
+  );
   expect(
     screen.getByPlaceholderText(
       "e.g. Product Designer, UX Designer, Design System",
     ),
-  ).toHaveValue("");
+  ).toHaveValue("linkedin entry query");
+
+  fireEvent.click(screen.getByRole("button", { name: "Start search" }));
+  expect(
+    await screen.findByText("No vacancies returned from LinkedIn + jobs.ch"),
+  ).toBeInTheDocument();
+  expect(runBodies).toHaveLength(2);
+  expect(runBodies[0]).toMatchObject({
+    configId: "entry-it",
+    sources: ["linkedin"],
+    sourceConfigIds: {
+      linkedin: "entry-it-linkedin",
+    },
+  });
+  expect(runBodies[1]).toMatchObject({
+    configId: "senior-it",
+    sources: ["jobs_ch"],
+    sourceConfigIds: {
+      jobs_ch: "senior-it-jobs-ch",
+    },
+  });
 });
 
 it("imports legacy local search configs to the server only once", async () => {

@@ -738,6 +738,7 @@ def build_source_config_snapshots(
         source: {
             "id": record.id,
             "name": record.name,
+            "configId": record.config_id,
             "source": record.source,
             "filters": deepcopy(record.filters),
             "createdAt": serialize_datetime(record.created_at),
