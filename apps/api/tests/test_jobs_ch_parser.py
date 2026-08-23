@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime, timedelta
 
 import httpx
 from fastapi.testclient import TestClient
@@ -11,6 +12,7 @@ from app.services.parsers.jobs_ch import (
     JobsChRequestError,
     extract_job_posting_schema,
     extract_js_object,
+    is_within_date_posted_window,
     normalize_jobs_ch_url,
 )
 
@@ -73,6 +75,18 @@ def test_jobs_ch_parser_builds_search_url() -> None:
 
     assert parser.build_search_url(request) == (
         "https://www.jobs.ch/en/vacancies/?term=Platform+Engineer&location=Z%C3%BCrich"
+    )
+
+
+def test_jobs_ch_parser_applies_publication_date_to_search_url() -> None:
+    parser = JobsChParser()
+    request = JobsChSearchRequest(
+        keywords="Platform Engineer",
+        date_posted="Past 24 hours",
+    )
+
+    assert parser.build_search_url(request) == (
+        "https://www.jobs.ch/en/vacancies/?term=Platform+Engineer&publication-date=1"
     )
 
 
@@ -191,6 +205,68 @@ def test_jobs_ch_keeps_listing_when_detail_request_fails() -> None:
     assert response.jobs[0].raw["detail_error"]
 
 
+def test_jobs_ch_strictly_excludes_results_older_than_24_hours() -> None:
+    fresh_date = (datetime.now(UTC) - timedelta(hours=2)).isoformat()
+    old_date = (datetime.now(UTC) - timedelta(days=2)).isoformat()
+
+    def detail_html(date_posted: str, vacancy_id: str) -> str:
+        return DETAIL_HTML.replace(
+            "2026-07-20T06:06:18+02:00", date_posted
+        ).replace("vac-1", vacancy_id)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/en/vacancies/":
+            assert request.url.params["publication-date"] == "1"
+            return httpx.Response(
+                200,
+                text=search_html(
+                    {"id": "fresh", "title": "Fresh job", "publicationDate": fresh_date},
+                    {"id": "old", "title": "Old job", "publicationDate": old_date},
+                    {
+                        "id": "relisted",
+                        "title": "Relisted old job",
+                        "publicationDate": fresh_date,
+                        "initialPublicationDate": old_date,
+                    },
+                ),
+            )
+        if request.url.path == "/en/vacancies/detail/fresh/":
+            return httpx.Response(200, text=detail_html(fresh_date, "fresh"))
+        if request.url.path == "/en/vacancies/detail/old/":
+            return httpx.Response(200, text=detail_html(old_date, "old"))
+        if request.url.path == "/en/vacancies/detail/relisted/":
+            return httpx.Response(200, text=detail_html(fresh_date, "relisted"))
+        return httpx.Response(404)
+
+    parser = JobsChParser(
+        base_url="https://jobs.example.test",
+        detail_workers=1,
+        transport=httpx.MockTransport(handler),
+    )
+
+    response = parser.search(
+        JobsChSearchRequest(date_posted="Past 24 hours", results_limit=10)
+    )
+
+    assert [job.raw["id"] for job in response.jobs] == ["fresh"]
+
+
+def test_jobs_ch_date_window_rejects_missing_invalid_and_future_dates() -> None:
+    now = datetime(2026, 8, 23, 12, tzinfo=UTC)
+
+    assert is_within_date_posted_window(
+        "2026-08-22T12:00:01+00:00", "Past 24 hours", now=now
+    )
+    assert not is_within_date_posted_window(
+        "2026-08-22T11:59:59+00:00", "Past 24 hours", now=now
+    )
+    assert not is_within_date_posted_window(None, "Past 24 hours", now=now)
+    assert not is_within_date_posted_window("not-a-date", "Past 24 hours", now=now)
+    assert not is_within_date_posted_window(
+        "2026-08-23T12:00:01+00:00", "Past 24 hours", now=now
+    )
+
+
 def test_jobs_ch_reports_filters_not_supported_by_reference_parser() -> None:
     request = JobsChSearchRequest(
         remote="Remote only",
@@ -204,7 +280,7 @@ def test_jobs_ch_reports_filters_not_supported_by_reference_parser() -> None:
 
     assert message == (
         "jobs.ch does not apply these filters: remote, experience level, job type, "
-        "date posted, country"
+        "country"
     )
 
 

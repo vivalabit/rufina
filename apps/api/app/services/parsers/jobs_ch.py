@@ -4,8 +4,10 @@ import html
 import json
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import UTC, date, datetime, time, timedelta
 from typing import Any
 from urllib.parse import urlencode, urlsplit, urlunsplit
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -19,6 +21,12 @@ JOBS_CH_HEADERS = {
         "Chrome/123.0 Safari/537.36"
     )
 }
+JOBS_CH_DATE_POSTED = {
+    "Past 24 hours": 1,
+    "Past week": 7,
+    "Past month": 30,
+}
+JOBS_CH_TIMEZONE = ZoneInfo("Europe/Zurich")
 
 
 class JobsChParseError(RuntimeError):
@@ -100,7 +108,16 @@ class JobsChParser:
             selected_records = records[: request.results_limit]
             self.enrich_records(client, selected_records)
 
-        jobs = [self.normalize_job(record) for record in selected_records]
+        jobs: list[ParsedJob] = []
+        for record in selected_records:
+            job = self.normalize_job(record)
+            filter_date = first_string(record.get("initialPublicationDate")) or job.posted_at
+            if request.date_posted != "Any time" and not is_within_date_posted_window(
+                filter_date,
+                request.date_posted,
+            ):
+                continue
+            jobs.append(job)
         if request.deduplicate:
             jobs = self.deduplicate(jobs)
 
@@ -194,6 +211,8 @@ class JobsChParser:
             params["term"] = request.keywords.strip()
         if request.location.strip():
             params["location"] = request.location.strip()
+        if request.date_posted in JOBS_CH_DATE_POSTED:
+            params["publication-date"] = JOBS_CH_DATE_POSTED[request.date_posted]
         if page > 1:
             params["page"] = page
         return params
@@ -207,8 +226,6 @@ class JobsChParser:
             unsupported.append("experience level")
         if request.job_type != "Any":
             unsupported.append("job type")
-        if request.date_posted != "Any time":
-            unsupported.append("date posted")
         if request.country not in {"Any", "Switzerland"}:
             unsupported.append("country")
         if not unsupported:
@@ -269,6 +286,42 @@ def get_results_bucket(init_state: dict[str, Any]) -> dict[str, Any]:
     results = vacancy.get("results", {}) if isinstance(vacancy, dict) else {}
     bucket = results.get("main", {}) if isinstance(results, dict) else {}
     return bucket if isinstance(bucket, dict) else {}
+
+
+def is_within_date_posted_window(
+    value: str | None,
+    date_posted: str,
+    *,
+    now: datetime | None = None,
+) -> bool:
+    """Verify jobs.ch dates locally because promoted results can bypass URL filters."""
+    max_days = JOBS_CH_DATE_POSTED.get(date_posted)
+    if max_days is None:
+        return date_posted == "Any time"
+
+    posted_at = parse_jobs_ch_datetime(value)
+    if posted_at is None:
+        return False
+
+    reference = now or datetime.now(UTC)
+    if reference.tzinfo is None:
+        reference = reference.replace(tzinfo=JOBS_CH_TIMEZONE)
+    age = reference.astimezone(UTC) - posted_at.astimezone(UTC)
+    return timedelta(0) <= age <= timedelta(days=max_days)
+
+
+def parse_jobs_ch_datetime(value: str | None) -> datetime | None:
+    if not value or not value.strip():
+        return None
+
+    raw = value.strip()
+    try:
+        if re.fullmatch(r"\d{4}-\d{2}-\d{2}", raw):
+            return datetime.combine(date.fromisoformat(raw), time.min, tzinfo=JOBS_CH_TIMEZONE)
+        parsed = datetime.fromisoformat(raw)
+    except ValueError:
+        return None
+    return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=JOBS_CH_TIMEZONE)
 
 
 def extract_job_posting_schema(page_html: str) -> dict[str, Any] | None:
