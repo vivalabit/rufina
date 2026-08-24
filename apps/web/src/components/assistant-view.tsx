@@ -1353,20 +1353,20 @@ export function AssistantView({
 
   return (
     <>
-    <section className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
       <header className="mb-3 flex shrink-0 items-start justify-between gap-3 2xl:mb-4">
         <div>
           <div className="flex items-center gap-2.5">
-            <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-[#ff6b12] to-[#e43d00] text-white shadow-[0_10px_28px_rgba(255,90,0,0.28)]">
+            <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-[#e95300] to-[#df4f00] text-foreground shadow-[0_10px_28px_rgba(255,90,0,0.28)]">
               <Sparkles className="h-[18px] w-[18px]" />
             </span>
             <div>
-              <h1 className="text-[24px] font-bold leading-tight text-white sm:text-[27px] 2xl:text-[31px]">AI Assistant</h1>
+              <h1 className="text-[24px] font-bold leading-tight text-foreground sm:text-[27px] 2xl:text-[31px]">AI Assistant</h1>
               <p className="mt-0.5 text-[12px] text-muted 2xl:text-sm">Your context-aware job search workspace</p>
             </div>
           </div>
         </div>
-        <Button onClick={startNewChat} disabled={isGenerating} className="h-9 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#dd3d00] px-3 text-xs 2xl:h-10 2xl:text-sm">
+        <Button onClick={startNewChat} disabled={isGenerating} className="h-9 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-3 text-xs 2xl:h-10 2xl:text-sm">
           <MessageSquarePlus className="h-4 w-4" /> New chat
         </Button>
       </header>
@@ -1381,22 +1381,22 @@ export function AssistantView({
               <button
                 type="button"
                 onClick={() => setShowArchived((value) => !value)}
-                className="flex items-center gap-1 rounded px-1.5 py-1 text-[9px] font-bold uppercase tracking-wide text-muted transition hover:bg-white/10 hover:text-white"
+                className="flex items-center gap-1 rounded px-1.5 py-1 text-[9px] font-bold uppercase tracking-wide text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
               >
                 {showArchived ? <ArchiveRestore className="h-3 w-3" /> : <Archive className="h-3 w-3" />}
                 {showArchived ? "Active" : "Archive"}
               </button>
             </div>
-            <label className="mt-2.5 flex h-9 items-center gap-2 rounded-md border border-border bg-white/[0.035] px-2.5 focus-within:border-accent/60">
+            <label className="mt-2.5 flex h-9 items-center gap-2 rounded-md border border-border bg-[#fff8f1] px-2.5 focus-within:border-accent/60">
               <Search className="h-3.5 w-3.5 text-muted" />
-              <input value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="Search history" className="min-w-0 flex-1 bg-transparent text-xs text-white outline-none placeholder:text-muted" />
+              <input value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="Search history" className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted" />
             </label>
           </div>
           <div className="job-scroll min-h-0 flex-1 overflow-y-auto p-2">
             {filteredThreads.length ? filteredThreads.map((thread) => (
-              <div key={thread.id} className={cn("group relative mb-1 rounded-md border transition", thread.id === activeThreadId ? "border-accent/35 bg-accent/10" : "border-transparent hover:border-border hover:bg-white/[0.035]")}>
+              <div key={thread.id} className={cn("group relative mb-1 rounded-md border transition", thread.id === activeThreadId ? "border-accent/35 bg-accent/10" : "border-transparent hover:border-border hover:bg-[#fff3e8]")}>
                 <button type="button" onClick={() => setActiveThreadId(thread.id)} className="w-full p-2.5 pr-14 text-left">
-                  <p className="line-clamp-2 text-xs font-bold leading-4 text-[#e7ebf2]">{thread.title}</p>
+                  <p className="line-clamp-2 text-xs font-bold leading-4 text-[#1d1e1c]">{thread.title}</p>
                   <div className="mt-1.5 flex items-center justify-between gap-2 text-[10px] text-muted">
                     <span className="truncate">{getContextLabel(thread.contextKind, thread.contextId, jobs, applications)}</span>
                     <span className="shrink-0">{formatThreadDate(thread.updatedAt)}</span>
@@ -1406,11 +1406,11 @@ export function AssistantView({
                   type="button"
                   onClick={() => setThreadArchived(thread.id, !showArchived)}
                   aria-label={showArchived ? "Restore conversation" : "Archive conversation"}
-                  className="absolute right-7 top-2 rounded p-1 text-muted opacity-0 transition hover:bg-white/10 hover:text-white group-hover:opacity-100"
+                  className="absolute right-7 top-2 rounded p-1 text-muted opacity-0 transition hover:bg-[#fff3e8] hover:text-foreground group-hover:opacity-100"
                 >
                   {showArchived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
                 </button>
-                <button type="button" onClick={() => deleteThread(thread.id)} aria-label="Delete conversation" className="absolute right-1.5 top-2 rounded p-1 text-muted opacity-0 transition hover:bg-white/10 hover:text-white group-hover:opacity-100">
+                <button type="button" onClick={() => deleteThread(thread.id)} aria-label="Delete conversation" className="absolute right-1.5 top-2 rounded p-1 text-muted opacity-0 transition hover:bg-[#fff3e8] hover:text-foreground group-hover:opacity-100">
                   <Trash2 className="h-3.5 w-3.5" />
                 </button>
               </div>
@@ -1436,7 +1436,7 @@ export function AssistantView({
                   const nextId = nextKind === "job" ? jobs[0]?.id ?? "" : nextKind === "application" ? applications[0]?.id ?? "" : "";
                   updateThreadContext(nextKind, nextId);
                 }}
-                className="h-8 appearance-none rounded-md border border-border bg-[#151c24] pl-2.5 pr-7 text-xs font-bold text-white outline-none focus:border-accent/60"
+                className="h-8 appearance-none rounded-md border border-border bg-[#ffffff] pl-2.5 pr-7 text-xs font-bold text-foreground outline-none focus:border-accent/60"
               >
                 <option value="profile">My profile</option>
                 <option value="job" disabled={!jobs.length}>Vacancy</option>
@@ -1449,7 +1449,7 @@ export function AssistantView({
                 <select
                   value={contextId}
                   onChange={(event) => updateThreadContext(contextKind, event.target.value)}
-                  className="h-8 w-full appearance-none truncate rounded-md border border-border bg-[#151c24] pl-2.5 pr-7 text-xs font-semibold text-[#dfe4ec] outline-none focus:border-accent/60"
+                  className="h-8 w-full appearance-none truncate rounded-md border border-border bg-[#ffffff] pl-2.5 pr-7 text-xs font-semibold text-[#1d1e1c] outline-none focus:border-accent/60"
                 >
                   {contextKind === "job" ? jobs.map((job) => <option key={job.id} value={job.id}>{job.title} · {job.company}</option>) : applications.map((application) => <option key={application.id} value={application.id}>{application.job.title} · {application.job.company}</option>)}
                 </select>
@@ -1459,15 +1459,15 @@ export function AssistantView({
             <span className={cn(
               "ml-auto hidden items-center gap-1.5 text-[10px] font-semibold sm:inline-flex",
               connectionStatus === "connected" && "text-success",
-              ["connecting", "reconnecting"].includes(connectionStatus) && "text-amber-400",
-              connectionStatus === "disconnected" && "text-red-400",
+              ["connecting", "reconnecting"].includes(connectionStatus) && "text-accent",
+              connectionStatus === "disconnected" && "text-accent",
               connectionStatus === "idle" && "text-muted",
             )}>
               <span className={cn(
                 "h-1.5 w-1.5 rounded-full",
                 connectionStatus === "connected" && "bg-success",
-                ["connecting", "reconnecting"].includes(connectionStatus) && "animate-pulse bg-amber-400",
-                connectionStatus === "disconnected" && "bg-red-400",
+                ["connecting", "reconnecting"].includes(connectionStatus) && "animate-pulse bg-accent",
+                connectionStatus === "disconnected" && "bg-accent",
                 connectionStatus === "idle" && "bg-muted",
               )} /> {connectionLabel}
             </span>
@@ -1480,14 +1480,14 @@ export function AssistantView({
                   <span className="mx-auto grid h-12 w-12 place-items-center rounded-xl border border-accent/30 bg-accent/10 text-accent">
                     <Bot className="h-6 w-6" />
                   </span>
-                  <h2 className="mt-3 text-xl font-bold text-white 2xl:text-2xl">What are we working on?</h2>
+                  <h2 className="mt-3 text-xl font-bold text-foreground 2xl:text-2xl">What are we working on?</h2>
                   <p className="mx-auto mt-1.5 max-w-[540px] text-xs leading-5 text-muted 2xl:text-sm">I use your selected profile, vacancy, or application to make every answer specific and evidence-based.</p>
                 </div>
                 <div className="mt-5 grid gap-2 sm:grid-cols-2 2xl:mt-6 2xl:gap-3">
                   {quickActions.map((action) => (
-                    <button key={action.title} type="button" disabled={showArchived} onClick={() => submitMessage(action.prompt)} className="group rounded-lg border border-border bg-white/[0.025] p-3 text-left transition hover:border-accent/40 hover:bg-accent/[0.07] disabled:cursor-not-allowed disabled:opacity-40 2xl:p-4">
+                    <button key={action.title} type="button" disabled={showArchived} onClick={() => submitMessage(action.prompt)} className="group rounded-lg border border-border bg-[#fff8f1] p-3 text-left transition hover:border-accent/40 hover:bg-accent/[0.07] disabled:cursor-not-allowed disabled:opacity-40 2xl:p-4">
                       <span className="grid h-8 w-8 place-items-center rounded-md bg-accent/12 text-accent transition group-hover:bg-accent/20"><action.icon className="h-4 w-4" /></span>
-                      <p className="mt-2.5 text-sm font-bold text-white">{action.title}</p>
+                      <p className="mt-2.5 text-sm font-bold text-foreground">{action.title}</p>
                       <p className="mt-1 text-[11px] leading-4 text-muted 2xl:text-xs">{action.description}</p>
                     </button>
                   ))}
@@ -1498,18 +1498,18 @@ export function AssistantView({
                 {activeThread.messages.map((message) => (
                   <article key={message.id} className={cn("flex gap-2.5 sm:gap-3", message.role === "user" && "justify-end")}>
                     {message.role === "assistant" && <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-accent/15 text-accent"><Bot className="h-4 w-4" /></span>}
-                    <div className={cn("min-w-0 max-w-[88%]", message.role === "user" && "rounded-xl rounded-tr-sm bg-accent px-3.5 py-2.5 text-white shadow-[0_8px_24px_rgba(255,90,0,0.14)]")}>
+                    <div className={cn("min-w-0 max-w-[88%]", message.role === "user" && "rounded-xl rounded-tr-sm border border-accent/20 bg-[#fff3e8] px-3.5 py-2.5 text-foreground shadow-[4px_5px_18px_rgba(227,214,197,0.55)]")}>
                       {message.role === "assistant" && (
                         <p className="mb-1.5 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.1em] text-accent">
                           Rufina Assistant
                           {message.source && (
-                            <span className="rounded border border-border bg-white/[0.035] px-1.5 py-0.5 text-[8px] tracking-[0.08em] text-muted">
+                            <span className="rounded border border-border bg-[#fff8f1] px-1.5 py-0.5 text-[8px] tracking-[0.08em] text-muted">
                               {getAiSourceLabel(message.source)}
                             </span>
                           )}
                         </p>
                       )}
-                      <p className={cn("whitespace-pre-wrap text-[13px] leading-5 2xl:text-sm 2xl:leading-6", message.role === "assistant" ? "text-[#e4e9f1]" : "text-white")}>
+                      <p className={cn("whitespace-pre-wrap text-[13px] leading-5 2xl:text-sm 2xl:leading-6", message.role === "assistant" ? "text-[#1d1e1c]" : "text-foreground")}>
                         {message.content}
                         {message.id === streamingMessageId && message.content && <span className="ml-0.5 inline-block h-4 w-0.5 animate-pulse bg-accent align-middle" />}
                         {message.id === streamingMessageId && !message.content && (
@@ -1544,7 +1544,7 @@ export function AssistantView({
                                   </span>
                                   <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-2">
-                                      <p className="text-xs font-bold text-white">{action.title}</p>
+                                      <p className="text-xs font-bold text-foreground">{action.title}</p>
                                       <span className={cn(
                                         "rounded border px-1.5 py-0.5 text-[8px] font-black uppercase tracking-wide",
                                         isApplied
@@ -1564,14 +1564,14 @@ export function AssistantView({
                                       {field.before ? (
                                         <p className="mt-1 max-h-20 overflow-y-auto whitespace-pre-wrap text-[10px] leading-4 text-muted line-through decoration-white/25">{field.before}</p>
                                       ) : null}
-                                      <p className="mt-1 max-h-36 overflow-y-auto whitespace-pre-wrap text-[10px] leading-4 text-[#e8edf4]">{field.after || "Empty"}</p>
+                                      <p className="mt-1 max-h-36 overflow-y-auto whitespace-pre-wrap text-[10px] leading-4 text-[#1d1e1c]">{field.after || "Empty"}</p>
                                     </div>
                                   ))}
                                 </div>
                                 <div className="mt-2.5 flex items-center justify-between gap-2">
                                   <p className={cn(
                                     "min-w-0 text-[9px] leading-4",
-                                    action.status === "error" ? "text-red-300" : isApplied ? "text-success" : "text-muted",
+                                    action.status === "error" ? "text-accent" : isApplied ? "text-success" : "text-muted",
                                   )}>
                                     {action.resultMessage || (isApplied ? "Change applied" : "Nothing changes until you confirm.")}
                                   </p>
@@ -1582,7 +1582,7 @@ export function AssistantView({
                                       disabled={isApplying}
                                       aria-label={`Apply ${action.title}`}
                                       onClick={() => applyAssistantAction(message, action)}
-                                      className="h-8 shrink-0 rounded-md bg-accent px-3 text-[10px] font-bold text-white hover:bg-[#ff6b12] disabled:opacity-50"
+                                      className="h-8 shrink-0 rounded-md bg-accent px-3 text-[10px] font-bold text-foreground hover:bg-[#e95300] disabled:opacity-50"
                                     >
                                       {isApplying ? <RefreshCw className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
                                       {isApplying ? "Applying…" : action.status === "error" ? "Try again" : "Apply"}
@@ -1596,19 +1596,19 @@ export function AssistantView({
                       ) : null}
                       {message.role === "assistant" && message.id !== streamingMessageId && message.content && (
                         <div className="mt-2.5 flex flex-wrap items-center gap-1.5 border-t border-border pt-2">
-                          <Button variant="ghost" size="sm" onClick={() => copyMessage(message)} className="h-7 px-2 text-[10px] text-muted hover:text-white">
+                          <Button variant="ghost" size="sm" onClick={() => copyMessage(message)} className="h-7 px-2 text-[10px] text-muted hover:text-foreground">
                             {copiedMessageId === message.id ? <Check className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />} {copiedMessageId === message.id ? "Copied" : "Copy"}
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => regenerateMessage(message.id)} className="h-7 px-2 text-[10px] text-muted hover:text-white">
+                          <Button variant="ghost" size="sm" onClick={() => regenerateMessage(message.id)} className="h-7 px-2 text-[10px] text-muted hover:text-foreground">
                             <RefreshCw className="h-3.5 w-3.5" /> Regenerate
                           </Button>
-                          <Button variant="ghost" size="sm" onClick={() => openDocumentFromMessage(message)} className="h-7 px-2 text-[10px] text-muted hover:text-white">
+                          <Button variant="ghost" size="sm" onClick={() => openDocumentFromMessage(message)} className="h-7 px-2 text-[10px] text-muted hover:text-foreground">
                             <Save className="h-3.5 w-3.5" /> Save as cover letter
                           </Button>
                         </div>
                       )}
                     </div>
-                    {message.role === "user" && <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-white/[0.08] text-[#dfe4ec]"><UserRound className="h-4 w-4" /></span>}
+                    {message.role === "user" && <span className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#fff8f1] text-[#1d1e1c]"><UserRound className="h-4 w-4" /></span>}
                   </article>
                 ))}
                 <div ref={messagesEndRef} />
@@ -1618,14 +1618,14 @@ export function AssistantView({
 
           <div className="shrink-0 border-t border-border p-3 2xl:p-4">
             {assistantError ? (
-              <div className="mx-auto mb-2 flex max-w-[780px] items-start gap-2 rounded-md border border-red-400/30 bg-red-500/10 px-3 py-2 text-[11px] leading-4 text-red-200">
+              <div className="mx-auto mb-2 flex max-w-[780px] items-start gap-2 rounded-md border border-accent/25 bg-accent/10 px-3 py-2 text-[11px] leading-4 text-accent">
                 <span className="min-w-0 flex-1">{assistantError}</span>
-                <button type="button" onClick={() => setAssistantError("")} aria-label="Dismiss assistant error" className="shrink-0 text-red-300 hover:text-white">
+                <button type="button" onClick={() => setAssistantError("")} aria-label="Dismiss assistant error" className="shrink-0 text-accent hover:text-foreground">
                   <X className="h-3.5 w-3.5" />
                 </button>
               </div>
             ) : null}
-            <div className="mx-auto max-w-[780px] rounded-lg border border-border bg-white/[0.035] p-2 shadow-[0_12px_34px_rgba(0,0,0,0.18)] focus-within:border-accent/60">
+            <div className="mx-auto max-w-[780px] rounded-lg border border-border bg-[#fff8f1] p-2 shadow-[0_12px_34px_rgba(0,0,0,0.18)] focus-within:border-accent/60">
               <textarea
                 value={draft}
                 disabled={showArchived}
@@ -1639,7 +1639,7 @@ export function AssistantView({
                 }}
                 rows={2}
                 placeholder={showArchived ? "Restore a conversation to continue…" : "Ask anything about your job search…"}
-                className="max-h-32 min-h-[42px] w-full resize-none bg-transparent px-2 py-1 text-[13px] leading-5 text-white outline-none placeholder:text-muted 2xl:text-sm"
+                className="max-h-32 min-h-[42px] w-full resize-none bg-transparent px-2 py-1 text-[13px] leading-5 text-foreground outline-none placeholder:text-muted 2xl:text-sm"
               />
               <div className="flex items-center justify-between gap-2 px-1">
                 <p className="truncate text-[10px] text-muted">
@@ -1647,11 +1647,11 @@ export function AssistantView({
                   {draft.length >= assistantMessageMaxChars * 0.8 ? ` · ${draft.length.toLocaleString()}/${assistantMessageMaxChars.toLocaleString()}` : ""}
                 </p>
                 {isGenerating ? (
-                  <Button onClick={stopGenerating} aria-label="Stop generating" className="h-8 rounded-md border border-red-400/30 bg-red-500/10 px-2.5 text-[10px] font-bold text-red-300 hover:bg-red-500/20">
+                  <Button onClick={stopGenerating} aria-label="Stop generating" className="h-8 rounded-md border border-accent/25 bg-accent/10 px-2.5 text-[10px] font-bold text-accent hover:bg-accent/10">
                     <Square className="h-3 w-3 fill-current" /> Stop generating
                   </Button>
                 ) : (
-                  <Button onClick={() => submitMessage()} disabled={showArchived || !draft.trim()} aria-label="Send message" className="h-8 w-8 rounded-md bg-accent p-0 text-white hover:bg-[#ff6b12] disabled:opacity-40">
+                  <Button onClick={() => submitMessage()} disabled={showArchived || !draft.trim()} aria-label="Send message" className="h-8 w-8 rounded-md bg-accent p-0 text-foreground hover:bg-[#e95300] disabled:opacity-40">
                     <Send className="h-4 w-4" />
                   </Button>
                 )}
@@ -1668,14 +1668,14 @@ export function AssistantView({
               <span className="grid h-8 w-8 place-items-center rounded-md bg-accent/16 text-accent">
                 {contextKind === "profile" ? <UserRound className="h-4 w-4" /> : contextKind === "job" ? <BriefcaseBusiness className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
               </span>
-              <p className="mt-2.5 text-sm font-bold leading-5 text-white">{contextLabel}</p>
+              <p className="mt-2.5 text-sm font-bold leading-5 text-foreground">{contextLabel}</p>
               {selectedJob && <p className="mt-1 text-[11px] text-muted">{selectedJob.location} · {selectedJob.match}% match</p>}
-              {selectedApplication && <span className="mt-2 inline-flex rounded-md border border-border bg-white/[0.04] px-2 py-1 text-[10px] font-bold capitalize text-[#dfe4ec]">{selectedApplication.status}</span>}
+              {selectedApplication && <span className="mt-2 inline-flex rounded-md border border-border bg-[#fff8f1] px-2 py-1 text-[10px] font-bold capitalize text-[#1d1e1c]">{selectedApplication.status}</span>}
             </div>
           </div>
 
           <div className="border-b border-border p-3.5 2xl:p-4">
-            <p className="text-xs font-bold text-white">Sources available</p>
+            <p className="text-xs font-bold text-foreground">Sources available</p>
             <div className="mt-3 space-y-2.5">
               {[
                 { label: "Candidate profile", ready: Boolean(profile.name || profile.current_role || profile.skills) },
@@ -1687,7 +1687,7 @@ export function AssistantView({
                   <span className={cn("grid h-4 w-4 place-items-center rounded-full border", source.ready ? "border-success/40 bg-success/12 text-success" : "border-border text-muted")}>
                     {source.ready ? <Check className="h-2.5 w-2.5" /> : <span className="h-1 w-1 rounded-full bg-current" />}
                   </span>
-                  <span className={source.ready ? "text-[#dfe4ec]" : "text-muted"}>{source.label}</span>
+                  <span className={source.ready ? "text-[#1d1e1c]" : "text-muted"}>{source.label}</span>
                   <span className="ml-auto text-[9px] font-bold uppercase text-muted">{source.ready ? "Ready" : "Missing"}</span>
                 </div>
               ))}
@@ -1696,29 +1696,29 @@ export function AssistantView({
 
           <div className="border-b border-border p-3.5 2xl:p-4">
             <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-bold text-white">Saved documents</p>
+              <p className="text-xs font-bold text-foreground">Saved documents</p>
               <span className="text-[9px] font-bold uppercase text-muted">{documents.length}</span>
             </div>
             {documentError && !documentDraft ? (
-              <p className="mt-2 text-[10px] leading-4 text-red-300">{documentError}</p>
+              <p className="mt-2 text-[10px] leading-4 text-accent">{documentError}</p>
             ) : null}
             <div className="mt-2 space-y-1.5">
               {documents.length ? documents.slice(0, 5).map((document) => (
-                <div key={document.id} className="flex items-center gap-1.5 rounded-md border border-border bg-white/[0.025] p-2">
+                <div key={document.id} className="flex items-center gap-1.5 rounded-md border border-border bg-[#fff8f1] p-2">
                   {document.type === "cover_letter" ? <button type="button" onClick={() => openSavedDocument(document)} className="min-w-0 flex-1 text-left">
-                    <p className="truncate text-[10px] font-bold text-[#e2e7ef]">{document.title}</p>
+                    <p className="truncate text-[10px] font-bold text-[#1d1e1c]">{document.title}</p>
                     <p className="mt-0.5 text-[9px] text-muted">
                       Cover letter · v{document.currentVersion}
                     </p>
                   </button> : <div className="min-w-0 flex-1">
-                    <p className="truncate text-[10px] font-bold text-[#e2e7ef]">{document.title}</p>
+                    <p className="truncate text-[10px] font-bold text-[#1d1e1c]">{document.title}</p>
                     <p className="mt-0.5 text-[9px] text-muted">Historical resume · download only · v{document.currentVersion}</p>
                   </div>}
                   <a
                     href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`}
                     download={documentFileName(document)}
                     aria-label={`Download ${document.title}`}
-                    className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted transition hover:bg-white/10 hover:text-white"
+                    className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
                   >
                     <Download className="h-3.5 w-3.5" />
                   </a>
@@ -1730,11 +1730,11 @@ export function AssistantView({
           </div>
 
           <div className="p-3.5 2xl:p-4">
-            <p className="text-xs font-bold text-white">How Rufina uses context</p>
+            <p className="text-xs font-bold text-foreground">How Rufina uses context</p>
             <p className="mt-2 text-[11px] leading-5 text-muted">Answers are grounded in the selected data. Missing evidence is called out instead of being invented.</p>
             {selectedJob?.skills.length ? (
               <div className="mt-3 flex flex-wrap gap-1.5">
-                {selectedJob.skills.slice(0, 6).map((skill) => <span key={skill} className="rounded-md border border-border bg-white/[0.035] px-2 py-1 text-[10px] text-[#cfd5df]">{skill}</span>)}
+                {selectedJob.skills.slice(0, 6).map((skill) => <span key={skill} className="rounded-md border border-border bg-[#fff8f1] px-2 py-1 text-[10px] text-[#4a4a47]">{skill}</span>)}
               </div>
             ) : null}
           </div>
@@ -1743,13 +1743,13 @@ export function AssistantView({
     </section>
     {documentDraft && (
       <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm">
-        <div role="dialog" aria-modal="true" aria-label="Document editor" className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-[#111821] shadow-2xl">
+        <div role="dialog" aria-modal="true" aria-label="Document editor" className="flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-border bg-[#ffffff] shadow-2xl">
           <div className="flex items-start justify-between gap-3 border-b border-border px-4 py-3">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-accent">Document artifact</p>
-              <h2 className="mt-1 text-lg font-bold text-white">{documentDraft.id ? "Edit document" : "Create document"}</h2>
+              <h2 className="mt-1 text-lg font-bold text-foreground">{documentDraft.id ? "Edit document" : "Create document"}</h2>
             </div>
-            <button type="button" onClick={() => setDocumentDraft(null)} aria-label="Close document editor" className="rounded-md p-1.5 text-muted hover:bg-white/10 hover:text-white">
+            <button type="button" onClick={() => setDocumentDraft(null)} aria-label="Close document editor" className="rounded-md p-1.5 text-muted hover:bg-[#fff3e8] hover:text-foreground">
               <X className="h-4 w-4" />
             </button>
           </div>
@@ -1763,7 +1763,7 @@ export function AssistantView({
                     value={documentDraft.type}
                     disabled={Boolean(documentDraft.id)}
                     onChange={(event) => setDocumentDraft((draft) => draft ? { ...draft, type: event.target.value as "cover_letter" } : draft)}
-                    className="h-9 w-full rounded-md border border-border bg-[#151c24] px-2.5 text-xs text-white outline-none focus:border-accent/60 disabled:opacity-60"
+                    className="h-9 w-full rounded-md border border-border bg-[#ffffff] px-2.5 text-xs text-foreground outline-none focus:border-accent/60 disabled:opacity-60"
                   >
                     <option value="cover_letter">Cover letter</option>
                   </select>
@@ -1773,7 +1773,7 @@ export function AssistantView({
                   <input
                     value={documentDraft.title}
                     onChange={(event) => setDocumentDraft((draft) => draft ? { ...draft, title: event.target.value } : draft)}
-                    className="h-9 w-full rounded-md border border-border bg-[#151c24] px-2.5 text-xs text-white outline-none focus:border-accent/60"
+                    className="h-9 w-full rounded-md border border-border bg-[#ffffff] px-2.5 text-xs text-foreground outline-none focus:border-accent/60"
                   />
                 </label>
               </div>
@@ -1784,7 +1784,7 @@ export function AssistantView({
                   <select
                     value={documentDraft.jobId}
                     onChange={(event) => setDocumentDraft((draft) => draft ? { ...draft, jobId: event.target.value } : draft)}
-                    className="h-9 w-full rounded-md border border-border bg-[#151c24] px-2.5 text-xs text-white outline-none focus:border-accent/60"
+                    className="h-9 w-full rounded-md border border-border bg-[#ffffff] px-2.5 text-xs text-foreground outline-none focus:border-accent/60"
                   >
                     <option value="">General version</option>
                     {jobs.map((job) => <option key={job.id} value={job.id}>{job.title} · {job.company}</option>)}
@@ -1795,7 +1795,7 @@ export function AssistantView({
                   <select
                     value={documentDraft.applicationId}
                     onChange={(event) => setDocumentDraft((draft) => draft ? { ...draft, applicationId: event.target.value } : draft)}
-                    className="h-9 w-full rounded-md border border-border bg-[#151c24] px-2.5 text-xs text-white outline-none focus:border-accent/60"
+                    className="h-9 w-full rounded-md border border-border bg-[#ffffff] px-2.5 text-xs text-foreground outline-none focus:border-accent/60"
                   >
                     <option value="">Do not attach</option>
                     {applications.map((application) => <option key={application.id} value={application.id}>{application.job.title} · {application.job.company}</option>)}
@@ -1809,14 +1809,14 @@ export function AssistantView({
                   value={documentDraft.content}
                   onChange={(event) => setDocumentDraft((draft) => draft ? { ...draft, content: event.target.value } : draft)}
                   rows={18}
-                  className="min-h-[360px] w-full resize-y rounded-md border border-border bg-[#0c1219] p-3 font-mono text-xs leading-5 text-[#e5e9f0] outline-none focus:border-accent/60"
+                  className="min-h-[360px] w-full resize-y rounded-md border border-border bg-white p-3 font-mono text-xs leading-5 text-[#1d1e1c] outline-none focus:border-accent/60"
                 />
               </label>
-              {documentError ? <p className="text-xs text-red-300">{documentError}</p> : null}
+              {documentError ? <p className="text-xs text-accent">{documentError}</p> : null}
             </div>
 
             <aside className="border-t border-border p-4 lg:border-l lg:border-t-0">
-              <div className="flex items-center gap-2 text-xs font-bold text-white">
+              <div className="flex items-center gap-2 text-xs font-bold text-foreground">
                 <History className="h-4 w-4 text-accent" /> Versions
               </div>
               {documentDraft.id ? (
@@ -1825,17 +1825,17 @@ export function AssistantView({
                     .slice()
                     .reverse()
                     .map((version) => (
-                      <div key={version.id} className="rounded-md border border-border bg-white/[0.025] p-2.5">
+                      <div key={version.id} className="rounded-md border border-border bg-[#fff8f1] p-2.5">
                         <div className="flex items-center justify-between gap-2">
-                          <span className="text-[10px] font-bold text-white">Version {version.version}</span>
+                          <span className="text-[10px] font-bold text-foreground">Version {version.version}</span>
                           {version.version === documents.find((document) => document.id === documentDraft.id)?.currentVersion ? (
                             <span className="text-[8px] font-bold uppercase text-success">Current</span>
                           ) : (
-                            <button type="button" disabled={isDocumentSaving} onClick={() => restoreDocumentVersion(documentDraft.id, version.version)} className="text-[9px] font-bold text-accent hover:text-white">Restore</button>
+                            <button type="button" disabled={isDocumentSaving} onClick={() => restoreDocumentVersion(documentDraft.id, version.version)} className="text-[9px] font-bold text-accent hover:text-foreground">Restore</button>
                           )}
                         </div>
                         <p className="mt-1 text-[9px] text-muted">{formatThreadDate(version.createdAt)}</p>
-                        <a href={`${apiBaseUrl}/documents/${encodeURIComponent(documentDraft.id)}/download?version=${version.version}`} className="mt-2 inline-flex items-center gap-1 text-[9px] font-semibold text-muted hover:text-white">
+                        <a href={`${apiBaseUrl}/documents/${encodeURIComponent(documentDraft.id)}/download?version=${version.version}`} className="mt-2 inline-flex items-center gap-1 text-[9px] font-semibold text-muted hover:text-foreground">
                           <Download className="h-3 w-3" /> Download
                         </a>
                       </div>
@@ -1850,18 +1850,18 @@ export function AssistantView({
           <div className="flex flex-wrap items-center justify-between gap-2 border-t border-border px-4 py-3">
             <div>
               {documentDraft.id ? (
-                <Button variant="ghost" onClick={() => deleteDocumentArtifact(documentDraft.id)} className="h-8 px-2 text-[10px] text-red-300 hover:bg-red-500/10 hover:text-red-200">
+                <Button variant="ghost" onClick={() => deleteDocumentArtifact(documentDraft.id)} className="h-8 px-2 text-[10px] text-accent hover:bg-accent/10 hover:text-accent">
                   <Trash2 className="h-3.5 w-3.5" /> Delete document
                 </Button>
               ) : null}
             </div>
             <div className="flex items-center gap-2">
               {documentDraft.id ? (
-                <a href={`${apiBaseUrl}/documents/${encodeURIComponent(documentDraft.id)}/download`} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[10px] font-bold text-muted hover:bg-white/10 hover:text-white">
+                <a href={`${apiBaseUrl}/documents/${encodeURIComponent(documentDraft.id)}/download`} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[10px] font-bold text-muted hover:bg-[#fff3e8] hover:text-foreground">
                   <Download className="h-3.5 w-3.5" /> Download DOCX
                 </a>
               ) : null}
-              <Button onClick={saveDocumentArtifact} disabled={isDocumentSaving || !documentDraft.title.trim() || !documentDraft.content.trim()} className="h-8 rounded-md bg-accent px-3 text-[10px] font-bold text-white hover:bg-[#ff6b12] disabled:opacity-40">
+              <Button onClick={saveDocumentArtifact} disabled={isDocumentSaving || !documentDraft.title.trim() || !documentDraft.content.trim()} className="h-8 rounded-md bg-accent px-3 text-[10px] font-bold text-foreground hover:bg-[#e95300] disabled:opacity-40">
                 {documentDraft.applicationId ? <Paperclip className="h-3.5 w-3.5" /> : <Pencil className="h-3.5 w-3.5" />}
                 {isDocumentSaving ? "Saving…" : documentDraft.applicationId ? "Save & attach" : "Save version"}
               </Button>

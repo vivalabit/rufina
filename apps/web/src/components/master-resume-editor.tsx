@@ -404,7 +404,7 @@ export function MasterResumeEditor({
             </span>
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-bold text-white 2xl:text-lg">
+                <h2 className="text-base font-bold text-foreground 2xl:text-lg">
                   Master Resume
                 </h2>
                 {confirmation ? (
@@ -412,7 +412,7 @@ export function MasterResumeEditor({
                     Confirmed · v{confirmation.version}
                   </span>
                 ) : draft ? (
-                  <span className="rounded border border-[#ffb020]/30 bg-[#ffb020]/10 px-2 py-0.5 text-[11px] font-bold text-[#ffd18a]">
+                  <span className="rounded border border-[#fa5d00]/30 bg-[#fa5d00]/10 px-2 py-0.5 text-[11px] font-bold text-accent">
                     {reviewedSections.size}/
                     {MASTER_RESUME_REVIEW_SECTIONS.length} sections reviewed
                   </span>
@@ -429,7 +429,7 @@ export function MasterResumeEditor({
                   className={cn(
                     "mt-2 text-xs font-semibold",
                     importState === "error" || confirmState === "error"
-                      ? "text-[#ff8a8a]"
+                      ? "text-[#fa5d00]"
                       : "text-success",
                   )}
                 >
@@ -443,7 +443,7 @@ export function MasterResumeEditor({
             {draft && !confirmation ? (
               <Button
                 type="button"
-                className="h-10 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-4 text-xs font-bold text-white"
+                className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-4 text-xs font-bold text-foreground"
                 onClick={() => setDialogOpen(true)}
               >
                 <FileText className="h-4 w-4" />
@@ -454,7 +454,7 @@ export function MasterResumeEditor({
               <Button
                 type="button"
                 variant="ghost"
-                className="h-10 rounded-md border border-border bg-white/[0.025] px-4 text-xs font-bold text-[#e6ebf3] hover:bg-white/[0.07]"
+                className="h-10 rounded-md border border-border bg-[#fff8f1] px-4 text-xs font-bold text-[#1d1e1c] hover:bg-[#fff3e8]"
                 disabled={importState === "loading"}
                 onClick={() =>
                   importResume(profileResume.fileName, profileResume.dataUrl)
@@ -472,7 +472,7 @@ export function MasterResumeEditor({
               <Button
                 type="button"
                 variant="ghost"
-                className="h-10 rounded-md border border-border bg-white/[0.025] px-4 text-xs font-bold text-[#e6ebf3] hover:bg-white/[0.07]"
+                className="h-10 rounded-md border border-border bg-[#fff8f1] px-4 text-xs font-bold text-[#1d1e1c] hover:bg-[#fff3e8]"
                 disabled={importState === "loading"}
                 onClick={() => uploadRef.current?.click()}
               >
@@ -496,7 +496,7 @@ export function MasterResumeEditor({
         </div>
 
         {!confirmation ? (
-          <div className="grid border-t border-border bg-white/[0.012] sm:grid-cols-3">
+          <div className="grid border-t border-border bg-[#fff8f1] sm:grid-cols-3">
             <ProcessStep number="1" label="Import PDF or DOCX" />
             <ProcessStep number="2" label="Review all 7 sections" />
             <ProcessStep number="3" label="Confirm immutable v1" />
@@ -510,14 +510,14 @@ export function MasterResumeEditor({
             role="dialog"
             aria-modal="true"
             aria-labelledby="master-resume-editor-title"
-            className="panel flex h-[min(920px,calc(100vh-16px))] w-full max-w-[1180px] flex-col overflow-hidden border-white/[0.13] bg-[#0e151d]/98 shadow-[0_30px_90px_rgba(0,0,0,0.6)] sm:h-[min(900px,calc(100vh-32px))]"
+            className="panel flex h-[min(920px,calc(100vh-16px))] w-full max-w-[1180px] flex-col overflow-hidden border-border bg-white shadow-[6px_8px_36px_rgba(227,214,197,0.72)] sm:h-[min(900px,calc(100vh-32px))]"
           >
             <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-5">
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
                   <h2
                     id="master-resume-editor-title"
-                    className="text-xl font-bold text-white sm:text-2xl"
+                    className="text-xl font-bold text-foreground sm:text-2xl"
                   >
                     Review Master Resume
                   </h2>
@@ -532,7 +532,7 @@ export function MasterResumeEditor({
               <button
                 type="button"
                 aria-label="Close Master Resume editor"
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
                 disabled={confirmState === "loading"}
                 onClick={() => setDialogOpen(false)}
               >
@@ -559,7 +559,7 @@ export function MasterResumeEditor({
                         "flex min-w-[180px] items-center gap-3 rounded-md border px-3 py-2.5 text-left transition md:mb-2 md:w-full md:min-w-0",
                         activeSection === section
                           ? "border-accent/45 bg-accent/10"
-                          : "border-transparent hover:border-border hover:bg-white/[0.035]",
+                          : "border-transparent hover:border-border hover:bg-[#fff3e8]",
                       )}
                       onClick={() => setActiveSection(section)}
                     >
@@ -568,13 +568,13 @@ export function MasterResumeEditor({
                           "grid h-7 w-7 shrink-0 place-items-center rounded-full border text-[11px] font-bold",
                           reviewed
                             ? "border-success/35 bg-success/12 text-success"
-                            : "border-border bg-white/[0.035] text-muted",
+                            : "border-border bg-[#fff8f1] text-muted",
                         )}
                       >
                         {reviewed ? <Check className="h-4 w-4" /> : index + 1}
                       </span>
                       <span className="min-w-0">
-                        <span className="block truncate text-xs font-bold text-white">
+                        <span className="block truncate text-xs font-bold text-foreground">
                           {sectionLabels[section]}
                         </span>
                         <span className="mt-0.5 block text-[11px] text-muted">
@@ -594,7 +594,7 @@ export function MasterResumeEditor({
                       {MASTER_RESUME_REVIEW_SECTIONS.indexOf(activeSection) + 1}{" "}
                       of {MASTER_RESUME_REVIEW_SECTIONS.length}
                     </p>
-                    <h3 className="mt-1 text-lg font-bold text-white">
+                    <h3 className="mt-1 text-lg font-bold text-foreground">
                       {sectionLabels[activeSection]}
                     </h3>
                     <p className="mt-1 text-xs leading-5 text-muted sm:text-[13px]">
@@ -612,7 +612,7 @@ export function MasterResumeEditor({
 
                   <div className="mt-6 flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
                     <p className="flex items-center gap-2 text-xs leading-5 text-muted">
-                      <ShieldCheck className="h-4 w-4 shrink-0 text-[#8cc7ff]" />
+                      <ShieldCheck className="h-4 w-4 shrink-0 text-accent" />
                       Source references are preserved automatically.
                     </p>
                     <Button
@@ -622,7 +622,7 @@ export function MasterResumeEditor({
                         "h-10 rounded-md border px-4 text-xs font-bold",
                         reviewedSections.has(activeSection)
                           ? "border-success/35 bg-success/10 text-success"
-                          : "border-accent/40 bg-accent/10 text-white",
+                          : "border-accent/40 bg-accent/10 text-foreground",
                       )}
                       onClick={() => markSectionReviewed(activeSection)}
                     >
@@ -639,22 +639,22 @@ export function MasterResumeEditor({
               </main>
             </div>
 
-            <footer className="shrink-0 border-t border-border bg-[#0b1118] px-4 py-3 sm:px-5">
+            <footer className="shrink-0 border-t border-border bg-[#ffffff] px-4 py-3 sm:px-5">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
                   {validationMessage ? (
-                    <p role="alert" className="flex items-center gap-2 text-xs font-semibold text-[#ff8a8a]">
+                    <p role="alert" className="flex items-center gap-2 text-xs font-semibold text-[#fa5d00]">
                       <AlertTriangle className="h-4 w-4 shrink-0" />
                       {validationMessage}
                     </p>
                   ) : confirmState === "error" && message ? (
-                    <p role="alert" className="flex items-center gap-2 text-xs font-semibold text-[#ff8a8a]">
+                    <p role="alert" className="flex items-center gap-2 text-xs font-semibold text-[#fa5d00]">
                       <AlertTriangle className="h-4 w-4 shrink-0" />
                       {message}
                     </p>
                   ) : (
                     <p className="flex items-center gap-2 text-xs text-muted">
-                      <LockKeyhole className="h-4 w-4 shrink-0 text-[#ffd18a]" />
+                      <LockKeyhole className="h-4 w-4 shrink-0 text-accent" />
                       Confirmation creates immutable version 1 and cannot be edited.
                     </p>
                   )}
@@ -663,7 +663,7 @@ export function MasterResumeEditor({
                   <Button
                     type="button"
                     variant="ghost"
-                    className="h-10 rounded-md border border-border px-4 text-xs text-[#e6ebf3]"
+                    className="h-10 rounded-md border border-border px-4 text-xs text-[#1d1e1c]"
                     disabled={confirmState === "loading"}
                     onClick={() => setDialogOpen(false)}
                   >
@@ -671,7 +671,7 @@ export function MasterResumeEditor({
                   </Button>
                   <Button
                     type="button"
-                    className="h-10 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-5 text-xs font-bold text-white disabled:opacity-45"
+                    className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-5 text-xs font-bold text-foreground disabled:opacity-45"
                     disabled={
                       !allSectionsReviewed ||
                       Boolean(validationMessage) ||
@@ -876,7 +876,7 @@ function SectionEditor({
                 />
               ))}
             </div>
-            <label className="mt-3 flex items-center gap-2 text-xs font-semibold text-[#d8dee8]">
+            <label className="mt-3 flex items-center gap-2 text-xs font-semibold text-[#1d1e1c]">
               <input
                 type="checkbox"
                 checked={Boolean(experience.isCurrent)}
@@ -896,7 +896,7 @@ function SectionEditor({
                     ),
                   }))
                 }
-                className="h-4 w-4 accent-[#ff5a00]"
+                className="h-4 w-4 accent-[#fa5d00]"
               />
               Current role
             </label>
@@ -1183,7 +1183,7 @@ function SectionEditor({
 function ProcessStep({ number, label }: { number: string; label: string }) {
   return (
     <div className="flex items-center gap-2 border-border px-4 py-2.5 text-xs font-semibold text-muted sm:border-r sm:last:border-r-0">
-      <span className="grid h-5 w-5 place-items-center rounded-full border border-border bg-white/[0.035] text-[10px] font-bold text-[#d8dee8]">
+      <span className="grid h-5 w-5 place-items-center rounded-full border border-border bg-[#fff8f1] text-[10px] font-bold text-[#1d1e1c]">
         {number}
       </span>
       {label}
@@ -1193,9 +1193,9 @@ function ProcessStep({ number, label }: { number: string; label: string }) {
 
 function EmptyImportedSection({ label }: { label: string }) {
   return (
-    <div className="rounded-md border border-dashed border-white/[0.16] bg-white/[0.025] p-5 text-center">
+    <div className="rounded-md border border-dashed border-border bg-[#fff8f1] p-5 text-center">
       <FileText className="mx-auto h-6 w-6 text-muted" />
-      <p className="mt-2 text-sm font-bold text-white">
+      <p className="mt-2 text-sm font-bold text-foreground">
         No {label} imported
       </p>
       <p className="mt-1 text-xs leading-5 text-muted">
@@ -1218,16 +1218,16 @@ function EditorCard({
   children: ReactNode;
 }) {
   return (
-    <article className="rounded-md border border-border bg-white/[0.02] p-4">
+    <article className="rounded-md border border-border bg-[#fff8f1] p-4">
       <div className="mb-3 flex items-center justify-between gap-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h4 className="text-sm font-bold text-white">{title}</h4>
+          <h4 className="text-sm font-bold text-foreground">{title}</h4>
           {evidenceCount ? <EvidenceBadge count={evidenceCount} /> : null}
         </div>
         <button
           type="button"
           aria-label={`Remove ${title}`}
-          className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted transition hover:text-[#ff8a8a]"
+          className="inline-flex items-center gap-1 text-[11px] font-semibold text-muted transition hover:text-[#fa5d00]"
           onClick={onRemove}
         >
           <Trash2 className="h-3.5 w-3.5" />
@@ -1254,7 +1254,7 @@ function EditorField({
 }) {
   return (
     <label className="grid gap-1.5">
-      <span className="text-xs font-bold text-[#d8dee8]">
+      <span className="text-xs font-bold text-[#1d1e1c]">
         {label}
         {required ? <span className="ml-1 text-accent">*</span> : null}
       </span>
@@ -1263,7 +1263,7 @@ function EditorField({
         value={value}
         disabled={disabled}
         onChange={(event) => onChange(event.target.value)}
-        className="h-10 min-w-0 rounded-md border border-border bg-[#0b1118] px-3 text-sm font-medium text-white outline-none placeholder:text-muted/60 focus:border-accent/65 disabled:cursor-not-allowed disabled:opacity-45"
+        className="h-10 min-w-0 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-medium text-foreground outline-none placeholder:text-muted/60 focus:border-accent/65 disabled:cursor-not-allowed disabled:opacity-45"
       />
     </label>
   );
@@ -1286,7 +1286,7 @@ function EditorTextarea({
 }) {
   return (
     <label className="grid gap-1.5">
-      <span className="flex flex-wrap items-center gap-2 text-xs font-bold text-[#d8dee8]">
+      <span className="flex flex-wrap items-center gap-2 text-xs font-bold text-[#1d1e1c]">
         <span>
           {label}
           {required ? <span className="ml-1 text-accent">*</span> : null}
@@ -1298,7 +1298,7 @@ function EditorTextarea({
         rows={rows}
         value={value}
         onChange={(event) => onChange(event.target.value)}
-        className="min-w-0 resize-y rounded-md border border-border bg-[#0b1118] px-3 py-2.5 text-sm font-medium leading-6 text-white outline-none placeholder:text-muted/60 focus:border-accent/65"
+        className="min-w-0 resize-y rounded-md border border-border bg-[#ffffff] px-3 py-2.5 text-sm font-medium leading-6 text-foreground outline-none placeholder:text-muted/60 focus:border-accent/65"
       />
     </label>
   );
@@ -1306,7 +1306,7 @@ function EditorTextarea({
 
 function EvidenceBadge({ count }: { count: number }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded border border-[#2f80ed]/25 bg-[#2f80ed]/10 px-1.5 py-0.5 text-[10px] font-semibold text-[#9cc6ff]">
+    <span className="inline-flex items-center gap-1 rounded border border-[#fa5d00]/25 bg-[#fa5d00]/10 px-1.5 py-0.5 text-[10px] font-semibold text-accent">
       <ShieldCheck className="h-3 w-3" />
       {count} source {count === 1 ? "reference" : "references"}
     </span>

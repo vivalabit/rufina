@@ -1,0 +1,423 @@
+# Rufina — Design System
+> Golden hour workbench — warm cream canvas, white floating cards, and one vivid orange flame.
+
+> This is the canonical visual source of truth for Rufina. Any conflicting legacy theme, color, navigation, radius, or elevation rule is obsolete.
+
+**Theme:** light
+
+Rufina uses a sunlit productivity-workspace language: warm cream canvas (#fff8f1) replaces the typical SaaS white, giving every screen a golden-hour warmth, while white cards and panels float above that base for product surfaces. One vivid orange (#fa5d00) carries all the energy — every CTA, link, icon accent, and brand border — making it the only chromatic decision in an otherwise achromatic system of warm grays. Typography is confident and editorial: a geometric sans (MuotoWeb) for everything functional, with a serif display face (Monarch) reserved for hero-grade emotional moments. Components are soft and tactile: 16–20px radii, low warm-tinted shadows, generous breathing room, and decorative orange wash gradients that suggest movement without ever competing with content.
+
+## Tokens — Colors
+
+| Name | Value | Token | Role |
+|------|-------|-------|------|
+| Rufina Flame | `#fa5d00` | `--color-rufina-flame` | Primary CTA fill, active nav indicator, brand link color, heading underlines — warm vermilion that reads as energetic but not aggressive, the single chromatic decision in an otherwise achromatic system |
+| Marigold Glow | `#fee3b5` | `--color-marigold-glow` | Soft warm highlight wash on cards, decorative glow tint behind product UI — never functional, only atmospheric |
+| Parchment Shadow | `#e3d6c5` | `--color-parchment-shadow` | Warm-tinted card shadow color, subtle image shadow — the shadow hue is not neutral gray but matches the cream base |
+| Ink Black | `#1d1e1c` | `--color-ink-black` | Primary text, icon strokes, nav borders, card headings — warm near-black rather than pure #000, preserves the system warmth |
+| Paper White | `#ffffff` | `--color-paper-white` | Card surfaces, input fields, elevated panels, button text on orange fill |
+| Cream Canvas | `#fff8f1` | `--color-cream-canvas` | Page background, hero section base, nav backdrop — the signature warm cream that replaces standard SaaS white |
+| Mist Gray | `#d9d9d9` | `--color-mist-gray` | Hairline dividers, subtle borders on neutral surfaces |
+| Warm Stone | `#615f5c` | `--color-warm-stone` | Secondary body text, list items, muted icon strokes |
+| Driftwood | `#8e8b87` | `--color-driftwood` | Tertiary body text, decorative strokes, subtle metadata |
+| Ironwood | `#4a4a47` | `--color-ironwood` | Strong secondary text, emphasized muted labels |
+| Ash | `#777571` | `--color-ash` | Helper text, placeholder-adjacent copy, low-priority borders |
+| Bone | `#c0bbb6` | `--color-bone` | Input borders, form field outlines at rest |
+| Smoke | `#a5a19c` | `--color-smoke` | Disabled text, decorative borders, very low-priority separators |
+| Graphite | `#999999` | `--color-graphite` | List borders, tertiary structural lines |
+
+## Tokens — Typography
+
+### MuotoWeb — Primary UI and body typeface — geometric sans covering navigation, buttons, body copy, subheadings, and most headings up to 50px. Custom-drawn letterforms give it warmth that generic Inter or Helvetica cannot: slightly humanist terminals and open apertures that read friendly rather than cold. · `--font-muotoweb`
+- **Substitute:** Inter or Sohne
+- **Weights:** 400, 500, 600, 700
+- **Sizes:** 13, 14, 16, 17, 18, 20, 22, 24, 25, 26, 28, 34, 48, 50
+- **Line height:** 1.15–1.50
+- **Letter spacing:** 0.015em
+- **OpenType features:** `"ss01" on, "cv11" on`
+- **Role:** Primary UI and body typeface — geometric sans covering navigation, buttons, body copy, subheadings, and most headings up to 50px. Custom-drawn letterforms give it warmth that generic Inter or Helvetica cannot: slightly humanist terminals and open apertures that read friendly rather than cold.
+
+### Monarch — Hero display serif — used only for the largest emotional headline (72px) where editorial weight is needed. The serif is the signature contrast against MuotoWeb's sans body: the page whispers functional in sans, then ROARS one moment in serif. Reserve for hero/page-title moments only. · `--font-monarch`
+- **Substitute:** GT Super or Tiempos Headline
+- **Weights:** 400
+- **Sizes:** 72
+- **Line height:** 1.20
+- **Role:** Hero display serif — used only for the largest emotional headline (72px) where editorial weight is needed. The serif is the signature contrast against MuotoWeb's sans body: the page whispers functional in sans, then ROARS one moment in serif. Reserve for hero/page-title moments only.
+
+### Type Scale
+
+| Role | Size | Line Height | Letter Spacing | Token |
+|------|------|-------------|----------------|-------|
+| caption | 13px | 1.35 | 0.2px | `--text-caption` |
+| subheading | 18px | 1.4 | 0.27px | `--text-subheading` |
+| heading-sm | 20px | 1.3 | 0.3px | `--text-heading-sm` |
+| heading | 24px | 1.26 | 0.36px | `--text-heading` |
+| heading-lg | 28px | 1.2 | 0.42px | `--text-heading-lg` |
+| display | 48px | 1.15 | 0.72px | `--text-display` |
+| display-lg | 72px | 1.2 | — | `--text-display-lg` |
+
+## Tokens — Spacing & Shapes
+
+**Density:** comfortable
+
+### Spacing Scale
+
+| Name | Value | Token |
+|------|-------|-------|
+| 4 | 4px | `--spacing-4` |
+| 5 | 5px | `--spacing-5` |
+| 7 | 7px | `--spacing-7` |
+| 10 | 10px | `--spacing-10` |
+| 14 | 14px | `--spacing-14` |
+| 15 | 15px | `--spacing-15` |
+| 16 | 16px | `--spacing-16` |
+| 20 | 20px | `--spacing-20` |
+| 22 | 22px | `--spacing-22` |
+| 25 | 25px | `--spacing-25` |
+| 30 | 30px | `--spacing-30` |
+| 35 | 35px | `--spacing-35` |
+| 40 | 40px | `--spacing-40` |
+| 50 | 50px | `--spacing-50` |
+| 100 | 100px | `--spacing-100` |
+| 113 | 113px | `--spacing-113` |
+
+### Border Radius
+
+| Element | Value |
+|---------|-------|
+| tags | 999px |
+| cards | 20px |
+| images | 16px |
+| inputs | 16px |
+| buttons | 16px |
+
+### Shadows
+
+| Name | Value | Token |
+|------|-------|-------|
+| sm | `rgba(0, 0, 0, 0.2) 0px 1px 4px 0px` | `--shadow-sm` |
+| lg | `rgba(250, 166, 0, 0.25) 6px 4px 24px 0px` | `--shadow-lg` |
+
+### Layout
+
+- **Page max-width:** 1200px
+- **Section gap:** 64-80px
+- **Card padding:** 32-40px
+- **Element gap:** 16-24px
+
+## Components
+
+### Primary CTA Button
+**Role:** Filled orange action button — the system’s single most important interactive element
+
+Fill: #fa5d00. Text: #ffffff, MuotoWeb 16px weight 600, letter-spacing 0.015em. Padding: 12px 24px. Border-radius: 16px. Shadow: rgba(0,0,0,0.2) 0px 1px 4px 0px for subtle lift. Hover darkens the orange ~10%. Used for: 'Find opportunities', 'Add application', 'Generate documents', and 'New chat'.
+
+### Ghost/Text Link
+**Role:** Secondary action — contextual links such as 'View all jobs' and 'Open applications'
+
+Text: #fa5d00, MuotoWeb 16px weight 500. No background, no border, no padding. May carry a small → arrow icon. Underline appears on hover.
+
+### Search and Form Input
+**Role:** Search, filter, profile, and document form input
+
+Fill: #ffffff. Border: 1px solid #c0bbb6. Border-radius: 16px. Padding: 14px 20px. Placeholder text: #8e8b87 16px. Focus ring: #fa5d00 2px outline with 4px offset.
+
+### Workspace Card
+**Role:** Reusable dashboard statistic, job, application, profile, or document surface
+
+Fill: #ffffff over the cream canvas. Border-radius: 20px. Padding: 24–40px according to density. Optional shadow: rgba(250,166,0,0.25) 6px 4px 24px 0px for warm glow. Icon: dark #1d1e1c or orange active state. Heading: MuotoWeb 20-24px weight 600 #1d1e1c. Body: 16px weight 400 #615f5c. Links and active controls: orange #fa5d00 weight 500–600.
+
+### Integration Logo Circle
+**Role:** Round badge displaying a company, job source, or third-party service logo
+
+48px circle, fill #ffffff, contains colorful third-party brand logo (not a system color — logos are literal brand marks). Arranged in horizontal or grid patterns to show ecosystem breadth.
+
+### Navigation Bar
+**Role:** Top sticky workspace navigation with product identity, primary views, profile, and settings
+
+Background: translucent #fff8f1 with a subtle warm divider and backdrop blur. Logo: Rufina mark and wordmark on the left. Primary views sit in a horizontally scrollable center row. The active item uses a white surface with orange border/text and a warm shadow. Profile and settings sit on the right. The layout never falls back to a dark sidebar.
+
+### Data Preview Card
+**Role:** Elevated product surface for job, application, calendar, resume, or AI output previews
+
+White surface (#ffffff) with 16–20px radius and soft warm shadow. It presents real Rufina data and product UI, never decorative placeholder dashboards.
+
+### Section Heading (Eyebrow + Title)
+**Role:** Reusable section header pattern with small uppercase label and large title
+
+Eyebrow: MuotoWeb 11–14px weight 600 uppercase, letter-spacing 0.015em, #fa5d00 (e.g., 'CAREER WORKBENCH'). Title: Monarch at 48–72px for the Dashboard hero only; MuotoWeb 24–34px for every other page title. Optional subtitle in #615f5c 15–17px.
+
+### Company Logo Row
+**Role:** Grayscale company/source identity shown in job and application contexts
+
+Label: MuotoWeb 13px weight 600 uppercase #615f5c with #fa5d00 highlight on the number. Logos: rendered in #1d1e1c grayscale at 60-80% opacity, evenly spaced horizontal row. No logos are colored — the grayscale treatment keeps the orange accent uncontested.
+
+### Hero Gradient Wash
+**Role:** Decorative flowing gradient background behind hero content
+
+Soft flowing wash of #fa5d00, #fee3b5, and warm peach tones rendered as an organic flowing shape (not a hard gradient strip). Low opacity (~30-50%), positioned behind the product preview cards. Creates sense of warmth and movement without ever competing with text.
+
+### Workspace Grid
+**Role:** Two- or three-column arrangement of navigation, list, detail, and action panels
+
+Use responsive columns with 16–24px gaps. Lists and filters occupy the narrower column; primary details and document workspaces occupy the wider column. On small screens, columns collapse into one readable flow. The canvas remains #fff8f1 and all working panels float in white.
+
+## Do's and Don'ts
+
+### Do
+- Use #fa5d00 exclusively for primary actions, active states, and brand moments — never for body text or large decorative areas where it would overwhelm the cream canvas
+- Set all page backgrounds to #fff8f1 (cream), not #ffffff — the warmth is the system identity
+- Reserve Monarch serif for hero-grade 72px display headlines only; use MuotoWeb for all headings 50px and below
+- Apply 16px radius to all buttons and inputs, 20px radius to all cards — these two values are the system's tactile signature
+- Use 0.015em positive letter-spacing on all MuotoWeb text — this tracks-wide feel softens the geometric sans into something friendlier
+- Keep shadows warm-tinted (rgba(250,166,0,0.25) for cards, rgba(0,0,0,0.2) for buttons) — never use cold blue or neutral gray shadows that would fight the cream base
+- Place trust/partner logos in grayscale (#1d1e1c) so the orange accent remains the only chromatic focal point
+
+### Don't
+- Don't use #ffffff as the page background — the cream #fff8f1 canvas IS the brand
+- Don't introduce a second accent color — the system's discipline is one orange against warm neutrals
+- Don't use Monarch serif for body text, subheadings, or anything under 48px — it dilutes the hero impact
+- Don't use sharp 0-4px corner radii on cards or buttons — the 16-20px softness is essential to the warm tactile feel
+- Don't use cool blue-tinted shadows or borders — everything in this system carries a warm undertone
+- Don't apply saturated colors to large background fills — keep the orange small, concentrated, and functional
+- Don't use pure #000000 for text — #1d1e1c (warm near-black) preserves the system's warmth
+
+## Surfaces
+
+| Level | Name | Value | Purpose |
+|-------|------|-------|---------|
+| 1 | Cream Canvas | `#fff8f1` | Page-level background — the warm cream base that defines the entire system mood |
+| 2 | Paper White | `#ffffff` | Card and elevated surface — floats above the cream canvas to create product depth |
+| 3 | Orange Brand Surface | `#fa5d00` | CTA buttons, active states, and brand accent surfaces — the only chromatic surface |
+
+## Elevation
+
+- **Primary CTA Button:** `rgba(0, 0, 0, 0.2) 0px 1px 4px 0px`
+- **Feature Card (soft warm glow):** `rgba(250, 166, 0, 0.25) 6px 4px 24px 0px`
+
+## Agent Prompt Guide
+
+Quick Color Reference:
+- text: #1d1e1c
+- background: #fff8f1 (page) / #ffffff (cards)
+- border: #c0bbb6 (input) / #d9d9d9 (divider)
+- accent: #fa5d00 (links, icons, small highlights)
+- primary action: #fa5d00 (filled action)
+- secondary text: #615f5c
+
+3 Example Component Prompts:
+
+1. Create a Primary Action Button: #fa5d00 background, #ffffff text, 16px radius, and 12px 24px padding. Use this filled treatment for the main CTA.
+
+2. Create a workspace card on cream background (#fff8f1). Use a white fill, 20px border-radius, and 24–40px padding. Dark icon (#1d1e1c) at 40–48px. Heading: MuotoWeb 22px weight 600 #1d1e1c. Body text: 16px weight 400 #615f5c. Orange contextual action (#fa5d00, weight 500) with → arrow.
+
+
+## Visual Language
+
+Imagery: The real Rufina interface is the dominant visual — job cards, match analysis, application timelines, calendars, resume previews, and assistant outputs. No stock photography, lifestyle imagery, or abstract 3D renders. The app UI is the hero.
+
+Treatment: Product surfaces are presented in white cards with 16–20px radius and soft warm-tinted shadows. The Dashboard hero uses a low-opacity orange-to-marigold wash behind the interface; working screens stay calmer so content remains primary.
+
+Icons: Dark (#1d1e1c) outlined geometric shapes at 16–48px depending on hierarchy — search, briefcase, calendar, file, target, and assistant symbols. Orange is reserved for active or primary states. Company and service logos may retain literal brand colors; this is the only external color exception.
+
+Company identity: Logos are preferably grayscale at 60–80% opacity. Literal company colors are allowed only inside their bounded logo badge and never leak into controls or surrounding surfaces.
+
+Density: Text-dominant with product screenshots as visual punctuation. The cream canvas and generous spacing (64-80px section gaps) create breathing room. Information density is moderate — comfortable for reading, not packed.
+
+## Layout Patterns
+
+Page model: The full-bleed cream background extends edge-to-edge. Reading and dashboard content is centered at ~1200px; dense list/detail and document workspaces may expand to 1600px. Horizontal padding remains generous and responsive.
+
+Hero pattern: The Dashboard opens with an orange uppercase eyebrow, one large serif greeting, a short muted subtitle, and a single orange search CTA over the warm gradient wash. All other screens use restrained sans-serif page titles.
+
+Section rhythm: Marketing-scale sections use 64–80px gaps. Dense workspace panels use 16–24px gaps while preserving breathing room inside cards. No alternating dark/light bands — the entire product lives on the warm cream canvas.
+
+Content arrangement: The Dashboard uses hero, statistic cards, recommended jobs, events, and next-action panels. Jobs and Applications use list/detail grids. Profile uses a single readable vertical stack. Document and assistant screens use dedicated workspaces with clear primary actions.
+
+Grid usage: Four compact statistic cards on wide Dashboard layouts; two-column list/detail layouts for Jobs and Applications; one-column stacks for profile and settings; three-pane layouts only when navigation, main work, and context must remain visible together.
+
+Navigation: Sticky top bar with Rufina identity left, primary views in the center, and profile/settings right. No sidebar and no dark navigation surface. On narrow screens, the view row scrolls horizontally without hiding destinations.
+
+## Similar Brands
+
+- **Toggl Track** — Same warm cream + orange palette, same time-tracking product focus, same soft rounded card aesthetic with single-accent-color discipline
+- **FreshBooks** — Same warm approachable SaaS feel with orange accent, cream backgrounds, and product-screenshot-as-hero treatment
+- **Notion** — Same generous whitespace and warm-neutral palette approach, though Notion uses black where Rufina uses warm near-black and orange
+- **Basecamp** — Same friendly productivity-tool voice with warm backgrounds and rounded components, though Basecamp leans more colorful where Rufina stays disciplined to one orange
+- **QuickBooks** — Same professional-services workflow focus with warm UI palette and product-preview hero pattern
+
+## Quick Start
+
+### CSS Custom Properties
+
+```css
+:root {
+  /* Colors */
+  --color-rufina-flame: #fa5d00;
+  --color-marigold-glow: #fee3b5;
+  --color-parchment-shadow: #e3d6c5;
+  --color-ink-black: #1d1e1c;
+  --color-paper-white: #ffffff;
+  --color-cream-canvas: #fff8f1;
+  --color-mist-gray: #d9d9d9;
+  --color-warm-stone: #615f5c;
+  --color-driftwood: #8e8b87;
+  --color-ironwood: #4a4a47;
+  --color-ash: #777571;
+  --color-bone: #c0bbb6;
+  --color-smoke: #a5a19c;
+  --color-graphite: #999999;
+
+  /* Typography — Font Families */
+  --font-muotoweb: 'MuotoWeb', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-monarch: 'Monarch', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Typography — Scale */
+  --text-caption: 13px;
+  --leading-caption: 1.35;
+  --tracking-caption: 0.2px;
+  --text-subheading: 18px;
+  --leading-subheading: 1.4;
+  --tracking-subheading: 0.27px;
+  --text-heading-sm: 20px;
+  --leading-heading-sm: 1.3;
+  --tracking-heading-sm: 0.3px;
+  --text-heading: 24px;
+  --leading-heading: 1.26;
+  --tracking-heading: 0.36px;
+  --text-heading-lg: 28px;
+  --leading-heading-lg: 1.2;
+  --tracking-heading-lg: 0.42px;
+  --text-display: 48px;
+  --leading-display: 1.15;
+  --tracking-display: 0.72px;
+  --text-display-lg: 72px;
+  --leading-display-lg: 1.2;
+
+  /* Typography — Weights */
+  --font-weight-regular: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+
+  /* Spacing */
+  --spacing-4: 4px;
+  --spacing-5: 5px;
+  --spacing-7: 7px;
+  --spacing-10: 10px;
+  --spacing-14: 14px;
+  --spacing-15: 15px;
+  --spacing-16: 16px;
+  --spacing-20: 20px;
+  --spacing-22: 22px;
+  --spacing-25: 25px;
+  --spacing-30: 30px;
+  --spacing-35: 35px;
+  --spacing-40: 40px;
+  --spacing-50: 50px;
+  --spacing-100: 100px;
+  --spacing-113: 113px;
+
+  /* Layout */
+  --page-max-width: 1200px;
+  --section-gap: 64-80px;
+  --card-padding: 32-40px;
+  --element-gap: 16-24px;
+
+  /* Border Radius */
+  --radius-2xl: 16px;
+  --radius-2xl-2: 20px;
+  --radius-full: 999px;
+
+  /* Named Radii */
+  --radius-tags: 999px;
+  --radius-cards: 20px;
+  --radius-images: 16px;
+  --radius-inputs: 16px;
+  --radius-buttons: 16px;
+
+  /* Shadows */
+  --shadow-sm: rgba(0, 0, 0, 0.2) 0px 1px 4px 0px;
+  --shadow-lg: rgba(250, 166, 0, 0.25) 6px 4px 24px 0px;
+
+  /* Surfaces */
+  --surface-cream-canvas: #fff8f1;
+  --surface-paper-white: #ffffff;
+  --surface-orange-brand-surface: #fa5d00;
+}
+```
+
+### Tailwind v4
+
+```css
+@theme {
+  /* Colors */
+  --color-rufina-flame: #fa5d00;
+  --color-marigold-glow: #fee3b5;
+  --color-parchment-shadow: #e3d6c5;
+  --color-ink-black: #1d1e1c;
+  --color-paper-white: #ffffff;
+  --color-cream-canvas: #fff8f1;
+  --color-mist-gray: #d9d9d9;
+  --color-warm-stone: #615f5c;
+  --color-driftwood: #8e8b87;
+  --color-ironwood: #4a4a47;
+  --color-ash: #777571;
+  --color-bone: #c0bbb6;
+  --color-smoke: #a5a19c;
+  --color-graphite: #999999;
+
+  /* Typography */
+  --font-muotoweb: 'MuotoWeb', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --font-monarch: 'Monarch', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+
+  /* Typography — Scale */
+  --text-caption: 13px;
+  --leading-caption: 1.35;
+  --tracking-caption: 0.2px;
+  --text-subheading: 18px;
+  --leading-subheading: 1.4;
+  --tracking-subheading: 0.27px;
+  --text-heading-sm: 20px;
+  --leading-heading-sm: 1.3;
+  --tracking-heading-sm: 0.3px;
+  --text-heading: 24px;
+  --leading-heading: 1.26;
+  --tracking-heading: 0.36px;
+  --text-heading-lg: 28px;
+  --leading-heading-lg: 1.2;
+  --tracking-heading-lg: 0.42px;
+  --text-display: 48px;
+  --leading-display: 1.15;
+  --tracking-display: 0.72px;
+  --text-display-lg: 72px;
+  --leading-display-lg: 1.2;
+
+  /* Spacing */
+  --spacing-4: 4px;
+  --spacing-5: 5px;
+  --spacing-7: 7px;
+  --spacing-10: 10px;
+  --spacing-14: 14px;
+  --spacing-15: 15px;
+  --spacing-16: 16px;
+  --spacing-20: 20px;
+  --spacing-22: 22px;
+  --spacing-25: 25px;
+  --spacing-30: 30px;
+  --spacing-35: 35px;
+  --spacing-40: 40px;
+  --spacing-50: 50px;
+  --spacing-100: 100px;
+  --spacing-113: 113px;
+
+  /* Border Radius */
+  --radius-2xl: 16px;
+  --radius-2xl-2: 20px;
+  --radius-full: 999px;
+
+  /* Shadows */
+  --shadow-sm: rgba(0, 0, 0, 0.2) 0px 1px 4px 0px;
+  --shadow-lg: rgba(250, 166, 0, 0.25) 6px 4px 24px 0px;
+}
+```

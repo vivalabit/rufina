@@ -2,8 +2,6 @@
 
 import { useEffect, useState } from "react";
 
-import { cn } from "@/lib/utils";
-
 export function useHydrationSafeCurrentTime() {
   const [currentTime, setCurrentTime] = useState<Date | null>(null);
 
@@ -28,40 +26,20 @@ export function DashboardGreeting({
 }) {
   const firstName = name.trim().split(/\s+/)[0] ?? "";
   const hour = currentTime?.getHours();
-  const timeOfDay =
+  const greeting =
     hour === undefined
-      ? {
-          greeting: "Hello",
-          titleClassName: "from-white via-[#fff0e3] to-[#ff9e4f]",
-        }
+      ? "Hello"
       : hour >= 5 && hour < 12
-        ? {
-            greeting: "Good morning",
-            titleClassName: "from-white via-[#fff4de] to-[#ffc66f]",
-          }
+        ? "Good morning"
         : hour >= 12 && hour < 17
-          ? {
-              greeting: "Good afternoon",
-              titleClassName: "from-white via-[#fff0e3] to-[#ff9e4f]",
-            }
+          ? "Good afternoon"
           : hour >= 17 && hour < 22
-            ? {
-                greeting: "Good evening",
-                titleClassName: "from-white via-[#f8eaff] to-[#d7a0ff]",
-              }
-            : {
-                greeting: "Hello, night owl",
-                titleClassName: "from-white via-[#eaf2ff] to-[#91bbff]",
-              };
+            ? "Good evening"
+            : "Hello, night owl";
 
   return (
-    <h1
-      className={cn(
-        "bg-gradient-to-r bg-clip-text text-[24px] font-bold leading-tight tracking-normal text-transparent sm:text-[27px] 2xl:text-[31px]",
-        timeOfDay.titleClassName,
-      )}
-    >
-      {timeOfDay.greeting}
+    <h1 className="hero-title text-[36px] leading-[1.08] sm:text-[44px] 2xl:text-[52px]">
+      {greeting}
       {firstName ? `, ${firstName}` : ""}!
     </h1>
   );

@@ -49,16 +49,16 @@ export function DirectCompaniesSource({
   }
 
   return (
-    <div className="min-w-0 rounded-md border border-[#8b5cf6]/40 bg-[#8b5cf6]/[0.055] p-3">
+    <div className="min-w-0 rounded-md border border-[#fa5d00]/40 bg-[#fa5d00]/[0.055] p-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex min-w-0 gap-3">
-          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-[#6d45c8] text-white">
+          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-[#fa5d00] text-foreground">
             <Building2 className="h-5 w-5" />
           </div>
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
-              <h4 className="text-sm font-bold text-white">Direct company pages</h4>
-              <span className="rounded bg-[#8b5cf6]/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-[#c8b5ff]">
+              <h4 className="text-sm font-bold text-foreground">Direct company pages</h4>
+              <span className="rounded bg-[#fa5d00]/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.06em] text-accent">
                 {selectedConfiguredCount}/{companies.length} selected
               </span>
             </div>
@@ -70,7 +70,7 @@ export function DirectCompaniesSource({
         <Button
           type="button"
           variant="ghost"
-          className="h-8 shrink-0 rounded-md border border-[#8b5cf6]/45 bg-[#8b5cf6]/10 px-3 text-xs font-bold text-[#e8e0ff] hover:bg-[#8b5cf6]/20"
+          className="h-8 shrink-0 rounded-md border border-[#fa5d00]/45 bg-[#fa5d00]/10 px-3 text-xs font-bold text-[#fff8f1] hover:bg-[#fa5d00]/20"
           disabled={companies.length === 0}
           onClick={() =>
             onSelectedCompanyIdsChange(
@@ -90,20 +90,20 @@ export function DirectCompaniesSource({
           value={query}
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search companies or career pages..."
-          className="h-9 w-full rounded-md border border-border bg-[#0a1017] pl-9 pr-3 text-sm font-semibold text-white outline-none placeholder:text-muted/65 focus:border-[#8b5cf6]/80"
+          className="h-9 w-full rounded-md border border-border bg-white pl-9 pr-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/65 focus:border-[#fa5d00]/80"
         />
       </label>
 
       {companies.length === 0 ? (
-        <div className="mt-3 rounded-md border border-dashed border-white/[0.12] bg-[#0d131a]/55 px-4 py-6 text-center">
-          <p className="text-sm font-bold text-[#e1e6ee]">Company catalog is empty</p>
+        <div className="mt-3 rounded-md border border-dashed border-border bg-[#ffffff]/55 px-4 py-6 text-center">
+          <p className="text-sm font-bold text-[#1d1e1c]">Company catalog is empty</p>
           <p className="mt-1 text-xs font-medium leading-5 text-muted">
             Companies will appear here after they are added to the catalog with their parsers.
           </p>
         </div>
       ) : filteredCompanies.length === 0 ? (
-        <div className="mt-3 rounded-md border border-dashed border-white/[0.12] bg-[#0d131a]/55 px-4 py-6 text-center">
-          <p className="text-sm font-bold text-[#e1e6ee]">No companies found</p>
+        <div className="mt-3 rounded-md border border-dashed border-border bg-[#ffffff]/55 px-4 py-6 text-center">
+          <p className="text-sm font-bold text-[#1d1e1c]">No companies found</p>
           <p className="mt-1 text-xs font-medium text-muted">Try another name or domain.</p>
         </div>
       ) : (
@@ -116,18 +116,18 @@ export function DirectCompaniesSource({
                 className={cn(
                   "flex w-full min-w-0 cursor-pointer items-center gap-3 rounded-md border px-3 py-2.5 transition",
                   selected
-                    ? "border-[#8b5cf6]/70 bg-[#8b5cf6]/12"
-                    : "border-white/[0.10] bg-[#0d131a]/80 hover:border-white/20 hover:bg-white/[0.045]",
+                    ? "border-[#fa5d00]/70 bg-[#fa5d00]/12"
+                    : "border-border bg-[#ffffff]/80 hover:border-[#c0bbb6] hover:bg-[#fff3e8]",
                 )}
               >
                 <input
                   type="checkbox"
                   checked={selected}
                   onChange={() => toggleCompany(company.id)}
-                  className="h-4 w-4 shrink-0 accent-[#8b5cf6]"
+                  className="h-4 w-4 shrink-0 accent-[#fa5d00]"
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-bold text-white">
+                  <span className="block truncate text-sm font-bold text-foreground">
                     {company.name}
                   </span>
                   <span className="mt-0.5 block truncate text-xs font-medium text-muted">

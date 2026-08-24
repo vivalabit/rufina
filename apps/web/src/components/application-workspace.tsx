@@ -511,11 +511,11 @@ function CollapsibleDocumentPreview({
     <details
       open={isOpen}
       onToggle={(event) => setIsOpen(event.currentTarget.open)}
-      className="group border-t border-white/[0.08]"
+      className="group border-t border-border"
     >
-      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-xs font-bold text-[#dbe2eb]">
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-4 py-4 text-xs font-bold text-[#1d1e1c]">
         <span>
-          <span className="block text-sm text-white">{title}</span>
+          <span className="block text-sm text-foreground">{title}</span>
           <span className="mt-1 block text-[10px] font-normal leading-4 text-muted">
             {available ? description : "Available after document generation"}
           </span>
@@ -523,9 +523,9 @@ function CollapsibleDocumentPreview({
         <ChevronRight className="h-4 w-4 shrink-0 text-muted transition group-open:rotate-90" />
       </summary>
       {isOpen ? (
-        <div className="border-t border-white/[0.07] py-5">
+        <div className="border-t border-border py-5">
           {available ? children : (
-            <div className="grid min-h-32 place-items-center border border-dashed border-white/[0.1] bg-black/15 px-4 text-center">
+            <div className="grid min-h-32 place-items-center border border-dashed border-border bg-black/15 px-4 text-center">
               <p className="text-[10px] font-bold text-muted">
                 Generate the document to open its exact PDF preview.
               </p>
@@ -557,7 +557,7 @@ function CoverLetterTemplateCard({
   );
 
   return (
-    <div className="mt-4 border-t border-white/[0.08] pt-4">
+    <div className="mt-4 border-t border-border pt-4">
       <div className="grid grid-cols-[76px_minmax(0,1fr)] items-center gap-4">
         <div
           aria-label={`${template?.name ?? "Standard cover letter"} selected template`}
@@ -604,7 +604,7 @@ function CoverLetterTemplateCard({
           <p className="text-[9px] font-black uppercase tracking-[0.12em] text-muted">
             Cover letter template
           </p>
-          <p className="mt-2 text-[11px] font-bold text-white">
+          <p className="mt-2 text-[11px] font-bold text-foreground">
             {template?.name ?? "Standard cover letter"}
           </p>
           <p className="mt-1 text-[9px] leading-4 text-muted">
@@ -764,9 +764,9 @@ function generatedDocumentLanguage(
 
 function evidenceStatusMeta(status: NonNullable<ApplicationGuide["evidenceMatrix"]>[number]["status"]) {
   if (status === "verified") return { label: "Verified", className: "border-success/35 bg-success/10 text-success" };
-  if (status === "transferable") return { label: "Transferable", className: "border-[#2f80ed]/35 bg-[#2f80ed]/10 text-[#8cc7ff]" };
-  if (status === "missing") return { label: "Missing", className: "border-red-400/35 bg-red-500/10 text-red-200" };
-  return { label: "Confirm", className: "border-amber-400/35 bg-amber-400/10 text-amber-200" };
+  if (status === "transferable") return { label: "Transferable", className: "border-[#fa5d00]/35 bg-[#fa5d00]/10 text-accent" };
+  if (status === "missing") return { label: "Missing", className: "border-accent/25 bg-accent/10 text-accent" };
+  return { label: "Confirm", className: "border-accent/25 bg-accent/10 text-accent" };
 }
 
 function buildGroundedAdvice(prompt: string, guide?: ApplicationGuide) {
@@ -1208,8 +1208,8 @@ export function ApplicationWorkspace({
       <section className="grid min-w-0 flex-1 place-items-center p-6">
         <div className="panel max-w-md p-6 text-center">
           <FileText className="mx-auto h-8 w-8 text-muted" />
-          <h1 className="mt-3 text-lg font-bold text-white">No application selected</h1>
-          <Button className="mt-4 bg-accent text-white" onClick={onBack}><ArrowLeft className="h-4 w-4" /> Back to {backLabel.toLowerCase()}</Button>
+          <h1 className="mt-3 text-lg font-bold text-foreground">No application selected</h1>
+          <Button className="mt-4 bg-accent text-foreground" onClick={onBack}><ArrowLeft className="h-4 w-4" /> Back to {backLabel.toLowerCase()}</Button>
         </div>
       </section>
     );
@@ -2010,35 +2010,35 @@ export function ApplicationWorkspace({
     <>
     <section className="job-scroll application-workspace min-w-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 xl:px-7">
       <div className="mx-auto max-w-[1420px]">
-        <button type="button" onClick={onBack} className="mb-4 inline-flex items-center gap-2 text-xs font-semibold text-muted transition hover:text-white">
+        <button type="button" onClick={onBack} className="mb-4 inline-flex items-center gap-2 text-xs font-semibold text-muted transition hover:text-foreground">
           <ArrowLeft className="h-4 w-4" /> {backLabel}
         </button>
 
-        <header className="application-hero overflow-hidden rounded-2xl border border-white/[0.09]">
+        <header className="application-hero overflow-hidden rounded-2xl border border-border">
           <div className="relative grid gap-5 px-5 py-5 sm:px-6 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">Application workspace</span>
                 <span className="sr-only">Application prep</span>
-                <span className="text-white/20">/</span>
-                <span className="rounded-full border border-white/10 bg-white/[0.045] px-2.5 py-1 text-[10px] font-bold capitalize text-[#cbd3df]">{application.status === "draft" ? "In progress" : application.status}</span>
+                <span className="text-foreground/20">/</span>
+                <span className="rounded-full border border-border bg-[#fff8f1] px-2.5 py-1 text-[10px] font-bold capitalize text-[#4a4a47]">{application.status === "draft" ? "In progress" : application.status}</span>
               </div>
-              <h1 className="mt-3 max-w-4xl text-xl font-bold leading-tight tracking-[-0.02em] text-white sm:text-2xl">{application.job.title}</h1>
-              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-[#aeb7c5]">
-                <span className="text-[#eef1f6]">{application.job.company}</span><span className="text-white/25">/</span><span>{application.job.location}</span><span className="text-white/25">/</span><span>{application.job.type}</span>
+              <h1 className="mt-3 max-w-4xl text-xl font-bold leading-tight tracking-[-0.02em] text-foreground sm:text-2xl">{application.job.title}</h1>
+              <p className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm font-medium text-[#4a4a47]">
+                <span className="text-[#1d1e1c]">{application.job.company}</span><span className="text-foreground/25">/</span><span>{application.job.location}</span><span className="text-foreground/25">/</span><span>{application.job.type}</span>
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2 lg:justify-end">
               <div className="mr-1 flex h-11 items-center gap-2 rounded-xl border border-success/20 bg-success/[0.055] px-3.5">
                 <CheckCircle2 className="h-4 w-4 text-success" />
-                <div><p className="text-[8px] font-black uppercase tracking-[0.12em] text-[#9aa5b4]">Match</p><p className="text-sm font-black text-success">{application.job.match}%</p></div>
+                <div><p className="text-[8px] font-black uppercase tracking-[0.12em] text-[#615f5c]">Match</p><p className="text-sm font-black text-success">{application.job.match}%</p></div>
               </div>
-              <Button variant="ghost" disabled={!jobUrl} onClick={() => jobUrl && window.open(jobUrl, "_blank", "noopener,noreferrer")} className="h-11 rounded-xl border border-white/10 bg-white/[0.025] px-4 text-xs text-[#e6ebf3] hover:bg-white/[0.07] disabled:opacity-45">
+              <Button variant="ghost" disabled={!jobUrl} onClick={() => jobUrl && window.open(jobUrl, "_blank", "noopener,noreferrer")} className="h-11 rounded-xl border border-border bg-[#fff8f1] px-4 text-xs text-[#1d1e1c] hover:bg-[#fff3e8] disabled:opacity-45">
                 <ExternalLink className="h-4 w-4" /> View vacancy
               </Button>
             </div>
           </div>
-          <nav className="grid border-t border-white/[0.07] bg-black/15 sm:grid-cols-2 xl:grid-cols-4" aria-label="Application preparation steps">
+          <nav className="grid border-t border-border bg-black/15 sm:grid-cols-2 xl:grid-cols-4" aria-label="Application preparation steps">
             {preparationSteps.map((step, index) => {
               const StepIcon = step.icon;
               return (
@@ -2048,14 +2048,14 @@ export function ApplicationWorkspace({
                   aria-current={activeWorkspaceStep === step.id ? "step" : undefined}
                   onClick={() => setActiveWorkspaceStep(step.id)}
                   className={cn(
-                    "group relative flex min-w-0 items-center gap-3 border-white/[0.07] px-5 py-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/45 xl:border-r xl:last:border-r-0",
+                    "group relative flex min-w-0 items-center gap-3 border-border px-5 py-4 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/45 xl:border-r xl:last:border-r-0",
                     index > 0 && "border-t sm:border-t-0",
                     index === 2 && "sm:border-t xl:border-t-0",
-                    activeWorkspaceStep === step.id ? "bg-white/[0.055]" : "hover:bg-white/[0.025]",
+                    activeWorkspaceStep === step.id ? "bg-[#fff8f1]" : "hover:bg-[#fff3e8]",
                   )}
                 >
-                  <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full border text-[11px] font-black transition", activeWorkspaceStep === step.id ? "border-accent bg-accent text-white" : step.ready ? "border-success/25 bg-success/10 text-success" : "border-white/10 bg-white/[0.035] text-[#7f8998]")}>{activeWorkspaceStep === step.id ? index + 1 : step.ready ? <Check className="h-4 w-4" /> : <StepIcon className="h-3.5 w-3.5" />}</span>
-                  <span className="min-w-0"><span className={cn("block truncate text-xs font-bold", activeWorkspaceStep === step.id ? "text-white" : step.ready ? "text-[#e4e9ef]" : "text-[#bbc3cf]")}>{step.label}</span><span className="mt-0.5 block truncate text-[10px] text-[#7f8998]">{step.detail}</span></span>
+                  <span className={cn("grid h-8 w-8 shrink-0 place-items-center rounded-full border text-[11px] font-black transition", activeWorkspaceStep === step.id ? "border-accent bg-accent text-foreground" : step.ready ? "border-success/25 bg-success/10 text-success" : "border-border bg-[#fff8f1] text-[#615f5c]")}>{activeWorkspaceStep === step.id ? index + 1 : step.ready ? <Check className="h-4 w-4" /> : <StepIcon className="h-3.5 w-3.5" />}</span>
+                  <span className="min-w-0"><span className={cn("block truncate text-xs font-bold", activeWorkspaceStep === step.id ? "text-foreground" : step.ready ? "text-[#1d1e1c]" : "text-[#4a4a47]")}>{step.label}</span><span className="mt-0.5 block truncate text-[10px] text-[#615f5c]">{step.detail}</span></span>
                   {activeWorkspaceStep === step.id ? <span className="absolute inset-x-5 bottom-0 h-0.5 rounded-full bg-accent" /> : null}
                 </button>
               );
@@ -2067,13 +2067,13 @@ export function ApplicationWorkspace({
           <main className="min-w-0 space-y-5">
             <div className={cn(activeWorkspaceStep !== "review" && "hidden")}>
             <section className="workspace-card overflow-hidden">
-              <div className="flex flex-col gap-4 border-b border-white/[0.07] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+              <div className="flex flex-col gap-4 border-b border-border px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
                 <div className="flex items-start gap-3">
                   <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-accent/12 text-accent"><Target className="h-[18px] w-[18px]" /></span>
-                  <div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">01 · Understand the role</p><h2 className="mt-1 text-lg font-bold tracking-[-0.01em] text-white">Your application angle</h2><p className="mt-1 text-xs leading-5 text-muted">Review the recommendation before generating any documents.</p></div>
+                  <div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">01 · Understand the role</p><h2 className="mt-1 text-lg font-bold tracking-[-0.01em] text-foreground">Your application angle</h2><p className="mt-1 text-xs leading-5 text-muted">Review the recommendation before generating any documents.</p></div>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Button type="button" variant="ghost" disabled={isAnalysisRefreshing} onClick={() => onRefreshAnalysis(activeApplication.id)} className={cn("h-11 rounded-xl border px-3 text-[11px] font-bold", isAnalysisOutdated ? "border-amber-400/30 bg-amber-400/[0.07] text-amber-100 hover:bg-amber-400/10" : "border-white/[0.08] bg-white/[0.025] text-[#dfe5ec] hover:bg-white/[0.06]")}>{isAnalysisRefreshing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{isAnalysisRefreshing ? "Updating…" : isAnalysisOutdated ? "Update analysis" : "Refresh analysis"}</Button>
+                  <Button type="button" variant="ghost" disabled={isAnalysisRefreshing} onClick={() => onRefreshAnalysis(activeApplication.id)} className={cn("h-11 rounded-xl border px-3 text-[11px] font-bold", isAnalysisOutdated ? "border-accent/25 bg-accent/10 text-accent hover:bg-accent/10" : "border-border bg-[#fff8f1] text-[#1d1e1c] hover:bg-[#fff3e8]")}>{isAnalysisRefreshing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{isAnalysisRefreshing ? "Updating…" : isAnalysisOutdated ? "Update analysis" : "Refresh analysis"}</Button>
                 </div>
               </div>
 
@@ -2082,51 +2082,51 @@ export function ApplicationWorkspace({
                   <article className="relative overflow-hidden rounded-2xl border border-accent/20 bg-gradient-to-br from-accent/[0.09] via-white/[0.025] to-transparent p-5 sm:p-6">
                     <div className="absolute -right-16 -top-20 h-52 w-52 rounded-full bg-accent/10 blur-3xl" />
                     <div className="relative grid gap-5 lg:grid-cols-[minmax(0,1fr)_240px] lg:items-start">
-                      <div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#ff9a63]">Recommended narrative</p><p className="mt-3 text-base font-bold leading-7 text-white sm:text-lg">{applicationGuide.roleMission || activeApplication.job.overview || `Succeed as ${activeApplication.job.title}.`}</p><p className="mt-3 max-w-3xl text-sm leading-6 text-[#c6ced9]">{applicationGuide.positioning}</p></div>
-                      <div className="rounded-xl border border-white/[0.08] bg-black/20 p-4">
-                        <div className="flex items-center justify-between gap-2"><span className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">Analysis status</span><span className={cn("rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-wide", applicationGuide.readiness === "ready" ? "border-success/30 bg-success/10 text-success" : applicationGuide.readiness === "weak_fit" ? "border-red-400/30 bg-red-500/10 text-red-200" : "border-amber-400/30 bg-amber-400/10 text-amber-200")}>{(applicationGuide.readiness ?? "needs_confirmation").replace("_", " ")}</span></div>
-                        <div className="mt-4 flex flex-wrap gap-1.5">{(applicationGuide.keywords ?? []).slice(0, 8).map((keyword) => <span key={keyword} className="rounded-md border border-white/[0.07] bg-white/[0.04] px-2 py-1 text-[9px] font-semibold text-[#cbd3df]">{keyword}</span>)}</div>
-                        <dl className="mt-4 grid gap-2 border-t border-white/[0.07] pt-3 text-[9px]">
-                          <div className="flex items-center justify-between gap-3"><dt className="font-bold uppercase tracking-wide text-muted">Revision</dt><dd className="max-w-[145px] truncate font-mono text-[#d7dee8]" title={application.job.aiMatch?.revision}>{application.job.aiMatch?.revision || "Unavailable"}</dd></div>
-                          <div className="flex items-center justify-between gap-3"><dt className="font-bold uppercase tracking-wide text-muted">Fingerprint</dt><dd className="max-w-[145px] truncate font-mono text-[#d7dee8]" title={application.job.aiMatch?.fingerprint}>{application.job.aiMatch?.fingerprint || "Unavailable"}</dd></div>
+                      <div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-[#e95300]">Recommended narrative</p><p className="mt-3 text-base font-bold leading-7 text-foreground sm:text-lg">{applicationGuide.roleMission || activeApplication.job.overview || `Succeed as ${activeApplication.job.title}.`}</p><p className="mt-3 max-w-3xl text-sm leading-6 text-[#4a4a47]">{applicationGuide.positioning}</p></div>
+                      <div className="rounded-xl border border-border bg-black/20 p-4">
+                        <div className="flex items-center justify-between gap-2"><span className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">Analysis status</span><span className={cn("rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-wide", applicationGuide.readiness === "ready" ? "border-success/30 bg-success/10 text-success" : applicationGuide.readiness === "weak_fit" ? "border-accent/25 bg-accent/10 text-accent" : "border-accent/25 bg-accent/10 text-accent")}>{(applicationGuide.readiness ?? "needs_confirmation").replace("_", " ")}</span></div>
+                        <div className="mt-4 flex flex-wrap gap-1.5">{(applicationGuide.keywords ?? []).slice(0, 8).map((keyword) => <span key={keyword} className="rounded-md border border-border bg-[#fff8f1] px-2 py-1 text-[9px] font-semibold text-[#4a4a47]">{keyword}</span>)}</div>
+                        <dl className="mt-4 grid gap-2 border-t border-border pt-3 text-[9px]">
+                          <div className="flex items-center justify-between gap-3"><dt className="font-bold uppercase tracking-wide text-muted">Revision</dt><dd className="max-w-[145px] truncate font-mono text-[#1d1e1c]" title={application.job.aiMatch?.revision}>{application.job.aiMatch?.revision || "Unavailable"}</dd></div>
+                          <div className="flex items-center justify-between gap-3"><dt className="font-bold uppercase tracking-wide text-muted">Fingerprint</dt><dd className="max-w-[145px] truncate font-mono text-[#1d1e1c]" title={application.job.aiMatch?.fingerprint}>{application.job.aiMatch?.fingerprint || "Unavailable"}</dd></div>
                         </dl>
                       </div>
                     </div>
                   </article>
 
-                  <div className="mt-5 flex gap-1 overflow-x-auto rounded-xl border border-white/[0.07] bg-black/20 p-1" role="tablist" aria-label="Application analysis">
+                  <div className="mt-5 flex gap-1 overflow-x-auto rounded-xl border border-border bg-black/20 p-1" role="tablist" aria-label="Application analysis">
                     {[
                       { id: "overview" as const, label: "Role overview" },
                       { id: "evidence" as const, label: `Evidence map${applicationGuide.evidenceMatrix?.length ? ` · ${applicationGuide.evidenceMatrix.length}` : ""}` },
                       { id: "strategy" as const, label: "Document strategy" },
-                    ].map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={analysisTab === tab.id} onClick={() => setAnalysisTab(tab.id)} className={cn("min-w-fit flex-1 rounded-lg px-4 py-2.5 text-[11px] font-bold transition", analysisTab === tab.id ? "bg-white/[0.09] text-white shadow-sm" : "text-muted hover:bg-white/[0.04] hover:text-white")}>{tab.label}</button>)}
+                    ].map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={analysisTab === tab.id} onClick={() => setAnalysisTab(tab.id)} className={cn("min-w-fit flex-1 rounded-lg px-4 py-2.5 text-[11px] font-bold transition", analysisTab === tab.id ? "bg-[#fff8f1] text-foreground shadow-sm" : "text-muted hover:bg-[#fff3e8] hover:text-foreground")}>{tab.label}</button>)}
                   </div>
 
                   {analysisTab === "overview" ? (
                     <div className="mt-4 grid gap-3 md:grid-cols-2">
                       {[
-                        { label: "What they care about", values: applicationGuide.hiringPriorities, tone: "text-[#ff9a63]" },
-                        { label: "Must have", values: applicationGuide.mustHave, tone: "text-white" },
-                        { label: "Advantage", values: applicationGuide.niceToHave, tone: "text-[#8cc7ff]" },
-                        { label: "Constraints to verify", values: applicationGuide.hardConstraints, tone: "text-amber-200" },
-                      ].map((group) => <article key={group.label} className="rounded-xl border border-white/[0.07] bg-white/[0.018] p-4"><h3 className={cn("text-[10px] font-black uppercase tracking-[0.11em]", group.tone)}>{group.label}</h3>{group.values?.length ? <ul className="mt-3 space-y-2 text-xs leading-5 text-[#b8c1cd]">{group.values.map((value) => <li key={value} className="flex gap-2.5"><CircleDot className="mt-1 h-3 w-3 shrink-0 text-[#647080]" /><span>{value}</span></li>)}</ul> : <p className="mt-3 text-xs text-muted">Nothing critical identified.</p>}</article>)}
-                      <article className="rounded-xl border border-success/15 bg-success/[0.035] p-4 md:col-span-2"><h3 className="text-[10px] font-black uppercase tracking-[0.11em] text-success">Why your profile fits</h3><div className="mt-3 grid gap-2 sm:grid-cols-2">{(application.job.aiMatch?.reasons.length ? application.job.aiMatch.reasons : application.job.skills.slice(0, 4).map((skill) => `${skill} aligns with this role.`)).slice(0, 4).map((reason) => <div key={reason} className="flex gap-2 text-xs leading-5 text-[#c8d0da]"><Check className="mt-1 h-3.5 w-3.5 shrink-0 text-success" /><span>{reason}</span></div>)}</div></article>
+                        { label: "What they care about", values: applicationGuide.hiringPriorities, tone: "text-[#e95300]" },
+                        { label: "Must have", values: applicationGuide.mustHave, tone: "text-foreground" },
+                        { label: "Advantage", values: applicationGuide.niceToHave, tone: "text-accent" },
+                        { label: "Constraints to verify", values: applicationGuide.hardConstraints, tone: "text-accent" },
+                      ].map((group) => <article key={group.label} className="rounded-xl border border-border bg-[#fff8f1] p-4"><h3 className={cn("text-[10px] font-black uppercase tracking-[0.11em]", group.tone)}>{group.label}</h3>{group.values?.length ? <ul className="mt-3 space-y-2 text-xs leading-5 text-[#4a4a47]">{group.values.map((value) => <li key={value} className="flex gap-2.5"><CircleDot className="mt-1 h-3 w-3 shrink-0 text-[#615f5c]" /><span>{value}</span></li>)}</ul> : <p className="mt-3 text-xs text-muted">Nothing critical identified.</p>}</article>)}
+                      <article className="rounded-xl border border-success/15 bg-success/[0.035] p-4 md:col-span-2"><h3 className="text-[10px] font-black uppercase tracking-[0.11em] text-success">Why your profile fits</h3><div className="mt-3 grid gap-2 sm:grid-cols-2">{(application.job.aiMatch?.reasons.length ? application.job.aiMatch.reasons : application.job.skills.slice(0, 4).map((skill) => `${skill} aligns with this role.`)).slice(0, 4).map((reason) => <div key={reason} className="flex gap-2 text-xs leading-5 text-[#4a4a47]"><Check className="mt-1 h-3.5 w-3.5 shrink-0 text-success" /><span>{reason}</span></div>)}</div></article>
                     </div>
                   ) : null}
 
                   {analysisTab === "evidence" ? (
-                    <div className="mt-4 overflow-hidden rounded-xl border border-white/[0.07] bg-black/15">
+                    <div className="mt-4 overflow-hidden rounded-xl border border-border bg-black/15">
                       {applicationGuide.evidenceMatrix?.length ? (
                         <div className="divide-y divide-white/[0.07]">
                           {applicationGuide.evidenceMatrix.map((item) => {
                             const meta = evidenceStatusMeta(item.status);
                             return (
                               <article key={`${item.requirement}-${item.status}`} className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(150px,0.7fr)_minmax(0,1.3fr)_auto] md:items-start">
-                                <div><p className="text-xs font-bold text-white">{item.requirement}</p><p className="mt-1 text-[8px] font-black uppercase tracking-wider text-muted">{item.importance}</p></div>
+                                <div><p className="text-xs font-bold text-foreground">{item.requirement}</p><p className="mt-1 text-[8px] font-black uppercase tracking-wider text-muted">{item.importance}</p></div>
                                 <div>
-                                  <p className="text-[11px] leading-5 text-[#c7cfda]">{item.evidence || "No verified evidence found in the profile."}</p>
-                                  {item.action ? <p className="mt-1 text-[10px] leading-4 text-muted"><span className="font-bold text-[#dfe4ec]">Next:</span> {item.action}</p> : null}
-                                  {item.sources?.length ? <div className="mt-2 space-y-1">{item.sources.map((source) => <p key={source.id} className="rounded-md border border-success/15 bg-success/[0.035] px-2 py-1.5 text-[9px] leading-4 text-[#aeb8c5]"><span className="font-bold text-success">{source.label}:</span> “{source.excerpt}”</p>)}</div> : null}
+                                  <p className="text-[11px] leading-5 text-[#4a4a47]">{item.evidence || "No verified evidence found in the profile."}</p>
+                                  {item.action ? <p className="mt-1 text-[10px] leading-4 text-muted"><span className="font-bold text-[#1d1e1c]">Next:</span> {item.action}</p> : null}
+                                  {item.sources?.length ? <div className="mt-2 space-y-1">{item.sources.map((source) => <p key={source.id} className="rounded-md border border-success/15 bg-success/[0.035] px-2 py-1.5 text-[9px] leading-4 text-[#4a4a47]"><span className="font-bold text-success">{source.label}:</span> “{source.excerpt}”</p>)}</div> : null}
                                 </div>
                                 <span className={cn("w-fit rounded-full border px-2 py-1 text-[8px] font-black uppercase tracking-wide", meta.className)}>{meta.label}</span>
                               </article>
@@ -2140,59 +2140,59 @@ export function ApplicationWorkspace({
                   {analysisTab === "strategy" ? (
                     <div className="mt-4 space-y-3">
                       <div className="grid gap-3 lg:grid-cols-2">
-                        <article className="rounded-xl border border-white/[0.07] bg-white/[0.018] p-5"><div className="flex items-center gap-2"><FileText className="h-4 w-4 text-accent" /><h3 className="text-sm font-bold text-white">CV direction</h3></div><p className="mt-3 text-xs leading-5 text-[#d0d6df]">{applicationGuide.resumePlan?.summaryFocus || applicationGuide.cvImprovements?.[0]}</p>{applicationGuide.resumePlan?.targetHeadline ? <p className="mt-3 rounded-lg bg-white/[0.035] px-3 py-2 text-[10px] leading-4 text-muted"><span className="font-bold text-white">Headline:</span> {applicationGuide.resumePlan.targetHeadline}</p> : null}<ul className="mt-3 space-y-2 text-[11px] leading-4 text-muted">{[...(applicationGuide.resumePlan?.evidenceToLead ?? []), ...(applicationGuide.resumePlan?.bulletStrategy ?? []), ...(applicationGuide.cvImprovements ?? [])].slice(0, 6).map((item) => <li key={item} className="flex gap-2"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />{item}</li>)}</ul></article>
-                        <article className="rounded-xl border border-white/[0.07] bg-white/[0.018] p-5"><div className="flex items-center gap-2"><Mail className="h-4 w-4 text-accent" /><h3 className="text-sm font-bold text-white">Cover letter direction</h3></div><p className="mt-3 text-xs leading-5 text-[#d0d6df]">{applicationGuide.coverLetterPlan?.openingAngle || applicationGuide.coverLetterStrategy?.[0]}</p>{applicationGuide.coverLetterPlan?.motivationAngle ? <p className="mt-3 rounded-lg bg-white/[0.035] px-3 py-2 text-[10px] leading-4 text-muted"><span className="font-bold text-white">Motivation:</span> {applicationGuide.coverLetterPlan.motivationAngle}</p> : null}<ul className="mt-3 space-y-2 text-[11px] leading-4 text-muted">{[...(applicationGuide.coverLetterPlan?.proofPoints ?? []), ...(applicationGuide.coverLetterStrategy ?? [])].slice(0, 5).map((item) => <li key={item} className="flex gap-2"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />{item}</li>)}</ul></article>
+                        <article className="rounded-xl border border-border bg-[#fff8f1] p-5"><div className="flex items-center gap-2"><FileText className="h-4 w-4 text-accent" /><h3 className="text-sm font-bold text-foreground">CV direction</h3></div><p className="mt-3 text-xs leading-5 text-[#1d1e1c]">{applicationGuide.resumePlan?.summaryFocus || applicationGuide.cvImprovements?.[0]}</p>{applicationGuide.resumePlan?.targetHeadline ? <p className="mt-3 rounded-lg bg-[#fff8f1] px-3 py-2 text-[10px] leading-4 text-muted"><span className="font-bold text-foreground">Headline:</span> {applicationGuide.resumePlan.targetHeadline}</p> : null}<ul className="mt-3 space-y-2 text-[11px] leading-4 text-muted">{[...(applicationGuide.resumePlan?.evidenceToLead ?? []), ...(applicationGuide.resumePlan?.bulletStrategy ?? []), ...(applicationGuide.cvImprovements ?? [])].slice(0, 6).map((item) => <li key={item} className="flex gap-2"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />{item}</li>)}</ul></article>
+                        <article className="rounded-xl border border-border bg-[#fff8f1] p-5"><div className="flex items-center gap-2"><Mail className="h-4 w-4 text-accent" /><h3 className="text-sm font-bold text-foreground">Cover letter direction</h3></div><p className="mt-3 text-xs leading-5 text-[#1d1e1c]">{applicationGuide.coverLetterPlan?.openingAngle || applicationGuide.coverLetterStrategy?.[0]}</p>{applicationGuide.coverLetterPlan?.motivationAngle ? <p className="mt-3 rounded-lg bg-[#fff8f1] px-3 py-2 text-[10px] leading-4 text-muted"><span className="font-bold text-foreground">Motivation:</span> {applicationGuide.coverLetterPlan.motivationAngle}</p> : null}<ul className="mt-3 space-y-2 text-[11px] leading-4 text-muted">{[...(applicationGuide.coverLetterPlan?.proofPoints ?? []), ...(applicationGuide.coverLetterStrategy ?? [])].slice(0, 5).map((item) => <li key={item} className="flex gap-2"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-success" />{item}</li>)}</ul></article>
                       </div>
-                      {(applicationGuide.risks ?? []).length ? <div className="rounded-xl border border-red-400/20 bg-red-500/[0.045] p-4"><h3 className="flex items-center gap-2 text-xs font-bold text-red-100"><AlertTriangle className="h-4 w-4" /> Claims to avoid</h3><ul className="mt-2 grid gap-1 text-[10px] leading-4 text-red-100/75 sm:grid-cols-2">{applicationGuide.risks.map((risk) => <li key={risk}>• {risk}</li>)}</ul></div> : null}
+                      {(applicationGuide.risks ?? []).length ? <div className="rounded-xl border border-accent/25 bg-accent/10 p-4"><h3 className="flex items-center gap-2 text-xs font-bold text-accent"><AlertTriangle className="h-4 w-4" /> Claims to avoid</h3><ul className="mt-2 grid gap-1 text-[10px] leading-4 text-accent sm:grid-cols-2">{applicationGuide.risks.map((risk) => <li key={risk}>• {risk}</li>)}</ul></div> : null}
                     </div>
                   ) : null}
                 </div>
               ) : isAnalysisOutdated ? (
-                <div className="m-5 rounded-xl border border-amber-400/25 bg-amber-400/[0.055] px-5 py-8 text-center sm:px-8">
-                  <AlertTriangle className="mx-auto h-6 w-6 text-amber-200" />
-                  <p className="mt-3 text-sm font-bold text-amber-100">Analysis outdated</p>
-                  <p className="mx-auto mt-2 max-w-2xl text-xs leading-5 text-amber-100/70">{isLegacyAnalysis ? "This application uses a legacy ai-match-v1 percentage without an application guide." : "This application does not have a complete application guide v3."} Refresh this application before generating a CV or cover letter.</p>
-                  <Button type="button" disabled={isAnalysisRefreshing} onClick={() => onRefreshAnalysis(activeApplication.id)} className="mt-5 h-10 rounded-xl bg-amber-300 px-4 text-xs font-bold text-[#241804] hover:bg-amber-200 disabled:opacity-55">{isAnalysisRefreshing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{isAnalysisRefreshing ? "Updating analysis…" : "Update this application"}</Button>
+                <div className="m-5 rounded-xl border border-accent/25 bg-accent/10 px-5 py-8 text-center sm:px-8">
+                  <AlertTriangle className="mx-auto h-6 w-6 text-accent" />
+                  <p className="mt-3 text-sm font-bold text-accent">Analysis outdated</p>
+                  <p className="mx-auto mt-2 max-w-2xl text-xs leading-5 text-accent">{isLegacyAnalysis ? "This application uses a legacy ai-match-v1 percentage without an application guide." : "This application does not have a complete application guide v3."} Refresh this application before generating a CV or cover letter.</p>
+                  <Button type="button" disabled={isAnalysisRefreshing} onClick={() => onRefreshAnalysis(activeApplication.id)} className="mt-5 h-10 rounded-xl bg-accent px-4 text-xs font-bold text-[#ffffff] hover:bg-accent disabled:opacity-55">{isAnalysisRefreshing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}{isAnalysisRefreshing ? "Updating analysis…" : "Update this application"}</Button>
                 </div>
-              ) : <div className="m-5 rounded-xl border border-white/[0.07] bg-black/15 py-12 text-center"><Sparkles className="mx-auto h-5 w-5 text-muted" /><p className="mt-2 text-xs text-muted">Run AI Match for this vacancy to create the application plan.</p></div>}
+              ) : <div className="m-5 rounded-xl border border-border bg-black/15 py-12 text-center"><Sparkles className="mx-auto h-5 w-5 text-muted" /><p className="mt-2 text-xs text-muted">Run AI Match for this vacancy to create the application plan.</p></div>}
             </section>
             </div>
 
             <div className={cn(activeWorkspaceStep !== "confirm" && "hidden")}>
-            <section className={cn("workspace-card overflow-hidden", !confirmationsReady && "border-amber-300/20")}>
-              <div className="flex items-start gap-3 border-b border-white/[0.07] px-5 py-5 sm:px-6">
-                <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", !confirmationsReady ? "bg-amber-400/10 text-amber-200" : "bg-success/10 text-success")}><MessageSquareText className="h-[18px] w-[18px]" /></span>
-                <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">02 · Improve your documents</p><h2 className="mt-1 text-lg font-bold text-white">Add your top three missing details</h2><p className="mt-1 text-xs leading-5 text-muted">These answers are used in both the tailored CV and cover letter. Choose yes, no, or partial and support positive answers with a concrete example.</p></div>
+            <section className={cn("workspace-card overflow-hidden", !confirmationsReady && "border-accent/25")}>
+              <div className="flex items-start gap-3 border-b border-border px-5 py-5 sm:px-6">
+                <span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-xl", !confirmationsReady ? "bg-accent/10 text-accent" : "bg-success/10 text-success")}><MessageSquareText className="h-[18px] w-[18px]" /></span>
+                <div className="min-w-0"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">02 · Improve your documents</p><h2 className="mt-1 text-lg font-bold text-foreground">Add your top three missing details</h2><p className="mt-1 text-xs leading-5 text-muted">These answers are used in both the tailored CV and cover letter. Choose yes, no, or partial and support positive answers with a concrete example.</p></div>
               </div>
               <div className="p-5 sm:p-6">
-                {confirmationSyncMessage ? <div className={cn("mb-4 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-[10px] leading-4", confirmationSyncStatus === "error" ? "border-red-400/25 bg-red-500/[0.07] text-red-200" : "border-amber-400/20 bg-amber-400/[0.05] text-amber-100/80")}><span>{confirmationSyncMessage}</span>{confirmationSyncStatus === "error" ? <button type="button" onClick={retryApiRequests} className="inline-flex shrink-0 items-center gap-1 font-bold text-red-100 hover:text-white"><RefreshCw className="h-3 w-3" /> Retry</button> : null}</div> : null}
-                {!hasCurrentAnalysis ? <div className="flex items-center gap-3 rounded-xl border border-amber-400/20 bg-amber-400/[0.045] px-4 py-3 text-xs text-amber-100/80"><AlertTriangle className="h-5 w-5 shrink-0 text-amber-200" /><span>Update the analysis before confirming evidence. The legacy percentage does not contain the questions required for safe document generation.</span></div> : applicationClarificationQuestions.length ? <div className="grid gap-3">{applicationClarificationQuestions.map((question, index) => {
+                {confirmationSyncMessage ? <div className={cn("mb-4 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-[10px] leading-4", confirmationSyncStatus === "error" ? "border-accent/25 bg-accent/10 text-accent" : "border-accent/25 bg-accent/10 text-accent")}><span>{confirmationSyncMessage}</span>{confirmationSyncStatus === "error" ? <button type="button" onClick={retryApiRequests} className="inline-flex shrink-0 items-center gap-1 font-bold text-accent hover:text-foreground"><RefreshCw className="h-3 w-3" /> Retry</button> : null}</div> : null}
+                {!hasCurrentAnalysis ? <div className="flex items-center gap-3 rounded-xl border border-accent/25 bg-accent/10 px-4 py-3 text-xs text-accent"><AlertTriangle className="h-5 w-5 shrink-0 text-accent" /><span>Update the analysis before confirming evidence. The legacy percentage does not contain the questions required for safe document generation.</span></div> : applicationClarificationQuestions.length ? <div className="grid gap-3">{applicationClarificationQuestions.map((question, index) => {
                   const confirmation = candidateConfirmations[question.id];
                   const answerLength = confirmation?.exampleText.trim().length ?? 0;
                   const isAnswered = Boolean(confirmation && (!question.blocking || isMeaningfulCandidateConfirmation(confirmation)));
                   const isOversized = answerLength > confirmationAnswerMaxChars;
                   const requiresExample = confirmation?.response === "yes" || confirmation?.response === "partial";
-                  return <article key={question.id} className={cn("block rounded-xl border p-4 transition", isOversized ? "border-red-400/30 bg-red-500/[0.035]" : isAnswered ? "border-success/15 bg-success/[0.025]" : "border-white/[0.08] bg-black/15 focus-within:border-amber-400/35")}><span className="flex items-start gap-3"><span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[10px] font-black", isAnswered && !isOversized ? "border-success/25 bg-success/10 text-success" : "border-white/10 text-muted")}>{isAnswered && !isOversized ? <Check className="h-3.5 w-3.5" /> : index + 1}</span><span className="min-w-0"><span className="flex flex-wrap items-center gap-2"><span className="text-xs font-bold leading-5 text-white">{question.question}</span>{question.blocking ? <span className="rounded-full bg-amber-400/10 px-2 py-0.5 text-[8px] font-black uppercase text-amber-200">Required</span> : null}</span><span className="mt-1 block text-[10px] leading-4 text-[#9da8b7]"><span className="font-bold text-[#d5dbe4]">Requirement:</span> {question.requirement}</span>{question.why ? <span className="mt-1 block text-[10px] leading-4 text-muted">Why it matters: {question.why}</span> : null}</span></span><div className="mt-3 grid grid-cols-3 gap-2">{(["yes", "no", "partial"] as CandidateConfirmationResponse[]).map((response) => <button key={response} type="button" onClick={() => updateCandidateConfirmation(question, { response })} className={cn("h-9 rounded-lg border text-[10px] font-black uppercase tracking-wide transition", confirmation?.response === response ? response === "no" ? "border-red-400/35 bg-red-500/10 text-red-100" : response === "partial" ? "border-amber-400/35 bg-amber-400/10 text-amber-100" : "border-success/35 bg-success/10 text-success" : "border-white/[0.08] bg-white/[0.025] text-muted hover:bg-white/[0.06] hover:text-white")}>{response}</button>)}</div><textarea value={confirmation?.exampleText ?? ""} disabled={!confirmation} maxLength={confirmationAnswerMaxChars} onChange={(event) => updateCandidateConfirmation(question, { exampleText: event.target.value })} rows={2} placeholder={!confirmation ? "Choose yes, no, or partial first" : requiresExample ? "Add a true, concrete example" : "Optional context for this answer"} className="mt-3 w-full resize-y rounded-xl border border-white/[0.08] bg-[#0b1118] px-3 py-2.5 text-xs leading-5 text-white outline-none placeholder:text-muted/55 focus:border-amber-400/40 disabled:cursor-not-allowed disabled:opacity-45" /><span className="mt-1.5 flex items-center justify-between gap-3"><span className={cn("text-[9px]", question.blocking && requiresExample && !isMeaningfulCandidateConfirmation(confirmation) ? "font-bold text-amber-200" : "text-muted")}>{question.blocking && requiresExample && !isMeaningfulCandidateConfirmation(confirmation) ? "Add a specific example (at least two meaningful words)." : confirmationsDirty ? "Pending backend save" : confirmation?.updatedAt ? `Updated ${new Date(confirmation.updatedAt).toLocaleString("en-US", { hour12: false })}` : "Changes save automatically"}</span><span className={cn("text-[9px]", isOversized ? "font-bold text-red-200" : "text-muted")}>{answerLength.toLocaleString()} / {confirmationAnswerMaxChars.toLocaleString()}</span></span></article>;
-                })}</div> : <div className="flex items-center gap-3 rounded-xl border border-success/15 bg-success/[0.035] px-4 py-3 text-xs text-[#dfe5ec]"><CheckCircle2 className="h-5 w-5 shrink-0 text-success" /><span>No additional confirmations are required. Your verified profile is enough to continue.</span></div>}
+                  return <article key={question.id} className={cn("block rounded-xl border p-4 transition", isOversized ? "border-accent/25 bg-accent/10" : isAnswered ? "border-success/15 bg-success/[0.025]" : "border-border bg-black/15 focus-within:border-accent/25")}><span className="flex items-start gap-3"><span className={cn("grid h-6 w-6 shrink-0 place-items-center rounded-full border text-[10px] font-black", isAnswered && !isOversized ? "border-success/25 bg-success/10 text-success" : "border-border text-muted")}>{isAnswered && !isOversized ? <Check className="h-3.5 w-3.5" /> : index + 1}</span><span className="min-w-0"><span className="flex flex-wrap items-center gap-2"><span className="text-xs font-bold leading-5 text-foreground">{question.question}</span>{question.blocking ? <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[8px] font-black uppercase text-accent">Required</span> : null}</span><span className="mt-1 block text-[10px] leading-4 text-[#615f5c]"><span className="font-bold text-[#1d1e1c]">Requirement:</span> {question.requirement}</span>{question.why ? <span className="mt-1 block text-[10px] leading-4 text-muted">Why it matters: {question.why}</span> : null}</span></span><div className="mt-3 grid grid-cols-3 gap-2">{(["yes", "no", "partial"] as CandidateConfirmationResponse[]).map((response) => <button key={response} type="button" onClick={() => updateCandidateConfirmation(question, { response })} className={cn("h-9 rounded-lg border text-[10px] font-black uppercase tracking-wide transition", confirmation?.response === response ? response === "no" ? "border-accent/25 bg-accent/10 text-accent" : response === "partial" ? "border-accent/25 bg-accent/10 text-accent" : "border-success/35 bg-success/10 text-success" : "border-border bg-[#fff8f1] text-muted hover:bg-[#fff3e8] hover:text-foreground")}>{response}</button>)}</div><textarea value={confirmation?.exampleText ?? ""} disabled={!confirmation} maxLength={confirmationAnswerMaxChars} onChange={(event) => updateCandidateConfirmation(question, { exampleText: event.target.value })} rows={2} placeholder={!confirmation ? "Choose yes, no, or partial first" : requiresExample ? "Add a true, concrete example" : "Optional context for this answer"} className="mt-3 w-full resize-y rounded-xl border border-border bg-[#ffffff] px-3 py-2.5 text-xs leading-5 text-foreground outline-none placeholder:text-muted/55 focus:border-accent/25 disabled:cursor-not-allowed disabled:opacity-45" /><span className="mt-1.5 flex items-center justify-between gap-3"><span className={cn("text-[9px]", question.blocking && requiresExample && !isMeaningfulCandidateConfirmation(confirmation) ? "font-bold text-accent" : "text-muted")}>{question.blocking && requiresExample && !isMeaningfulCandidateConfirmation(confirmation) ? "Add a specific example (at least two meaningful words)." : confirmationsDirty ? "Pending backend save" : confirmation?.updatedAt ? `Updated ${new Date(confirmation.updatedAt).toLocaleString("en-US", { hour12: false })}` : "Changes save automatically"}</span><span className={cn("text-[9px]", isOversized ? "font-bold text-accent" : "text-muted")}>{answerLength.toLocaleString()} / {confirmationAnswerMaxChars.toLocaleString()}</span></span></article>;
+                })}</div> : <div className="flex items-center gap-3 rounded-xl border border-success/15 bg-success/[0.035] px-4 py-3 text-xs text-[#1d1e1c]"><CheckCircle2 className="h-5 w-5 shrink-0 text-success" /><span>No additional confirmations are required. Your verified profile is enough to continue.</span></div>}
               </div>
             </section>
             </div>
 
             <div className={cn(activeWorkspaceStep !== "create" && "hidden")}>
-            <section className="overflow-hidden border-y border-white/[0.08] bg-[#091019]/45">
-              <div className="flex flex-col gap-4 border-b border-white/[0.07] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
-                <div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">03 · Create documents</p><h2 className="mt-1 text-lg font-bold text-white">Application package</h2><p className="mt-1 text-xs leading-5 text-muted">Prepare, generate and download both application documents from one workspace.</p></div>
-                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] text-muted"><span>AI provider: <strong className="text-white">{aiConfiguration.providerName}</strong></span></div>
+            <section className="overflow-hidden border-y border-border bg-[#ffffff]/45">
+              <div className="flex flex-col gap-4 border-b border-border px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-6">
+                <div><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">03 · Create documents</p><h2 className="mt-1 text-lg font-bold text-foreground">Application package</h2><p className="mt-1 text-xs leading-5 text-muted">Prepare, generate and download both application documents from one workspace.</p></div>
+                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[9px] text-muted"><span>AI provider: <strong className="text-foreground">{aiConfiguration.providerName}</strong></span></div>
               </div>
-              <div className="border-b border-white/[0.07] px-5 py-4 sm:px-6">
+              <div className="border-b border-border px-5 py-4 sm:px-6">
                 <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white">Document language</p>
+                    <p className="text-[10px] font-black uppercase tracking-[0.12em] text-foreground">Document language</p>
                     <p className="mt-1 text-[10px] leading-4 text-muted">Applied to both the tailored CV and cover letter before generation.</p>
                   </div>
                   <label className="flex shrink-0 items-center gap-3">
                     <span className="text-[10px] font-bold text-muted">Language</span>
-                    <select aria-label="Document language" value={languageMode} onChange={(event) => setLanguageMode(event.target.value as "auto" | "English" | "German")} className="h-9 min-w-40 border-0 border-b border-white/[0.12] bg-transparent px-0 text-[11px] font-bold text-white outline-none focus:border-accent">
+                    <select aria-label="Document language" value={languageMode} onChange={(event) => setLanguageMode(event.target.value as "auto" | "English" | "German")} className="h-9 min-w-40 border-0 border-b border-border bg-transparent px-0 text-[11px] font-bold text-foreground outline-none focus:border-accent">
                       <option value="auto">Auto · {vacancyLanguage || "English"}</option>
                       <option value="English">English</option>
                       <option value="German">German</option>
@@ -2201,10 +2201,10 @@ export function ApplicationWorkspace({
                 </div>
               </div>
               <div className="p-5 sm:p-6">
-                {documentError ? <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-red-400/25 bg-red-500/[0.07] px-3 py-2.5 text-xs leading-5 text-red-200"><span>{documentError}</span><button type="button" onClick={retryApiRequests} className="inline-flex shrink-0 items-center gap-1.5 font-bold text-red-100 hover:text-white"><RefreshCw className="h-3.5 w-3.5" /> Retry</button></div> : null}
+                {documentError ? <div className="mb-4 flex items-center justify-between gap-3 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2.5 text-xs leading-5 text-accent"><span>{documentError}</span><button type="button" onClick={retryApiRequests} className="inline-flex shrink-0 items-center gap-1.5 font-bold text-accent hover:text-foreground"><RefreshCw className="h-3.5 w-3.5" /> Retry</button></div> : null}
                 {resumeTailoringProgress ? <ResumeTailoringProgressPanel progress={resumeTailoringProgress} /> : null}
-                {packProgress ? <div className={cn("mb-4 rounded-xl border p-3", packProgress.status === "failed" ? "border-red-400/25 bg-red-500/[0.045]" : packProgress.status === "partial" ? "border-amber-400/25 bg-amber-400/[0.045]" : "border-white/[0.08] bg-black/15")}><div className="grid gap-2 sm:grid-cols-4">{packStageDefinitions.map((stage, index) => { const currentIndex = packStageDefinitions.findIndex((candidate) => candidate.id === packProgress.stage); const stageStatus = index < currentIndex ? "completed" : index === currentIndex ? packProgress.status : "pending"; return <div key={stage.id} className={cn("rounded-lg border px-2.5 py-2", stageStatus === "completed" ? "border-success/20 bg-success/[0.05]" : stageStatus === "failed" ? "border-red-400/25 bg-red-500/[0.06]" : stageStatus === "partial" ? "border-amber-400/25 bg-amber-400/[0.06]" : stageStatus === "active" || stageStatus === "retrying" ? "border-accent/30 bg-accent/[0.07]" : "border-white/[0.06] bg-white/[0.015]")}><div className="flex items-center gap-2">{stageStatus === "completed" ? <Check className="h-3.5 w-3.5 text-success" /> : stageStatus === "active" || stageStatus === "retrying" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin text-accent" /> : stageStatus === "failed" ? <AlertTriangle className="h-3.5 w-3.5 text-red-200" /> : <CircleDot className="h-3.5 w-3.5 text-muted" />}<span className={cn("text-[9px] font-black uppercase tracking-wide", stageStatus === "completed" ? "text-success" : stageStatus === "failed" ? "text-red-200" : stageStatus === "partial" ? "text-amber-200" : stageStatus === "active" || stageStatus === "retrying" ? "text-white" : "text-muted")}>{stage.label}</span></div></div>; })}</div><div className="mt-2 flex items-center justify-between gap-3 px-1 text-[9px]"><span className={cn(packProgress.status === "failed" ? "text-red-200" : packProgress.status === "partial" ? "text-amber-200" : "text-muted")}>{packProgress.message}</span><span className="shrink-0 font-mono text-muted">{packProgress.attempt > 1 ? `attempt ${packProgress.attempt}/3 · ` : ""}{packProgress.jobId.slice(-8)}</span></div></div> : null}
-                {masterResumeLoaded && !currentMasterResume ? <div className="mb-4 rounded-xl border border-amber-400/25 bg-amber-400/[0.07] px-3 py-2.5 text-xs leading-5 text-amber-200">Confirm your Master Resume in My Profile before tailoring a vacancy.</div> : null}
+                {packProgress ? <div className={cn("mb-4 rounded-xl border p-3", packProgress.status === "failed" ? "border-accent/25 bg-accent/10" : packProgress.status === "partial" ? "border-accent/25 bg-accent/10" : "border-border bg-black/15")}><div className="grid gap-2 sm:grid-cols-4">{packStageDefinitions.map((stage, index) => { const currentIndex = packStageDefinitions.findIndex((candidate) => candidate.id === packProgress.stage); const stageStatus = index < currentIndex ? "completed" : index === currentIndex ? packProgress.status : "pending"; return <div key={stage.id} className={cn("rounded-lg border px-2.5 py-2", stageStatus === "completed" ? "border-success/20 bg-success/[0.05]" : stageStatus === "failed" ? "border-accent/25 bg-accent/10" : stageStatus === "partial" ? "border-accent/25 bg-accent/10" : stageStatus === "active" || stageStatus === "retrying" ? "border-accent/30 bg-accent/[0.07]" : "border-border bg-[#fff8f1]")}><div className="flex items-center gap-2">{stageStatus === "completed" ? <Check className="h-3.5 w-3.5 text-success" /> : stageStatus === "active" || stageStatus === "retrying" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin text-accent" /> : stageStatus === "failed" ? <AlertTriangle className="h-3.5 w-3.5 text-accent" /> : <CircleDot className="h-3.5 w-3.5 text-muted" />}<span className={cn("text-[9px] font-black uppercase tracking-wide", stageStatus === "completed" ? "text-success" : stageStatus === "failed" ? "text-accent" : stageStatus === "partial" ? "text-accent" : stageStatus === "active" || stageStatus === "retrying" ? "text-foreground" : "text-muted")}>{stage.label}</span></div></div>; })}</div><div className="mt-2 flex items-center justify-between gap-3 px-1 text-[9px]"><span className={cn(packProgress.status === "failed" ? "text-accent" : packProgress.status === "partial" ? "text-accent" : "text-muted")}>{packProgress.message}</span><span className="shrink-0 font-mono text-muted">{packProgress.attempt > 1 ? `attempt ${packProgress.attempt}/3 · ` : ""}{packProgress.jobId.slice(-8)}</span></div></div> : null}
+                {masterResumeLoaded && !currentMasterResume ? <div className="mb-4 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2.5 text-xs leading-5 text-accent">Confirm your Master Resume in My Profile before tailoring a vacancy.</div> : null}
                 <div>
                   <DocumentCard sectionLabel="Resume document" documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Create and download a tailored CV for this role." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><p className="mt-3 text-[9px] text-muted">Master Resume · {currentMasterResume ? `v${currentMasterResume.version} confirmed` : "required"}</p><ResumeTemplatePicker compact apiBaseUrl={apiBaseUrl} templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} generationControl={<ResumeGenerationModePicker selectedId={selectedResumeGenerationMode} onChange={selectResumeGenerationMode} disabled={Boolean(generationType || isGeneratingPack)} />} />
                   <CollapsibleDocumentPreview
@@ -2260,9 +2260,9 @@ export function ApplicationWorkspace({
                       />
                     )}
                     generationControl={(
-                      <div className="mt-4 grid gap-5 border-t border-white/[0.08] pt-4">
+                      <div className="mt-4 grid gap-5 border-t border-border pt-4">
                         <label className="block">
-                          <span className="text-[10px] font-bold text-[#d9e0e8]">Recruiter name <span className="font-normal text-muted">(optional)</span></span>
+                          <span className="text-[10px] font-bold text-[#1d1e1c]">Recruiter name <span className="font-normal text-muted">(optional)</span></span>
                           <span className="mt-1 block text-[9px] leading-4 text-muted">Used in the greeting. Leave empty to address the company&apos;s hiring team.</span>
                           <input
                             aria-label="Recruiter name"
@@ -2276,12 +2276,12 @@ export function ApplicationWorkspace({
                               });
                             }}
                             placeholder="First name and last name"
-                            className={cn("mt-2 h-10 w-full border-0 border-b bg-transparent px-0 text-xs text-white outline-none placeholder:text-muted/55", coverLetterRecipientNameComplete ? "border-white/[0.12] focus:border-accent" : "border-amber-400/40 focus:border-amber-300")}
+                            className={cn("mt-2 h-10 w-full border-0 border-b bg-transparent px-0 text-xs text-foreground outline-none placeholder:text-muted/55", coverLetterRecipientNameComplete ? "border-border focus:border-accent" : "border-accent/25 focus:border-accent/25")}
                           />
-                          {!coverLetterRecipientNameComplete ? <span className="mt-1.5 block text-[9px] font-bold text-amber-200">Enter first and last name or leave the field empty.</span> : null}
+                          {!coverLetterRecipientNameComplete ? <span className="mt-1.5 block text-[9px] font-bold text-accent">Enter first and last name or leave the field empty.</span> : null}
                         </label>
                         <label className="block">
-                          <span className="text-[10px] font-bold text-[#d9e0e8]">Know someone at the company? <span className="font-normal text-muted">(optional)</span></span>
+                          <span className="text-[10px] font-bold text-[#1d1e1c]">Know someone at the company? <span className="font-normal text-muted">(optional)</span></span>
                           <span className="mt-1 block text-[9px] leading-4 text-muted">Enter their full name. The letter will open with this connection and how it strengthened your positive impression of the company.</span>
                           <input
                             aria-label="Company contact name"
@@ -2295,9 +2295,9 @@ export function ApplicationWorkspace({
                               });
                             }}
                             placeholder="First name and last name"
-                            className={cn("mt-2 h-10 w-full border-0 border-b bg-transparent px-0 text-xs text-white outline-none placeholder:text-muted/55", coverLetterCompanyContactNameComplete ? "border-white/[0.12] focus:border-accent" : "border-amber-400/40 focus:border-amber-300")}
+                            className={cn("mt-2 h-10 w-full border-0 border-b bg-transparent px-0 text-xs text-foreground outline-none placeholder:text-muted/55", coverLetterCompanyContactNameComplete ? "border-border focus:border-accent" : "border-accent/25 focus:border-accent/25")}
                           />
-                          {!coverLetterCompanyContactNameComplete ? <span className="mt-1.5 block text-[9px] font-bold text-amber-200">Enter first and last name or leave the field empty.</span> : null}
+                          {!coverLetterCompanyContactNameComplete ? <span className="mt-1.5 block text-[9px] font-bold text-accent">Enter first and last name or leave the field empty.</span> : null}
                         </label>
                       </div>
                     )}
@@ -2316,9 +2316,9 @@ export function ApplicationWorkspace({
                     ) : null}
                   </CollapsibleDocumentPreview>
                 </div>
-                <div className="flex flex-col gap-4 border-t border-white/[0.08] py-6 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex flex-col gap-4 border-t border-border py-6 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <p className="text-[11px] font-bold text-white">
+                    <p className="text-[11px] font-bold text-foreground">
                       {resumeReady && coverLetterReady ? "2 documents ready" : "Create the complete application set"}
                     </p>
                     <p className="mt-1 text-[9px] leading-4 text-muted">
@@ -2330,17 +2330,17 @@ export function ApplicationWorkspace({
                     aria-label="Generate application pack"
                     onClick={() => requestAiGeneration("pack")}
                     disabled={isGeneratingPack || Boolean(generationType) || !documentsLoaded || !currentMasterResume || !coverLetterTemplate || !coverLetterNamesComplete || !applicationReview || !confirmationsReady}
-                    className="h-10 shrink-0 rounded-lg bg-accent px-4 text-[11px] font-bold text-white hover:bg-[#ff6a14] disabled:opacity-40"
+                    className="h-10 shrink-0 rounded-lg bg-accent px-4 text-[11px] font-bold text-foreground hover:bg-[#e95300] disabled:opacity-40"
                   >
                     {isGeneratingPack ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : resumeReady && coverLetterReady ? <RefreshCw className="h-3.5 w-3.5" /> : null}
                     {isGeneratingPack ? packStageDefinitions.find((stage) => stage.id === packProgress?.stage)?.label ?? "Generating…" : resumeReady && coverLetterReady ? "Regenerate both" : "Create both documents"}
                   </Button>
                 </div>
-                <details open className="group border-t border-white/[0.08] py-5">
+                <details open className="group border-t border-border py-5">
                   <summary className="flex cursor-pointer list-none flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                     <div>
                       <p className="text-[10px] font-black uppercase tracking-[0.12em] text-accent">Application AI chat</p>
-                      <h3 className="mt-1 text-sm font-bold text-white">Ask questions or improve either document</h3>
+                      <h3 className="mt-1 text-sm font-bold text-foreground">Ask questions or improve either document</h3>
                       <p className="mt-1 text-[10px] leading-4 text-muted">Choose a mode, then ask about the application or request a CV or cover-letter revision.</p>
                     </div>
                     <ChevronRight className="mt-1 h-4 w-4 shrink-0 text-muted transition group-open:rotate-90" />
@@ -2360,17 +2360,17 @@ export function ApplicationWorkspace({
                         className={cn(
                           "h-10 rounded-xl border text-[10px] font-black transition",
                           documentChatTarget === target
-                            ? "border-accent/45 bg-accent/12 text-white"
-                            : "border-white/[0.08] bg-black/15 text-muted hover:bg-white/[0.05] hover:text-white",
+                            ? "border-accent/45 bg-accent/12 text-foreground"
+                            : "border-border bg-black/15 text-muted hover:bg-[#fff3e8] hover:text-foreground",
                         )}
                       >
                         {targetLabel}
                       </button>
                     ))}
                   </div>
-                  <div className="mt-4 max-h-56 space-y-2 overflow-y-auto rounded-xl border border-white/[0.07] bg-black/20 p-3">
-                    {documentChatMessages.length ? documentChatMessages.map((message) => <div key={message.id} className={cn("max-w-[88%] rounded-xl px-3 py-2 text-[11px] leading-5", message.role === "user" ? "ml-auto bg-accent/15 text-white" : "border border-white/[0.07] bg-white/[0.04] text-[#d9e0e8]")}>{message.text}</div>) : <p className="py-3 text-center text-[10px] leading-5 text-muted">Ask why the role fits, request stronger CV emphasis, or make the cover-letter opening less generic.</p>}
-                    {isDocumentChatResponding ? <div className="flex max-w-[88%] items-center gap-2 rounded-xl border border-white/[0.07] bg-white/[0.04] px-3 py-2 text-[11px] text-muted"><LoaderCircle className="h-3.5 w-3.5 animate-spin text-accent" /> Thinking…</div> : null}
+                  <div className="mt-4 max-h-56 space-y-2 overflow-y-auto rounded-xl border border-border bg-black/20 p-3">
+                    {documentChatMessages.length ? documentChatMessages.map((message) => <div key={message.id} className={cn("max-w-[88%] rounded-xl px-3 py-2 text-[11px] leading-5", message.role === "user" ? "ml-auto bg-accent/15 text-foreground" : "border border-border bg-[#fff8f1] text-[#1d1e1c]")}>{message.text}</div>) : <p className="py-3 text-center text-[10px] leading-5 text-muted">Ask why the role fits, request stronger CV emphasis, or make the cover-letter opening less generic.</p>}
+                    {isDocumentChatResponding ? <div className="flex max-w-[88%] items-center gap-2 rounded-xl border border-border bg-[#fff8f1] px-3 py-2 text-[11px] text-muted"><LoaderCircle className="h-3.5 w-3.5 animate-spin text-accent" /> Thinking…</div> : null}
                   </div>
                   <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-end">
                     <label className="min-w-0 flex-1">
@@ -2383,12 +2383,12 @@ export function ApplicationWorkspace({
                         rows={2}
                         maxLength={2_000}
                         placeholder={documentChatPlaceholder}
-                        className="w-full resize-y rounded-xl border border-white/[0.08] bg-[#0b1118] px-3 py-2.5 text-xs leading-5 text-white outline-none placeholder:text-muted/55 focus:border-accent/40"
+                        className="w-full resize-y rounded-xl border border-border bg-[#ffffff] px-3 py-2.5 text-xs leading-5 text-foreground outline-none placeholder:text-muted/55 focus:border-accent/40"
                       />
                     </label>
-                    <Button type="button" onClick={applyDocumentChatInstruction} disabled={!documentChatInput.trim() || Boolean(generationType) || isGeneratingPack || isDocumentChatResponding || !documentChatCanSubmit} className="h-11 shrink-0 rounded-xl bg-accent px-4 text-xs font-bold text-white disabled:opacity-40">{isDocumentChatResponding || generationType === documentChatTarget ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{documentChatTarget === "question" ? "Send" : "Apply revision"}</Button>
+                    <Button type="button" onClick={applyDocumentChatInstruction} disabled={!documentChatInput.trim() || Boolean(generationType) || isGeneratingPack || isDocumentChatResponding || !documentChatCanSubmit} className="h-11 shrink-0 rounded-xl bg-accent px-4 text-xs font-bold text-foreground disabled:opacity-40">{isDocumentChatResponding || generationType === documentChatTarget ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}{documentChatTarget === "question" ? "Send" : "Apply revision"}</Button>
                   </div>
-                  {!documentChatTargetReady ? <p className="mt-2 text-[9px] font-bold text-amber-200">{documentChatUnavailableMessage}</p> : null}
+                  {!documentChatTargetReady ? <p className="mt-2 text-[9px] font-bold text-accent">{documentChatUnavailableMessage}</p> : null}
                   </div>
                 </details>
               </div>
@@ -2396,9 +2396,9 @@ export function ApplicationWorkspace({
             </div>
 
             <section className={cn("workspace-card overflow-hidden", activeWorkspaceStep !== "final" && "hidden")}>
-              <div className="border-b border-white/[0.07] px-5 py-5 sm:px-6">
+              <div className="border-b border-border px-5 py-5 sm:px-6">
                 <p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">04 · Final review</p>
-                <h2 className="mt-1 text-lg font-bold text-white">Review, download and apply</h2>
+                <h2 className="mt-1 text-lg font-bold text-foreground">Review, download and apply</h2>
                 <p className="mt-1 text-xs leading-5 text-muted">Open both documents, check the final content and continue to the employer website.</p>
               </div>
               <div className="p-5 sm:p-6">
@@ -2441,52 +2441,52 @@ export function ApplicationWorkspace({
                         ]
                       : [];
                     return (
-                      <article key={item.label} className="rounded-2xl border border-white/[0.08] bg-black/15 p-4">
+                      <article key={item.label} className="rounded-2xl border border-border bg-black/15 p-4">
                         <div className="flex items-start gap-3">
-                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-white/[0.08] bg-white/[0.03] text-accent"><ItemIcon className="h-4 w-4" /></span>
-                          <div className="min-w-0 flex-1"><p className="text-sm font-bold text-white">{item.label}</p><p className={cn("mt-1 text-[10px] font-bold", item.ready ? "text-success" : "text-amber-200")}>{item.ready ? "Ready for final review" : "Needs attention before applying"}</p></div>
+                          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl border border-border bg-[#fff8f1] text-accent"><ItemIcon className="h-4 w-4" /></span>
+                          <div className="min-w-0 flex-1"><p className="text-sm font-bold text-foreground">{item.label}</p><p className={cn("mt-1 text-[10px] font-bold", item.ready ? "text-success" : "text-accent")}>{item.ready ? "Ready for final review" : "Needs attention before applying"}</p></div>
                         </div>
                         <div className="mt-4 flex gap-2">
-                          <Button type="button" variant="ghost" onClick={() => setActiveWorkspaceStep("create")} className="h-9 flex-1 rounded-xl border border-white/[0.08] text-[10px] font-bold text-[#dfe5ec] hover:bg-white/[0.05]">{item.document ? "Review & edit" : "Prepare document"}</Button>
-                          {itemPdfDownload ? <a href={itemPdfDownload.href} download={itemPdfDownload.fileName} onClick={(event) => confirmDocumentDownload(event, itemDownloadWarnings)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> PDF</a> : null}
-                          {item.document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(item.document.id)}/download`} download={documentFileName(item.document)} onClick={(event) => confirmDocumentDownload(event, itemDownloadWarnings)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(item.document)}</a> : null}
-                          {itemDocxDownload ? <a href={itemDocxDownload.href} download={itemDocxDownload.fileName} onClick={(event) => confirmDocumentDownload(event, itemDownloadWarnings)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-white/[0.08] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> DOCX</a> : null}
+                          <Button type="button" variant="ghost" onClick={() => setActiveWorkspaceStep("create")} className="h-9 flex-1 rounded-xl border border-border text-[10px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8]">{item.document ? "Review & edit" : "Prepare document"}</Button>
+                          {itemPdfDownload ? <a href={itemPdfDownload.href} download={itemPdfDownload.fileName} onClick={(event) => confirmDocumentDownload(event, itemDownloadWarnings)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"><Download className="h-3.5 w-3.5" /> PDF</a> : null}
+                          {item.document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(item.document.id)}/download`} download={documentFileName(item.document)} onClick={(event) => confirmDocumentDownload(event, itemDownloadWarnings)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(item.document)}</a> : null}
+                          {itemDocxDownload ? <a href={itemDocxDownload.href} download={itemDocxDownload.fileName} onClick={(event) => confirmDocumentDownload(event, itemDownloadWarnings)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"><Download className="h-3.5 w-3.5" /> DOCX</a> : null}
                         </div>
                       </article>
                     );
                   })}
                 </div>
-                <div className="mt-5 grid gap-3 rounded-2xl border border-white/[0.08] bg-white/[0.02] p-4 sm:grid-cols-3">
-                  {[{ icon: Sparkles, label: "Generate", text: "Create both tailored documents." }, { icon: FileCheck2, label: "Review", text: "Check content, layout and validation." }, { icon: Download, label: "Download & apply", text: "Download the approved files and submit." }].map((item) => { const ItemIcon = item.icon; return <div key={item.label} className="flex gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-white/[0.08] text-muted"><ItemIcon className="h-4 w-4" /></span><div><p className="text-xs font-bold text-white">{item.label}</p><p className="mt-1 text-[10px] leading-4 text-muted">{item.text}</p></div></div>; })}
+                <div className="mt-5 grid gap-3 rounded-2xl border border-border bg-[#fff8f1] p-4 sm:grid-cols-3">
+                  {[{ icon: Sparkles, label: "Generate", text: "Create both tailored documents." }, { icon: FileCheck2, label: "Review", text: "Check content, layout and validation." }, { icon: Download, label: "Download & apply", text: "Download the approved files and submit." }].map((item) => { const ItemIcon = item.icon; return <div key={item.label} className="flex gap-3"><span className="grid h-9 w-9 shrink-0 place-items-center rounded-full border border-border text-muted"><ItemIcon className="h-4 w-4" /></span><div><p className="text-xs font-bold text-foreground">{item.label}</p><p className="mt-1 text-[10px] leading-4 text-muted">{item.text}</p></div></div>; })}
                 </div>
                 <div className="mt-5 flex flex-col gap-2 sm:flex-row sm:justify-end">
-                  <Button type="button" variant="ghost" disabled={!jobUrl} onClick={() => jobUrl && window.open(jobUrl, "_blank", "noopener,noreferrer")} className="h-11 rounded-xl border border-white/[0.08] px-4 text-xs font-bold text-white"><ExternalLink className="h-4 w-4" /> Open vacancy</Button>
-                  {application.status === "draft" ? <Button onClick={() => onMarkApplied(application.id)} className="h-11 rounded-xl bg-success px-5 text-xs font-black text-[#071006] hover:bg-[#6de046]"><Check className="h-4 w-4" /> Mark as applied</Button> : <div className="flex h-11 items-center justify-center gap-2 rounded-xl border border-success/25 bg-success/10 px-5 text-xs font-bold text-success"><Check className="h-4 w-4" /> Application tracked</div>}
+                  <Button type="button" variant="ghost" disabled={!jobUrl} onClick={() => jobUrl && window.open(jobUrl, "_blank", "noopener,noreferrer")} className="h-11 rounded-xl border border-border px-4 text-xs font-bold text-foreground"><ExternalLink className="h-4 w-4" /> Open vacancy</Button>
+                  {application.status === "draft" ? <Button onClick={() => onMarkApplied(application.id)} className="h-11 rounded-xl bg-success px-5 text-xs font-black text-white hover:bg-[#e95300]"><Check className="h-4 w-4" /> Mark as applied</Button> : <div className="flex h-11 items-center justify-center gap-2 rounded-xl border border-success/25 bg-success/10 px-5 text-xs font-bold text-success"><Check className="h-4 w-4" /> Application tracked</div>}
                 </div>
               </div>
             </section>
           </main>
 
           <aside className="space-y-4 xl:sticky xl:top-4">
-            <section className="overflow-hidden border-y border-white/[0.08] bg-[#091019]/35">
-              <div className="border-b border-white/[0.07] p-5"><div className="flex items-end justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.13em] text-accent">Readiness</p><h2 className="mt-1 text-base font-bold text-white">Before you apply</h2></div><span className="text-2xl font-black text-white">{progress}<span className="text-sm text-muted">%</span></span></div><div className="mt-4 h-1.5 overflow-hidden rounded-full bg-white/[0.07]"><div className="h-full rounded-full bg-gradient-to-r from-accent to-[#ff9b55] transition-all" style={{ width: `${progress}%` }} /></div></div>
-              <div className="px-4 pb-4"><div>{checklist.map((item) => <div key={item.label} className="flex items-center gap-2.5 border-b border-white/[0.06] px-2 py-3 last:border-b-0"><span className={cn("grid h-5 w-5 place-items-center rounded-full border", item.ready ? "border-success/25 bg-success/10 text-success" : "border-white/10 text-[#687383]")}>{item.ready ? <Check className="h-3 w-3" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}</span><span className={cn("text-[11px] font-semibold", item.ready ? "text-[#e0e5ec]" : "text-muted")}>{item.label}</span><span className="ml-auto text-[8px] font-black uppercase tracking-wide text-[#687383]">{item.ready ? "Ready" : "Missing"}</span></div>)}</div>
+            <section className="overflow-hidden border-y border-border bg-[#ffffff]/35">
+              <div className="border-b border-border p-5"><div className="flex items-end justify-between"><div><p className="text-[10px] font-black uppercase tracking-[0.13em] text-accent">Readiness</p><h2 className="mt-1 text-base font-bold text-foreground">Before you apply</h2></div><span className="text-2xl font-black text-foreground">{progress}<span className="text-sm text-muted">%</span></span></div><div className="mt-4 h-1.5 overflow-hidden rounded-full bg-[#fff8f1]"><div className="h-full rounded-full bg-gradient-to-r from-accent to-[#e95300] transition-all" style={{ width: `${progress}%` }} /></div></div>
+              <div className="px-4 pb-4"><div>{checklist.map((item) => <div key={item.label} className="flex items-center gap-2.5 border-b border-border px-2 py-3 last:border-b-0"><span className={cn("grid h-5 w-5 place-items-center rounded-full border", item.ready ? "border-success/25 bg-success/10 text-success" : "border-border text-[#615f5c]")}>{item.ready ? <Check className="h-3 w-3" /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}</span><span className={cn("text-[11px] font-semibold", item.ready ? "text-[#1d1e1c]" : "text-muted")}>{item.label}</span><span className="ml-auto text-[8px] font-black uppercase tracking-wide text-[#615f5c]">{item.ready ? "Ready" : "Missing"}</span></div>)}</div>
                 {activeWorkspaceStep === "create" ? (
                   <p className="mt-3 px-2 text-[9px] leading-4 text-muted">Create and download actions are available beside each document.</p>
                 ) : activeWorkspaceStep === "final" ? (
-                  <Button type="button" onClick={() => setActiveWorkspaceStep("create")} className="mt-4 h-11 w-full rounded-xl bg-accent text-xs font-bold text-white"><FileText className="h-4 w-4" /> Back to documents</Button>
+                  <Button type="button" onClick={() => setActiveWorkspaceStep("create")} className="mt-4 h-11 w-full rounded-xl bg-accent text-xs font-bold text-foreground"><FileText className="h-4 w-4" /> Back to documents</Button>
                 ) : (
-                  <Button type="button" onClick={() => setActiveWorkspaceStep(activeWorkspaceStep === "review" ? "confirm" : "create")} className="mt-4 h-11 w-full rounded-xl bg-accent text-xs font-bold text-white">Continue <ChevronRight className="h-4 w-4" /></Button>
+                  <Button type="button" onClick={() => setActiveWorkspaceStep(activeWorkspaceStep === "review" ? "confirm" : "create")} className="mt-4 h-11 w-full rounded-xl bg-accent text-xs font-bold text-foreground">Continue <ChevronRight className="h-4 w-4" /></Button>
                 )}
-                <div className={cn("mt-3 flex items-center justify-between rounded-lg px-2 py-2 text-[9px]", apiHealth === "unavailable" ? "bg-red-500/[0.06] text-red-200" : "text-muted")} role="status" aria-live="polite"><span className="inline-flex items-center gap-1.5"><span className={cn("h-1.5 w-1.5 rounded-full", apiHealth === "available" ? "bg-success" : apiHealth === "unavailable" ? "bg-red-300" : "animate-pulse bg-muted")} />{apiHealth === "available" ? "Services available" : apiHealth === "unavailable" ? "Services unavailable" : "Checking services…"}</span>{apiHealth === "unavailable" ? <button type="button" onClick={retryApiRequests} className="inline-flex items-center gap-1 font-bold hover:text-white"><RefreshCw className="h-3 w-3" /> Retry</button> : null}</div>
+                <div className={cn("mt-3 flex items-center justify-between rounded-lg px-2 py-2 text-[9px]", apiHealth === "unavailable" ? "bg-accent/10 text-accent" : "text-muted")} role="status" aria-live="polite"><span className="inline-flex items-center gap-1.5"><span className={cn("h-1.5 w-1.5 rounded-full", apiHealth === "available" ? "bg-success" : apiHealth === "unavailable" ? "bg-accent" : "animate-pulse bg-muted")} />{apiHealth === "available" ? "Services available" : apiHealth === "unavailable" ? "Services unavailable" : "Checking services…"}</span>{apiHealth === "unavailable" ? <button type="button" onClick={retryApiRequests} className="inline-flex items-center gap-1 font-bold hover:text-foreground"><RefreshCw className="h-3 w-3" /> Retry</button> : null}</div>
               </div>
             </section>
 
             <section className={cn("workspace-card overflow-hidden", activeWorkspaceStep === "create" && "hidden")}>
-              <div className="flex items-center gap-3 border-b border-white/[0.07] p-4"><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent/12 text-accent"><Bot className="h-4 w-4" /></span><div><h2 className="text-sm font-bold text-white">Application coach</h2><p className="mt-0.5 text-[10px] text-muted">Ask about this vacancy</p></div></div>
-              <div className="p-4"><div className="grid gap-2">{["What should I emphasize?", "What are the biggest risks?", "Help with application questions"].map((prompt) => <button key={prompt} type="button" disabled={isLoadingAdvice} onClick={() => requestAdvice(prompt)} className={cn("rounded-xl border px-3 py-2.5 text-left text-[11px] font-semibold leading-4 transition", advicePrompt === prompt ? "border-accent/35 bg-accent/10 text-white" : "border-white/[0.07] bg-white/[0.02] text-[#cbd3df] hover:border-accent/25 hover:bg-accent/[0.05]")}>{prompt}</button>)}</div>
-                {(isLoadingAdvice || advice) ? <div className="job-scroll mt-3 max-h-[300px] overflow-y-auto rounded-xl border border-white/[0.07] bg-black/20 p-3">{isLoadingAdvice ? <div className="flex items-center gap-2 text-xs text-muted"><LoaderCircle className="h-4 w-4 animate-spin text-accent" /> Reviewing…</div> : <p className="whitespace-pre-wrap text-[11px] leading-5 text-[#dfe4ec]">{advice}</p>}</div> : null}
-                <Button variant="ghost" onClick={() => onOpenAssistant("Review this application and help me finish it.", application.id)} className="mt-3 h-9 w-full rounded-xl border border-white/[0.07] bg-transparent text-[11px] text-[#e6ebf3] hover:bg-white/[0.05]">Open full Assistant <ChevronRight className="h-4 w-4" /></Button>
+              <div className="flex items-center gap-3 border-b border-border p-4"><span className="grid h-9 w-9 place-items-center rounded-xl bg-accent/12 text-accent"><Bot className="h-4 w-4" /></span><div><h2 className="text-sm font-bold text-foreground">Application coach</h2><p className="mt-0.5 text-[10px] text-muted">Ask about this vacancy</p></div></div>
+              <div className="p-4"><div className="grid gap-2">{["What should I emphasize?", "What are the biggest risks?", "Help with application questions"].map((prompt) => <button key={prompt} type="button" disabled={isLoadingAdvice} onClick={() => requestAdvice(prompt)} className={cn("rounded-xl border px-3 py-2.5 text-left text-[11px] font-semibold leading-4 transition", advicePrompt === prompt ? "border-accent/35 bg-accent/10 text-foreground" : "border-border bg-[#fff8f1] text-[#4a4a47] hover:border-accent/25 hover:bg-accent/[0.05]")}>{prompt}</button>)}</div>
+                {(isLoadingAdvice || advice) ? <div className="job-scroll mt-3 max-h-[300px] overflow-y-auto rounded-xl border border-border bg-black/20 p-3">{isLoadingAdvice ? <div className="flex items-center gap-2 text-xs text-muted"><LoaderCircle className="h-4 w-4 animate-spin text-accent" /> Reviewing…</div> : <p className="whitespace-pre-wrap text-[11px] leading-5 text-[#1d1e1c]">{advice}</p>}</div> : null}
+                <Button variant="ghost" onClick={() => onOpenAssistant("Review this application and help me finish it.", application.id)} className="mt-3 h-9 w-full rounded-xl border border-border bg-transparent text-[11px] text-[#1d1e1c] hover:bg-[#fff3e8]">Open full Assistant <ChevronRight className="h-4 w-4" /></Button>
               </div>
             </section>
           </aside>
@@ -2514,7 +2514,7 @@ function ResumeGenerationModePicker({
   return (
     <section
       aria-labelledby="resume-generation-mode-title"
-      className="mt-4 border-t border-white/[0.08] pt-4"
+      className="mt-4 border-t border-border pt-4"
     >
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p
@@ -2531,7 +2531,7 @@ function ResumeGenerationModePicker({
               value={selectedId}
               disabled={disabled}
               onChange={(event) => onChange(event.target.value as ResumeGenerationMode)}
-              className="h-9 min-w-48 rounded-lg border border-white/[0.1] bg-[#111923] px-3 text-[10px] font-bold text-white outline-none focus:border-accent/60 disabled:cursor-not-allowed disabled:opacity-45"
+              className="h-9 min-w-48 rounded-lg border border-border bg-[#ffffff] px-3 text-[10px] font-bold text-foreground outline-none focus:border-accent/60 disabled:cursor-not-allowed disabled:opacity-45"
             >
               {resumeGenerationModes.map((mode) => (
                 <option key={mode.id} value={mode.id}>
@@ -2547,16 +2547,16 @@ function ResumeGenerationModePicker({
               aria-expanded={isInfoOpen}
               aria-controls="resume-generation-mode-info"
               onClick={() => setIsInfoOpen((current) => !current)}
-              className="grid h-9 w-9 place-items-center rounded-lg border border-white/[0.1] text-muted transition hover:bg-white/[0.05] hover:text-white"
+              className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
             >
               <Info className="h-4 w-4" />
             </button>
-            {isInfoOpen ? <div id="resume-generation-mode-info" className="absolute right-0 top-11 z-30 w-72 rounded-xl border border-white/[0.12] bg-[#111923] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.5)]">
-              <p className="text-[10px] font-bold text-white">{selectedMode.name}</p>
-              <p className="mt-2 text-[9px] leading-4 text-[#cbd3df]">
+            {isInfoOpen ? <div id="resume-generation-mode-info" className="absolute right-0 top-11 z-30 w-72 rounded-xl border border-border bg-[#ffffff] p-4 shadow-[0_18px_50px_rgba(0,0,0,0.5)]">
+              <p className="text-[10px] font-bold text-foreground">{selectedMode.name}</p>
+              <p className="mt-2 text-[9px] leading-4 text-[#4a4a47]">
                 {selectedMode.description}
               </p>
-              <p className="mt-3 border-t border-white/[0.08] pt-3 text-[8px] font-black uppercase tracking-[0.1em] text-muted">
+              <p className="mt-3 border-t border-border pt-3 text-[8px] font-black uppercase tracking-[0.1em] text-muted">
                 {selectedMode.stages}
               </p>
             </div> : null}
@@ -2566,7 +2566,7 @@ function ResumeGenerationModePicker({
       {selectedId === "imaginator" ? (
         <div
           role="alert"
-          className="mt-3 flex items-start gap-2 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] px-3 py-2.5 text-amber-100"
+          className="mt-3 flex items-start gap-2 rounded-lg border border-accent/25 bg-accent/10 px-3 py-2.5 text-accent"
         >
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
           <p className="text-[9px] leading-4">
@@ -2643,21 +2643,21 @@ function DocumentCard({
     : null;
   const isRestoringDocument = Boolean(document && restoringVersionKey.startsWith(`${document.id}:`));
   return (
-    <article className="border-t border-white/[0.08] py-7 first:border-t-0">
+    <article className="border-t border-border py-7 first:border-t-0">
       <div className="grid gap-6 lg:grid-cols-[minmax(150px,0.72fr)_minmax(250px,1.2fr)_minmax(250px,0.95fr)] lg:gap-8">
       <div className="min-w-0">
         <p className="text-[9px] font-black uppercase tracking-[0.16em] text-accent">{isResume ? "01" : "02"} · {sectionLabel}</p>
-        <Icon className="mt-5 h-5 w-5 text-[#d6dde6]" />
-        <h3 className="mt-3 text-sm font-bold text-white">{label}</h3>
+        <Icon className="mt-5 h-5 w-5 text-[#1d1e1c]" />
+        <h3 className="mt-3 text-sm font-bold text-foreground">{label}</h3>
         <p className="mt-1 text-[10px] leading-4 text-muted">{description}</p>
       </div>
       <div className="min-w-0">
       {sourceControl}
       {generationControl}
       </div>
-      <div className="min-w-0 lg:border-l lg:border-white/[0.08] lg:pl-8">
-      <p className={cn("flex items-center gap-2 text-[10px] font-bold", document ? readiness.ready ? "text-success" : "text-amber-200" : "text-muted")}>
-        <span className={cn("h-1.5 w-1.5 rounded-full", document ? readiness.ready ? "bg-success" : "bg-amber-300" : "bg-[#677281]")} />
+      <div className="min-w-0 lg:border-l border-border lg:pl-8">
+      <p className={cn("flex items-center gap-2 text-[10px] font-bold", document ? readiness.ready ? "text-success" : "text-accent" : "text-muted")}>
+        <span className={cn("h-1.5 w-1.5 rounded-full", document ? readiness.ready ? "bg-success" : "bg-accent" : "bg-[#615f5c]")} />
         {isGenerating
           ? "Generating…"
           : document
@@ -2665,25 +2665,25 @@ function DocumentCard({
             : `Not created · ${canGenerate ? "Ready to generate" : disabledLabel}`}
       </p>
       {isImaginatorResume ? (
-        <p className="mt-1 text-[9px] leading-4 text-amber-100">
+        <p className="mt-1 text-[9px] leading-4 text-accent">
           Contains AI-invented claims · review before use
         </p>
       ) : null}
       {currentVersion ? <p className="mt-1 text-[9px] text-muted">Generated {formatVersionTimestamp(currentVersion.createdAt)}</p> : null}
       <div className="mt-4 flex flex-wrap gap-2">
-        {pdfDownload ? <a href={pdfDownload.href} download={pdfDownload.fileName} onClick={(event) => confirmDocumentDownload(event, currentDownloadWarnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> PDF</a> : null}
-        {document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`} download={documentFileName(document)} onClick={(event) => confirmDocumentDownload(event, currentDownloadWarnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(document)}</a> : null}
-        {docxDownload ? <a href={docxDownload.href} download={docxDownload.fileName} onClick={(event) => confirmDocumentDownload(event, currentDownloadWarnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-white/[0.09] px-3 text-[11px] font-bold text-[#e6ebf3] transition hover:bg-white/[0.05]"><Download className="h-3.5 w-3.5" /> DOCX</a> : null}
-        <Button type="button" aria-label={isGenerating ? "Generating…" : !canGenerate ? disabledLabel : document ? "Regenerate" : `Generate ${label}`} variant={document ? "ghost" : "default"} disabled={isGenerating || isRestoringDocument || !canGenerate} onClick={onGenerate} className={cn("h-10 px-3 text-[11px] font-bold disabled:opacity-40", document ? "rounded-none border-0 bg-transparent text-muted hover:bg-transparent hover:text-white" : "rounded-lg bg-accent text-white hover:bg-[#ff6a14]")}>{isGenerating ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : document ? <RefreshCw className="h-3.5 w-3.5" /> : null}{isGenerating ? "Generating…" : document ? "Regenerate" : `Create ${isResume ? "CV" : "letter"}`}</Button>
-        {document && !isResume ? <Button type="button" variant="ghost" aria-label={`Delete ${label}`} disabled={deletingDocumentId === document.id || isGenerating} onClick={onDelete} className="h-10 rounded-xl border border-red-400/20 px-3 text-red-200 hover:bg-red-500/10"><Trash2 className="h-3.5 w-3.5" /></Button> : null}
+        {pdfDownload ? <a href={pdfDownload.href} download={pdfDownload.fileName} onClick={(event) => confirmDocumentDownload(event, currentDownloadWarnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border px-3 text-[11px] font-bold text-[#1d1e1c] transition hover:bg-[#fff3e8]"><Download className="h-3.5 w-3.5" /> PDF</a> : null}
+        {document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`} download={documentFileName(document)} onClick={(event) => confirmDocumentDownload(event, currentDownloadWarnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border px-3 text-[11px] font-bold text-[#1d1e1c] transition hover:bg-[#fff3e8]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(document)}</a> : null}
+        {docxDownload ? <a href={docxDownload.href} download={docxDownload.fileName} onClick={(event) => confirmDocumentDownload(event, currentDownloadWarnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border px-3 text-[11px] font-bold text-[#1d1e1c] transition hover:bg-[#fff3e8]"><Download className="h-3.5 w-3.5" /> DOCX</a> : null}
+        <Button type="button" aria-label={isGenerating ? "Generating…" : !canGenerate ? disabledLabel : document ? "Regenerate" : `Generate ${label}`} variant={document ? "ghost" : "default"} disabled={isGenerating || isRestoringDocument || !canGenerate} onClick={onGenerate} className={cn("h-10 px-3 text-[11px] font-bold disabled:opacity-40", document ? "rounded-none border-0 bg-transparent text-muted hover:bg-transparent hover:text-foreground" : "rounded-lg bg-accent text-foreground hover:bg-[#e95300]")}>{isGenerating ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : document ? <RefreshCw className="h-3.5 w-3.5" /> : null}{isGenerating ? "Generating…" : document ? "Regenerate" : `Create ${isResume ? "CV" : "letter"}`}</Button>
+        {document && !isResume ? <Button type="button" variant="ghost" aria-label={`Delete ${label}`} disabled={deletingDocumentId === document.id || isGenerating} onClick={onDelete} className="h-10 rounded-xl border border-accent/25 px-3 text-accent hover:bg-accent/10"><Trash2 className="h-3.5 w-3.5" /></Button> : null}
       </div>
       {document ? <p className="mt-2 text-[9px] leading-4 text-muted">Download the current {isResume ? "resume" : "cover letter"} as PDF or editable DOCX.</p> : null}
       {document ? (
-        <details className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.018]">
-          <summary className="cursor-pointer px-3 py-2.5 text-[10px] font-bold text-[#cbd3df] marker:text-muted">
+        <details className="mt-3 rounded-xl border border-border bg-[#fff8f1]">
+          <summary className="cursor-pointer px-3 py-2.5 text-[10px] font-bold text-[#4a4a47] marker:text-muted">
             Version history · {document.versionsTotal ?? document.versions.length}
           </summary>
-          <div className="border-t border-white/[0.07] px-3 py-2">
+          <div className="border-t border-border px-3 py-2">
             {[...document.versions].sort((left, right) => right.version - left.version).map((version) => {
               const isCurrent = version.version === document.currentVersion;
               const restoreKey = `${document.id}:${version.version}`;
@@ -2702,18 +2702,18 @@ function DocumentCard({
                 ? coverLetterPdfDownload(document, version.version)
                 : null;
               return (
-                <div key={version.id} className="flex items-center gap-2 border-b border-white/[0.05] py-2 last:border-0">
+                <div key={version.id} className="flex items-center gap-2 border-b border-border py-2 last:border-0">
                   <div className="min-w-0 flex-1">
-                    <p className="text-[10px] font-bold text-white">v{version.version}{isCurrent ? <span className="ml-1.5 text-[8px] uppercase tracking-wide text-success">Current</span> : null}</p>
+                    <p className="text-[10px] font-bold text-foreground">v{version.version}{isCurrent ? <span className="ml-1.5 text-[8px] uppercase tracking-wide text-success">Current</span> : null}</p>
                     <p className="mt-0.5 text-[9px] text-muted">{formatVersionTimestamp(version.createdAt)}</p>
                   </div>
-                  {versionPdfDownload ? <a href={versionPdfDownload.href} download={versionPdfDownload.fileName} onClick={(event) => confirmDocumentDownload(event, downloadWarnings)} className="inline-flex h-7 items-center gap-1 rounded-md border border-white/[0.08] px-2 text-[9px] font-bold text-[#dbe2eb] hover:bg-white/[0.05]"><Download className="h-3 w-3" /> PDF</a> : null}
-                  <a href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download?version=${version.version}`} download={documentFileName(document, version.version)} onClick={(event) => confirmDocumentDownload(event, downloadWarnings)} className="inline-flex h-7 items-center gap-1 rounded-md border border-white/[0.08] px-2 text-[9px] font-bold text-[#dbe2eb] hover:bg-white/[0.05]"><Download className="h-3 w-3" /> {documentArtifactLabel(document, version.version)}</a>
-                  {!isCurrent && !isResume ? <button type="button" disabled={Boolean(restoringVersionKey) || isGenerating} onClick={() => onRestore(version.version)} className="inline-flex h-7 items-center gap-1 rounded-md border border-white/[0.08] px-2 text-[9px] font-bold text-[#dbe2eb] transition hover:border-accent/30 hover:text-white disabled:opacity-40">{isRestoring ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Restore</button> : null}
+                  {versionPdfDownload ? <a href={versionPdfDownload.href} download={versionPdfDownload.fileName} onClick={(event) => confirmDocumentDownload(event, downloadWarnings)} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-[9px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8]"><Download className="h-3 w-3" /> PDF</a> : null}
+                  <a href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download?version=${version.version}`} download={documentFileName(document, version.version)} onClick={(event) => confirmDocumentDownload(event, downloadWarnings)} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-[9px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8]"><Download className="h-3 w-3" /> {documentArtifactLabel(document, version.version)}</a>
+                  {!isCurrent && !isResume ? <button type="button" disabled={Boolean(restoringVersionKey) || isGenerating} onClick={() => onRestore(version.version)} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-[9px] font-bold text-[#1d1e1c] transition hover:border-accent/30 hover:text-foreground disabled:opacity-40">{isRestoring ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Restore</button> : null}
                 </div>
               );
             })}
-            {(document.versionsHasMore ?? document.versions.length < (document.versionsTotal ?? document.versions.length)) ? <Button type="button" variant="ghost" disabled={loadingVersionHistoryId === document.id} onClick={onLoadMoreVersions} className="mt-2 h-8 w-full rounded-lg border border-white/[0.08] text-[9px] font-bold text-muted hover:text-white">{loadingVersionHistoryId === document.id ? <LoaderCircle className="h-3 w-3 animate-spin" /> : null} Load older versions</Button> : null}
+            {(document.versionsHasMore ?? document.versions.length < (document.versionsTotal ?? document.versions.length)) ? <Button type="button" variant="ghost" disabled={loadingVersionHistoryId === document.id} onClick={onLoadMoreVersions} className="mt-2 h-8 w-full rounded-lg border border-border text-[9px] font-bold text-muted hover:text-foreground">{loadingVersionHistoryId === document.id ? <LoaderCircle className="h-3 w-3 animate-spin" /> : null} Load older versions</Button> : null}
           </div>
         </details>
       ) : null}

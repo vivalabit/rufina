@@ -221,17 +221,17 @@ export function VacancyFilterDialog({
           if (event.key !== "Tab") return;
           trapFocus(event, dialogRef.current);
         }}
-        className="panel flex max-h-[calc(100vh-24px)] w-full max-w-[880px] flex-col overflow-hidden border-white/[0.11] bg-[#101720]/98 shadow-[0_28px_90px_rgba(0,0,0,0.62)] sm:max-h-[calc(100vh-40px)]"
+        className="panel flex max-h-[calc(100vh-24px)] w-full max-w-[880px] flex-col overflow-hidden border-border bg-[#ffffff]/98 shadow-[0_28px_90px_rgba(0,0,0,0.62)] sm:max-h-[calc(100vh-40px)]"
       >
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
           <div className="flex min-w-0 items-start gap-3">
-            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/15 text-violet-300">
+            <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent">
               <ShieldCheck className="h-5 w-5" />
             </div>
             <div className="min-w-0">
               <h2
                 id="vacancy-filter-dialog-title"
-                className="text-xl font-bold text-white sm:text-2xl"
+                className="text-xl font-bold text-foreground sm:text-2xl"
               >
                 Vacancy Filter
               </h2>
@@ -247,7 +247,7 @@ export function VacancyFilterDialog({
             aria-label="Close vacancy filter"
             disabled={isSaving}
             onClick={onClose}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted transition hover:bg-white/[0.08] hover:text-white disabled:cursor-not-allowed disabled:opacity-45"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted transition hover:bg-[#fff3e8] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45"
           >
             <X className="h-5 w-5" />
           </button>
@@ -265,11 +265,11 @@ export function VacancyFilterDialog({
         ) : status === "load-error" ? (
           <div className="grid min-h-[420px] flex-1 place-items-center p-6 text-center">
             <div className="max-w-md">
-              <AlertTriangle className="mx-auto h-8 w-8 text-red-300" />
-              <h3 className="mt-3 text-base font-bold text-white">
+              <AlertTriangle className="mx-auto h-8 w-8 text-accent" />
+              <h3 className="mt-3 text-base font-bold text-foreground">
                 Filter settings could not be loaded
               </h3>
-              <p role="alert" className="mt-2 text-sm leading-6 text-red-200">
+              <p role="alert" className="mt-2 text-sm leading-6 text-accent">
                 {message}
               </p>
               <Button
@@ -292,7 +292,7 @@ export function VacancyFilterDialog({
             }}
           >
             <div className="grid gap-4 px-4 py-5 sm:px-6">
-              <section className="rounded-xl border border-border bg-white/[0.018] p-4">
+              <section className="rounded-xl border border-border bg-[#fff8f1] p-4">
                 <button
                   type="button"
                   role="switch"
@@ -309,7 +309,7 @@ export function VacancyFilterDialog({
                   className="flex min-h-14 w-full items-center justify-between gap-4 text-left"
                 >
                   <span>
-                    <span className="block text-sm font-bold text-white">
+                    <span className="block text-sm font-bold text-foreground">
                       Filter incoming vacancies
                     </span>
                     <span className="mt-1 block text-[11px] leading-5 text-muted">
@@ -321,9 +321,9 @@ export function VacancyFilterDialog({
                 </button>
               </section>
 
-              <section className="grid gap-4 rounded-xl border border-border bg-white/[0.018] p-4">
+              <section className="grid gap-4 rounded-xl border border-border bg-[#fff8f1] p-4">
                 <div>
-                  <h3 className="text-sm font-bold text-white">Seniority</h3>
+                  <h3 className="text-sm font-bold text-foreground">Seniority</h3>
                   <p className="mt-1 text-[11px] leading-5 text-muted">
                     Empty groups add no global seniority restriction. A level
                     cannot be both allowed and excluded.
@@ -347,9 +347,9 @@ export function VacancyFilterDialog({
                 </div>
               </section>
 
-              <section className="grid gap-4 rounded-xl border border-border bg-white/[0.018] p-4">
+              <section className="grid gap-4 rounded-xl border border-border bg-[#fff8f1] p-4">
                 <div>
-                  <h3 className="text-sm font-bold text-white">Technology stack</h3>
+                  <h3 className="text-sm font-bold text-foreground">Technology stack</h3>
                   <p className="mt-1 text-[11px] leading-5 text-muted">
                     Enter one technology per line or separate values with commas.
                     Matching is case-insensitive.
@@ -357,7 +357,7 @@ export function VacancyFilterDialog({
                 </div>
                 <div className="grid gap-3 lg:grid-cols-2">
                   <label className="grid gap-1.5">
-                    <span className="text-[11px] font-bold text-[#cbd3df]">
+                    <span className="text-[11px] font-bold text-[#4a4a47]">
                       Target technologies
                     </span>
                     <textarea
@@ -379,7 +379,7 @@ export function VacancyFilterDialog({
                     </span>
                   </label>
                   <label className="grid gap-1.5">
-                    <span className="text-[11px] font-bold text-[#cbd3df]">
+                    <span className="text-[11px] font-bold text-[#4a4a47]">
                       Excluded technologies
                     </span>
                     <textarea
@@ -408,14 +408,14 @@ export function VacancyFilterDialog({
                 className={cn(
                   "rounded-xl border p-4",
                   draft.enabled
-                    ? "border-violet-400/20 bg-violet-500/[0.055]"
-                    : "border-amber-400/20 bg-amber-500/[0.045]",
+                    ? "border-accent/25 bg-accent/10"
+                    : "border-accent/25 bg-accent/10",
                 )}
               >
                 <p className="text-[10px] font-black uppercase tracking-[0.08em] text-muted">
                   Current behavior
                 </p>
-                <p className="mt-2 text-xs font-semibold leading-5 text-[#dce3ec]">
+                <p className="mt-2 text-xs font-semibold leading-5 text-[#1d1e1c]">
                   {summary}
                 </p>
                 {draft.updatedAt ? (
@@ -426,9 +426,9 @@ export function VacancyFilterDialog({
               </section>
             </div>
 
-            <footer className="sticky bottom-0 border-t border-border bg-[#101720]/95 px-4 py-3 backdrop-blur sm:px-6">
+            <footer className="sticky bottom-0 border-t border-border bg-[#ffffff]/95 px-4 py-3 backdrop-blur sm:px-6">
               {status === "save-error" && message ? (
-                <p role="alert" className="mb-3 text-xs font-semibold text-red-200">
+                <p role="alert" className="mb-3 text-xs font-semibold text-accent">
                   {message}
                 </p>
               ) : null}
@@ -467,7 +467,7 @@ function SeniorityPicker({
 }) {
   return (
     <div className="grid gap-1.5">
-      <span className="text-[11px] font-bold text-[#cbd3df]">{label}</span>
+      <span className="text-[11px] font-bold text-[#4a4a47]">{label}</span>
       <div
         role="group"
         aria-label={label}
@@ -484,8 +484,8 @@ function SeniorityPicker({
               className={cn(
                 "inline-flex h-8 items-center gap-1 rounded-md border px-2.5 text-[10px] font-bold transition",
                 active
-                  ? "border-violet-400/70 bg-violet-500/15 text-white"
-                  : "border-border bg-white/[0.025] text-muted hover:text-white",
+                  ? "border-accent/25 bg-accent/10 text-foreground"
+                  : "border-border bg-[#fff8f1] text-muted hover:text-foreground",
               )}
             >
               {active ? <Check className="h-3 w-3" /> : null}
@@ -503,7 +503,7 @@ function Toggle({ enabled }: { enabled: boolean }) {
     <span
       className={cn(
         "flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition",
-        enabled ? "justify-end bg-violet-500" : "justify-start bg-slate-700",
+        enabled ? "justify-end bg-accent" : "justify-start bg-slate-700",
       )}
     >
       <span className="h-4 w-4 rounded-full bg-white shadow" />
@@ -730,4 +730,4 @@ function errorMessage(error: unknown): string {
 }
 
 const textareaClass =
-  "min-h-28 w-full resize-y rounded-lg border border-border bg-[#0b1118] px-3 py-2 text-xs font-semibold leading-5 text-white outline-none placeholder:text-muted/60 focus:border-violet-400/70";
+  "min-h-28 w-full resize-y rounded-lg border border-border bg-[#ffffff] px-3 py-2 text-xs font-semibold leading-5 text-foreground outline-none placeholder:text-muted/60 focus:border-accent/25";

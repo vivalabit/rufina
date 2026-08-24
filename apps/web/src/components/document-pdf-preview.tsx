@@ -99,14 +99,14 @@ export function DocumentPdfPreview({
   return (
     <section
       aria-label={`${label} PDF preview panel`}
-      className="overflow-hidden rounded-2xl border border-white/[0.08] bg-black/15"
+      className="overflow-hidden rounded-2xl border border-border bg-black/15"
     >
-      <div className="flex flex-col gap-3 border-b border-white/[0.07] px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-[9px] font-black uppercase tracking-[0.12em] text-accent">
             PDF review
           </p>
-          <h3 className="mt-1 text-sm font-bold text-white">
+          <h3 className="mt-1 text-sm font-bold text-foreground">
             Preview the exact {label.toLowerCase()}
           </h3>
           <p className="mt-1 text-[10px] leading-4 text-muted">
@@ -117,7 +117,7 @@ export function DocumentPdfPreview({
           <a
             href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/pdf`}
             download={pdfFileName(document)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.09] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"
           >
             <Download className="h-3.5 w-3.5" />
             Download PDF
@@ -125,14 +125,14 @@ export function DocumentPdfPreview({
           <a
             href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`}
             download={currentFileName(document)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.09] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"
+            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"
           >
             <FileText className="h-3.5 w-3.5" />
             Download DOCX
           </a>
         </div>
       </div>
-      <div className="min-h-[520px] bg-[#171b20] p-3">
+      <div className="min-h-[520px] bg-[#ffffff] p-3">
         {status === "loading" ? (
           <div className="grid h-[496px] place-items-center text-center">
             <div>
@@ -146,16 +146,16 @@ export function DocumentPdfPreview({
           <iframe
             title={`${label} PDF preview`}
             src={previewUrl}
-            className="h-[496px] w-full rounded-lg border border-white/[0.09] bg-white"
+            className="h-[496px] w-full rounded-lg border border-border bg-white"
           />
         ) : (
           <div
             role="alert"
-            className="grid h-[496px] place-items-center rounded-lg border border-dashed border-red-400/20 text-center"
+            className="grid h-[496px] place-items-center rounded-lg border border-dashed border-accent/25 text-center"
           >
             <div className="max-w-sm px-4">
-              <Eye className="mx-auto h-6 w-6 text-red-200" />
-              <p className="mt-2 text-[10px] font-bold leading-5 text-red-200">
+              <Eye className="mx-auto h-6 w-6 text-accent" />
+              <p className="mt-2 text-[10px] font-bold leading-5 text-accent">
                 {error || "The PDF preview could not be loaded."}
               </p>
             </div>

@@ -3,7 +3,79 @@
 @tailwind utilities;
 
 :root {
-  color-scheme: dark;
+  color-scheme: light;
+
+  /* Canonical design tokens — see /DESIGN.md. */
+  --color-rufina-flame: #fa5d00;
+  --color-marigold-glow: #fee3b5;
+  --color-parchment-shadow: #e3d6c5;
+  --color-ink-black: #1d1e1c;
+  --color-paper-white: #ffffff;
+  --color-cream-canvas: #fff8f1;
+  --color-mist-gray: #d9d9d9;
+  --color-warm-stone: #615f5c;
+  --color-driftwood: #8e8b87;
+  --color-ironwood: #4a4a47;
+  --color-ash: #777571;
+  --color-bone: #c0bbb6;
+  --color-smoke: #a5a19c;
+  --color-graphite: #999999;
+
+  --font-muotoweb: Inter, Sohne, ui-sans-serif, system-ui, -apple-system,
+    BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --font-monarch: Georgia, "Times New Roman", ui-serif, serif;
+
+  --text-caption: 13px;
+  --leading-caption: 1.35;
+  --tracking-caption: 0.2px;
+  --text-subheading: 18px;
+  --leading-subheading: 1.4;
+  --tracking-subheading: 0.27px;
+  --text-heading-sm: 20px;
+  --leading-heading-sm: 1.3;
+  --tracking-heading-sm: 0.3px;
+  --text-heading: 24px;
+  --leading-heading: 1.26;
+  --tracking-heading: 0.36px;
+  --text-heading-lg: 28px;
+  --leading-heading-lg: 1.2;
+  --tracking-heading-lg: 0.42px;
+  --text-display: 48px;
+  --leading-display: 1.15;
+  --tracking-display: 0.72px;
+  --text-display-lg: 72px;
+  --leading-display-lg: 1.2;
+
+  --spacing-4: 4px;
+  --spacing-5: 5px;
+  --spacing-7: 7px;
+  --spacing-10: 10px;
+  --spacing-14: 14px;
+  --spacing-15: 15px;
+  --spacing-16: 16px;
+  --spacing-20: 20px;
+  --spacing-22: 22px;
+  --spacing-25: 25px;
+  --spacing-30: 30px;
+  --spacing-35: 35px;
+  --spacing-40: 40px;
+  --spacing-50: 50px;
+  --spacing-100: 100px;
+  --spacing-113: 113px;
+
+  --page-max-width: 1200px;
+  --section-gap: clamp(64px, 7vw, 80px);
+  --card-padding: clamp(32px, 4vw, 40px);
+  --element-gap: clamp(16px, 2vw, 24px);
+
+  --radius-tags: 999px;
+  --radius-cards: 20px;
+  --radius-images: 16px;
+  --radius-inputs: 16px;
+  --radius-buttons: 16px;
+
+  --shadow-sm: rgba(0, 0, 0, 0.2) 0 1px 4px 0;
+  --shadow-lg: rgba(250, 166, 0, 0.25) 6px 4px 24px 0;
 }
 
 * {
@@ -15,190 +87,224 @@ body {
   min-height: 100%;
 }
 
+html {
+  background: var(--color-cream-canvas);
+}
+
 body {
   margin: 0;
-  background: #080c11;
-  font-family:
-    Inter,
-    ui-sans-serif,
-    system-ui,
-    -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    sans-serif;
+  background: var(--color-cream-canvas);
+  color: var(--color-ink-black);
+  font-family: var(--font-muotoweb);
+  letter-spacing: 0.015em;
+  text-rendering: optimizeLegibility;
+}
+
+::selection {
+  background: var(--color-marigold-glow);
+  color: var(--color-ink-black);
 }
 
 a {
+  color: inherit;
   text-decoration: none;
 }
 
-@layer components {
-  .panel {
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 8px;
-    background:
-      linear-gradient(
-        145deg,
-        rgba(255, 255, 255, 0.04),
-        rgba(255, 255, 255, 0.015)
-      ),
-      rgba(16, 22, 29, 0.82);
-    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.04);
-  }
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  letter-spacing: inherit;
+}
 
-  .tag {
-    display: inline-flex;
-    min-height: 22px;
-    align-items: center;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.08);
-    padding: 0 8px;
-    color: #b8c0cc;
-    font-size: 12px;
-    line-height: 1;
-  }
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
 
-  .app-sidebar {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.2) transparent;
-  }
+:focus-visible {
+  outline: 2px solid var(--color-rufina-flame);
+  outline-offset: 4px;
+}
 
-  .app-sidebar::-webkit-scrollbar {
-    width: 8px;
-  }
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+select,
+textarea {
+  border-color: var(--color-bone) !important;
+  background-color: var(--color-paper-white) !important;
+  color: var(--color-ink-black) !important;
+}
 
-  .app-sidebar::-webkit-scrollbar-thumb {
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.18);
-  }
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-driftwood) !important;
+  opacity: 1;
+}
 
-  .job-scroll {
-    scrollbar-width: thin;
-    scrollbar-color: rgba(255, 255, 255, 0.18) transparent;
-  }
+select option {
+  background: var(--color-paper-white);
+  color: var(--color-ink-black);
+}
 
-  .job-scroll::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
-  }
+.panel {
+  border: 1px solid rgba(227, 214, 197, 0.86);
+  border-radius: var(--radius-cards);
+  background: var(--color-paper-white);
+  box-shadow: var(--shadow-lg);
+}
 
-  .job-scroll::-webkit-scrollbar-thumb {
-    border-radius: 999px;
-    background: rgba(255, 255, 255, 0.18);
-  }
+.tag {
+  display: inline-flex;
+  min-height: 24px;
+  align-items: center;
+  border: 1px solid rgba(227, 214, 197, 0.9);
+  border-radius: var(--radius-tags);
+  background: var(--color-cream-canvas);
+  padding: 0 10px;
+  color: var(--color-warm-stone);
+  font-size: 12px;
+  line-height: 1;
+}
 
-  .application-workspace {
-    background:
-      radial-gradient(
-        circle at 42% -12%,
-        rgba(255, 90, 0, 0.04),
-        transparent 25rem
-      ),
-      #0a0f15;
-  }
+.app-sidebar {
+  position: relative;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-bone) transparent;
+}
 
-  .application-hero {
-    background:
-      linear-gradient(145deg, rgba(19, 27, 36, 0.98), rgba(13, 19, 27, 0.98));
-    box-shadow:
-      0 16px 42px rgba(0, 0, 0, 0.2),
-      inset 0 1px 0 rgba(255, 255, 255, 0.035);
-  }
+.app-sidebar::after {
+  position: absolute;
+  right: 9%;
+  bottom: -1px;
+  left: 9%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    var(--color-parchment-shadow) 18%,
+    var(--color-parchment-shadow) 82%,
+    transparent
+  );
+  content: "";
+}
 
-  .resume-template-manager {
-    background:
-      radial-gradient(
-        circle at 42% 18%,
-        rgba(255, 90, 0, 0.025),
-        transparent 28rem
-      ),
-      linear-gradient(145deg, rgba(255, 255, 255, 0.015), transparent 42%),
-      #090d11;
-  }
+.app-sidebar::-webkit-scrollbar,
+.job-scroll::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
 
-  .resume-color-input::-webkit-color-swatch-wrapper {
-    padding: 0;
-  }
+.app-sidebar::-webkit-scrollbar-thumb,
+.job-scroll::-webkit-scrollbar-thumb {
+  border: 2px solid var(--color-cream-canvas);
+  border-radius: var(--radius-tags);
+  background: var(--color-bone);
+}
 
-  .resume-color-input::-webkit-color-swatch {
-    border: 0;
-    border-radius: 3px;
-  }
+.job-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-bone) transparent;
+}
 
-  .resume-color-input::-moz-color-swatch {
-    border: 0;
-    border-radius: 3px;
-  }
+.application-workspace,
+.resume-template-manager {
+  background:
+    radial-gradient(
+      circle at 80% 0%,
+      rgba(250, 93, 0, 0.08),
+      transparent 28rem
+    ),
+    var(--color-cream-canvas);
+}
 
-  .workspace-card {
-    border: 1px solid rgba(255, 255, 255, 0.085);
-    border-radius: 16px;
-    background: rgba(16, 23, 32, 0.96);
-    box-shadow:
-      0 14px 38px rgba(0, 0, 0, 0.14),
-      inset 0 1px 0 rgba(255, 255, 255, 0.025);
-  }
+.application-hero,
+.workspace-card {
+  border: 1px solid rgba(227, 214, 197, 0.88);
+  border-radius: var(--radius-cards);
+  background: var(--color-paper-white);
+  box-shadow: var(--shadow-lg);
+}
+
+.resume-color-input::-webkit-color-swatch-wrapper {
+  padding: 0;
+}
+
+.resume-color-input::-webkit-color-swatch,
+.resume-color-input::-moz-color-swatch {
+  border: 0;
+  border-radius: 12px;
 }
 
 .overview-ring {
   background: conic-gradient(
-    #ff5a00 0deg 180deg,
-    #ff9f1a 180deg 255deg,
-    #2f80ed 255deg 302deg,
-    #4a9d35 302deg 331deg,
-    #d94d4d 331deg 360deg
+    var(--color-rufina-flame) 0deg 180deg,
+    var(--color-ink-black) 180deg 255deg,
+    var(--color-driftwood) 255deg 302deg,
+    var(--color-ironwood) 302deg 331deg,
+    var(--color-bone) 331deg 360deg
   );
 }
 
-@media (max-width: 640px) {
-  .panel {
-    border-radius: 8px;
+.hero-title {
+  position: relative;
+  display: inline-block;
+  color: var(--color-ink-black);
+  font-family: var(--font-monarch);
+  font-weight: 400;
+  letter-spacing: -0.025em;
+}
+
+.hero-title::after {
+  position: absolute;
+  right: 3%;
+  bottom: -8px;
+  left: 36%;
+  height: 5px;
+  border-radius: var(--radius-tags);
+  background: var(--color-rufina-flame);
+  content: "";
+  transform: rotate(-1.2deg);
+}
+
+.rufina-wash {
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 82% 2%, rgba(250, 93, 0, 0.16), transparent 26rem),
+    radial-gradient(circle at 69% 8%, rgba(254, 227, 181, 0.75), transparent 34rem),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.22), transparent 44%);
+}
+
+/* Keep CTA labels white after legacy text utilities are normalized. */
+[class~="bg-accent"][class~="text-foreground"],
+[class~="bg-success"][class~="text-foreground"],
+[class~="from-[#fa5d00]"][class~="text-foreground"],
+[class~="from-[#e95300]"][class~="text-foreground"],
+[class~="bg-[#fa5d00]"][class~="text-foreground"] {
+  color: var(--color-paper-white) !important;
+}
+
+@media (max-width: 767px) {
+  .app-sidebar::after {
+    right: 16px;
+    left: 16px;
+  }
+
+  .hero-title::after {
+    height: 4px;
   }
 }
 
-@media (max-height: 760px) {
-  .app-sidebar {
-    padding-top: 18px;
-    padding-bottom: 18px;
-  }
-
-  .app-sidebar-brand {
-    margin-bottom: 22px;
-  }
-
-  .app-sidebar-nav {
-    gap: 6px;
-  }
-
-  .app-sidebar-nav-item {
-    height: 44px;
-  }
-
-  .app-sidebar-footer {
-    padding-top: 12px;
-  }
-
-  .app-sidebar-profile {
-    margin-bottom: 8px;
-  }
-
-  .app-sidebar-mark {
-    height: 58px;
-    width: 58px;
-  }
-}
-
-@media (max-height: 660px) {
-  .app-sidebar-brand {
-    margin-bottom: 16px;
-  }
-
-  .app-sidebar-mark {
-    height: 56px;
-    width: 56px;
-  }
-
-  .app-sidebar-profile p:last-child {
-    display: none;
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    scroll-behavior: auto !important;
+    transition-duration: 0.01ms !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
   }
 }

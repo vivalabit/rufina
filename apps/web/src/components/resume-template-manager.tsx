@@ -322,22 +322,22 @@ export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
 
   return (
     <section
-      className="resume-template-manager overflow-hidden rounded-[10px] border border-white/[0.12] bg-[#090d11] shadow-[0_24px_80px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.025)]"
+      className="resume-template-manager overflow-hidden rounded-[10px] border border-border bg-[#ffffff] shadow-[0_24px_80px_rgba(0,0,0,0.24),inset_0_1px_0_rgba(255,255,255,0.025)]"
       aria-labelledby="resume-templates-title"
     >
-      <header className="flex min-h-[84px] flex-col gap-4 border-b border-white/[0.12] bg-[radial-gradient(circle_at_6%_0%,rgba(255,90,0,0.07),transparent_18rem)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between 2xl:px-[18px]">
+      <header className="flex min-h-[84px] flex-col gap-4 border-b border-border bg-[radial-gradient(circle_at_6%_0%,rgba(255,90,0,0.07),transparent_18rem)] px-4 py-4 sm:flex-row sm:items-center sm:justify-between 2xl:px-[18px]">
         <div className="flex items-start gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#ff8a00] to-[#ff5400] shadow-[0_8px_24px_rgba(255,90,0,0.24),inset_0_1px_0_rgba(255,255,255,0.28)]">
-            <FileText className="h-5 w-5 text-white" />
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-[#e95300] to-[#e95300] shadow-[0_8px_24px_rgba(255,90,0,0.24),inset_0_1px_0_rgba(255,255,255,0.28)]">
+            <FileText className="h-5 w-5 text-foreground" />
           </span>
           <div>
             <h2
               id="resume-templates-title"
-              className="text-[17px] font-bold leading-6 text-white"
+              className="text-[17px] font-bold leading-6 text-foreground"
             >
               Resume templates
             </h2>
-            <p className="mt-0.5 text-xs leading-5 text-[#b0b7c2]">
+            <p className="mt-0.5 text-xs leading-5 text-[#4a4a47]">
               Create owner-only designs from trusted templates and preview them
               before saving.
             </p>
@@ -359,7 +359,7 @@ export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
               size="sm"
               disabled={mutation !== null}
               onClick={() => importInputRef.current?.click()}
-              className="h-10 rounded-md border border-white/[0.16] bg-white/[0.018] px-4 text-[13px] font-bold text-[#e8ebef] hover:bg-white/[0.06]"
+              className="h-10 rounded-md border border-border bg-[#fff8f1] px-4 text-[13px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8]"
             >
               {mutation === "importing" ? (
                 <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
@@ -379,7 +379,7 @@ export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
                 (selectedTemplate.kind === "custom" && !isDirty)
               }
               onClick={() => void saveTemplate()}
-              className="h-10 rounded-md bg-gradient-to-r from-[#ff6a00] to-[#ff5200] px-4 text-[13px] font-bold shadow-[0_8px_24px_rgba(255,90,0,0.2)] hover:from-[#ff7a00] hover:to-[#ff6200]"
+              className="h-10 rounded-md bg-gradient-to-r from-[#e95300] to-[#e95300] px-4 text-[13px] font-bold shadow-[0_8px_24px_rgba(255,90,0,0.2)] hover:from-[#e95300] hover:to-[#e95300]"
             >
               {mutation === "saving" ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />
@@ -397,7 +397,7 @@ export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
               variant="ghost"
               size="sm"
               onClick={() => void loadTemplates()}
-              className="h-10 border border-border bg-white/[0.025]"
+              className="h-10 border border-border bg-[#fff8f1]"
             >
               <RefreshCw className="h-3.5 w-3.5" />
               Retry
@@ -414,11 +414,11 @@ export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
       ) : status === "error" ? (
         <div className="flex min-h-56 flex-col items-center justify-center px-6 text-center">
           <LayoutTemplate className="h-8 w-8 text-muted" />
-          <p className="mt-3 text-sm font-semibold text-white">
+          <p className="mt-3 text-sm font-semibold text-foreground">
             Resume templates are unavailable
           </p>
           <p
-            className="mt-1 max-w-md text-xs leading-5 text-red-300"
+            className="mt-1 max-w-md text-xs leading-5 text-accent"
             role="alert"
           >
             {message}
@@ -427,7 +427,7 @@ export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
       ) : !selectedTemplate || !draft ? (
         <div className="flex min-h-56 flex-col items-center justify-center px-6 text-center">
           <LayoutTemplate className="h-8 w-8 text-muted" />
-          <p className="mt-3 text-sm font-semibold text-white">
+          <p className="mt-3 text-sm font-semibold text-foreground">
             No template definitions found
           </p>
           <p className="mt-1 text-xs text-muted">
@@ -437,7 +437,7 @@ export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
       ) : (
         <>
           <div className="grid min-w-0 lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[270px_minmax(0,1fr)] 2xl:grid-cols-[290px_minmax(0,1fr)]">
-            <aside className="border-b border-white/[0.12] bg-black/[0.08] lg:border-b-0 lg:border-r">
+            <aside className="border-b border-border bg-black/[0.08] lg:border-b-0 lg:border-r">
               <div className="job-scroll max-h-[780px] overflow-y-auto px-4 py-5 xl:max-h-[936px]">
                 <TemplateGroup
                   title="My templates"
@@ -491,8 +491,8 @@ export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
               className={cn(
                 "flex items-center gap-2 border-t border-border px-4 py-2.5 text-xs font-semibold",
                 messageKind === "error"
-                  ? "bg-red-400/[0.06] text-red-300"
-                  : "bg-emerald-400/[0.05] text-emerald-300",
+                  ? "bg-accent/10 text-accent"
+                  : "bg-accent/10 text-accent",
               )}
               role={messageKind === "error" ? "alert" : "status"}
             >
@@ -528,10 +528,10 @@ function TemplateGroup({
   return (
     <div className={className}>
       <div className="mb-3 flex items-center justify-between">
-        <h3 className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#c0c5cd]">
+        <h3 className="text-[10px] font-bold uppercase tracking-[0.16em] text-[#4a4a47]">
           {title}
         </h3>
-        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-white/[0.1] px-1 text-[10px] font-bold text-[#d8dde4]">
+        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-[#fff8f1] px-1 text-[10px] font-bold text-[#1d1e1c]">
           {templates.length}
         </span>
       </div>
@@ -548,8 +548,8 @@ function TemplateGroup({
                 className={cn(
                   "group relative flex min-h-[64px] w-full items-center gap-3 rounded-md border px-3 py-2.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent",
                   selected
-                    ? "border-[#ff6a00]/70 bg-[linear-gradient(100deg,rgba(255,90,0,0.12),rgba(255,90,0,0.035))]"
-                    : "border-transparent hover:border-white/[0.12] hover:bg-white/[0.025]",
+                    ? "border-[#e95300]/70 bg-[linear-gradient(100deg,rgba(255,90,0,0.12),rgba(255,90,0,0.035))]"
+                    : "border-transparent hover:border-[#c0bbb6] hover:bg-[#fff3e8]",
                 )}
               >
                 <span
@@ -559,17 +559,17 @@ function TemplateGroup({
                   )}
                   style={{
                     backgroundColor: selected
-                      ? "#ff6a00"
+                      ? "#e95300"
                       : template.designJson.accentColor,
                     opacity: selected ? 1 : 0.7,
                   }}
                   aria-hidden="true"
                 />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[13px] font-bold text-white">
+                  <span className="block truncate text-[13px] font-bold text-foreground">
                     {template.name}
                   </span>
-                  <span className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[#aeb5c0]">
+                  <span className="mt-1 flex items-center gap-1 text-[10px] font-medium text-[#615f5c]">
                     {template.kind === "bundled" ? (
                       <>
                         <FilePlus2 className="h-3 w-3" />
@@ -589,7 +589,7 @@ function TemplateGroup({
                     "h-3.5 w-3.5 shrink-0 transition",
                     selected
                       ? "text-accent"
-                      : "text-[#8b939f] group-hover:text-white",
+                      : "text-[#615f5c] group-hover:text-foreground",
                   )}
                 />
               </button>
@@ -597,7 +597,7 @@ function TemplateGroup({
           })}
         </div>
       ) : (
-        <p className="rounded-md border border-white/[0.13] bg-white/[0.012] px-3 py-3.5 text-xs leading-5 text-[#aeb5c0]">
+        <p className="rounded-md border border-border bg-[#fff8f1] px-3 py-3.5 text-xs leading-5 text-[#615f5c]">
           {emptyText}
         </p>
       )}

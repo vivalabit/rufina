@@ -109,15 +109,15 @@ export function ResumeTemplatePreview({
   );
 
   return (
-    <div className="flex min-h-[780px] min-w-0 flex-col border-t border-white/[0.12] bg-[#080c10] xl:min-h-[936px] xl:border-l xl:border-t-0">
-      <div className="flex min-h-[84px] items-center justify-between gap-3 border-b border-white/[0.12] px-5 py-3">
+    <div className="flex min-h-[780px] min-w-0 flex-col border-t border-border bg-[#fff8f1] xl:min-h-[936px] xl:border-l xl:border-t-0">
+      <div className="flex min-h-[84px] items-center justify-between gap-3 border-b border-border px-5 py-3">
         <div>
-          <h3 className="text-[13px] font-bold uppercase tracking-[0.04em] text-white">
+          <h3 className="text-[13px] font-bold uppercase tracking-[0.04em] text-foreground">
             Live preview
           </h3>
           <p
             className={`mt-0.5 text-xs ${
-              status === "error" ? "text-red-300" : "text-muted"
+              status === "error" ? "text-accent" : "text-muted"
             }`}
             role={status === "error" ? "alert" : undefined}
           >
@@ -129,7 +129,7 @@ export function ResumeTemplatePreview({
             href={previewUrl}
             target="_blank"
             rel="noreferrer"
-            className="inline-flex h-10 items-center gap-2 rounded-md border border-white/[0.14] bg-white/[0.02] px-4 text-xs font-bold text-[#e4e8ed] transition hover:bg-white/[0.07] hover:text-white"
+            className="inline-flex h-10 items-center gap-2 rounded-md border border-border bg-[#fff8f1] px-4 text-xs font-bold text-[#1d1e1c] transition hover:bg-[#fff3e8] hover:text-foreground"
           >
             <ExternalLink className="h-3.5 w-3.5" />
             Open
@@ -139,13 +139,13 @@ export function ResumeTemplatePreview({
 
       <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden p-5 pt-4">
         {previewUrl ? (
-          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-white/[0.12] bg-[#11161b]">
-            <div className="flex h-[66px] shrink-0 items-center justify-between border-b border-white/[0.1] bg-[#0c1116] px-5">
-              <div className="flex items-center gap-3 text-sm font-semibold text-white">
+          <div className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-border bg-white">
+            <div className="flex h-[66px] shrink-0 items-center justify-between border-b border-border bg-[#ffffff] px-5">
+              <div className="flex items-center gap-3 text-sm font-semibold text-foreground">
                 <span>1</span>
-                <span className="text-[#8d949d]">/</span>
+                <span className="text-[#615f5c]">/</span>
                 <span>1</span>
-                <span className="mx-1 h-7 w-px bg-white/[0.12]" />
+                <span className="mx-1 h-7 w-px bg-[#fff8f1]" />
                 <PreviewToolButton
                   label="Zoom out"
                   onClick={() => setZoom((value) => Math.max(40, value - 10))}
@@ -162,7 +162,7 @@ export function ResumeTemplatePreview({
                   aria-label="Preview zoom"
                   value={zoom}
                   onChange={(event) => setZoom(Number(event.target.value))}
-                  className="h-10 rounded-md border border-white/[0.14] bg-[#0c1116] px-3 text-sm font-bold text-white outline-none hover:bg-white/[0.04]"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-bold text-foreground outline-none hover:bg-[#fff3e8]"
                 >
                   {[50, 60, 70, 80, 90, 100, 120].map((value) => (
                     <option key={value} value={value}>
@@ -170,7 +170,7 @@ export function ResumeTemplatePreview({
                     </option>
                   ))}
                 </select>
-                <span className="mx-1 h-7 w-px bg-white/[0.12]" />
+                <span className="mx-1 h-7 w-px bg-[#fff8f1]" />
                 <PreviewToolButton label="Undo" disabled>
                   <Undo2 className="h-4 w-4" />
                 </PreviewToolButton>
@@ -182,30 +182,30 @@ export function ResumeTemplatePreview({
                 href={previewUrl}
                 download={`${draft.name || "resume-template"}.pdf`}
                 aria-label="Download preview"
-                className="flex h-9 w-9 items-center justify-center rounded-md text-white transition hover:bg-white/[0.07]"
+                className="flex h-9 w-9 items-center justify-center rounded-md text-foreground transition hover:bg-[#fff3e8]"
               >
                 <Download className="h-5 w-5" />
               </a>
             </div>
-            <div className="relative min-h-0 flex-1 overflow-hidden bg-[#171b1f]">
+            <div className="relative min-h-0 flex-1 overflow-hidden bg-[#ffffff]">
               <iframe
                 title="Resume template preview"
                 src={previewSrc ?? previewUrl}
-                className="absolute -top-14 left-0 h-[calc(100%+3.5rem)] w-full border-0 bg-[#171b1f]"
+                className="absolute -top-14 left-0 h-[calc(100%+3.5rem)] w-full border-0 bg-[#ffffff]"
               />
             </div>
           </div>
         ) : (
           <div className="flex flex-1 items-center justify-center">
             <div className="flex max-w-xs flex-col items-center text-center">
-              <span className="flex h-14 w-14 items-center justify-center rounded-xl border border-border bg-white/[0.035]">
+              <span className="flex h-14 w-14 items-center justify-center rounded-xl border border-border bg-[#fff8f1]">
                 {status === "loading" || status === "waiting" ? (
                   <LoaderCircle className="h-6 w-6 animate-spin text-accent" />
                 ) : (
                   <FileText className="h-6 w-6 text-muted" />
                 )}
               </span>
-              <p className="mt-4 text-sm font-semibold text-white">
+              <p className="mt-4 text-sm font-semibold text-foreground">
                 {status === "error"
                   ? "Preview unavailable"
                   : "Generating your resume"}
@@ -219,8 +219,8 @@ export function ResumeTemplatePreview({
         )}
 
         {previewUrl && status === "loading" ? (
-          <div className="absolute inset-5 top-4 flex items-center justify-center rounded-lg bg-[#090d12]/65 backdrop-blur-[2px]">
-            <span className="inline-flex items-center gap-2 rounded-md border border-border bg-[#111821] px-3 py-2 text-xs font-semibold text-white shadow-xl">
+          <div className="absolute inset-5 top-4 flex items-center justify-center rounded-lg bg-[#fff8f1]/85 backdrop-blur-[2px]">
+            <span className="inline-flex items-center gap-2 rounded-md border border-border bg-[#ffffff] px-3 py-2 text-xs font-semibold text-foreground shadow-xl">
               <RefreshCw className="h-3.5 w-3.5 animate-spin text-accent" />
               Updating preview
             </span>
@@ -248,7 +248,7 @@ function PreviewToolButton({
       aria-label={label}
       disabled={disabled}
       onClick={onClick}
-      className="flex h-9 w-9 items-center justify-center rounded-md text-[#e8ebef] transition hover:bg-white/[0.07] disabled:cursor-not-allowed disabled:text-[#737a83]"
+      className="flex h-9 w-9 items-center justify-center rounded-md text-[#1d1e1c] transition hover:bg-[#fff3e8] disabled:cursor-not-allowed disabled:text-[#615f5c]"
     >
       {children}
     </button>

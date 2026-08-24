@@ -673,12 +673,12 @@ const applicationStatuses: Array<{ status: ApplicationStatus; label: string }> =
 const trackedApplicationStatuses = applicationStatuses.filter((item) => item.status !== "draft");
 
 const applicationStatusStyles: Record<ApplicationStatus, string> = {
-  draft: "border-[#9f7aea]/40 bg-[#9f7aea]/14 text-[#c4a7ff]",
+  draft: "border-[#fa5d00]/40 bg-[#fa5d00]/14 text-accent",
   applied: "border-accent/35 bg-accent/12 text-accent",
   interview: "border-success/35 bg-success/12 text-success",
-  assessment: "border-[#2f80ed]/40 bg-[#2f80ed]/14 text-[#8cc7ff]",
+  assessment: "border-[#fa5d00]/40 bg-[#fa5d00]/14 text-accent",
   offer: "border-success/45 bg-success/18 text-success",
-  rejected: "border-[#d94d4d]/45 bg-[#d94d4d]/13 text-[#ff8a8a]",
+  rejected: "border-[#fa5d00]/45 bg-[#fa5d00]/13 text-[#fa5d00]",
 };
 
 const applicationEventTypes: Array<{ type: ApplicationEventType; label: string }> = [
@@ -6360,8 +6360,8 @@ export default function HomePage() {
 
   return (
     <main className="h-screen overflow-hidden bg-background text-foreground">
-      <div className="fixed inset-0 bg-[radial-gradient(circle_at_80%_0%,rgba(52,120,246,0.10),transparent_28%)]" />
-      <div className="relative flex h-full w-full overflow-hidden rounded-none border-border bg-[#0a0f15]/96 shadow-panel lg:rounded-[14px] lg:border">
+      <div className="rufina-wash fixed inset-0" />
+      <div className="relative flex h-full w-full flex-col overflow-hidden bg-background/95">
         <AppSidebar activeView={activeView} onChangeView={changeView} profile={profile} showLogs={uiSettings.showLogs} />
 
         {activeView === "Dashboard" ? (
@@ -6489,17 +6489,17 @@ export default function HomePage() {
         ) : activeView === "Logs" && uiSettings.showLogs ? (
           <LogsView logs={appLogs} onClear={clearAppLogs} />
         ) : (
-        <section className="flex h-screen min-w-0 flex-1 flex-col overflow-hidden px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
         <header className="grid shrink-0 gap-2.5 xl:grid-cols-[84px_minmax(240px,440px)_1fr] 2xl:grid-cols-[140px_minmax(280px,560px)_1fr] xl:items-center">
-          <h1 className="text-[24px] font-bold leading-tight tracking-normal text-white sm:text-[27px] 2xl:text-[31px]">Jobs</h1>
+          <h1 className="text-[24px] font-bold leading-tight tracking-normal text-foreground sm:text-[27px] 2xl:text-[31px]">Jobs</h1>
 
-          <label className="flex h-10 min-w-0 items-center gap-2.5 rounded-md border border-border bg-white/[0.075] px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:border-accent/70 2xl:h-12 2xl:px-4">
+          <label className="flex h-10 min-w-0 items-center gap-2.5 rounded-md border border-border bg-[#fff8f1] px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:border-accent/70 2xl:h-12 2xl:px-4">
             <Search className="h-[18px] w-[18px] shrink-0 text-muted 2xl:h-5 2xl:w-5" />
             <input
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Search jobs..."
-              className="h-full min-w-0 flex-1 bg-transparent text-[13px] font-medium text-white outline-none placeholder:text-muted 2xl:text-sm"
+              className="h-full min-w-0 flex-1 bg-transparent text-[13px] font-medium text-foreground outline-none placeholder:text-muted 2xl:text-sm"
             />
           </label>
 
@@ -6545,9 +6545,9 @@ export default function HomePage() {
               <label
                 key={filter.key}
                 className={cn(
-                  "relative inline-flex h-8 items-center rounded-md border border-transparent bg-white/[0.055] px-2.5 text-xs font-semibold text-[#d8dee8] transition hover:bg-white/[0.09] 2xl:h-10 2xl:px-4 2xl:text-sm",
+                  "relative inline-flex h-8 items-center rounded-md border border-transparent bg-[#fff8f1] px-2.5 text-xs font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8] 2xl:h-10 2xl:px-4 2xl:text-sm",
                   jobFilterWidths[filter.key],
-                  jobFilters[filter.key] !== "Any" && "border-accent/70 bg-accent/15 text-white",
+                  jobFilters[filter.key] !== "Any" && "border-accent/70 bg-accent/15 text-foreground",
                 )}
               >
                 <select
@@ -6576,15 +6576,15 @@ export default function HomePage() {
                 setActiveTab("Overview");
               }}
               className={cn(
-                "inline-flex h-8 items-center rounded-md border border-border bg-white/[0.09] px-3 text-xs font-semibold text-[#d8dee8] transition hover:bg-white/[0.13] 2xl:h-10 2xl:px-5 2xl:text-sm",
-                (query || hasActiveJobFilters(jobFilters) || sortBy !== "AI Match") && "border-accent/60 text-white",
+                "inline-flex h-8 items-center rounded-md border border-border bg-[#fff8f1] px-3 text-xs font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8] 2xl:h-10 2xl:px-5 2xl:text-sm",
+                (query || hasActiveJobFilters(jobFilters) || sortBy !== "AI Match") && "border-accent/60 text-foreground",
               )}
             >
               Reset
             </button>
           </div>
 
-          <label className="relative inline-flex h-8 w-fit min-w-[146px] items-center gap-1.5 whitespace-nowrap rounded-md bg-white/[0.045] px-2.5 text-xs font-semibold text-[#d8dee8] transition hover:bg-white/[0.08] 2xl:h-10 2xl:min-w-[184px] 2xl:gap-2 2xl:px-4 2xl:text-sm">
+          <label className="relative inline-flex h-8 w-fit min-w-[146px] items-center gap-1.5 whitespace-nowrap rounded-md bg-[#fff8f1] px-2.5 text-xs font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8] 2xl:h-10 2xl:min-w-[184px] 2xl:gap-2 2xl:px-4 2xl:text-sm">
             <SlidersHorizontal className="h-3.5 w-3.5 text-muted 2xl:h-4 2xl:w-4" />
             <select
               aria-label="Sort jobs"
@@ -6603,7 +6603,7 @@ export default function HomePage() {
         </div>
 
         {aiMatchErrorMessage ? (
-          <div className="mt-2.5 flex shrink-0 items-start gap-2 rounded-md border border-[#d94d4d]/45 bg-[#d94d4d]/13 px-3 py-2 text-xs font-semibold text-[#ff8a8a] 2xl:mt-3 2xl:px-4 2xl:py-2.5 2xl:text-sm">
+          <div className="mt-2.5 flex shrink-0 items-start gap-2 rounded-md border border-[#fa5d00]/45 bg-[#fa5d00]/13 px-3 py-2 text-xs font-semibold text-[#fa5d00] 2xl:mt-3 2xl:px-4 2xl:py-2.5 2xl:text-sm">
             <X className="mt-0.5 h-4 w-4 shrink-0" />
             <p className="min-w-0 flex-1">{aiMatchErrorMessage}</p>
             <button
@@ -6611,7 +6611,7 @@ export default function HomePage() {
               aria-label="Dismiss AI match error"
               title="Dismiss AI match error"
               onClick={() => setAiMatchErrorMessage("")}
-              className="grid h-5 w-5 shrink-0 place-items-center rounded text-[#ffb0b0] transition hover:bg-white/10 hover:text-white"
+              className="grid h-5 w-5 shrink-0 place-items-center rounded text-accent transition hover:bg-[#fff3e8] hover:text-foreground"
             >
               <X className="h-3.5 w-3.5" />
             </button>
@@ -6619,7 +6619,7 @@ export default function HomePage() {
         ) : null}
 
         <div className="mt-2.5 grid min-h-0 flex-1 gap-3 xl:grid-cols-[330px_minmax(0,1fr)] 2xl:mt-4 2xl:grid-cols-[420px_minmax(0,1fr)] 2xl:gap-4">
-          <aside className="flex min-h-0 flex-col overflow-hidden rounded-md bg-white/[0.02]">
+          <aside className="flex min-h-0 flex-col overflow-hidden rounded-md bg-[#fff8f1]">
             <p className="shrink-0 px-1 pb-3 pt-3 text-sm font-semibold text-muted 2xl:pb-4 2xl:pt-5 2xl:text-base">
               {filteredJobs.length} {showArchivedJobs ? "archived jobs" : showSavedJobs ? "saved jobs" : "jobs"} found
             </p>
@@ -6642,16 +6642,16 @@ export default function HomePage() {
                   className={cn(
                     "w-full cursor-pointer rounded-[8px] border p-2.5 text-left transition 2xl:p-3",
                     selectedJob?.id === job.id
-                      ? "border-accent bg-white/[0.055] shadow-[0_0_0_1px_rgba(255,90,0,0.12)]"
-                      : "border-border/80 bg-white/[0.035] hover:border-white/[0.16] hover:bg-white/[0.055]",
+                      ? "border-accent bg-[#fff8f1] shadow-[0_0_0_1px_rgba(255,90,0,0.12)]"
+                      : "border-border/80 bg-[#fff8f1] hover:border-[#c0bbb6] hover:bg-[#fff3e8]",
                   )}
                 >
                   <div className="grid grid-cols-[42px_minmax(0,1fr)_68px] gap-2 2xl:grid-cols-[48px_minmax(0,1fr)_72px] 2xl:gap-3">
                     <JobRoleIcon job={job} compact />
                     <div className="min-w-0 pt-0.5">
-                      <h2 className="line-clamp-2 text-[13px] font-bold leading-tight text-white 2xl:text-base">{job.title}</h2>
-                      <p className="mt-0.5 truncate text-xs font-bold text-[#aeb5c2] 2xl:text-sm">{job.company}</p>
-                      <p className="mt-1 truncate text-[10px] font-semibold text-[#aeb5c2] 2xl:text-[11px]">Source: {getJobSourceLabel(job)}</p>
+                      <h2 className="line-clamp-2 text-[13px] font-bold leading-tight text-foreground 2xl:text-base">{job.title}</h2>
+                      <p className="mt-0.5 truncate text-xs font-bold text-[#615f5c] 2xl:text-sm">{job.company}</p>
+                      <p className="mt-1 truncate text-[10px] font-semibold text-[#615f5c] 2xl:text-[11px]">Source: {getJobSourceLabel(job)}</p>
                     </div>
                     <div className="grid grid-cols-2 justify-items-center gap-1.5">
                       <div className="col-span-2">
@@ -6666,7 +6666,7 @@ export default function HomePage() {
                           toggleSaved(job.id);
                         }}
                         className={cn(
-                          "grid h-7 w-7 place-items-center rounded-md border border-border bg-white/[0.025] text-muted transition hover:border-white/25 hover:bg-white/[0.07] hover:text-white 2xl:h-8 2xl:w-8",
+                          "grid h-7 w-7 place-items-center rounded-md border border-border bg-[#fff8f1] text-muted transition hover:border-[#c0bbb6] hover:bg-[#fff3e8] hover:text-foreground 2xl:h-8 2xl:w-8",
                           savedJobs.includes(job.id) && "border-accent/60 text-accent",
                         )}
                       >
@@ -6681,7 +6681,7 @@ export default function HomePage() {
                           event.stopPropagation();
                           void rerunAiMatch(job);
                         }}
-                        className="grid h-7 w-7 place-items-center rounded-md border border-border bg-white/[0.025] text-muted transition hover:border-white/25 hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-55 2xl:h-8 2xl:w-8"
+                        className="grid h-7 w-7 place-items-center rounded-md border border-border bg-[#fff8f1] text-muted transition hover:border-[#c0bbb6] hover:bg-[#fff3e8] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-55 2xl:h-8 2xl:w-8"
                       >
                         <RotateCcw className={cn("h-3.5 w-3.5 2xl:h-4 2xl:w-4", forceMatchingJobId === job.id && "animate-spin")} />
                       </button>
@@ -6693,7 +6693,7 @@ export default function HomePage() {
                       <p className="flex min-w-0 flex-nowrap items-center gap-x-1.5">
                         <MapPin className="h-3.5 w-3.5 shrink-0 2xl:h-4 2xl:w-4" />
                         <span className="truncate">{formatJobLocationCompact(job.location)}</span>
-                        <span className="text-white/25">•</span>
+                        <span className="text-foreground/25">•</span>
                         <span className="shrink-0 capitalize">{job.type}</span>
                       </p>
                       <p className="whitespace-nowrap text-left sm:text-right">{formatJobPostedCompact(job.posted)}</p>
@@ -6719,11 +6719,11 @@ export default function HomePage() {
                 <div className="flex min-w-0 items-start gap-3 2xl:gap-4">
                   <JobRoleIcon job={selectedJob} large />
                   <div className="min-w-0 pt-0.5">
-                    <h2 className="text-[22px] font-bold leading-tight text-white lg:text-[20px] min-[1400px]:text-[22px] min-[1500px]:text-[24px] 2xl:text-[29px]">{selectedJob.title}</h2>
+                    <h2 className="text-[22px] font-bold leading-tight text-foreground lg:text-[20px] min-[1400px]:text-[22px] min-[1500px]:text-[24px] 2xl:text-[29px]">{selectedJob.title}</h2>
                     <p className="mt-1.5 text-sm font-semibold text-muted 2xl:mt-2 2xl:text-base">
-                      {selectedJob.company} <span className="text-white/35">•</span> {selectedJob.location} <span className="text-white/35">•</span> {selectedJob.type}
+                      {selectedJob.company} <span className="text-foreground/35">•</span> {selectedJob.location} <span className="text-foreground/35">•</span> {selectedJob.type}
                     </p>
-                    <p className="mt-1 text-xs font-semibold text-[#aeb5c2] 2xl:text-sm">Source: {getJobSourceLabel(selectedJob)}</p>
+                    <p className="mt-1 text-xs font-semibold text-[#615f5c] 2xl:text-sm">Source: {getJobSourceLabel(selectedJob)}</p>
                     <p className="mt-2 text-sm font-semibold text-muted 2xl:mt-3 2xl:text-base">{selectedJob.salary}</p>
                   </div>
                 </div>
@@ -6733,7 +6733,7 @@ export default function HomePage() {
                     <Button
                       asChild
                       variant="ghost"
-                      className="h-10 rounded-md border border-[#2f80ed]/45 bg-[#2f80ed]/10 px-3 text-xs font-bold text-[#8cc7ff] shadow-none hover:border-[#2f80ed]/70 hover:bg-[#2f80ed]/18 hover:text-white sm:col-span-2 xl:text-[13px] 2xl:h-11 2xl:text-sm"
+                      className="h-10 rounded-md border border-[#fa5d00]/45 bg-[#fa5d00]/10 px-3 text-xs font-bold text-accent shadow-none hover:border-[#fa5d00]/70 hover:bg-[#fa5d00]/18 hover:text-foreground sm:col-span-2 xl:text-[13px] 2xl:h-11 2xl:text-sm"
                     >
                       <a
                         href={selectedJobPostingUrl}
@@ -6758,7 +6758,7 @@ export default function HomePage() {
                   )}
                   <Button
                     className={cn(
-                      "h-10 rounded-md border border-white/[0.14] bg-white/[0.025] px-3 text-xs font-bold text-[#e3e8ef] shadow-none hover:border-white/[0.24] hover:bg-white/[0.06] hover:text-white xl:text-[13px] 2xl:h-11 2xl:text-sm",
+                      "h-10 rounded-md border border-border bg-[#fff8f1] px-3 text-xs font-bold text-[#1d1e1c] shadow-none hover:border-[#c0bbb6] hover:bg-[#fff3e8] hover:text-foreground xl:text-[13px] 2xl:h-11 2xl:text-sm",
                       selectedJobApplication && "gap-1 px-2 text-[10px] shadow-none 2xl:gap-1.5 2xl:text-xs",
                     )}
                     onClick={() => {
@@ -6772,7 +6772,7 @@ export default function HomePage() {
                     {selectedJobApplication ? (
                       <X className="h-3.5 w-3.5 2xl:h-4 2xl:w-4" />
                     ) : (
-                      <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full border border-[#cfd6df] 2xl:h-[18px] 2xl:w-[18px]">
+                      <span className="grid h-4 w-4 shrink-0 place-items-center rounded-full border border-[#c0bbb6] 2xl:h-[18px] 2xl:w-[18px]">
                         <Check className="h-2.5 w-2.5 2xl:h-3 2xl:w-3" strokeWidth={2.4} />
                       </span>
                     )}
@@ -6780,7 +6780,7 @@ export default function HomePage() {
                   </Button>
                   <Button
                     variant="ghost"
-                    className="h-10 rounded-md border border-[#ff6a14] bg-accent px-3 text-xs font-bold text-white shadow-[0_8px_20px_rgba(255,90,0,0.18)] hover:border-[#ff7a26] hover:bg-[#ff6a14] xl:text-[13px] 2xl:h-11 2xl:text-sm"
+                    className="h-10 rounded-md border border-[#e95300] bg-accent px-3 text-xs font-bold text-foreground shadow-[0_8px_20px_rgba(255,90,0,0.18)] hover:border-[#e95300] hover:bg-[#e95300] xl:text-[13px] 2xl:h-11 2xl:text-sm"
                     onClick={() => prepareJobApplication(selectedJob)}
                   >
                     <FileText className="h-4 w-4 2xl:h-5 2xl:w-5" />
@@ -6822,7 +6822,7 @@ export default function HomePage() {
                         key={action.label}
                         type="button"
                         variant="ghost"
-                        className="h-10 justify-start rounded-md border border-accent/35 bg-accent/[0.045] px-3 text-xs font-bold text-[#f2f4f8] hover:border-accent/60 hover:bg-accent/[0.10] 2xl:h-11 2xl:text-sm"
+                        className="h-10 justify-start rounded-md border border-accent/35 bg-accent/[0.045] px-3 text-xs font-bold text-[#1d1e1c] hover:border-accent/60 hover:bg-accent/[0.10] 2xl:h-11 2xl:text-sm"
                         onClick={() =>
                           openAssistant(
                             action.prompt,
@@ -6848,7 +6848,7 @@ export default function HomePage() {
                   aria-label="Force AI match rerun"
                   title="Force AI match rerun"
                   disabled={forceMatchingJobId === selectedJob.id}
-                  className="h-10 rounded-md border border-border bg-transparent px-3 text-xs font-semibold text-[#d8dee8] hover:bg-white/[0.055] disabled:cursor-not-allowed disabled:opacity-55 2xl:h-11 2xl:text-sm"
+                  className="h-10 rounded-md border border-border bg-transparent px-3 text-xs font-semibold text-[#1d1e1c] hover:bg-[#fff3e8] disabled:cursor-not-allowed disabled:opacity-55 2xl:h-11 2xl:text-sm"
                   onClick={() => rerunAiMatch(selectedJob)}
                 >
                   <RotateCcw className={cn("h-4 w-4 2xl:h-[18px] 2xl:w-[18px]", forceMatchingJobId === selectedJob.id && "animate-spin")} />
@@ -6859,7 +6859,7 @@ export default function HomePage() {
                   variant="ghost"
                   aria-label={isSelectedSaved ? "Unsave job" : "Save job"}
                   title={isSelectedSaved ? "Unsave job" : "Save job"}
-                  className="h-10 rounded-md border border-border bg-transparent px-3 text-xs font-semibold text-[#d8dee8] hover:bg-white/[0.055] 2xl:h-11 2xl:text-sm"
+                  className="h-10 rounded-md border border-border bg-transparent px-3 text-xs font-semibold text-[#1d1e1c] hover:bg-[#fff3e8] 2xl:h-11 2xl:text-sm"
                   onClick={() => toggleSaved(selectedJob.id)}
                 >
                   <Bookmark className={cn("h-4 w-4 2xl:h-[18px] 2xl:w-[18px]", isSelectedSaved && "fill-accent text-accent")} />
@@ -6870,7 +6870,7 @@ export default function HomePage() {
                   variant="ghost"
                   aria-label="Share job"
                   title="Share job"
-                  className="h-10 rounded-md border border-border bg-transparent px-3 text-xs font-semibold text-[#d8dee8] hover:bg-white/[0.055] 2xl:h-11 2xl:text-sm"
+                  className="h-10 rounded-md border border-border bg-transparent px-3 text-xs font-semibold text-[#1d1e1c] hover:bg-[#fff3e8] 2xl:h-11 2xl:text-sm"
                   onClick={() => navigator.clipboard?.writeText(`${selectedJob.title} at ${selectedJob.company}`)}
                 >
                   <Share2 className="h-4 w-4 2xl:h-[18px] 2xl:w-[18px]" />
@@ -6881,7 +6881,7 @@ export default function HomePage() {
                   variant="ghost"
                   aria-label={selectedJob.archived ? "Restore job" : "Archive job"}
                   title={selectedJob.archived ? "Restore job" : "Archive job"}
-                  className="h-10 rounded-md border border-border bg-transparent px-3 text-xs font-semibold text-[#d8dee8] hover:bg-white/[0.055] 2xl:h-11 2xl:text-sm"
+                  className="h-10 rounded-md border border-border bg-transparent px-3 text-xs font-semibold text-[#1d1e1c] hover:bg-[#fff3e8] 2xl:h-11 2xl:text-sm"
                   onClick={() => updateJobArchiveState(selectedJob, !selectedJob.archived)}
                 >
                   {selectedJob.archived ? <ArchiveRestore className="h-4 w-4 2xl:h-[18px] 2xl:w-[18px]" /> : <Archive className="h-4 w-4 2xl:h-[18px] 2xl:w-[18px]" />}
@@ -6892,7 +6892,7 @@ export default function HomePage() {
                   variant="ghost"
                   aria-label="Delete job"
                   title="Delete job"
-                  className="h-10 rounded-md border border-border bg-transparent px-3 text-xs font-semibold text-[#ff6b6b] hover:border-[#d94d4d]/55 hover:bg-[#d94d4d]/12 2xl:h-11 2xl:text-sm"
+                  className="h-10 rounded-md border border-border bg-transparent px-3 text-xs font-semibold text-[#fa5d00] hover:border-[#fa5d00]/55 hover:bg-[#fa5d00]/12 2xl:h-11 2xl:text-sm"
                   onClick={() => deleteJob(selectedJob)}
                 >
                   <Trash2 className="h-4 w-4 2xl:h-[18px] 2xl:w-[18px]" />
@@ -6908,8 +6908,8 @@ export default function HomePage() {
                   type="button"
                   onClick={() => setActiveTab(tab)}
                   className={cn(
-                    "relative h-10 min-w-fit px-4 text-[13px] font-bold text-muted transition hover:text-white 2xl:h-11 2xl:px-5 2xl:text-sm",
-                    activeTab === tab && "text-white after:absolute after:bottom-[-1px] after:left-0 after:h-0.5 after:w-full after:bg-accent",
+                    "relative h-10 min-w-fit px-4 text-[13px] font-bold text-muted transition hover:text-foreground 2xl:h-11 2xl:px-5 2xl:text-sm",
+                    activeTab === tab && "text-foreground after:absolute after:bottom-[-1px] after:left-0 after:h-0.5 after:w-full after:bg-accent",
                   )}
                 >
                   {tab}
@@ -6941,10 +6941,10 @@ export default function HomePage() {
             </div>
               </>
             ) : (
-              <div className="grid min-h-[360px] place-items-center rounded-md border border-dashed border-border bg-white/[0.018] p-6 text-center">
+              <div className="grid min-h-[360px] place-items-center rounded-md border border-dashed border-border bg-[#fff8f1] p-6 text-center">
                 <div>
                   <Archive className="mx-auto h-9 w-9 text-muted" />
-                  <h2 className="mt-4 text-xl font-bold text-white">
+                  <h2 className="mt-4 text-xl font-bold text-foreground">
                     {showArchivedJobs ? "No archived jobs" : showSavedJobs ? "No saved jobs" : "No jobs found"}
                   </h2>
                   <p className="mt-2 max-w-md text-sm font-medium text-muted">
@@ -6971,17 +6971,17 @@ export default function HomePage() {
 
         {isParserDialogOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 p-2 backdrop-blur-sm sm:p-3">
-            <div className="panel flex h-[calc(100dvh-16px)] w-full max-w-[1280px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:h-[calc(100dvh-24px)] sm:p-5">
+            <div className="panel flex h-[calc(100dvh-16px)] w-full max-w-[1280px] flex-col overflow-hidden border-border bg-[#ffffff]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:h-[calc(100dvh-24px)] sm:p-5">
               <div className="flex shrink-0 items-start justify-between gap-4">
                 <div>
-                  <h2 className="text-[22px] font-bold leading-tight text-white 2xl:text-[24px]">Search vacancies</h2>
+                  <h2 className="text-[22px] font-bold leading-tight text-foreground 2xl:text-[24px]">Search vacancies</h2>
                   <p className="mt-1 text-sm font-medium text-muted">Choose one or more sources and configure search settings</p>
                 </div>
                 <button
                   type="button"
                   aria-label="Close parser settings"
                   onClick={() => setIsParserDialogOpen(false)}
-                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+                  className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
                 >
                   <X className="h-5 w-5" />
                 </button>
@@ -6990,7 +6990,7 @@ export default function HomePage() {
               <div className="job-scroll mt-4 min-h-0 flex-1 overflow-x-hidden overflow-y-auto rounded-md border border-border">
                 <div className="grid min-h-0 md:grid-cols-[280px_minmax(0,1fr)] md:items-start xl:grid-cols-[300px_minmax(0,1fr)]">
                   <section className="min-w-0 border-b border-border p-4 md:sticky md:top-0 md:self-start md:border-b-0 2xl:p-5">
-                    <h3 className="text-sm font-bold text-white">1. Choose sources</h3>
+                    <h3 className="text-sm font-bold text-foreground">1. Choose sources</h3>
                     <div className="mt-4 grid gap-3">
                       {([
                         { id: "linkedin", label: "LinkedIn", description: "Extract jobs from LinkedIn", mark: "in", color: "bg-[#0a66c2]" },
@@ -7003,10 +7003,10 @@ export default function HomePage() {
                           <div
                             key={parserOption.id}
                             className={cn(
-                              "flex w-full min-w-0 items-center rounded-md border bg-white/[0.035] p-2 transition",
+                              "flex w-full min-w-0 items-center rounded-md border bg-[#fff8f1] p-2 transition",
                               isActive
                                 ? "border-accent shadow-[0_0_0_1px_rgba(255,90,0,0.18)]"
-                                : "border-border hover:border-white/20 hover:bg-white/[0.055]",
+                                : "border-border hover:border-[#c0bbb6] hover:bg-[#fff3e8]",
                             )}
                           >
                             <button
@@ -7016,12 +7016,12 @@ export default function HomePage() {
                               onClick={() => activateSearchSource(parserOption.id)}
                               className="flex min-w-0 flex-1 items-center gap-3 rounded p-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
                             >
-                              <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-md text-lg font-black text-white", parserOption.color)}>
+                              <div className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-md text-lg font-black text-foreground", parserOption.color)}>
                                 {parserOption.mark}
                               </div>
                               <div className="min-w-0 flex-1">
                                 <div className="flex flex-wrap items-center gap-2">
-                                  <h4 className="text-sm font-bold text-white">{parserOption.label}</h4>
+                                  <h4 className="text-sm font-bold text-foreground">{parserOption.label}</h4>
                                   {parserOption.id === "linkedin" && (
                                     <span className="rounded bg-success/18 px-2 py-0.5 text-[11px] font-bold text-success">Recommended</span>
                                   )}
@@ -7036,11 +7036,11 @@ export default function HomePage() {
                               onClick={() => toggleParser(parserOption.id)}
                               className={cn(
                                 "grid h-8 w-8 shrink-0 place-items-center rounded outline-none transition focus-visible:ring-2 focus-visible:ring-accent/70",
-                                isSelected ? "bg-accent/10" : "hover:bg-white/[0.06]",
+                                isSelected ? "bg-accent/10" : "hover:bg-[#fff3e8]",
                               )}
                             >
-                              <span className={cn("grid h-5 w-5 place-items-center rounded border-2", isSelected ? "border-accent bg-accent" : "border-white/25")}>
-                                {isSelected && <Check className="h-3.5 w-3.5 text-white" />}
+                              <span className={cn("grid h-5 w-5 place-items-center rounded border-2", isSelected ? "border-accent bg-accent" : "border-border")}>
+                                {isSelected && <Check className="h-3.5 w-3.5 text-foreground" />}
                               </span>
                             </button>
                           </div>
@@ -7048,10 +7048,10 @@ export default function HomePage() {
                       })}
                       <div
                         className={cn(
-                          "flex w-full min-w-0 items-center rounded-md border bg-white/[0.035] p-2 transition",
+                          "flex w-full min-w-0 items-center rounded-md border bg-[#fff8f1] p-2 transition",
                           activeSearchSource === "direct_companies"
-                            ? "border-[#8b5cf6] shadow-[0_0_0_1px_rgba(139,92,246,0.20)]"
-                            : "border-border hover:border-white/20 hover:bg-white/[0.055]",
+                            ? "border-[#fa5d00] shadow-[0_0_0_1px_rgba(139,92,246,0.20)]"
+                            : "border-border hover:border-[#c0bbb6] hover:bg-[#fff3e8]",
                         )}
                       >
                         <button
@@ -7059,15 +7059,15 @@ export default function HomePage() {
                           aria-label="Configure Direct Companies"
                           aria-current={activeSearchSource === "direct_companies" ? "true" : undefined}
                           onClick={() => activateSearchSource("direct_companies")}
-                          className="flex min-w-0 flex-1 items-center gap-3 rounded p-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-[#8b5cf6]/70"
+                          className="flex min-w-0 flex-1 items-center gap-3 rounded p-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-[#fa5d00]/70"
                         >
-                          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-[#6d45c8] text-[11px] font-black uppercase tracking-tight text-white">
+                          <div className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-[#fa5d00] text-[11px] font-black uppercase tracking-tight text-foreground">
                             dc
                           </div>
                           <div className="min-w-0 flex-1">
                             <div className="flex flex-wrap items-center gap-2">
-                              <h4 className="text-sm font-bold text-white">Direct Companies</h4>
-                              <span className="rounded bg-[#8b5cf6]/20 px-2 py-0.5 text-[10px] font-bold text-[#c8b5ff]">
+                              <h4 className="text-sm font-bold text-foreground">Direct Companies</h4>
+                              <span className="rounded bg-[#fa5d00]/20 px-2 py-0.5 text-[10px] font-bold text-accent">
                                 Setup
                               </span>
                             </div>
@@ -7080,12 +7080,12 @@ export default function HomePage() {
                           aria-pressed={parserSearchForm.directCompaniesEnabled}
                           onClick={toggleDirectCompanies}
                           className={cn(
-                            "grid h-8 w-8 shrink-0 place-items-center rounded outline-none transition focus-visible:ring-2 focus-visible:ring-[#8b5cf6]/70",
-                            parserSearchForm.directCompaniesEnabled ? "bg-[#8b5cf6]/10" : "hover:bg-white/[0.06]",
+                            "grid h-8 w-8 shrink-0 place-items-center rounded outline-none transition focus-visible:ring-2 focus-visible:ring-[#fa5d00]/70",
+                            parserSearchForm.directCompaniesEnabled ? "bg-[#fa5d00]/10" : "hover:bg-[#fff3e8]",
                           )}
                         >
-                          <span className={cn("grid h-5 w-5 place-items-center rounded border-2", parserSearchForm.directCompaniesEnabled ? "border-[#8b5cf6] bg-[#8b5cf6]" : "border-white/25")}>
-                            {parserSearchForm.directCompaniesEnabled && <Check className="h-3.5 w-3.5 text-white" />}
+                          <span className={cn("grid h-5 w-5 place-items-center rounded border-2", parserSearchForm.directCompaniesEnabled ? "border-[#fa5d00] bg-[#fa5d00]" : "border-border")}>
+                            {parserSearchForm.directCompaniesEnabled && <Check className="h-3.5 w-3.5 text-foreground" />}
                           </span>
                         </button>
                       </div>
@@ -7095,7 +7095,7 @@ export default function HomePage() {
                   <section className="min-w-0 p-4 md:border-l md:border-border 2xl:p-5">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <h3 className="text-sm font-bold text-white">
+                        <h3 className="text-sm font-bold text-foreground">
                           2. Configure {activeSearchSource === "direct_companies" ? "Direct Companies" : getParserLabel(activeSearchSource)}
                         </h3>
                         <p className="mt-1 text-xs font-medium text-muted">
@@ -7106,7 +7106,7 @@ export default function HomePage() {
                       </div>
                       <button
                         type="button"
-                        className="inline-flex items-center gap-2 text-xs font-bold text-muted transition hover:text-white"
+                        className="inline-flex items-center gap-2 text-xs font-bold text-muted transition hover:text-foreground"
                         onClick={resetParserSearch}
                       >
                         <RotateCcw className="h-4 w-4" />
@@ -7126,7 +7126,7 @@ export default function HomePage() {
                         return (
                           <div className="grid gap-3 rounded-md border border-accent/25 bg-accent/[0.025] p-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-end">
                             <label className="grid gap-2">
-                              <span className="text-xs font-bold text-[#d8dee8]">
+                              <span className="text-xs font-bold text-[#1d1e1c]">
                                 Query config
                               </span>
                               <select
@@ -7138,7 +7138,7 @@ export default function HomePage() {
                                     event.target.value,
                                   )
                                 }
-                                className="h-9 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                                className="h-9 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                               >
                                 <option value="">
                                   {availableConfigs.length > 0
@@ -7157,7 +7157,7 @@ export default function HomePage() {
                                 type="button"
                                 variant="ghost"
                                 aria-label={`Save ${getParserLabel(source)} query config`}
-                                className="h-9 rounded-md border border-border bg-transparent px-3 text-xs text-[#e6ebf3] hover:bg-white/[0.06]"
+                                className="h-9 rounded-md border border-border bg-transparent px-3 text-xs text-[#1d1e1c] hover:bg-[#fff3e8]"
                                 onClick={() =>
                                   void saveSourceSearchConfig(source)
                                 }
@@ -7181,34 +7181,34 @@ export default function HomePage() {
                       )}
 
                       <label className="grid gap-2">
-                        <span className="text-xs font-bold text-[#d8dee8]">Job title or keywords</span>
+                        <span className="text-xs font-bold text-[#1d1e1c]">Job title or keywords</span>
                         <input
                           value={parserSearchForm.keywords}
                           onChange={(event) => updateParserSearchForm("keywords", event.target.value)}
                           placeholder="e.g. Product Designer, UX Designer, Design System"
-                          className="h-9 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                          className="h-9 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
                         />
                         <span className="text-xs font-medium text-muted">Use keywords to find relevant vacancies</span>
                       </label>
 
                       <div className="grid gap-4 lg:grid-cols-2">
                         <label className="grid gap-2">
-                          <span className="text-xs font-bold text-[#d8dee8]">Location</span>
+                          <span className="text-xs font-bold text-[#1d1e1c]">Location</span>
                           <input
                             value={parserSearchForm.location}
                             onChange={(event) => updateParserSearchForm("location", event.target.value)}
                             placeholder="e.g. Remote, United States, Europe"
-                            className="h-9 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                            className="h-9 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
                           />
                           <span className="text-xs font-medium text-muted">Leave empty to search worldwide</span>
                         </label>
 
                         <label className="grid gap-2">
-                          <span className="text-xs font-bold text-[#d8dee8]">Remote</span>
+                          <span className="text-xs font-bold text-[#1d1e1c]">Remote</span>
                           <select
                             value={parserSearchForm.remote}
                             onChange={(event) => updateParserSearchForm("remote", event.target.value)}
-                            className="h-9 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                            className="h-9 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                           >
                             <option>Any</option>
                             <option>Remote only</option>
@@ -7219,11 +7219,11 @@ export default function HomePage() {
                         </label>
 
                         <label className="grid gap-2">
-                          <span className="text-xs font-bold text-[#d8dee8]">Experience level</span>
+                          <span className="text-xs font-bold text-[#1d1e1c]">Experience level</span>
                           <select
                             value={parserSearchForm.experienceLevel}
                             onChange={(event) => updateParserSearchForm("experienceLevel", event.target.value)}
-                            className="h-9 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                            className="h-9 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                           >
                             <option>Any</option>
                             <option>Entry level</option>
@@ -7235,11 +7235,11 @@ export default function HomePage() {
                         </label>
 
                         <label className="grid gap-2">
-                          <span className="text-xs font-bold text-[#d8dee8]">Job type</span>
+                          <span className="text-xs font-bold text-[#1d1e1c]">Job type</span>
                           <select
                             value={parserSearchForm.jobType}
                             onChange={(event) => updateParserSearchForm("jobType", event.target.value)}
-                            className="h-9 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                            className="h-9 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                           >
                             <option>Any</option>
                             <option>Full-time</option>
@@ -7251,11 +7251,11 @@ export default function HomePage() {
                         </label>
 
                         <label className="grid gap-2">
-                          <span className="text-xs font-bold text-[#d8dee8]">Date posted</span>
+                          <span className="text-xs font-bold text-[#1d1e1c]">Date posted</span>
                           <select
                             value={parserSearchForm.datePosted}
                             onChange={(event) => updateParserSearchForm("datePosted", event.target.value)}
-                            className="h-9 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                            className="h-9 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                           >
                             <option>Any time</option>
                             <option>Past 24 hours</option>
@@ -7266,31 +7266,31 @@ export default function HomePage() {
                         </label>
                       </div>
 
-                      <div className="rounded-md border border-border bg-white/[0.018] p-3">
+                      <div className="rounded-md border border-border bg-[#fff8f1] p-3">
                         <div className="flex items-center justify-between">
-                          <h4 className="text-sm font-bold text-white">Additional settings</h4>
+                          <h4 className="text-sm font-bold text-foreground">Additional settings</h4>
                           <ChevronDown className="h-4 w-4 rotate-180 text-muted" />
                         </div>
                         <div className="mt-4 grid gap-4 lg:grid-cols-2">
                           <label className="grid gap-2">
-                            <span className="text-xs font-bold text-[#d8dee8]">Results limit</span>
+                            <span className="text-xs font-bold text-[#1d1e1c]">Results limit</span>
                             <input
                               type="number"
                               min="1"
                               max="1000"
                               value={parserSearchForm.resultsLimit}
                               onChange={(event) => updateParserSearchForm("resultsLimit", event.target.value)}
-                              className="h-9 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                              className="h-9 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                             />
                             <span className="text-xs font-medium text-muted">Maximum number of vacancies to fetch (max 1000)</span>
                           </label>
 
                           <label className="grid gap-2">
-                            <span className="text-xs font-bold text-[#d8dee8]">Country</span>
+                            <span className="text-xs font-bold text-[#1d1e1c]">Country</span>
                             <select
                               value={parserSearchForm.country}
                               onChange={(event) => updateParserSearchForm("country", event.target.value)}
-                              className="h-9 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                              className="h-9 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                             >
                               <option>Any</option>
                               <option>United States</option>
@@ -7309,14 +7309,14 @@ export default function HomePage() {
                             onClick={() => updateParserSearchForm("deduplicate", !parserSearchForm.deduplicate)}
                             className={cn(
                               "relative mt-0.5 h-5 w-9 rounded-full transition",
-                              parserSearchForm.deduplicate ? "bg-accent shadow-[0_0_14px_rgba(255,90,0,0.22)]" : "bg-white/15",
+                              parserSearchForm.deduplicate ? "bg-accent shadow-[0_0_14px_rgba(255,90,0,0.22)]" : "bg-[#fff8f1]",
                             )}
                           >
                             <span className={cn("absolute top-0.5 h-4 w-4 rounded-full bg-white transition", parserSearchForm.deduplicate ? "right-0.5" : "left-0.5")} />
                           </button>
                           <div>
                             <div className="flex items-center gap-2">
-                              <p className="text-sm font-bold text-white">Deduplicate results</p>
+                              <p className="text-sm font-bold text-foreground">Deduplicate results</p>
                               <Info className="h-3.5 w-3.5 text-muted" />
                             </div>
                             <p className="mt-1 text-xs font-medium text-muted">Remove duplicate vacancies</p>
@@ -7331,9 +7331,9 @@ export default function HomePage() {
 
               <div className="mt-4 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p aria-live="polite" className="text-sm font-semibold text-muted">
-                  Sources: <span className="text-white">{getSearchSourcesLabel(parserSearchForm)}</span>
+                  Sources: <span className="text-foreground">{getSearchSourcesLabel(parserSearchForm)}</span>
                   {parserSearchMessage && (
-                    <span className={cn("ml-2", parserSearchStatus === "error" ? "text-[#ff7a7a]" : "text-accent")}>
+                    <span className={cn("ml-2", parserSearchStatus === "error" ? "text-[#fa5d00]" : "text-accent")}>
                       {parserSearchMessage}
                     </span>
                   )}
@@ -7341,13 +7341,13 @@ export default function HomePage() {
                 <div className="flex gap-2">
                   <Button
                     variant="ghost"
-                    className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
+                    className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
                     onClick={() => setIsParserDialogOpen(false)}
                   >
                     Cancel
                   </Button>
                   <Button
-                    className="h-10 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-7 text-[13px] text-white shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#ff6a14] hover:to-[#ff4a12]"
+                    className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-7 text-[13px] text-foreground shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#e95300] hover:to-[#e95300]"
                     disabled={parserSearchStatus === "loading"}
                     onClick={() => void runParsers()}
                   >
@@ -7498,24 +7498,24 @@ const calendarWeekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"
 
 const calendarEventTheme: Record<ApplicationEventType, { border: string; dot: string; badge: string }> = {
   screening: {
-    border: "border-[#a770ff]/70 bg-[#a770ff]/[0.055] hover:bg-[#a770ff]/[0.10]",
-    dot: "bg-[#a770ff]",
-    badge: "border-[#a770ff]/55 bg-[#a770ff]/10 text-[#c9a8ff]",
+    border: "border-[#fa5d00]/70 bg-[#fa5d00]/[0.055] hover:bg-[#fa5d00]/[0.10]",
+    dot: "bg-[#fa5d00]",
+    badge: "border-[#fa5d00]/55 bg-[#fa5d00]/10 text-accent",
   },
   interview: {
     border: "border-accent/75 bg-accent/[0.045] hover:bg-accent/[0.09]",
     dot: "bg-accent",
-    badge: "border-accent/60 bg-accent/10 text-[#ff8a45]",
+    badge: "border-accent/60 bg-accent/10 text-[#e95300]",
   },
   assessment: {
-    border: "border-[#3478f6]/75 bg-[#3478f6]/[0.055] hover:bg-[#3478f6]/[0.11]",
-    dot: "bg-[#4d91ff]",
-    badge: "border-[#3478f6]/60 bg-[#3478f6]/10 text-[#62a0ff]",
+    border: "border-[#fa5d00]/75 bg-[#fa5d00]/[0.055] hover:bg-[#fa5d00]/[0.11]",
+    dot: "bg-[#fa5d00]",
+    badge: "border-[#fa5d00]/60 bg-[#fa5d00]/10 text-[#fa5d00]",
   },
   follow_up: {
-    border: "border-white/[0.22] bg-white/[0.025] hover:bg-white/[0.055]",
-    dot: "bg-[#aeb6c2]",
-    badge: "border-white/[0.20] bg-white/[0.045] text-[#adb5c1]",
+    border: "border-border bg-[#fff8f1] hover:bg-[#fff3e8]",
+    dot: "bg-[#4a4a47]",
+    badge: "border-border bg-[#fff8f1] text-[#4a4a47]",
   },
   offer_deadline: {
     border: "border-success/65 bg-success/[0.045] hover:bg-success/[0.09]",
@@ -7712,12 +7712,12 @@ function CalendarView({
           theme.border,
         )}
       >
-        <p className="flex items-center gap-1.5 truncate text-[10px] font-medium text-[#afb7c3] 2xl:text-[11px]">
+        <p className="flex items-center gap-1.5 truncate text-[10px] font-medium text-[#4a4a47] 2xl:text-[11px]">
           <span className={cn("h-2 w-2 shrink-0 rounded-full", theme.dot)} />
           {formatApplicationEventTime(event.startsAt)}
-          {!compact ? <span className="ml-auto truncate font-semibold text-[#8fa5c7]">{getApplicationEventTypeLabel(event.type).replace(" deadline", "")}</span> : null}
+          {!compact ? <span className="ml-auto truncate font-semibold text-[#615f5c]">{getApplicationEventTypeLabel(event.type).replace(" deadline", "")}</span> : null}
         </p>
-        <p className={cn("truncate font-bold text-white", compact ? "mt-0.5 text-[10px] 2xl:text-[11px]" : "mt-1 text-[11px] 2xl:text-xs")}>
+        <p className={cn("truncate font-bold text-foreground", compact ? "mt-0.5 text-[10px] 2xl:text-[11px]" : "mt-1 text-[11px] 2xl:text-xs")}>
           {event.title}
         </p>
         {!compact ? (
@@ -7730,9 +7730,9 @@ function CalendarView({
   }
 
   return (
-    <section className="relative flex h-screen min-w-0 flex-1 flex-col overflow-hidden px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
+    <section className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
       <header className="flex shrink-0 items-center justify-between gap-4">
-        <h1 className="text-[24px] font-bold leading-tight tracking-normal text-white sm:text-[27px] 2xl:text-[31px]">Calendar</h1>
+        <h1 className="text-[24px] font-bold leading-tight tracking-normal text-foreground sm:text-[27px] 2xl:text-[31px]">Calendar</h1>
         <div className="flex items-center gap-2">
           <Button
             type="button"
@@ -7740,7 +7740,7 @@ function CalendarView({
             disabled={!nextInterview}
             title={nextInterview ? `Prepare for ${nextInterview.title}` : "No upcoming interview"}
             onClick={prepareForNextInterview}
-            className="h-10 rounded-md border border-accent/40 bg-accent/[0.055] px-3 text-[12px] font-bold text-white hover:bg-accent/[0.11] disabled:cursor-not-allowed disabled:opacity-45 2xl:h-11 2xl:px-4 2xl:text-[13px]"
+            className="h-10 rounded-md border border-accent/40 bg-accent/[0.055] px-3 text-[12px] font-bold text-foreground hover:bg-accent/[0.11] disabled:cursor-not-allowed disabled:opacity-45 2xl:h-11 2xl:px-4 2xl:text-[13px]"
           >
             <Sparkles className="h-4 w-4 text-accent" />
             <span className="hidden sm:inline">Prepare next interview</span>
@@ -7748,7 +7748,7 @@ function CalendarView({
           </Button>
           <Button
             onClick={() => openNewEvent()}
-            className="h-10 rounded-md bg-gradient-to-r from-[#ff6b19] to-[#ff4318] px-4 text-[13px] font-bold text-white shadow-[0_12px_28px_rgba(255,90,0,0.22)] hover:from-[#ff7b2f] hover:to-[#ff542b] 2xl:h-11 2xl:px-5"
+            className="h-10 rounded-md bg-gradient-to-r from-[#e95300] to-[#e95300] px-4 text-[13px] font-bold text-foreground shadow-[0_12px_28px_rgba(255,90,0,0.22)] hover:from-[#e95300] hover:to-[#e95300] 2xl:h-11 2xl:px-5"
           >
             <Plus className="h-4 w-4" />
             Add event
@@ -7757,16 +7757,16 @@ function CalendarView({
       </header>
 
       <div className="mt-3 flex shrink-0 flex-wrap items-center gap-2.5 2xl:mt-4">
-        <button type="button" aria-label="Previous month" onClick={() => moveMonth(-1)} className="grid h-10 w-10 place-items-center rounded-md border border-border bg-white/[0.035] text-muted transition hover:bg-white/[0.07] hover:text-white">
+        <button type="button" aria-label="Previous month" onClick={() => moveMonth(-1)} className="grid h-10 w-10 place-items-center rounded-md border border-border bg-[#fff8f1] text-muted transition hover:bg-[#fff3e8] hover:text-foreground">
           <ChevronLeft className="h-5 w-5" />
         </button>
-        <h2 className="min-w-[118px] text-base font-bold text-white 2xl:min-w-[132px] 2xl:text-lg">{monthLabel}</h2>
-        <button type="button" aria-label="Next month" onClick={() => moveMonth(1)} className="grid h-10 w-10 place-items-center rounded-md border border-border bg-white/[0.035] text-muted transition hover:bg-white/[0.07] hover:text-white">
+        <h2 className="min-w-[118px] text-base font-bold text-foreground 2xl:min-w-[132px] 2xl:text-lg">{monthLabel}</h2>
+        <button type="button" aria-label="Next month" onClick={() => moveMonth(1)} className="grid h-10 w-10 place-items-center rounded-md border border-border bg-[#fff8f1] text-muted transition hover:bg-[#fff3e8] hover:text-foreground">
           <ChevronRight className="h-5 w-5" />
         </button>
-        <button type="button" onClick={goToToday} className="ml-1 h-10 rounded-md border border-border bg-white/[0.035] px-4 text-[12px] font-bold text-[#cbd2dc] transition hover:bg-white/[0.07] hover:text-white">Today</button>
+        <button type="button" onClick={goToToday} className="ml-1 h-10 rounded-md border border-border bg-[#fff8f1] px-4 text-[12px] font-bold text-[#4a4a47] transition hover:bg-[#fff3e8] hover:text-foreground">Today</button>
 
-        <div className="ml-auto flex h-10 items-center rounded-md border border-border bg-white/[0.025] p-1">
+        <div className="ml-auto flex h-10 items-center rounded-md border border-border bg-[#fff8f1] p-1">
           {(["month", "week", "agenda"] as CalendarMode[]).map((item) => (
             <button
               key={item}
@@ -7774,7 +7774,7 @@ function CalendarView({
               onClick={() => setMode(item)}
               className={cn(
                 "h-8 rounded px-4 text-[11px] font-bold capitalize transition 2xl:text-xs",
-                mode === item ? "border border-accent/75 bg-accent/[0.08] text-[#ff7b35]" : "text-muted hover:text-white",
+                mode === item ? "border border-accent/75 bg-accent/[0.08] text-[#e95300]" : "text-muted hover:text-foreground",
               )}
             >
               {item}
@@ -7783,17 +7783,17 @@ function CalendarView({
         </div>
 
         <div className="relative">
-          <button type="button" onClick={() => setIsFilterOpen((open) => !open)} className={cn("flex h-10 items-center gap-2 rounded-md border px-3.5 text-[12px] font-bold transition", activeType === "all" ? "border-border bg-white/[0.025] text-[#d6dbe3]" : "border-accent/45 bg-accent/[0.07] text-accent") }>
+          <button type="button" onClick={() => setIsFilterOpen((open) => !open)} className={cn("flex h-10 items-center gap-2 rounded-md border px-3.5 text-[12px] font-bold transition", activeType === "all" ? "border-border bg-[#fff8f1] text-[#1d1e1c]" : "border-accent/45 bg-accent/[0.07] text-accent") }>
             <SlidersHorizontal className="h-4 w-4" />
             Filter
           </button>
           {isFilterOpen ? (
-            <div className="absolute right-0 top-12 z-30 w-52 rounded-lg border border-border bg-[#121820] p-2 shadow-[0_18px_50px_rgba(0,0,0,0.55)]">
-              <button type="button" onClick={() => { setActiveType("all"); setIsFilterOpen(false); }} className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-xs font-semibold text-[#dce1e9] hover:bg-white/[0.06]">
+            <div className="absolute right-0 top-12 z-30 w-52 rounded-lg border border-border bg-white p-2 shadow-[6px_8px_28px_rgba(227,214,197,0.72)]">
+              <button type="button" onClick={() => { setActiveType("all"); setIsFilterOpen(false); }} className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-xs font-semibold text-[#1d1e1c] hover:bg-[#fff3e8]">
                 All events {activeType === "all" ? <Check className="h-4 w-4 text-accent" /> : null}
               </button>
               {applicationEventTypes.map((item) => (
-                <button key={item.type} type="button" onClick={() => { setActiveType(item.type); setIsFilterOpen(false); }} className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-xs font-semibold text-[#b9c1cc] hover:bg-white/[0.06] hover:text-white">
+                <button key={item.type} type="button" onClick={() => { setActiveType(item.type); setIsFilterOpen(false); }} className="flex w-full items-center justify-between rounded-md px-3 py-2 text-left text-xs font-semibold text-[#4a4a47] hover:bg-[#fff3e8] hover:text-foreground">
                   {item.label} {activeType === item.type ? <Check className="h-4 w-4 text-accent" /> : null}
                 </button>
               ))}
@@ -7807,7 +7807,7 @@ function CalendarView({
           {mode === "month" ? (
             <div className="grid h-full grid-cols-7" style={{ gridTemplateRows: `42px repeat(${monthRowCount}, minmax(0, 1fr))` }}>
               {calendarWeekdays.map((day) => (
-                <div key={day} className="grid place-items-center border-b border-r border-border text-[10px] font-bold text-[#adb5c2] last:border-r-0 2xl:text-xs">{day}</div>
+                <div key={day} className="grid place-items-center border-b border-r border-border text-[10px] font-bold text-[#4a4a47] last:border-r-0 2xl:text-xs">{day}</div>
               ))}
               {monthDays.map((date, index) => {
                 const dateKey = getCalendarDateKey(date);
@@ -7820,12 +7820,12 @@ function CalendarView({
                     key={dateKey}
                     onClick={() => { setSelectedDate(date); openNewEvent(date); }}
                     className={cn(
-                      "group relative min-h-0 overflow-hidden border-b border-r border-border p-2 text-left transition hover:bg-white/[0.025] [&:nth-last-child(-n+7)]:border-b-0 [&:nth-child(7n)]:border-r-0 2xl:p-2.5",
-                      !isCurrentMonth && "bg-black/[0.08] text-[#59616d]",
+                      "group relative min-h-0 overflow-hidden border-b border-r border-border p-2 text-left transition hover:bg-[#fff3e8] [&:nth-last-child(-n+7)]:border-b-0 [&:nth-child(7n)]:border-r-0 2xl:p-2.5",
+                      !isCurrentMonth && "bg-black/[0.08] text-[#615f5c]",
                       isToday && "bg-accent/[0.025] shadow-[inset_0_0_0_1px_rgba(255,90,0,0.8)]",
                     )}
                   >
-                    <span className={cn("inline-grid h-5 min-w-5 place-items-center rounded-full text-[11px] font-bold 2xl:h-6 2xl:min-w-6 2xl:text-xs", isToday ? "bg-accent text-white" : isCurrentMonth ? "text-[#e6e9ee]" : "text-[#606875]")}>{date.getDate()}</span>
+                    <span className={cn("inline-grid h-5 min-w-5 place-items-center rounded-full text-[11px] font-bold 2xl:h-6 2xl:min-w-6 2xl:text-xs", isToday ? "bg-accent text-foreground" : isCurrentMonth ? "text-[#1d1e1c]" : "text-[#615f5c]")}>{date.getDate()}</span>
                     <Plus className="absolute right-2 top-2 h-3.5 w-3.5 text-muted opacity-0 transition group-hover:opacity-100" />
                     {dayEvents.length > 0 ? <div className="mt-1 space-y-1">{dayEvents.slice(0, 2).map((event) => renderEventCard(event))}</div> : null}
                     {dayEvents.length > 2 ? <p className="mt-1 text-[9px] font-bold text-muted">+{dayEvents.length - 2} more</p> : null}
@@ -7839,10 +7839,10 @@ function CalendarView({
                 const dateKey = getCalendarDateKey(date);
                 const dayEvents = filteredEvents.filter((event) => getCalendarDateKey(new Date(event.startsAt)) === dateKey);
                 return (
-                  <div key={dateKey} onClick={() => openNewEvent(date)} className="min-w-0 overflow-hidden p-2 text-left hover:bg-white/[0.02] 2xl:p-3">
+                  <div key={dateKey} onClick={() => openNewEvent(date)} className="min-w-0 overflow-hidden p-2 text-left hover:bg-[#fff3e8] 2xl:p-3">
                     <div className="border-b border-border pb-3 text-center">
                       <p className="text-[10px] font-bold uppercase tracking-wide text-muted">{calendarWeekdays[index].slice(0, 3)}</p>
-                      <span className={cn("mt-1 inline-grid h-8 w-8 place-items-center rounded-full text-sm font-bold", dateKey === todayKey ? "bg-accent text-white" : "text-white")}>{date.getDate()}</span>
+                      <span className={cn("mt-1 inline-grid h-8 w-8 place-items-center rounded-full text-sm font-bold", dateKey === todayKey ? "bg-accent text-foreground" : "text-foreground")}>{date.getDate()}</span>
                     </div>
                     <div className="mt-3 space-y-2">{dayEvents.map((event) => renderEventCard(event))}</div>
                   </div>
@@ -7855,9 +7855,9 @@ function CalendarView({
                 const date = new Date(event.startsAt);
                 const theme = calendarEventTheme[event.type];
                 return (
-                  <button key={event.id} type="button" onClick={() => openEvent(event)} className="mb-2 grid w-full grid-cols-[58px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border bg-white/[0.02] p-3 text-left transition hover:bg-white/[0.05]">
-                    <div className="rounded-md border border-border bg-black/10 py-2 text-center"><p className="text-[9px] font-black uppercase text-muted">{date.toLocaleDateString("en-US", { month: "short" })}</p><p className="text-xl font-bold leading-none text-white">{date.getDate()}</p></div>
-                    <div className="min-w-0"><p className="truncate text-sm font-bold text-white">{event.title}</p><p className="mt-1 truncate text-xs text-muted">{formatApplicationEventTime(event.startsAt)} • {eventCompany(event)}</p></div>
+                  <button key={event.id} type="button" onClick={() => openEvent(event)} className="mb-2 grid w-full grid-cols-[58px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border bg-[#fff8f1] p-3 text-left transition hover:bg-[#fff3e8]">
+                    <div className="rounded-md border border-border bg-black/10 py-2 text-center"><p className="text-[9px] font-black uppercase text-muted">{date.toLocaleDateString("en-US", { month: "short" })}</p><p className="text-xl font-bold leading-none text-foreground">{date.getDate()}</p></div>
+                    <div className="min-w-0"><p className="truncate text-sm font-bold text-foreground">{event.title}</p><p className="mt-1 truncate text-xs text-muted">{formatApplicationEventTime(event.startsAt)} • {eventCompany(event)}</p></div>
                     <span className={cn("rounded border px-2 py-1 text-[10px] font-bold", theme.badge)}>{getApplicationEventTypeLabel(event.type).replace(" deadline", "")}</span>
                   </button>
                 );
@@ -7868,15 +7868,15 @@ function CalendarView({
 
         <aside className="hidden min-h-0 h-full xl:block">
           <section className="panel h-full min-h-0 overflow-hidden p-3 2xl:p-4">
-            <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-bold text-white 2xl:text-base">Upcoming</h2><button type="button" onClick={() => setMode("agenda")} className="text-[10px] font-bold text-accent 2xl:text-xs">View calendar</button></div>
+            <div className="flex items-center justify-between gap-3"><h2 className="text-sm font-bold text-foreground 2xl:text-base">Upcoming</h2><button type="button" onClick={() => setMode("agenda")} className="text-[10px] font-bold text-accent 2xl:text-xs">View calendar</button></div>
             <div className="mt-3 space-y-2 overflow-y-auto 2xl:mt-4">
               {upcomingEvents.length > 0 ? upcomingEvents.map((event) => {
                 const date = new Date(event.startsAt);
                 const theme = calendarEventTheme[event.type];
                 return (
-                  <button key={event.id} type="button" onClick={() => openEvent(event)} className="grid w-full grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border bg-white/[0.018] p-2 text-left transition hover:bg-white/[0.05] 2xl:grid-cols-[46px_minmax(0,1fr)_auto] 2xl:p-2.5">
-                    <div className={cn("rounded-md border py-1 text-center", theme.badge)}><p className="text-[8px] font-black uppercase">{date.toLocaleDateString("en-US", { month: "short" })}</p><p className="text-lg font-bold leading-none text-white">{date.getDate()}</p></div>
-                    <div className="min-w-0"><p className="truncate text-[10px] font-semibold text-[#b7bfca] 2xl:text-[11px]">{formatApplicationEventTime(event.startsAt)} • {eventCompany(event)}</p><p className="mt-1 truncate text-[10px] text-muted 2xl:text-[11px]">{event.notes || getApplicationEventTypeLabel(event.type)}</p></div>
+                  <button key={event.id} type="button" onClick={() => openEvent(event)} className="grid w-full grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border bg-[#fff8f1] p-2 text-left transition hover:bg-[#fff3e8] 2xl:grid-cols-[46px_minmax(0,1fr)_auto] 2xl:p-2.5">
+                    <div className={cn("rounded-md border py-1 text-center", theme.badge)}><p className="text-[8px] font-black uppercase">{date.toLocaleDateString("en-US", { month: "short" })}</p><p className="text-lg font-bold leading-none text-foreground">{date.getDate()}</p></div>
+                    <div className="min-w-0"><p className="truncate text-[10px] font-semibold text-[#4a4a47] 2xl:text-[11px]">{formatApplicationEventTime(event.startsAt)} • {eventCompany(event)}</p><p className="mt-1 truncate text-[10px] text-muted 2xl:text-[11px]">{event.notes || getApplicationEventTypeLabel(event.type)}</p></div>
                     <span className={cn("rounded border px-1.5 py-1 text-[8px] font-bold 2xl:text-[9px]", theme.badge)}>{getApplicationEventTypeLabel(event.type).replace(" deadline", "")}</span>
                   </button>
                 );
@@ -7888,20 +7888,20 @@ function CalendarView({
 
       {eventDraft ? (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/70 p-4 backdrop-blur-sm" onMouseDown={(event) => { if (event.target === event.currentTarget) setEventDraft(null); }}>
-          <div className="w-full max-w-[560px] rounded-xl border border-border bg-[#11171e] shadow-[0_28px_90px_rgba(0,0,0,0.65)]">
-            <div className="flex items-center justify-between border-b border-border px-5 py-4"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-accent">Calendar event</p><h2 className="mt-1 text-xl font-bold text-white">{eventDraft.id ? "Edit event" : "Add event"}</h2></div><button type="button" onClick={() => setEventDraft(null)} className="grid h-9 w-9 place-items-center rounded-md text-muted hover:bg-white/[0.06] hover:text-white"><X className="h-5 w-5" /></button></div>
+          <div className="w-full max-w-[560px] rounded-xl border border-border bg-[#ffffff] shadow-[0_28px_90px_rgba(0,0,0,0.65)]">
+            <div className="flex items-center justify-between border-b border-border px-5 py-4"><div><p className="text-xs font-bold uppercase tracking-[0.14em] text-accent">Calendar event</p><h2 className="mt-1 text-xl font-bold text-foreground">{eventDraft.id ? "Edit event" : "Add event"}</h2></div><button type="button" onClick={() => setEventDraft(null)} className="grid h-9 w-9 place-items-center rounded-md text-muted hover:bg-[#fff3e8] hover:text-foreground"><X className="h-5 w-5" /></button></div>
             <div className="grid gap-4 p-5 sm:grid-cols-2">
-              <label className="sm:col-span-2"><span className="mb-1.5 block text-xs font-bold text-[#c6cdd7]">Event title</span><input value={eventDraft.title} onChange={(event) => updateDraft("title", event.target.value)} autoFocus className="h-10 w-full rounded-md border border-border bg-white/[0.035] px-3 text-sm text-white outline-none transition focus:border-accent/60" /></label>
-              <label><span className="mb-1.5 block text-xs font-bold text-[#c6cdd7]">Type</span><select value={eventDraft.type} onChange={(event) => updateDraft("type", event.target.value as ApplicationEventType)} className="h-10 w-full rounded-md border border-border bg-[#171d24] px-3 text-sm text-white outline-none focus:border-accent/60">{applicationEventTypes.map((item) => <option key={item.type} value={item.type}>{item.label}</option>)}</select></label>
-              <label><span className="mb-1.5 block text-xs font-bold text-[#c6cdd7]">Application</span><select value={draftApplicationId} onChange={(event) => setDraftApplicationId(event.target.value)} className="h-10 w-full rounded-md border border-border bg-[#171d24] px-3 text-sm text-white outline-none focus:border-accent/60"><option value="calendar-standalone">Personal event</option>{applications.map((application) => <option key={application.id} value={application.id}>{application.job.company} — {application.job.title}</option>)}</select></label>
-              <label><span className="mb-1.5 block text-xs font-bold text-[#c6cdd7]">Date &amp; time</span><input type="datetime-local" value={eventDraft.startsAt} onChange={(event) => updateDraft("startsAt", event.target.value)} className="h-10 w-full rounded-md border border-border bg-white/[0.035] px-3 text-sm text-white outline-none focus:border-accent/60 [color-scheme:dark]" /></label>
-              <label><span className="mb-1.5 block text-xs font-bold text-[#c6cdd7]">Duration</span><select value={eventDraft.durationMinutes} onChange={(event) => updateDraft("durationMinutes", event.target.value)} className="h-10 w-full rounded-md border border-border bg-[#171d24] px-3 text-sm text-white outline-none focus:border-accent/60">{[15, 30, 45, 60, 90].map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}</select></label>
-              <label className="sm:col-span-2"><span className="mb-1.5 block text-xs font-bold text-[#c6cdd7]">Location or link</span><input value={eventDraft.location} onChange={(event) => updateDraft("location", event.target.value)} placeholder="Google Meet, office, phone..." className="h-10 w-full rounded-md border border-border bg-white/[0.035] px-3 text-sm text-white outline-none placeholder:text-muted focus:border-accent/60" /></label>
-              <label className="sm:col-span-2"><span className="mb-1.5 block text-xs font-bold text-[#c6cdd7]">Notes</span><textarea value={eventDraft.notes} onChange={(event) => updateDraft("notes", event.target.value)} rows={3} className="w-full resize-none rounded-md border border-border bg-white/[0.035] px-3 py-2 text-sm text-white outline-none focus:border-accent/60" /></label>
+              <label className="sm:col-span-2"><span className="mb-1.5 block text-xs font-bold text-[#4a4a47]">Event title</span><input value={eventDraft.title} onChange={(event) => updateDraft("title", event.target.value)} autoFocus className="h-10 w-full rounded-md border border-border bg-[#fff8f1] px-3 text-sm text-foreground outline-none transition focus:border-accent/60" /></label>
+              <label><span className="mb-1.5 block text-xs font-bold text-[#4a4a47]">Type</span><select value={eventDraft.type} onChange={(event) => updateDraft("type", event.target.value as ApplicationEventType)} className="h-10 w-full rounded-md border border-border bg-[#ffffff] px-3 text-sm text-foreground outline-none focus:border-accent/60">{applicationEventTypes.map((item) => <option key={item.type} value={item.type}>{item.label}</option>)}</select></label>
+              <label><span className="mb-1.5 block text-xs font-bold text-[#4a4a47]">Application</span><select value={draftApplicationId} onChange={(event) => setDraftApplicationId(event.target.value)} className="h-10 w-full rounded-md border border-border bg-[#ffffff] px-3 text-sm text-foreground outline-none focus:border-accent/60"><option value="calendar-standalone">Personal event</option>{applications.map((application) => <option key={application.id} value={application.id}>{application.job.company} — {application.job.title}</option>)}</select></label>
+              <label><span className="mb-1.5 block text-xs font-bold text-[#4a4a47]">Date &amp; time</span><input type="datetime-local" value={eventDraft.startsAt} onChange={(event) => updateDraft("startsAt", event.target.value)} className="h-10 w-full rounded-md border border-border bg-[#fff8f1] px-3 text-sm text-foreground outline-none focus:border-accent/60 [color-scheme:light]" /></label>
+              <label><span className="mb-1.5 block text-xs font-bold text-[#4a4a47]">Duration</span><select value={eventDraft.durationMinutes} onChange={(event) => updateDraft("durationMinutes", event.target.value)} className="h-10 w-full rounded-md border border-border bg-[#ffffff] px-3 text-sm text-foreground outline-none focus:border-accent/60">{[15, 30, 45, 60, 90].map((minutes) => <option key={minutes} value={minutes}>{minutes} minutes</option>)}</select></label>
+              <label className="sm:col-span-2"><span className="mb-1.5 block text-xs font-bold text-[#4a4a47]">Location or link</span><input value={eventDraft.location} onChange={(event) => updateDraft("location", event.target.value)} placeholder="Google Meet, office, phone..." className="h-10 w-full rounded-md border border-border bg-[#fff8f1] px-3 text-sm text-foreground outline-none placeholder:text-muted focus:border-accent/60" /></label>
+              <label className="sm:col-span-2"><span className="mb-1.5 block text-xs font-bold text-[#4a4a47]">Notes</span><textarea value={eventDraft.notes} onChange={(event) => updateDraft("notes", event.target.value)} rows={3} className="w-full resize-none rounded-md border border-border bg-[#fff8f1] px-3 py-2 text-sm text-foreground outline-none focus:border-accent/60" /></label>
             </div>
             <div className="flex items-center justify-between border-t border-border px-5 py-4">
-              <div>{eventDraft.id ? <button type="button" onClick={deleteDraft} className="flex h-9 items-center gap-2 rounded-md px-3 text-xs font-bold text-[#ff7e7e] hover:bg-[#d94d4d]/10"><Trash2 className="h-4 w-4" />Delete</button> : null}</div>
-              <div className="flex gap-2"><button type="button" onClick={() => setEventDraft(null)} className="h-9 rounded-md border border-border px-4 text-xs font-bold text-[#d0d6df] hover:bg-white/[0.05]">Cancel</button><button type="button" onClick={saveDraft} disabled={!eventDraft.title.trim() || !eventDraft.startsAt} className="h-9 rounded-md bg-gradient-to-r from-[#ff6b19] to-[#ff4318] px-5 text-xs font-bold text-white disabled:cursor-not-allowed disabled:opacity-40">Save event</button></div>
+              <div>{eventDraft.id ? <button type="button" onClick={deleteDraft} className="flex h-9 items-center gap-2 rounded-md px-3 text-xs font-bold text-accent hover:bg-[#fa5d00]/10"><Trash2 className="h-4 w-4" />Delete</button> : null}</div>
+              <div className="flex gap-2"><button type="button" onClick={() => setEventDraft(null)} className="h-9 rounded-md border border-border px-4 text-xs font-bold text-[#1d1e1c] hover:bg-[#fff3e8]">Cancel</button><button type="button" onClick={saveDraft} disabled={!eventDraft.title.trim() || !eventDraft.startsAt} className="h-9 rounded-md bg-gradient-to-r from-[#e95300] to-[#e95300] px-5 text-xs font-bold text-foreground disabled:cursor-not-allowed disabled:opacity-40">Save event</button></div>
             </div>
           </div>
         </div>
@@ -7929,11 +7929,11 @@ function ManualJobDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="manual-job-dialog-title"
-        className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[780px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] 2xl:p-5"
+        className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[780px] flex-col overflow-hidden border-border bg-[#ffffff]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] 2xl:p-5"
       >
         <div className="flex shrink-0 items-start justify-between gap-4">
           <div>
-            <h2 id="manual-job-dialog-title" className="text-[22px] font-bold leading-tight text-white">
+            <h2 id="manual-job-dialog-title" className="text-[22px] font-bold leading-tight text-foreground">
               Add vacancy
             </h2>
             <p className="mt-1 text-sm font-medium text-muted">
@@ -7944,7 +7944,7 @@ function ManualJobDialog({
             type="button"
             aria-label="Close manual vacancy"
             onClick={onClose}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
@@ -7952,53 +7952,53 @@ function ManualJobDialog({
 
         <div className="job-scroll mt-5 grid min-h-0 flex-1 gap-4 overflow-y-auto pr-1 md:grid-cols-2">
           <label className="grid gap-2">
-            <span className="text-xs font-bold text-[#d8dee8]">Role title *</span>
+            <span className="text-xs font-bold text-[#1d1e1c]">Role title *</span>
             <input
               autoFocus
               value={draft.title}
               onChange={(event) => onChange("title", event.target.value)}
-              className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+              className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               placeholder="Senior Product Designer"
             />
           </label>
 
           <label className="grid gap-2">
-            <span className="text-xs font-bold text-[#d8dee8]">Company *</span>
+            <span className="text-xs font-bold text-[#1d1e1c]">Company *</span>
             <input
               value={draft.company}
               onChange={(event) => onChange("company", event.target.value)}
-              className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+              className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               placeholder="Company name"
             />
           </label>
 
           <label className="grid gap-2">
-            <span className="text-xs font-bold text-[#d8dee8]">Location</span>
+            <span className="text-xs font-bold text-[#1d1e1c]">Location</span>
             <input
               value={draft.location}
               onChange={(event) => onChange("location", event.target.value)}
-              className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+              className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               placeholder="Zurich, Remote, Europe"
             />
           </label>
 
           <label className="grid gap-2">
-            <span className="text-xs font-bold text-[#d8dee8]">Job posting URL</span>
+            <span className="text-xs font-bold text-[#1d1e1c]">Job posting URL</span>
             <input
               type="url"
               value={draft.applyUrl}
               onChange={(event) => onChange("applyUrl", event.target.value)}
-              className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+              className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               placeholder="https://company.com/careers/role"
             />
           </label>
 
           <label className="grid gap-2 md:col-span-2">
-            <span className="text-xs font-bold text-[#d8dee8]">Vacancy description *</span>
+            <span className="text-xs font-bold text-[#1d1e1c]">Vacancy description *</span>
             <textarea
               value={draft.overview}
               onChange={(event) => onChange("overview", event.target.value)}
-              className="min-h-[260px] resize-y rounded-md border border-border bg-[#0d131a] px-3 py-2 text-sm font-semibold leading-5 text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+              className="min-h-[260px] resize-y rounded-md border border-border bg-[#ffffff] px-3 py-2 text-sm font-semibold leading-5 text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               placeholder="Paste the full vacancy description, including responsibilities and requirements..."
             />
           </label>
@@ -8012,14 +8012,14 @@ function ManualJobDialog({
             <Button
               type="button"
               variant="ghost"
-              className="h-10 rounded-md border border-border bg-transparent px-5 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
+              className="h-10 rounded-md border border-border bg-transparent px-5 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
               onClick={onClose}
             >
               Cancel
             </Button>
             <Button
               type="button"
-              className="h-10 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-5 text-[13px] text-white"
+              className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-5 text-[13px] text-foreground"
               disabled={!canSave}
               onClick={onSave}
             >
@@ -8091,11 +8091,11 @@ function ApplicationsView({
   const activeCount = statusCounts.interview + statusCounts.assessment + statusCounts.offer;
   const responseRate = applications.length > 0 ? Math.round((activeCount / applications.length) * 100) : 0;
   const statCards = [
-    { label: "Total applications", value: applications.length.toString(), icon: FileText, iconClassName: "bg-white/[0.055] text-[#d8dee8]" },
+    { label: "Total applications", value: applications.length.toString(), icon: FileText, iconClassName: "bg-[#fff8f1] text-[#1d1e1c]" },
     { label: "Interviews", value: statusCounts.interview.toString(), icon: CalendarDays, iconClassName: "bg-accent/16 text-accent" },
-    { label: "Assessments", value: statusCounts.assessment.toString(), icon: FileText, iconClassName: "bg-[#2f80ed]/16 text-[#8cc7ff]" },
+    { label: "Assessments", value: statusCounts.assessment.toString(), icon: FileText, iconClassName: "bg-[#fa5d00]/16 text-accent" },
     { label: "Offers", value: statusCounts.offer.toString(), icon: BriefcaseBusiness, iconClassName: "bg-success/16 text-success" },
-    { label: "Response rate", value: `${responseRate}%`, icon: Target, iconClassName: "bg-[#9f7aea]/16 text-[#c4a7ff]" },
+    { label: "Response rate", value: `${responseRate}%`, icon: Target, iconClassName: "bg-[#fa5d00]/16 text-accent" },
   ];
   const normalizedApplicationQuery = applicationQuery.trim().toLowerCase();
   const filteredApplications = applications.filter((application) => {
@@ -8404,25 +8404,25 @@ function ApplicationsView({
   }
 
   return (
-    <section className="job-scroll flex h-screen min-w-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
+    <section className="job-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
       <header className="mb-3 grid shrink-0 gap-3 xl:grid-cols-[190px_minmax(0,1fr)] xl:items-center 2xl:mb-4 2xl:grid-cols-[minmax(280px,430px)_minmax(0,1fr)]">
         <div>
-          <h1 className="text-[24px] font-bold leading-tight tracking-normal text-white 2xl:text-[31px]">Applications</h1>
+          <h1 className="text-[24px] font-bold leading-tight tracking-normal text-foreground 2xl:text-[31px]">Applications</h1>
           <p className="mt-1 text-[12px] text-muted 2xl:mt-1.5 2xl:text-base">Track submitted roles and next steps</p>
         </div>
 
         <div className="grid gap-2 md:grid-cols-[minmax(260px,1fr)_auto] xl:grid-cols-[minmax(210px,250px)_minmax(0,1fr)_auto] 2xl:gap-3 2xl:grid-cols-[minmax(320px,420px)_minmax(0,1fr)_auto]">
-          <label className="flex h-10 min-w-0 items-center gap-2.5 rounded-md border border-border bg-white/[0.045] px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus-within:border-accent/70 2xl:h-12 2xl:gap-3 2xl:px-4">
+          <label className="flex h-10 min-w-0 items-center gap-2.5 rounded-md border border-border bg-[#fff8f1] px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus-within:border-accent/70 2xl:h-12 2xl:gap-3 2xl:px-4">
             <Search className="h-[17px] w-[17px] shrink-0 text-muted 2xl:h-5 2xl:w-5" />
             <input
               value={applicationQuery}
               onChange={(event) => setApplicationQuery(event.target.value)}
               placeholder="Search applications..."
-              className="h-full min-w-0 flex-1 bg-transparent text-xs font-semibold text-white outline-none placeholder:text-muted 2xl:text-sm"
+              className="h-full min-w-0 flex-1 bg-transparent text-xs font-semibold text-foreground outline-none placeholder:text-muted 2xl:text-sm"
             />
           </label>
 
-          <div className="flex h-10 min-w-0 items-center gap-1.5 overflow-x-auto rounded-md border border-border bg-white/[0.035] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] md:col-span-2 xl:col-span-1 2xl:h-12 2xl:gap-2">
+          <div className="flex h-10 min-w-0 items-center gap-1.5 overflow-x-auto rounded-md border border-border bg-[#fff8f1] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] md:col-span-2 xl:col-span-1 2xl:h-12 2xl:gap-2">
             {[
               { value: "all" as const, label: "All" },
               ...trackedApplicationStatuses.map((item) => ({ value: item.status, label: item.label })),
@@ -8438,7 +8438,7 @@ function ApplicationsView({
                     "h-7 shrink-0 rounded-md border px-2 text-[11px] font-bold transition 2xl:h-8 2xl:px-4 2xl:text-xs",
                     isActive
                       ? "border-accent/70 bg-accent/14 text-accent shadow-[0_0_0_1px_rgba(255,90,0,0.12)]"
-                      : "border-border bg-white/[0.035] text-muted hover:bg-white/[0.07] hover:text-white",
+                      : "border-border bg-[#fff8f1] text-muted hover:bg-[#fff3e8] hover:text-foreground",
                   )}
                 >
                   {item.label}
@@ -8448,7 +8448,7 @@ function ApplicationsView({
           </div>
 
           <Button
-            className="h-10 w-full justify-center rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-3 text-xs font-bold text-white shadow-[0_14px_30px_rgba(255,90,0,0.25)] hover:from-[#ff6a14] hover:to-[#ff4a12] md:w-auto 2xl:h-12 2xl:px-6 2xl:text-sm"
+            className="h-10 w-full justify-center rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-3 text-xs font-bold text-foreground shadow-[0_14px_30px_rgba(255,90,0,0.25)] hover:from-[#e95300] hover:to-[#e95300] md:w-auto 2xl:h-12 2xl:px-6 2xl:text-sm"
             onClick={openManualApplicationDialog}
           >
             <Plus className="h-4 w-4 2xl:h-5 2xl:w-5" />
@@ -8462,9 +8462,9 @@ function ApplicationsView({
           <article key={stat.label} className="panel flex min-h-[62px] items-center justify-between gap-2 p-2 2xl:min-h-[104px] 2xl:gap-3 2xl:p-4">
             <div className="min-w-0">
               <p className="text-[10px] font-semibold leading-tight text-muted 2xl:text-xs">{stat.label}</p>
-              <p className="mt-0.5 text-[18px] font-bold leading-none text-white 2xl:mt-1.5 2xl:text-[26px]">{stat.value}</p>
+              <p className="mt-0.5 text-[18px] font-bold leading-none text-foreground 2xl:mt-1.5 2xl:text-[26px]">{stat.value}</p>
             </div>
-            <div className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-md border border-white/[0.08] 2xl:h-10 2xl:w-10", stat.iconClassName)}>
+            <div className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border 2xl:h-10 2xl:w-10", stat.iconClassName)}>
               <stat.icon className="h-3.5 w-3.5 2xl:h-4 2xl:w-4" />
             </div>
           </article>
@@ -8477,14 +8477,14 @@ function ApplicationsView({
             <div className="mx-auto grid h-14 w-14 place-items-center rounded-md bg-accent/18 text-accent">
               <Mail className="h-7 w-7" />
             </div>
-            <h2 className="mt-4 text-xl font-bold text-white">No applications yet</h2>
+            <h2 className="mt-4 text-xl font-bold text-foreground">No applications yet</h2>
             <p className="mt-2 text-sm leading-6 text-muted">Add a vacancy manually or open Jobs and mark a found vacancy as applied.</p>
             <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
-              <Button className="h-10 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#dd3d00] px-5 text-[13px]" onClick={openManualApplicationDialog}>
+              <Button className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-5 text-[13px]" onClick={openManualApplicationDialog}>
                 <Plus className="h-4 w-4" />
                 Add application
               </Button>
-              <Button variant="ghost" className="h-10 rounded-md border border-border bg-transparent px-5 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]" onClick={onOpenJobs}>
+              <Button variant="ghost" className="h-10 rounded-md border border-border bg-transparent px-5 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]" onClick={onOpenJobs}>
                 Browse jobs
                 <ChevronRight className="h-4 w-4" />
               </Button>
@@ -8495,15 +8495,15 @@ function ApplicationsView({
         <div className="mt-2 grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(280px,0.86fr)_minmax(360px,1.18fr)_minmax(240px,0.7fr)] 2xl:mt-3 2xl:grid-cols-[minmax(420px,0.95fr)_minmax(480px,1.2fr)_minmax(320px,0.75fr)] 2xl:gap-4">
           <aside className="panel flex min-h-0 flex-col overflow-hidden p-2.5 2xl:p-4">
             <div className="mb-2.5 flex items-center justify-between 2xl:mb-3">
-              <h2 className="text-sm font-bold text-white 2xl:text-lg">Applications ({filteredApplications.length})</h2>
-              <button type="button" className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-white/[0.035] px-3 text-xs font-bold text-[#d8dee8]">
+              <h2 className="text-sm font-bold text-foreground 2xl:text-lg">Applications ({filteredApplications.length})</h2>
+              <button type="button" className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-[#fff8f1] px-3 text-xs font-bold text-[#1d1e1c]">
                 Date applied
                 <ChevronDown className="h-3.5 w-3.5 text-muted" />
               </button>
             </div>
             <div className="job-scroll min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
               {filteredApplications.length === 0 ? (
-                <div className="rounded-md border border-border bg-white/[0.025] p-4 text-sm leading-6 text-muted">
+                <div className="rounded-md border border-border bg-[#fff8f1] p-4 text-sm leading-6 text-muted">
                   No applications match the current search or status filter.
                 </div>
               ) : filteredApplications.map((application) => (
@@ -8520,14 +8520,14 @@ function ApplicationsView({
                   className={cn(
                     "grid w-full cursor-pointer grid-cols-[44px_minmax(0,1fr)_auto_auto] items-center gap-2.5 rounded-md border p-2.5 text-left transition 2xl:grid-cols-[54px_minmax(0,1fr)_auto_auto_auto] 2xl:gap-3 2xl:p-4",
                     visibleSelectedApplication?.id === application.id
-                      ? "border-accent bg-white/[0.055] shadow-[0_0_0_1px_rgba(255,90,0,0.12)]"
-                      : "border-border bg-white/[0.025] hover:bg-white/[0.055]",
+                      ? "border-accent bg-[#fff8f1] shadow-[0_0_0_1px_rgba(255,90,0,0.12)]"
+                      : "border-border bg-[#fff8f1] hover:bg-[#fff3e8]",
                   )}
                 >
                   <JobRoleIcon job={application.job} />
                   <div className="min-w-0">
-                    <h3 className="truncate text-[13px] font-bold text-white 2xl:text-base">{application.job.title}</h3>
-                    <p className="mt-0.5 truncate text-[11px] font-semibold text-[#cdd4df] 2xl:text-sm">{application.job.company}</p>
+                    <h3 className="truncate text-[13px] font-bold text-foreground 2xl:text-base">{application.job.title}</h3>
+                    <p className="mt-0.5 truncate text-[11px] font-semibold text-[#4a4a47] 2xl:text-sm">{application.job.company}</p>
                     <p className="mt-1 text-[11px] text-muted 2xl:hidden">{formatApplicationDate(application.appliedAt)} • {formatMatchValue(application.job)}</p>
                   </div>
                   <span className={cn("shrink-0 rounded-md border px-2 py-1 text-[10px] font-bold 2xl:text-[11px]", applicationStatusStyles[application.status])}>
@@ -8541,7 +8541,7 @@ function ApplicationsView({
                       event.stopPropagation();
                       openApplicationAiInfo(application.id);
                     }}
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border text-muted transition hover:bg-white/[0.06] hover:text-white"
+                    className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
                   >
                     <Info className="h-4 w-4" />
                   </button>
@@ -8561,16 +8561,16 @@ function ApplicationsView({
                   <div className="flex min-w-0 items-start gap-2.5">
                     <JobRoleIcon job={visibleSelectedApplication.job} compact />
                     <div className="min-w-0">
-                      <h2 className="text-[16px] font-bold leading-tight text-white 2xl:text-[18px]">{visibleSelectedApplication.job.title}</h2>
+                      <h2 className="text-[16px] font-bold leading-tight text-foreground 2xl:text-[18px]">{visibleSelectedApplication.job.title}</h2>
                       <p className="mt-0.5 text-[11px] font-semibold text-muted 2xl:text-xs">
-                        {visibleSelectedApplication.job.company} <span className="text-white/35">•</span> {visibleSelectedApplication.job.location} <span className="text-white/35">•</span> {visibleSelectedApplication.job.type}
+                        {visibleSelectedApplication.job.company} <span className="text-foreground/35">•</span> {visibleSelectedApplication.job.location} <span className="text-foreground/35">•</span> {visibleSelectedApplication.job.type}
                       </p>
                       {visibleSelectedApplication.job.applyUrl || visibleSelectedApplication.job.sourceUrl ? (
                         <a
                           href={getJobApplyUrl(visibleSelectedApplication.job)}
                           target="_blank"
                           rel="noreferrer"
-                          className="mt-1 inline-flex items-center gap-1.5 text-[10px] font-bold text-[#8cc7ff] hover:text-white 2xl:text-xs"
+                          className="mt-1 inline-flex items-center gap-1.5 text-[10px] font-bold text-accent hover:text-foreground 2xl:text-xs"
                         >
                           View job posting
                           <ExternalLink className="h-3.5 w-3.5" />
@@ -8584,7 +8584,7 @@ function ApplicationsView({
                     <Button
                       type="button"
                       onClick={() => onPrepareApplication(visibleSelectedApplication.id)}
-                      className="h-8 rounded-md bg-accent px-3 text-[10px] font-bold text-white hover:bg-[#ff6a14] 2xl:h-9 2xl:text-xs"
+                      className="h-8 rounded-md bg-accent px-3 text-[10px] font-bold text-foreground hover:bg-[#e95300] 2xl:h-9 2xl:text-xs"
                     >
                       <FileText className="h-3.5 w-3.5" />
                       Prepare
@@ -8594,7 +8594,7 @@ function ApplicationsView({
                       aria-label="Open AI info"
                       title="AI info"
                       onClick={() => openApplicationAiInfo(visibleSelectedApplication.id)}
-                      className="grid h-8 w-8 place-items-center rounded-md border border-border text-muted transition hover:bg-white/[0.06] hover:text-white 2xl:h-9 2xl:w-9"
+                      className="grid h-8 w-8 place-items-center rounded-md border border-border text-muted transition hover:bg-[#fff3e8] hover:text-foreground 2xl:h-9 2xl:w-9"
                     >
                       <Info className="h-4 w-4" />
                     </button>
@@ -8602,25 +8602,25 @@ function ApplicationsView({
                       type="button"
                       aria-label="Application actions"
                       onClick={() => setIsApplicationMenuOpen((isOpen) => !isOpen)}
-                      className="grid h-8 w-8 place-items-center rounded-md border border-border text-muted transition hover:bg-white/[0.06] hover:text-white 2xl:h-9 2xl:w-9"
+                      className="grid h-8 w-8 place-items-center rounded-md border border-border text-muted transition hover:bg-[#fff3e8] hover:text-foreground 2xl:h-9 2xl:w-9"
                     >
                       <MoreHorizontal className="h-4 w-4" />
                     </button>
 
                     {isApplicationMenuOpen && (
-                      <div className="absolute right-0 top-10 z-30 grid w-[184px] gap-1 rounded-md border border-border bg-[#101720] p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.42)]">
+                      <div className="absolute right-0 top-10 z-30 grid w-[184px] gap-1 rounded-md border border-border bg-[#ffffff] p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.42)]">
                         <button
                           type="button"
                           onClick={openApplicationPosting}
                           disabled={!visibleSelectedApplication.job.applyUrl && !visibleSelectedApplication.job.sourceUrl}
-                          className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#e6ebf3] hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:text-muted/45 disabled:hover:bg-transparent"
+                          className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8] disabled:cursor-not-allowed disabled:text-muted/45 disabled:hover:bg-transparent"
                         >
                           Open job posting
                         </button>
                         <button
                           type="button"
                           onClick={() => openApplicationAiInfo(visibleSelectedApplication.id)}
-                          className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#e6ebf3] hover:bg-white/[0.06]"
+                          className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8]"
                         >
                           AI info
                         </button>
@@ -8632,8 +8632,8 @@ function ApplicationsView({
                             type="button"
                             onClick={() => changeApplicationStatus(item.status)}
                             className={cn(
-                              "rounded-md px-2 py-1.5 text-left text-[11px] font-bold hover:bg-white/[0.06]",
-                              visibleSelectedApplication.status === item.status ? "text-accent" : "text-[#e6ebf3]",
+                              "rounded-md px-2 py-1.5 text-left text-[11px] font-bold hover:bg-[#fff3e8]",
+                              visibleSelectedApplication.status === item.status ? "text-accent" : "text-[#1d1e1c]",
                             )}
                           >
                             {item.label}
@@ -8643,7 +8643,7 @@ function ApplicationsView({
                         <button
                           type="button"
                           onClick={deleteSelectedApplication}
-                          className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#ff8a8a] hover:bg-[#d94d4d]/12"
+                          className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#fa5d00] hover:bg-[#fa5d00]/12"
                         >
                           Delete application
                         </button>
@@ -8652,8 +8652,8 @@ function ApplicationsView({
                   </div>
                 </div>
 
-                <section className="mt-2 shrink-0 rounded-md border border-border bg-white/[0.018] p-2 2xl:p-2.5">
-                  <h3 className="text-[13px] font-bold text-white 2xl:text-sm">Status timeline</h3>
+                <section className="mt-2 shrink-0 rounded-md border border-border bg-[#fff8f1] p-2 2xl:p-2.5">
+                  <h3 className="text-[13px] font-bold text-foreground 2xl:text-sm">Status timeline</h3>
                   <div className="mt-2 space-y-0">
                     {timelineItems.map((item, index) => {
                       const event = item.event;
@@ -8665,21 +8665,21 @@ function ApplicationsView({
                             className={cn(
                               "z-10 mt-0.5 grid h-4 w-4 place-items-center rounded-full border",
                               item.state === "done"
-                                ? "border-accent bg-accent text-white"
+                                ? "border-accent bg-accent text-foreground"
                                 : item.state === "rejected"
-                                  ? "border-[#d94d4d] bg-[#d94d4d]/20 text-[#ff8a8a]"
+                                  ? "border-[#fa5d00] bg-[#fa5d00]/20 text-[#fa5d00]"
                                   : item.state === "canceled"
-                                    ? "border-white/25 bg-white/[0.04] text-muted"
+                                    ? "border-border bg-[#fff8f1] text-muted"
                                 : item.state === "current"
                                   ? "border-accent bg-accent/18"
-                                  : "border-white/25 bg-white/[0.04]",
+                                  : "border-border bg-[#fff8f1]",
                             )}
                           >
                             {item.state === "done" && <Check className="h-2.5 w-2.5" />}
                             {(item.state === "canceled" || item.state === "rejected") && <X className="h-2.5 w-2.5" />}
                           </span>
                           {index < timelineItems.length - 1 && (
-                            <span className={cn("absolute bottom-0 top-4 w-px", item.state === "done" ? "bg-accent" : "bg-white/18")} />
+                            <span className={cn("absolute bottom-0 top-4 w-px", item.state === "done" ? "bg-accent" : "bg-[#fff8f1]")} />
                           )}
                         </div>
                         <div className="relative pb-1.5">
@@ -8687,7 +8687,7 @@ function ApplicationsView({
                             <p
                               className={cn(
                                 "text-[12px] font-bold 2xl:text-[13px]",
-                                item.state === "current" ? "text-accent" : item.state === "rejected" ? "text-[#ff8a8a]" : "text-white",
+                                item.state === "current" ? "text-accent" : item.state === "rejected" ? "text-[#fa5d00]" : "text-foreground",
                               )}
                             >
                               {item.label}
@@ -8702,14 +8702,14 @@ function ApplicationsView({
                                 </span>
                               )}
                               {event?.status === "canceled" && (
-                                <span className="rounded-md border border-white/15 bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold text-muted">Canceled</span>
+                                <span className="rounded-md border border-border bg-[#fff8f1] px-2 py-0.5 text-[10px] font-bold text-muted">Canceled</span>
                               )}
                               {event && (
                                 <button
                                   type="button"
                                   aria-label="Event actions"
                                   onClick={() => setActiveEventMenuId((currentId) => (currentId === event.id ? "" : event.id))}
-                                  className="grid h-6 w-6 place-items-center rounded-md border border-border text-muted transition hover:bg-white/[0.06] hover:text-white"
+                                  className="grid h-6 w-6 place-items-center rounded-md border border-border text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
                                 >
                                   <MoreHorizontal className="h-3.5 w-3.5" />
                                 </button>
@@ -8718,20 +8718,20 @@ function ApplicationsView({
                           </div>
                           <p className="mt-0.5 text-[10px] font-medium text-muted 2xl:text-[11px]">{item.date}</p>
                           {event && activeEventMenuId === event.id && (
-                            <div className="absolute right-0 top-7 z-20 grid w-[158px] gap-1 rounded-md border border-border bg-[#101720] p-1.5 shadow-[0_16px_34px_rgba(0,0,0,0.38)]">
-                              <button type="button" onClick={() => openEditEventDialog(event)} className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#e6ebf3] hover:bg-white/[0.06]">
+                            <div className="absolute right-0 top-7 z-20 grid w-[158px] gap-1 rounded-md border border-border bg-[#ffffff] p-1.5 shadow-[0_16px_34px_rgba(0,0,0,0.38)]">
+                              <button type="button" onClick={() => openEditEventDialog(event)} className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8]">
                                 Edit time
                               </button>
-                              <button type="button" onClick={() => updateEvent(event, { status: "completed", outcome: "positive" })} className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#e6ebf3] hover:bg-white/[0.06]">
+                              <button type="button" onClick={() => updateEvent(event, { status: "completed", outcome: "positive" })} className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8]">
                                 Mark completed
                               </button>
-                              <button type="button" onClick={() => updateEvent(event, { status: "canceled", outcome: undefined })} className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#e6ebf3] hover:bg-white/[0.06]">
+                              <button type="button" onClick={() => updateEvent(event, { status: "canceled", outcome: undefined })} className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8]">
                                 Mark canceled
                               </button>
-                              <button type="button" onClick={() => updateEvent(event, { status: "completed", outcome: "negative" })} className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#ff8a8a] hover:bg-[#d94d4d]/12">
+                              <button type="button" onClick={() => updateEvent(event, { status: "completed", outcome: "negative" })} className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#fa5d00] hover:bg-[#fa5d00]/12">
                                 Mark rejected
                               </button>
-                              <button type="button" onClick={() => deleteEvent(event.id)} className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#ff8a8a] hover:bg-[#d94d4d]/12">
+                              <button type="button" onClick={() => deleteEvent(event.id)} className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#fa5d00] hover:bg-[#fa5d00]/12">
                                 Delete
                               </button>
                             </div>
@@ -8743,14 +8743,14 @@ function ApplicationsView({
                   </div>
                 </section>
 
-                <section className="mt-2 shrink-0 rounded-md border border-border bg-white/[0.018] p-2 2xl:p-2.5">
+                <section className="mt-2 shrink-0 rounded-md border border-border bg-[#fff8f1] p-2 2xl:p-2.5">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
-                      <h3 className="flex items-center gap-2 text-[13px] font-bold text-white 2xl:text-sm">
+                      <h3 className="flex items-center gap-2 text-[13px] font-bold text-foreground 2xl:text-sm">
                         <Calendar className="h-3.5 w-3.5 text-accent" />
                         Next action
                       </h3>
-                      <p className="mt-1 text-[12px] font-semibold text-[#d8dee8] 2xl:text-[13px]">
+                      <p className="mt-1 text-[12px] font-semibold text-[#1d1e1c] 2xl:text-[13px]">
                         {nextApplicationEvent ? nextApplicationEvent.title : "No event scheduled"}
                       </p>
                       <p className="mt-0.5 truncate text-[10px] text-muted 2xl:text-[11px]">
@@ -8762,7 +8762,7 @@ function ApplicationsView({
                     <Button
                       type="button"
                       variant="ghost"
-                      className="h-7 rounded-md border border-border bg-transparent px-3 text-[11px] text-[#e6ebf3] hover:bg-white/[0.06]"
+                      className="h-7 rounded-md border border-border bg-transparent px-3 text-[11px] text-[#1d1e1c] hover:bg-[#fff3e8]"
                       onClick={openScheduleDialog}
                     >
                       Schedule
@@ -8772,8 +8772,8 @@ function ApplicationsView({
 
                 <section className="mt-2 shrink-0">
                   <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-[13px] font-bold text-white 2xl:text-sm">Documents used</h3>
-                    <label className="inline-flex h-7 cursor-pointer items-center gap-2 rounded-md border border-border bg-transparent px-2.5 text-[11px] font-semibold text-[#e6ebf3] transition hover:bg-white/[0.06]">
+                    <h3 className="text-[13px] font-bold text-foreground 2xl:text-sm">Documents used</h3>
+                    <label className="inline-flex h-7 cursor-pointer items-center gap-2 rounded-md border border-border bg-transparent px-2.5 text-[11px] font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8]">
                       <Upload className="h-3.5 w-3.5" />
                       Add document
                       <input
@@ -8789,14 +8789,14 @@ function ApplicationsView({
                   </div>
                   <div className="mt-1.5 overflow-hidden rounded-md border border-border">
                     {visibleSelectedApplication.documents.length === 0 ? (
-                      <div className="bg-white/[0.018] px-2.5 py-3 text-[12px] font-semibold leading-5 text-muted 2xl:text-[13px]">
+                      <div className="bg-[#fff8f1] px-2.5 py-3 text-[12px] font-semibold leading-5 text-muted 2xl:text-[13px]">
                         No documents attached yet.
                       </div>
                     ) : (
                       <div className="divide-y divide-border">
                         {visibleSelectedApplication.documents.map((document) => (
-                          <div key={document.id} className="flex items-center gap-2.5 bg-white/[0.018] px-2.5 py-1.5 text-[12px] font-semibold text-[#d8dee8] 2xl:text-[13px]">
-                            <span className="grid h-5 min-w-8 place-items-center rounded-sm bg-[#ff3d3d] px-1 text-[7px] font-black leading-none text-white">
+                          <div key={document.id} className="flex items-center gap-2.5 bg-[#fff8f1] px-2.5 py-1.5 text-[12px] font-semibold text-[#1d1e1c] 2xl:text-[13px]">
+                            <span className="grid h-5 min-w-8 place-items-center rounded-sm bg-[#fa5d00] px-1 text-[7px] font-black leading-none text-foreground">
                               {getApplicationDocumentBadge(document)}
                             </span>
                             <span className="min-w-0 flex-1 truncate" title={document.fileName}>
@@ -8809,7 +8809,7 @@ function ApplicationsView({
                               download={document.fileName}
                               aria-label={`Download ${document.fileName}`}
                               title={`Download ${document.fileName}`}
-                              className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted transition hover:bg-white/[0.06] hover:text-white"
+                              className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
                             >
                               <Download className="h-3.5 w-3.5" />
                             </a>
@@ -8818,7 +8818,7 @@ function ApplicationsView({
                               aria-label={`Delete ${document.fileName}`}
                               title={`Delete ${document.fileName}`}
                               onClick={() => deleteApplicationDocument(document.id)}
-                              className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted transition hover:bg-[#d94d4d]/12 hover:text-[#ff8a8a]"
+                              className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted transition hover:bg-[#fa5d00]/12 hover:text-[#fa5d00]"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
                             </button>
@@ -8829,12 +8829,12 @@ function ApplicationsView({
                   </div>
                 </section>
 
-                <section className="mt-2 min-h-0 shrink rounded-md border border-border bg-white/[0.018] p-2 2xl:p-2.5">
+                <section className="mt-2 min-h-0 shrink rounded-md border border-border bg-[#fff8f1] p-2 2xl:p-2.5">
                   <div className="flex items-center justify-between gap-3">
-                    <h3 className="text-[13px] font-bold text-white 2xl:text-sm">Notes</h3>
+                    <h3 className="text-[13px] font-bold text-foreground 2xl:text-sm">Notes</h3>
                     <Button
                       variant="ghost"
-                      className="h-7 rounded-md border border-border bg-transparent px-2.5 text-[11px] text-[#e6ebf3] hover:bg-white/[0.06]"
+                      className="h-7 rounded-md border border-border bg-transparent px-2.5 text-[11px] text-[#1d1e1c] hover:bg-[#fff3e8]"
                       onClick={openNotesDialog}
                     >
                       Edit note
@@ -8849,7 +8849,7 @@ function ApplicationsView({
               <div className="grid min-h-[320px] place-items-center text-center">
                 <div className="max-w-[360px]">
                   <Search className="mx-auto h-8 w-8 text-muted" />
-                  <h3 className="mt-3 text-base font-bold text-white">No matching application</h3>
+                  <h3 className="mt-3 text-base font-bold text-foreground">No matching application</h3>
                   <p className="mt-2 text-sm leading-6 text-muted">Adjust the search or choose another status filter.</p>
                 </div>
               </div>
@@ -8859,8 +8859,8 @@ function ApplicationsView({
           <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 2xl:gap-4">
             <section className="panel p-3 2xl:p-5">
               <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-bold text-white 2xl:text-lg">Upcoming</h2>
-                <button type="button" onClick={onOpenCalendar} className="text-xs font-bold text-accent transition hover:text-[#ff8a45]">View calendar</button>
+                <h2 className="text-sm font-bold text-foreground 2xl:text-lg">Upcoming</h2>
+                <button type="button" onClick={onOpenCalendar} className="text-xs font-bold text-accent transition hover:text-[#e95300]">View calendar</button>
               </div>
               <div className="mt-4 space-y-3">
                 {upcomingEvents.length > 0 ? upcomingEvents.map((event) => {
@@ -8873,23 +8873,23 @@ function ApplicationsView({
                     key={event.id}
                     type="button"
                     onClick={() => onSelectApplication(application.id)}
-                    className="grid w-full grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md border border-border bg-white/[0.025] p-2.5 text-left transition hover:bg-white/[0.055] 2xl:grid-cols-[52px_minmax(0,1fr)_auto] 2xl:gap-3 2xl:p-3"
+                    className="grid w-full grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md border border-border bg-[#fff8f1] p-2.5 text-left transition hover:bg-[#fff3e8] 2xl:grid-cols-[52px_minmax(0,1fr)_auto] 2xl:gap-3 2xl:p-3"
                   >
                     <div className="rounded-md border border-accent/45 bg-accent/10 py-1.5 text-center">
                       <p className="text-[9px] font-black uppercase text-accent 2xl:text-[10px]">
                         {Number.isNaN(eventDate.getTime()) ? "TBD" : eventDate.toLocaleDateString("en-US", { month: "short" })}
                       </p>
-                      <p className="text-lg font-bold leading-none text-white 2xl:text-xl">
+                      <p className="text-lg font-bold leading-none text-foreground 2xl:text-xl">
                         {Number.isNaN(eventDate.getTime()) ? "-" : eventDate.getDate()}
                       </p>
                     </div>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-white">{event.title}</p>
+                      <p className="truncate text-sm font-bold text-foreground">{event.title}</p>
                       <p className="mt-1 truncate text-xs text-muted">
                         {formatApplicationEventTime(event.startsAt)} • {application.job.company}
                       </p>
                     </div>
-                    <span className="rounded-md bg-white/[0.06] px-2 py-1 text-[11px] font-bold text-muted">
+                    <span className="rounded-md bg-[#fff8f1] px-2 py-1 text-[11px] font-bold text-muted">
                       {getApplicationEventTypeLabel(event.type)}
                     </span>
                   </button>
@@ -8898,7 +8898,7 @@ function ApplicationsView({
                   <button
                     type="button"
                     onClick={openScheduleDialog}
-                    className="w-full rounded-md border border-dashed border-border bg-white/[0.018] p-3 text-left text-xs font-semibold leading-5 text-muted transition hover:border-accent/55 hover:text-white"
+                    className="w-full rounded-md border border-dashed border-border bg-[#fff8f1] p-3 text-left text-xs font-semibold leading-5 text-muted transition hover:border-accent/55 hover:text-foreground"
                   >
                     No scheduled events yet. Add a screening, interview, assessment deadline, or follow-up.
                   </button>
@@ -8907,7 +8907,7 @@ function ApplicationsView({
             </section>
 
             <section className="panel h-full min-h-0 p-3 2xl:p-5">
-              <h2 className="text-sm font-bold text-white 2xl:text-lg">AI Actions</h2>
+              <h2 className="text-sm font-bold text-foreground 2xl:text-lg">AI Actions</h2>
               <div className="mt-3 grid gap-2 2xl:mt-4">
                 {[
                   { label: "Follow-up", prompt: assistantPrompts.followUpApplication },
@@ -8919,7 +8919,7 @@ function ApplicationsView({
                     variant="ghost"
                     onClick={() => visibleSelectedApplication && onOpenAssistant(action.prompt, visibleSelectedApplication.id)}
                     disabled={!visibleSelectedApplication}
-                    className="h-9 justify-start rounded-md border border-border bg-transparent text-xs text-[#e6ebf3] hover:bg-white/[0.06] disabled:opacity-45 2xl:h-11 2xl:text-[13px]"
+                    className="h-9 justify-start rounded-md border border-border bg-transparent text-xs text-[#1d1e1c] hover:bg-[#fff3e8] disabled:opacity-45 2xl:h-11 2xl:text-[13px]"
                   >
                     <span className="grid h-6 w-6 place-items-center rounded-md bg-accent/14 text-accent 2xl:h-7 2xl:w-7">
                       <Sparkles className="h-3.5 w-3.5 2xl:h-4 2xl:w-4" />
@@ -8945,17 +8945,17 @@ function ApplicationsView({
 
       {isManualApplicationDialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-3 py-4 backdrop-blur-sm">
-          <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[780px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] 2xl:p-5">
+          <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[780px] flex-col overflow-hidden border-border bg-[#ffffff]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] 2xl:p-5">
             <div className="flex shrink-0 items-start justify-between gap-4">
               <div>
-                <h2 className="text-[22px] font-bold leading-tight text-white">Add application</h2>
+                <h2 className="text-[22px] font-bold leading-tight text-foreground">Add application</h2>
                 <p className="mt-1 text-sm font-medium text-muted">Create a tracked vacancy manually</p>
               </div>
               <button
                 type="button"
                 aria-label="Close manual application"
                 onClick={() => setIsManualApplicationDialogOpen(false)}
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -8963,41 +8963,41 @@ function ApplicationsView({
 
             <div className="job-scroll mt-5 grid min-h-0 flex-1 gap-4 overflow-y-auto pr-1 md:grid-cols-2">
               <label className="grid gap-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Role title</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Role title</span>
                 <input
                   value={manualApplicationDraft.title}
                   onChange={(event) => updateManualApplicationDraft("title", event.target.value)}
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
                   placeholder="Senior Product Designer"
                 />
               </label>
 
               <label className="grid gap-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Company</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Company</span>
                 <input
                   value={manualApplicationDraft.company}
                   onChange={(event) => updateManualApplicationDraft("company", event.target.value)}
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
                   placeholder="Company name"
                 />
               </label>
 
               <label className="grid gap-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Location</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Location</span>
                 <input
                   value={manualApplicationDraft.location}
                   onChange={(event) => updateManualApplicationDraft("location", event.target.value)}
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
                   placeholder="Zurich, Remote, Europe"
                 />
               </label>
 
               <label className="grid gap-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Status</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Status</span>
                 <select
                   value={manualApplicationDraft.status}
                   onChange={(event) => updateManualApplicationDraft("status", event.target.value as ApplicationStatus)}
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                 >
                   {trackedApplicationStatuses.map((item) => (
                     <option key={item.status} value={item.status}>
@@ -9008,33 +9008,33 @@ function ApplicationsView({
               </label>
 
               <label className="grid gap-2 md:col-span-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Job posting URL</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Job posting URL</span>
                 <input
                   value={manualApplicationDraft.applyUrl}
                   onChange={(event) => updateManualApplicationDraft("applyUrl", event.target.value)}
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
                   placeholder="https://company.com/careers/role"
                 />
               </label>
 
-              <section className="grid gap-2 rounded-md border border-border bg-white/[0.018] p-3 md:col-span-2">
+              <section className="grid gap-2 rounded-md border border-border bg-[#fff8f1] p-3 md:col-span-2">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
-                    <h3 className="text-xs font-bold text-[#d8dee8]">Resume for this application</h3>
+                    <h3 className="text-xs font-bold text-[#1d1e1c]">Resume for this application</h3>
                     <p className="mt-1 text-xs font-medium text-muted">Choose the profile resume or upload a different one.</p>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <Button
                       type="button"
                       variant="ghost"
-                      className="h-8 rounded-md border border-border bg-transparent px-3 text-[12px] text-[#e6ebf3] hover:bg-white/[0.06]"
+                      className="h-8 rounded-md border border-border bg-transparent px-3 text-[12px] text-[#1d1e1c] hover:bg-[#fff3e8]"
                       disabled={!profile.resume_file_name || !profile.resume_data_url}
                       onClick={useProfileResumeForManualApplication}
                     >
                       <FileText className="h-3.5 w-3.5" />
                       Use profile resume
                     </Button>
-                    <label className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-border bg-transparent px-3 text-[12px] font-semibold text-[#e6ebf3] transition hover:bg-white/[0.06]">
+                    <label className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-border bg-transparent px-3 text-[12px] font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8]">
                       <Upload className="h-3.5 w-3.5" />
                       Upload another
                       <input
@@ -9051,8 +9051,8 @@ function ApplicationsView({
                 </div>
 
                 {manualApplicationDraft.documents.length > 0 ? (
-                  <div className="mt-1 flex items-center gap-2.5 rounded-md border border-border bg-white/[0.025] px-2.5 py-2 text-[12px] font-semibold text-[#d8dee8]">
-                    <span className="grid h-5 min-w-8 place-items-center rounded-sm bg-[#ff3d3d] px-1 text-[7px] font-black leading-none text-white">
+                  <div className="mt-1 flex items-center gap-2.5 rounded-md border border-border bg-[#fff8f1] px-2.5 py-2 text-[12px] font-semibold text-[#1d1e1c]">
+                    <span className="grid h-5 min-w-8 place-items-center rounded-sm bg-[#fa5d00] px-1 text-[7px] font-black leading-none text-foreground">
                       {getApplicationDocumentBadge(manualApplicationDraft.documents[0])}
                     </span>
                     <span className="min-w-0 flex-1 truncate" title={manualApplicationDraft.documents[0].fileName}>
@@ -9066,24 +9066,24 @@ function ApplicationsView({
                       aria-label="Remove selected resume"
                       title="Remove selected resume"
                       onClick={() => updateManualApplicationDraft("documents", [])}
-                      className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted transition hover:bg-[#d94d4d]/12 hover:text-[#ff8a8a]"
+                      className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted transition hover:bg-[#fa5d00]/12 hover:text-[#fa5d00]"
                     >
                       <Trash2 className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 ) : (
-                  <p className="mt-1 rounded-md border border-dashed border-border bg-white/[0.018] px-2.5 py-2 text-[12px] font-semibold text-muted">
+                  <p className="mt-1 rounded-md border border-dashed border-border bg-[#fff8f1] px-2.5 py-2 text-[12px] font-semibold text-muted">
                     No resume selected for this application.
                   </p>
                 )}
               </section>
 
               <label className="grid gap-2 md:col-span-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Vacancy description</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Vacancy description</span>
                 <textarea
                   value={manualApplicationDraft.overview}
                   onChange={(event) => updateManualApplicationDraft("overview", event.target.value)}
-                  className="min-h-[190px] resize-none rounded-md border border-border bg-[#0d131a] px-3 py-2 text-sm font-semibold leading-5 text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                  className="min-h-[190px] resize-none rounded-md border border-border bg-[#ffffff] px-3 py-2 text-sm font-semibold leading-5 text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
                   placeholder="Paste the vacancy description..."
                 />
               </label>
@@ -9095,14 +9095,14 @@ function ApplicationsView({
                 <Button
                   type="button"
                   variant="ghost"
-                  className="h-10 rounded-md border border-border bg-transparent px-5 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
+                  className="h-10 rounded-md border border-border bg-transparent px-5 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
                   onClick={() => setIsManualApplicationDialogOpen(false)}
                 >
                   Cancel
                 </Button>
                 <Button
                   type="button"
-                  className="h-10 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-5 text-[13px] text-white"
+                  className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-5 text-[13px] text-foreground"
                   disabled={
                     !manualApplicationDraft.title.trim() ||
                     !manualApplicationDraft.company.trim() ||
@@ -9123,10 +9123,10 @@ function ApplicationsView({
 
       {isNotesDialogOpen && visibleSelectedApplication && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-3 py-4 backdrop-blur-sm">
-          <div className="panel w-full max-w-[540px] border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] 2xl:p-5">
+          <div className="panel w-full max-w-[540px] border-border bg-[#ffffff]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] 2xl:p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-[22px] font-bold leading-tight text-white">Edit notes</h2>
+                <h2 className="text-[22px] font-bold leading-tight text-foreground">Edit notes</h2>
                 <p className="mt-1 text-sm font-medium text-muted">
                   {visibleSelectedApplication.job.company} • {visibleSelectedApplication.job.title}
                 </p>
@@ -9135,7 +9135,7 @@ function ApplicationsView({
                 type="button"
                 aria-label="Close notes editor"
                 onClick={() => setIsNotesDialogOpen(false)}
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -9144,7 +9144,7 @@ function ApplicationsView({
             <textarea
               value={applicationNotesDraft}
               onChange={(event) => setApplicationNotesDraft(event.target.value)}
-              className="mt-5 min-h-[150px] w-full resize-none rounded-md border border-border bg-[#0d131a] px-3 py-2 text-sm font-semibold leading-5 text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+              className="mt-5 min-h-[150px] w-full resize-none rounded-md border border-border bg-[#ffffff] px-3 py-2 text-sm font-semibold leading-5 text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               placeholder="Add notes about this application..."
             />
 
@@ -9152,7 +9152,7 @@ function ApplicationsView({
               <Button
                 type="button"
                 variant="ghost"
-                className="h-10 rounded-md border border-border bg-transparent px-5 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
+                className="h-10 rounded-md border border-border bg-transparent px-5 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
                 onClick={() => setApplicationNotesDraft("")}
               >
                 Clear
@@ -9161,14 +9161,14 @@ function ApplicationsView({
                 <Button
                   type="button"
                   variant="ghost"
-                  className="h-10 rounded-md border border-border bg-transparent px-5 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
+                  className="h-10 rounded-md border border-border bg-transparent px-5 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
                   onClick={() => setIsNotesDialogOpen(false)}
                 >
                   Cancel
                 </Button>
                 <Button
                   type="button"
-                  className="h-10 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-5 text-[13px] text-white"
+                  className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-5 text-[13px] text-foreground"
                   onClick={saveApplicationNotes}
                 >
                   <Save className="h-4 w-4" />
@@ -9182,10 +9182,10 @@ function ApplicationsView({
 
       {isScheduleDialogOpen && eventDraft && visibleSelectedApplication && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-3 py-4 backdrop-blur-sm">
-          <div className="panel w-full max-w-[620px] border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] 2xl:p-5">
+          <div className="panel w-full max-w-[620px] border-border bg-[#ffffff]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] 2xl:p-5">
             <div className="flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-[22px] font-bold leading-tight text-white">{isEditingEvent ? "Edit event" : "Schedule event"}</h2>
+                <h2 className="text-[22px] font-bold leading-tight text-foreground">{isEditingEvent ? "Edit event" : "Schedule event"}</h2>
                 <p className="mt-1 text-sm font-medium text-muted">
                   {visibleSelectedApplication.job.company} • {visibleSelectedApplication.job.title}
                 </p>
@@ -9197,7 +9197,7 @@ function ApplicationsView({
                   setIsScheduleDialogOpen(false);
                   setEventDraft(null);
                 }}
-                className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+                className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
               >
                 <X className="h-5 w-5" />
               </button>
@@ -9205,11 +9205,11 @@ function ApplicationsView({
 
             <div className="mt-5 grid max-h-[72vh] gap-4 overflow-y-auto pr-1 md:grid-cols-2">
               <label className="grid gap-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Event type</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Event type</span>
                 <select
                   value={eventDraft.type}
                   onChange={(event) => updateEventDraft("type", event.target.value as ApplicationEventType)}
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                 >
                   {applicationEventTypes.map((item) => (
                     <option key={item.type} value={item.type}>
@@ -9220,11 +9220,11 @@ function ApplicationsView({
               </label>
 
               <label className="grid gap-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Status</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Status</span>
                 <select
                   value={eventDraft.status}
                   onChange={(event) => updateEventDraft("status", event.target.value as ApplicationEventStatus)}
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                 >
                   {applicationEventStatuses.map((item) => (
                     <option key={item.status} value={item.status}>
@@ -9235,22 +9235,22 @@ function ApplicationsView({
               </label>
 
               <label className="grid gap-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Title</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Title</span>
                 <input
                   value={eventDraft.title}
                   onChange={(event) => updateEventDraft("title", event.target.value)}
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
                   placeholder="Phone screen with recruiter"
                 />
               </label>
 
               <label className="grid gap-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Outcome</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Outcome</span>
                 <select
                   value={eventDraft.outcome}
                   onChange={(event) => updateEventDraft("outcome", event.target.value as ApplicationEventOutcome | "")}
                   disabled={eventDraft.status !== "completed"}
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70 disabled:cursor-not-allowed disabled:opacity-45"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70 disabled:cursor-not-allowed disabled:opacity-45"
                 >
                   <option value="">No outcome yet</option>
                   {applicationEventOutcomes.map((item) => (
@@ -9262,21 +9262,21 @@ function ApplicationsView({
               </label>
 
               <label className="grid gap-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Date and time</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Date and time</span>
                 <input
                   type="datetime-local"
                   value={eventDraft.startsAt}
                   onChange={(event) => updateEventDraft("startsAt", event.target.value)}
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                 />
               </label>
 
               <label className="grid gap-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Duration</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Duration</span>
                 <select
                   value={eventDraft.durationMinutes}
                   onChange={(event) => updateEventDraft("durationMinutes", event.target.value)}
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                 >
                   <option value="15">15 minutes</option>
                   <option value="30">30 minutes</option>
@@ -9287,31 +9287,31 @@ function ApplicationsView({
               </label>
 
               <label className="grid gap-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Timezone</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Timezone</span>
                 <input
                   value={eventDraft.timezone}
                   onChange={(event) => updateEventDraft("timezone", event.target.value)}
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
                   placeholder="Europe/Zurich"
                 />
               </label>
 
               <label className="grid gap-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Location or link</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Location or link</span>
                 <input
                   value={eventDraft.location}
                   onChange={(event) => updateEventDraft("location", event.target.value)}
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
                   placeholder="Zoom, Google Meet, phone, office"
                 />
               </label>
 
               <label className="grid gap-2 md:col-span-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Notes</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Notes</span>
                 <textarea
                   value={eventDraft.notes}
                   onChange={(event) => updateEventDraft("notes", event.target.value)}
-                  className="min-h-[88px] resize-none rounded-md border border-border bg-[#0d131a] px-3 py-2 text-sm font-semibold leading-5 text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                  className="min-h-[88px] resize-none rounded-md border border-border bg-[#ffffff] px-3 py-2 text-sm font-semibold leading-5 text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
                   placeholder="Recruiter name, prep notes, agenda, questions..."
                 />
               </label>
@@ -9323,7 +9323,7 @@ function ApplicationsView({
                 <Button
                   type="button"
                   variant="ghost"
-                  className="h-10 rounded-md border border-border bg-transparent px-5 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
+                  className="h-10 rounded-md border border-border bg-transparent px-5 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
                   onClick={() => {
                     setIsScheduleDialogOpen(false);
                     setEventDraft(null);
@@ -9333,7 +9333,7 @@ function ApplicationsView({
                 </Button>
                 <Button
                   type="button"
-                  className="h-10 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-5 text-[13px] text-white"
+                  className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-5 text-[13px] text-foreground"
                   disabled={!eventDraft.title.trim() || !eventDraft.startsAt}
                   onClick={saveEventDraft}
                 >
@@ -9374,12 +9374,12 @@ function ApplicationAiInfoDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-3 py-4 backdrop-blur-sm">
-      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[920px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] 2xl:p-5">
+      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[920px] flex-col overflow-hidden border-border bg-[#ffffff]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] 2xl:p-5">
         <div className="flex shrink-0 items-start justify-between gap-4">
           <div className="flex min-w-0 items-start gap-3">
             <JobRoleIcon job={job} compact />
             <div className="min-w-0">
-              <h2 className="text-[22px] font-bold leading-tight text-white 2xl:text-[24px]">AI application info</h2>
+              <h2 className="text-[22px] font-bold leading-tight text-foreground 2xl:text-[24px]">AI application info</h2>
               <p className="mt-1 truncate text-sm font-medium text-muted">
                 {job.title} at {job.company}
               </p>
@@ -9389,7 +9389,7 @@ function ApplicationAiInfoDialog({
             type="button"
             aria-label="Close AI info"
             onClick={onClose}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
@@ -9404,14 +9404,14 @@ function ApplicationAiInfoDialog({
           </div>
 
           {isAnalyzing ? (
-            <div className="mt-4 rounded-md border border-accent/35 bg-accent/10 px-3 py-2 text-[13px] font-semibold text-[#ffd1b0] 2xl:text-sm">
+            <div className="mt-4 rounded-md border border-accent/35 bg-accent/10 px-3 py-2 text-[13px] font-semibold text-accent 2xl:text-sm">
               AI analysis is running. This panel will update automatically when the match result is saved.
             </div>
           ) : null}
 
-          <section className="mt-4 rounded-md border border-border bg-white/[0.018] p-3 2xl:p-4">
+          <section className="mt-4 rounded-md border border-border bg-[#fff8f1] p-3 2xl:p-4">
             <div className="flex flex-wrap items-center justify-between gap-3">
-              <h3 className="text-sm font-bold text-white 2xl:text-base">Score breakdown</h3>
+              <h3 className="text-sm font-bold text-foreground 2xl:text-base">Score breakdown</h3>
               <span className="rounded-md border border-success/30 bg-success/12 px-2 py-1 text-xs font-bold text-success">
                 {isAnalyzing ? "Analyzing..." : formatMatchValue(job)}
               </span>
@@ -9420,10 +9420,10 @@ function ApplicationAiInfoDialog({
               {breakdownItems.map((item) => (
                 <div key={item.key} className="grid grid-cols-[minmax(92px,0.34fr)_minmax(0,1fr)_54px] items-center gap-3">
                   <span className="text-[12px] font-semibold text-muted 2xl:text-sm">{item.label}</span>
-                  <div className="h-2 rounded-full bg-white/[0.08]">
+                  <div className="h-2 rounded-full bg-[#fff8f1]">
                     <div className="h-full rounded-full bg-success" style={{ width: `${item.progress}%` }} />
                   </div>
-                  <span className="text-right text-[12px] font-bold text-[#d8dee8] 2xl:text-sm">
+                  <span className="text-right text-[12px] font-bold text-[#1d1e1c] 2xl:text-sm">
                     {item.value}/{item.max}
                   </span>
                 </div>
@@ -9432,8 +9432,8 @@ function ApplicationAiInfoDialog({
           </section>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
-            <section className="rounded-md border border-border bg-white/[0.018] p-3 2xl:p-4">
-              <h3 className="text-sm font-bold text-white 2xl:text-base">Reasons</h3>
+            <section className="rounded-md border border-border bg-[#fff8f1] p-3 2xl:p-4">
+              <h3 className="text-sm font-bold text-foreground 2xl:text-base">Reasons</h3>
               <ul className="mt-2.5 space-y-2 text-[13px] leading-5 text-muted 2xl:text-sm">
                 {reasons.map((item) => (
                   <li key={item} className="flex gap-2">
@@ -9444,12 +9444,12 @@ function ApplicationAiInfoDialog({
               </ul>
             </section>
 
-            <section className="rounded-md border border-border bg-white/[0.018] p-3 2xl:p-4">
-              <h3 className="text-sm font-bold text-white 2xl:text-base">Gaps</h3>
+            <section className="rounded-md border border-border bg-[#fff8f1] p-3 2xl:p-4">
+              <h3 className="text-sm font-bold text-foreground 2xl:text-base">Gaps</h3>
               <ul className="mt-2.5 space-y-2 text-[13px] leading-5 text-muted 2xl:text-sm">
                 {gaps.map((item) => (
                   <li key={item} className="flex gap-2">
-                    <CircleDot className="mt-0.5 h-4 w-4 shrink-0 text-[#ffb020]" />
+                    <CircleDot className="mt-0.5 h-4 w-4 shrink-0 text-[#fa5d00]" />
                     {item}
                   </li>
                 ))}
@@ -9457,8 +9457,8 @@ function ApplicationAiInfoDialog({
             </section>
           </div>
 
-          <section className="mt-4 rounded-md border border-border bg-white/[0.018] p-3 2xl:p-4">
-            <h3 className="text-sm font-bold text-white 2xl:text-base">Extracted vacancy signals</h3>
+          <section className="mt-4 rounded-md border border-border bg-[#fff8f1] p-3 2xl:p-4">
+            <h3 className="text-sm font-bold text-foreground 2xl:text-base">Extracted vacancy signals</h3>
             <div className="mt-3 grid gap-2 sm:grid-cols-4">
               {signalStats.map((item) => (
                 <InfoStat key={item.label} label={item.label} value={item.value} />
@@ -9466,17 +9466,17 @@ function ApplicationAiInfoDialog({
             </div>
             <div className="mt-4 grid gap-4 lg:grid-cols-3">
               <div>
-                <h4 className="text-[12px] font-bold text-[#d8dee8] 2xl:text-sm">Skills</h4>
+                <h4 className="text-[12px] font-bold text-[#1d1e1c] 2xl:text-sm">Skills</h4>
                 <div className="mt-2 flex flex-wrap gap-1.5">
                   {job.skills.map((skill) => (
-                    <span key={skill} className="rounded-md border border-border bg-white/[0.035] px-2 py-1 text-[11px] font-bold text-muted">
+                    <span key={skill} className="rounded-md border border-border bg-[#fff8f1] px-2 py-1 text-[11px] font-bold text-muted">
                       {skill}
                     </span>
                   ))}
                 </div>
               </div>
               <div>
-                <h4 className="text-[12px] font-bold text-[#d8dee8] 2xl:text-sm">Requirements</h4>
+                <h4 className="text-[12px] font-bold text-[#1d1e1c] 2xl:text-sm">Requirements</h4>
                 <ul className="mt-2 space-y-1.5 text-[12px] leading-5 text-muted 2xl:text-[13px]">
                   {job.requirements.slice(0, 5).map((item) => (
                     <li key={item} className="flex gap-2">
@@ -9487,7 +9487,7 @@ function ApplicationAiInfoDialog({
                 </ul>
               </div>
               <div>
-                <h4 className="text-[12px] font-bold text-[#d8dee8] 2xl:text-sm">Responsibilities</h4>
+                <h4 className="text-[12px] font-bold text-[#1d1e1c] 2xl:text-sm">Responsibilities</h4>
                 <ul className="mt-2 space-y-1.5 text-[12px] leading-5 text-muted 2xl:text-[13px]">
                   {job.responsibilities.slice(0, 5).map((item) => (
                     <li key={item} className="flex gap-2">
@@ -9500,13 +9500,13 @@ function ApplicationAiInfoDialog({
             </div>
           </section>
 
-          <section className="mt-4 rounded-md border border-border bg-white/[0.018] p-3 2xl:p-4">
-            <h3 className="text-sm font-bold text-white 2xl:text-base">Evidence-backed recommendations</h3>
+          <section className="mt-4 rounded-md border border-border bg-[#fff8f1] p-3 2xl:p-4">
+            <h3 className="text-sm font-bold text-foreground 2xl:text-base">Evidence-backed recommendations</h3>
             <div className="mt-2 divide-y divide-border">
               {recommendations.length ? recommendations.map((recommendation) => (
                 <div key={`${recommendation.text}-${recommendation.gain}`} className="grid gap-1.5 py-2.5 text-[13px] leading-5 sm:grid-cols-[minmax(0,0.9fr)_minmax(0,1fr)_auto] sm:items-start 2xl:text-sm">
                   <div>
-                    <p className="font-bold text-[#d8dee8]">{recommendation.text}</p>
+                    <p className="font-bold text-[#1d1e1c]">{recommendation.text}</p>
                     <p className="mt-0.5 text-muted">{recommendation.action}</p>
                   </div>
                   <p className="text-muted">{recommendation.why}</p>
@@ -9516,8 +9516,8 @@ function ApplicationAiInfoDialog({
             </div>
           </section>
 
-          <section className="mt-4 rounded-md border border-border bg-white/[0.018] p-3 2xl:p-4">
-            <h3 className="text-sm font-bold text-white 2xl:text-base">Explanation</h3>
+          <section className="mt-4 rounded-md border border-border bg-[#fff8f1] p-3 2xl:p-4">
+            <h3 className="text-sm font-bold text-foreground 2xl:text-base">Explanation</h3>
             <p className="mt-2 text-[13px] leading-5 text-muted 2xl:text-sm 2xl:leading-6">{rawExplanation}</p>
           </section>
         </div>
@@ -9704,10 +9704,10 @@ function SettingsView({
   }
 
   return (
-    <section className="job-scroll flex h-screen min-w-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
+    <section className="job-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
       <header className="mb-4 flex shrink-0 flex-col gap-3 md:flex-row md:items-start md:justify-between 2xl:mb-5">
         <div>
-          <h1 className="text-[24px] font-bold leading-tight tracking-normal text-white sm:text-[27px] 2xl:text-[31px]">
+          <h1 className="text-[24px] font-bold leading-tight tracking-normal text-foreground sm:text-[27px] 2xl:text-[31px]">
             Settings
           </h1>
           <p className="mt-1 text-[13px] text-muted 2xl:mt-1.5 2xl:text-base">Application credentials and integrations</p>
@@ -9722,7 +9722,7 @@ function SettingsView({
                 <FileText className="h-5 w-5 2xl:h-6 2xl:w-6" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-base font-bold text-white 2xl:text-lg">Logs</h2>
+                <h2 className="text-base font-bold text-foreground 2xl:text-lg">Logs</h2>
                 <p className="mt-1 text-[13px] leading-5 text-muted 2xl:text-sm 2xl:leading-6">
                   Show the Logs button in the sidebar and keep local application events.
                 </p>
@@ -9735,7 +9735,7 @@ function SettingsView({
               onClick={() => onShowLogsChange(!showLogs)}
               className={cn(
                 "relative h-6 w-11 shrink-0 rounded-full transition",
-                showLogs ? "bg-accent shadow-[0_0_14px_rgba(255,90,0,0.22)]" : "bg-white/15",
+                showLogs ? "bg-accent shadow-[0_0_14px_rgba(255,90,0,0.22)]" : "bg-[#fff8f1]",
               )}
             >
               <span className={cn("absolute top-1 h-4 w-4 rounded-full bg-white transition", showLogs ? "right-1" : "left-1")} />
@@ -9750,7 +9750,7 @@ function SettingsView({
                 <BrainCircuit className="h-5 w-5 2xl:h-6 2xl:w-6" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-base font-bold text-white 2xl:text-lg">AI backend</h2>
+                <h2 className="text-base font-bold text-foreground 2xl:text-lg">AI backend</h2>
                 <p className="mt-1 text-[13px] leading-5 text-muted 2xl:text-sm 2xl:leading-6">
                   Choose how Rufina sends new AI operations. Running operations keep the mode they started with.
                 </p>
@@ -9782,7 +9782,7 @@ function SettingsView({
                         "cursor-pointer rounded-xl border p-4 transition",
                         selected
                           ? "border-accent/70 bg-accent/[0.09] shadow-[0_0_0_1px_rgba(255,90,0,0.16)]"
-                          : "border-border bg-white/[0.025] hover:border-white/20 hover:bg-white/[0.045]",
+                          : "border-border bg-[#fff8f1] hover:border-[#c0bbb6] hover:bg-[#fff3e8]",
                       )}
                     >
                       <span className="flex items-start gap-3">
@@ -9792,10 +9792,10 @@ function SettingsView({
                           value={option.value}
                           checked={selected}
                           onChange={() => setAiBackendDraft(option.value)}
-                          className="mt-1 h-4 w-4 accent-[#ff5a00]"
+                          className="mt-1 h-4 w-4 accent-[#fa5d00]"
                         />
                         <span>
-                          <span className="block text-sm font-bold text-white 2xl:text-base">{option.title}</span>
+                          <span className="block text-sm font-bold text-foreground 2xl:text-base">{option.title}</span>
                           <span className="mt-1 block text-xs leading-5 text-muted">{option.description}</span>
                         </span>
                       </span>
@@ -9805,22 +9805,22 @@ function SettingsView({
               </div>
             </fieldset>
 
-            <div className="rounded-lg border border-sky-400/20 bg-sky-400/[0.07] px-4 py-3 text-xs leading-5 text-sky-100">
+            <div className="rounded-lg border border-accent/25 bg-accent/10 px-4 py-3 text-xs leading-5 text-accent">
               Switching applies to new operations. Running chat, document generation, imports, snapshots, and matching jobs keep the mode they started with.
             </div>
 
             {aiBackendDraft === "openai_api" ? (
-              <div className="grid gap-5 rounded-xl border border-white/[0.08] bg-black/15 p-4 sm:p-5">
+              <div className="grid gap-5 rounded-xl border border-border bg-black/15 p-4 sm:p-5">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
-                    <h3 className="text-sm font-bold text-white">OpenAI API configuration</h3>
+                    <h3 className="text-sm font-bold text-foreground">OpenAI API configuration</h3>
                     <p className="mt-1 text-xs text-muted">The full key remains server-side and is never returned to the browser.</p>
                   </div>
                   <span className={cn(
                     "rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em]",
                     hasUsableOpenAiKey
                       ? "border-success/30 bg-success/10 text-success"
-                      : "border-red-400/30 bg-red-500/10 text-red-300",
+                      : "border-accent/25 bg-accent/10 text-accent",
                   )}>
                     {openAiApiKeyDraft.trim() ? "New key ready" : settings.openai_api_key_configured ? "Key configured" : "Key required"}
                   </span>
@@ -9828,14 +9828,14 @@ function SettingsView({
 
                 <div className="grid gap-4 lg:grid-cols-2">
                   <label className="grid gap-2">
-                    <span className="text-sm font-bold text-[#d8dee8] 2xl:text-base">OpenAI API key</span>
+                    <span className="text-sm font-bold text-[#1d1e1c] 2xl:text-base">OpenAI API key</span>
                     <input
                       type="password"
                       aria-label="OpenAI API key"
                       value={openAiApiKeyDraft}
                       onChange={(event) => setOpenAiApiKeyDraft(event.target.value)}
                       placeholder={settings.openai_api_key_preview || "Enter an OpenAI API key"}
-                      className="h-12 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70 2xl:h-[52px] 2xl:px-4 2xl:text-base"
+                      className="h-12 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70 2xl:h-[52px] 2xl:px-4 2xl:text-base"
                       autoComplete="off"
                     />
                     <span className="text-xs font-medium text-muted">
@@ -9846,56 +9846,56 @@ function SettingsView({
                   </label>
 
                   <label className="grid gap-2">
-                    <span className="text-sm font-bold text-[#d8dee8] 2xl:text-base">OpenAI model</span>
+                    <span className="text-sm font-bold text-[#1d1e1c] 2xl:text-base">OpenAI model</span>
                     <input
                       aria-label="OpenAI model"
                       value={openAiModelDraft}
                       onChange={(event) => setOpenAiModelDraft(event.target.value)}
-                      className="h-12 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70 2xl:h-[52px] 2xl:px-4 2xl:text-base"
+                      className="h-12 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70 2xl:h-[52px] 2xl:px-4 2xl:text-base"
                     />
                   </label>
                 </div>
 
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <label className="grid gap-2">
-                    <span className="text-sm font-bold text-[#d8dee8]">Reasoning effort</span>
-                    <select aria-label="OpenAI reasoning effort" value={openAiReasoningDraft} onChange={(event) => setOpenAiReasoningDraft(event.target.value as OpenAIReasoningEffort)} className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70">
+                    <span className="text-sm font-bold text-[#1d1e1c]">Reasoning effort</span>
+                    <select aria-label="OpenAI reasoning effort" value={openAiReasoningDraft} onChange={(event) => setOpenAiReasoningDraft(event.target.value as OpenAIReasoningEffort)} className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70">
                       {(["none", "low", "medium", "high", "xhigh", "max"] as OpenAIReasoningEffort[]).map((effort) => <option key={effort} value={effort}>{effort}</option>)}
                     </select>
                   </label>
                   <label className="grid gap-2">
-                    <span className="text-sm font-bold text-[#d8dee8]">Timeout, seconds</span>
-                    <input type="number" aria-label="OpenAI timeout seconds" min={10} max={600} value={openAiTimeoutDraft} onChange={(event) => setOpenAiTimeoutDraft(Number(event.target.value))} className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70" />
+                    <span className="text-sm font-bold text-[#1d1e1c]">Timeout, seconds</span>
+                    <input type="number" aria-label="OpenAI timeout seconds" min={10} max={600} value={openAiTimeoutDraft} onChange={(event) => setOpenAiTimeoutDraft(Number(event.target.value))} className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70" />
                   </label>
                   <label className="grid gap-2">
-                    <span className="text-sm font-bold text-[#d8dee8]">Max attempts</span>
-                    <input type="number" aria-label="OpenAI max attempts" min={1} max={4} value={openAiAttemptsDraft} onChange={(event) => setOpenAiAttemptsDraft(Number(event.target.value))} className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70" />
+                    <span className="text-sm font-bold text-[#1d1e1c]">Max attempts</span>
+                    <input type="number" aria-label="OpenAI max attempts" min={1} max={4} value={openAiAttemptsDraft} onChange={(event) => setOpenAiAttemptsDraft(Number(event.target.value))} className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70" />
                   </label>
                   <label className="grid gap-2">
-                    <span className="text-sm font-bold text-[#d8dee8]">Retry backoff, seconds</span>
-                    <input type="number" aria-label="OpenAI retry backoff seconds" min={0} max={10} step={0.1} value={openAiBackoffDraft} onChange={(event) => setOpenAiBackoffDraft(Number(event.target.value))} className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70" />
+                    <span className="text-sm font-bold text-[#1d1e1c]">Retry backoff, seconds</span>
+                    <input type="number" aria-label="OpenAI retry backoff seconds" min={0} max={10} step={0.1} value={openAiBackoffDraft} onChange={(event) => setOpenAiBackoffDraft(Number(event.target.value))} className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70" />
                   </label>
                 </div>
               </div>
             ) : settings.openai_api_key_configured ? (
-              <div className="flex flex-col gap-3 rounded-lg border border-white/[0.08] bg-white/[0.025] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-3 rounded-lg border border-border bg-[#fff8f1] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-white">OpenAI API key saved but not in use</p>
+                  <p className="text-sm font-semibold text-foreground">OpenAI API key saved but not in use</p>
                   <p className="mt-1 text-xs text-muted">{settings.openai_api_key_preview} remains stored for a future switch to OpenAI API.</p>
                 </div>
-                <Button type="button" variant="ghost" className="h-10 shrink-0 rounded-md border border-red-400/25 px-4 text-xs text-red-200 hover:bg-red-500/10" disabled={aiStatus === "loading"} onClick={clearOpenAiApiKey}>
+                <Button type="button" variant="ghost" className="h-10 shrink-0 rounded-md border border-accent/25 px-4 text-xs text-accent hover:bg-accent/10" disabled={aiStatus === "loading"} onClick={clearOpenAiApiKey}>
                   Delete saved OpenAI API key
                 </Button>
               </div>
             ) : null}
 
             <div className="grid gap-4 xl:grid-cols-2">
-              <section className="grid content-start gap-5 rounded-xl border border-amber-300/20 bg-amber-300/[0.045] p-4 sm:p-5">
+              <section className="grid content-start gap-5 rounded-xl border border-accent/25 bg-accent/10 p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-sm font-bold text-white 2xl:text-base">Vacancy pre-screening</h3>
-                      <span className="rounded-full border border-amber-300/25 bg-amber-300/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-amber-200">
+                      <h3 className="text-sm font-bold text-foreground 2xl:text-base">Vacancy pre-screening</h3>
+                      <span className="rounded-full border border-accent/25 bg-accent/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-accent">
                         Cheap model
                       </span>
                     </div>
@@ -9906,12 +9906,12 @@ function SettingsView({
                 </div>
 
                 <label className="grid gap-2">
-                  <span className="text-sm font-bold text-[#d8dee8]">Model</span>
+                  <span className="text-sm font-bold text-[#1d1e1c]">Model</span>
                   <select
                     aria-label="Vacancy pre-screening model"
                     value={screeningModelDraft}
                     onChange={(event) => setScreeningModelDraft(event.target.value)}
-                    className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-amber-300/60"
+                    className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/25"
                   >
                     {AI_WORKLOAD_MODEL_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
@@ -9921,13 +9921,13 @@ function SettingsView({
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="grid gap-2">
-                    <span className="text-sm font-bold text-[#d8dee8]">Reasoning</span>
+                    <span className="text-sm font-bold text-[#1d1e1c]">Reasoning</span>
                     <select
                       aria-label="Vacancy pre-screening reasoning"
                       value={aiBackendDraft === "openclaw_codex" ? "off" : screeningReasoningDraft}
                       onChange={(event) => setScreeningReasoningDraft(event.target.value as AIWorkloadReasoningEffort)}
                       disabled={aiBackendDraft === "openclaw_codex"}
-                      className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-amber-300/60"
+                      className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/25"
                     >
                       {(["off", "low", "medium", "high", "xhigh", "max"] as AIWorkloadReasoningEffort[]).map((effort) => (
                         <option key={effort} value={effort}>{effort}</option>
@@ -9935,7 +9935,7 @@ function SettingsView({
                     </select>
                   </label>
                   <label className="grid gap-2">
-                    <span className="text-sm font-bold text-[#d8dee8]">Jobs per request</span>
+                    <span className="text-sm font-bold text-[#1d1e1c]">Jobs per request</span>
                     <input
                       type="number"
                       aria-label="Vacancy pre-screening batch size"
@@ -9943,11 +9943,11 @@ function SettingsView({
                       max={100}
                       value={screeningBatchSizeDraft}
                       onChange={(event) => setScreeningBatchSizeDraft(Number(event.target.value))}
-                      className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-amber-300/60"
+                      className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/25"
                     />
                   </label>
                   <label className="grid gap-2">
-                    <span className="text-sm font-bold text-[#d8dee8]">Timeout, seconds</span>
+                    <span className="text-sm font-bold text-[#1d1e1c]">Timeout, seconds</span>
                     <input
                       type="number"
                       aria-label="Vacancy pre-screening timeout seconds"
@@ -9955,11 +9955,11 @@ function SettingsView({
                       max={600}
                       value={screeningTimeoutDraft}
                       onChange={(event) => setScreeningTimeoutDraft(Number(event.target.value))}
-                      className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-amber-300/60"
+                      className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/25"
                     />
                   </label>
                   <label className="grid gap-2">
-                    <span className="text-sm font-bold text-[#d8dee8]">Max attempts</span>
+                    <span className="text-sm font-bold text-[#1d1e1c]">Max attempts</span>
                     <input
                       type="number"
                       aria-label="Vacancy pre-screening max attempts"
@@ -9967,13 +9967,13 @@ function SettingsView({
                       max={4}
                       value={screeningAttemptsDraft}
                       onChange={(event) => setScreeningAttemptsDraft(Number(event.target.value))}
-                      className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-amber-300/60"
+                      className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/25"
                     />
                   </label>
                 </div>
 
                 <label className="grid gap-2">
-                  <span className="text-sm font-bold text-[#d8dee8]">Description limit, characters</span>
+                  <span className="text-sm font-bold text-[#1d1e1c]">Description limit, characters</span>
                   <input
                     type="number"
                     aria-label="Vacancy pre-screening description limit"
@@ -9982,7 +9982,7 @@ function SettingsView({
                     step={1_000}
                     value={screeningDescriptionLimitDraft}
                     onChange={(event) => setScreeningDescriptionLimitDraft(Number(event.target.value))}
-                    className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-amber-300/60"
+                    className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/25"
                   />
                 </label>
               </section>
@@ -9990,8 +9990,8 @@ function SettingsView({
               <section className="grid content-start gap-5 rounded-xl border border-accent/25 bg-accent/[0.045] p-4 sm:p-5">
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="text-sm font-bold text-white 2xl:text-base">Full AI Match</h3>
-                    <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-orange-200">
+                    <h3 className="text-sm font-bold text-foreground 2xl:text-base">Full AI Match</h3>
+                    <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-accent">
                       Main model
                     </span>
                   </div>
@@ -10009,7 +10009,7 @@ function SettingsView({
                   className="flex min-h-14 w-full items-center justify-between gap-4 rounded-lg border border-border bg-black/15 px-3.5 py-3 text-left transition hover:border-accent/40"
                 >
                   <span>
-                    <span className="block text-sm font-bold text-white">Auto AI Match</span>
+                    <span className="block text-sm font-bold text-foreground">Auto AI Match</span>
                     <span className="mt-1 block text-xs leading-5 text-muted">
                       Automatically analyze every new vacancy immediately after it is added.
                     </span>
@@ -10020,7 +10020,7 @@ function SettingsView({
                       "relative h-6 w-11 shrink-0 rounded-full transition",
                       autoAiMatchEnabledDraft
                         ? "bg-accent shadow-[0_0_14px_rgba(255,90,0,0.22)]"
-                        : "bg-white/15",
+                        : "bg-[#fff8f1]",
                     )}
                   >
                     <span
@@ -10033,12 +10033,12 @@ function SettingsView({
                 </button>
 
                 <label className="grid gap-2">
-                  <span className="text-sm font-bold text-[#d8dee8]">Model</span>
+                  <span className="text-sm font-bold text-[#1d1e1c]">Model</span>
                   <select
                     aria-label="Full AI Match model"
                     value={aiMatchModelDraft}
                     onChange={(event) => setAiMatchModelDraft(event.target.value)}
-                    className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                    className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                   >
                     {AI_WORKLOAD_MODEL_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
@@ -10048,13 +10048,13 @@ function SettingsView({
 
                 <div className="grid gap-4 sm:grid-cols-2">
                   <label className="grid gap-2">
-                    <span className="text-sm font-bold text-[#d8dee8]">Reasoning</span>
+                    <span className="text-sm font-bold text-[#1d1e1c]">Reasoning</span>
                     <select
                       aria-label="Full AI Match reasoning"
                       value={aiBackendDraft === "openclaw_codex" ? "off" : aiMatchReasoningDraft}
                       onChange={(event) => setAiMatchReasoningDraft(event.target.value as AIWorkloadReasoningEffort)}
                       disabled={aiBackendDraft === "openclaw_codex"}
-                      className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                      className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                     >
                       {(["off", "low", "medium", "high", "xhigh", "max"] as AIWorkloadReasoningEffort[]).map((effort) => (
                         <option key={effort} value={effort}>{effort}</option>
@@ -10062,7 +10062,7 @@ function SettingsView({
                     </select>
                   </label>
                   <label className="grid gap-2">
-                    <span className="text-sm font-bold text-[#d8dee8]">Jobs per request</span>
+                    <span className="text-sm font-bold text-[#1d1e1c]">Jobs per request</span>
                     <input
                       type="number"
                       aria-label="Full AI Match batch size"
@@ -10070,11 +10070,11 @@ function SettingsView({
                       max={100}
                       value={aiMatchBatchSizeDraft}
                       onChange={(event) => setAiMatchBatchSizeDraft(Number(event.target.value))}
-                      className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                      className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                     />
                   </label>
                   <label className="grid gap-2">
-                    <span className="text-sm font-bold text-[#d8dee8]">Timeout, seconds</span>
+                    <span className="text-sm font-bold text-[#1d1e1c]">Timeout, seconds</span>
                     <input
                       type="number"
                       aria-label="Full AI Match timeout seconds"
@@ -10082,11 +10082,11 @@ function SettingsView({
                       max={600}
                       value={aiMatchTimeoutDraft}
                       onChange={(event) => setAiMatchTimeoutDraft(Number(event.target.value))}
-                      className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                      className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                     />
                   </label>
                   <label className="grid gap-2">
-                    <span className="text-sm font-bold text-[#d8dee8]">Max attempts</span>
+                    <span className="text-sm font-bold text-[#1d1e1c]">Max attempts</span>
                     <input
                       type="number"
                       aria-label="Full AI Match max attempts"
@@ -10094,17 +10094,17 @@ function SettingsView({
                       max={4}
                       value={aiMatchAttemptsDraft}
                       onChange={(event) => setAiMatchAttemptsDraft(Number(event.target.value))}
-                      className="h-11 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                      className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                     />
                   </label>
                 </div>
               </section>
             </div>
 
-            {aiValidationMessage ? <p role="alert" className="text-sm font-semibold text-red-300">{aiValidationMessage}</p> : null}
+            {aiValidationMessage ? <p role="alert" className="text-sm font-semibold text-accent">{aiValidationMessage}</p> : null}
 
             <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <p className={cn("flex items-center gap-3 text-sm font-semibold", aiStatus === "error" ? "text-[#ff7a7a]" : aiStatus === "ready" ? "text-success" : "text-muted")}>
+              <p className={cn("flex items-center gap-3 text-sm font-semibold", aiStatus === "error" ? "text-[#fa5d00]" : aiStatus === "ready" ? "text-success" : "text-muted")}>
                 {aiStatus === "error" ? <X className="h-5 w-5" /> : <ShieldCheck className="h-5 w-5" />}
                 {aiMessage || (settings.ai_backend === "openai_api" ? "OpenAI API is active" : "Codex credits via OpenClaw is active")}
               </p>
@@ -10113,7 +10113,7 @@ function SettingsView({
                   <Button
                     type="button"
                     variant="ghost"
-                    className="h-12 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
+                    className="h-12 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
                     disabled={aiStatus === "loading"}
                     onClick={clearOpenAiApiKey}
                   >
@@ -10122,7 +10122,7 @@ function SettingsView({
                 )}
                 <Button
                   type="button"
-                  className="h-12 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-7 text-[13px] text-white"
+                  className="h-12 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-7 text-[13px] text-foreground"
                   disabled={
                     aiStatus === "loading"
                     || Boolean(aiValidationMessage)
@@ -10140,11 +10140,11 @@ function SettingsView({
         <section className="panel p-5 2xl:p-7">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="flex min-w-0 items-start gap-3">
-              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-md bg-[#0a66c2]/22 text-[#8cc7ff] 2xl:h-12 2xl:w-12">
+              <div className="grid h-11 w-11 shrink-0 place-items-center rounded-md bg-[#0a66c2]/22 text-accent 2xl:h-12 2xl:w-12">
                 <KeyRound className="h-5 w-5 2xl:h-6 2xl:w-6" />
               </div>
               <div className="min-w-0">
-                <h2 className="text-base font-bold text-white 2xl:text-lg">Bright Data</h2>
+                <h2 className="text-base font-bold text-foreground 2xl:text-lg">Bright Data</h2>
                 <p className="mt-1 text-[13px] leading-5 text-muted 2xl:text-sm 2xl:leading-6">
                   LinkedIn and Indeed vacancy search use this server-side API key.
                 </p>
@@ -10155,7 +10155,7 @@ function SettingsView({
                 "inline-flex h-8 w-fit items-center gap-2 rounded-md border px-3 text-xs font-bold",
                 settings.has_brightdata_api_key
                   ? "border-success/35 bg-success/12 text-success"
-                  : "border-white/[0.12] bg-white/[0.055] text-muted",
+                  : "border-border bg-[#fff8f1] text-muted",
               )}
             >
               {settings.has_brightdata_api_key ? <Check className="h-3.5 w-3.5" /> : <X className="h-3.5 w-3.5" />}
@@ -10165,8 +10165,8 @@ function SettingsView({
 
           <div className="mt-6 grid gap-5">
             <div className="grid gap-2">
-              <p className="text-sm font-bold text-[#d8dee8] 2xl:text-base">Current key</p>
-              <div className="flex min-w-0 overflow-hidden rounded-md border border-border bg-[#0d131a]">
+              <p className="text-sm font-bold text-[#1d1e1c] 2xl:text-base">Current key</p>
+              <div className="flex min-w-0 overflow-hidden rounded-md border border-border bg-[#ffffff]">
                 <div className="min-w-0 flex-1 px-3 py-3 font-mono text-sm font-semibold text-muted 2xl:px-4 2xl:text-base">
                   {currentKeyPreview}
                 </div>
@@ -10174,13 +10174,13 @@ function SettingsView({
             </div>
 
             <label className="grid gap-2">
-              <span className="text-sm font-bold text-[#d8dee8] 2xl:text-base">Bright Data API key</span>
+              <span className="text-sm font-bold text-[#1d1e1c] 2xl:text-base">Bright Data API key</span>
               <input
                 type="password"
                 value={apiKeyDraft}
                 onChange={(event) => onApiKeyChange(event.target.value)}
                 placeholder="Enter your Bright Data API key"
-                className="h-12 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70 2xl:h-[52px] 2xl:px-4 2xl:text-base"
+                className="h-12 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70 2xl:h-[52px] 2xl:px-4 2xl:text-base"
                 autoComplete="off"
               />
               <span className="text-sm font-medium text-muted">
@@ -10189,7 +10189,7 @@ function SettingsView({
                   href="https://brightdata.com/cp"
                   target="_blank"
                   rel="noreferrer"
-                  className="inline-flex items-center gap-1 font-semibold text-[#2f80ed] transition hover:text-[#8cc7ff]"
+                  className="inline-flex items-center gap-1 font-semibold text-[#fa5d00] transition hover:text-accent"
                 >
                   Bright Data dashboard
                   <ExternalLink className="h-3.5 w-3.5" />
@@ -10198,11 +10198,11 @@ function SettingsView({
               </span>
             </label>
 
-            <div className="rounded-md border border-border bg-white/[0.018] px-4 py-4 2xl:px-5 2xl:py-5">
+            <div className="rounded-md border border-border bg-[#fff8f1] px-4 py-4 2xl:px-5 2xl:py-5">
               <div className="grid gap-3 sm:grid-cols-[28px_minmax(0,1fr)]">
-                <Info className="mt-0.5 h-5 w-5 text-[#2f80ed]" />
+                <Info className="mt-0.5 h-5 w-5 text-[#fa5d00]" />
                 <div>
-                  <h3 className="text-sm font-bold text-[#d8dee8] 2xl:text-base">How it works</h3>
+                  <h3 className="text-sm font-bold text-[#1d1e1c] 2xl:text-base">How it works</h3>
                   <p className="mt-2 max-w-[720px] text-sm leading-6 text-muted 2xl:text-base 2xl:leading-7">
                     Your API key is saved securely and used for LinkedIn and Indeed vacancy search on the server side.
                     <br />
@@ -10217,7 +10217,7 @@ function SettingsView({
                 className={cn(
                   "flex items-center gap-3 text-sm font-semibold 2xl:text-base",
                   status === "error"
-                    ? "text-[#ff7a7a]"
+                    ? "text-[#fa5d00]"
                     : settings.has_brightdata_api_key
                       ? "text-success"
                       : "text-muted",
@@ -10231,7 +10231,7 @@ function SettingsView({
                   <Button
                     type="button"
                     variant="ghost"
-                    className="h-12 w-full rounded-md border border-border bg-transparent px-6 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06] sm:w-auto 2xl:h-[52px] 2xl:text-sm"
+                    className="h-12 w-full rounded-md border border-border bg-transparent px-6 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8] sm:w-auto 2xl:h-[52px] 2xl:text-sm"
                     disabled={status === "loading"}
                     onClick={onClear}
                   >
@@ -10240,7 +10240,7 @@ function SettingsView({
                 )}
                 <Button
                   type="button"
-                  className="h-12 w-full rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-7 text-[13px] text-white shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#ff6a14] hover:to-[#ff4a12] sm:w-auto 2xl:h-[52px] 2xl:text-sm"
+                  className="h-12 w-full rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-7 text-[13px] text-foreground shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#e95300] hover:to-[#e95300] sm:w-auto 2xl:h-[52px] 2xl:text-sm"
                   disabled={status === "loading" || !hasApiKeyDraft}
                   onClick={onSave}
                 >
@@ -10258,17 +10258,17 @@ function SettingsView({
 
 function LogsView({ logs, onClear }: { logs: AppLogEntry[]; onClear: () => void }) {
   const levelStyles: Record<AppLogLevel, string> = {
-    info: "border-[#2f80ed]/35 bg-[#2f80ed]/12 text-[#8cc7ff]",
+    info: "border-[#fa5d00]/35 bg-[#fa5d00]/12 text-accent",
     success: "border-success/35 bg-success/12 text-success",
-    warning: "border-[#ff9f1a]/35 bg-[#ff9f1a]/12 text-[#ffd08a]",
-    error: "border-[#d94d4d]/45 bg-[#d94d4d]/13 text-[#ff8a8a]",
+    warning: "border-[#fa5d00]/35 bg-[#fa5d00]/12 text-accent",
+    error: "border-[#fa5d00]/45 bg-[#fa5d00]/13 text-[#fa5d00]",
   };
 
   return (
-    <section className="job-scroll flex h-screen min-w-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
+    <section className="job-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
       <header className="mb-4 flex shrink-0 flex-col gap-3 md:flex-row md:items-start md:justify-between 2xl:mb-5">
         <div>
-          <h1 className="text-[24px] font-bold leading-tight tracking-normal text-white sm:text-[27px] 2xl:text-[31px]">
+          <h1 className="text-[24px] font-bold leading-tight tracking-normal text-foreground sm:text-[27px] 2xl:text-[31px]">
             Logs
           </h1>
           <p className="mt-1 text-[13px] text-muted 2xl:mt-1.5 2xl:text-base">Local application events and parser activity</p>
@@ -10276,7 +10276,7 @@ function LogsView({ logs, onClear }: { logs: AppLogEntry[]; onClear: () => void 
         <Button
           type="button"
           variant="ghost"
-          className="h-10 w-full rounded-md border border-border bg-transparent px-4 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06] md:w-auto 2xl:h-11"
+          className="h-10 w-full rounded-md border border-border bg-transparent px-4 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8] md:w-auto 2xl:h-11"
           disabled={logs.length === 0}
           onClick={onClear}
         >
@@ -10290,7 +10290,7 @@ function LogsView({ logs, onClear }: { logs: AppLogEntry[]; onClear: () => void 
           <div className="grid min-h-[360px] place-items-center px-4 text-center">
             <div>
               <FileText className="mx-auto h-8 w-8 text-muted" />
-              <h2 className="mt-3 text-base font-bold text-white">No logs yet</h2>
+              <h2 className="mt-3 text-base font-bold text-foreground">No logs yet</h2>
               <p className="mt-1 max-w-[360px] text-sm leading-6 text-muted">
                 Run a vacancy search or change settings to create log entries.
               </p>
@@ -10306,10 +10306,10 @@ function LogsView({ logs, onClear }: { logs: AppLogEntry[]; onClear: () => void 
                       <span className={cn("inline-flex h-6 items-center rounded-md border px-2 text-[11px] font-bold uppercase", levelStyles[log.level])}>
                         {log.level}
                       </span>
-                      <span className="text-xs font-bold text-[#d8dee8]">{log.area}</span>
+                      <span className="text-xs font-bold text-[#1d1e1c]">{log.area}</span>
                       <span className="text-xs text-muted">{formatLogTimestamp(log.timestamp)}</span>
                     </div>
-                    <p className="mt-2 text-sm font-semibold leading-5 text-white 2xl:text-base">{log.message}</p>
+                    <p className="mt-2 text-sm font-semibold leading-5 text-foreground 2xl:text-base">{log.message}</p>
                     {log.details && <p className="mt-1 whitespace-pre-wrap break-words font-mono text-xs leading-5 text-muted [overflow-wrap:anywhere]">{log.details}</p>}
                   </div>
                 </div>
@@ -10373,12 +10373,12 @@ function DashboardView({
     : null;
   const offers = applications.filter((application) => application.status === "offer").length;
   const statusColors: Record<ApplicationStatus, string> = {
-    draft: "#9f7aea",
-    applied: "#ff5a00",
-    interview: "#ff9f1a",
-    assessment: "#2f80ed",
-    offer: "#58d532",
-    rejected: "#d94d4d",
+    draft: "#c0bbb6",
+    applied: "#fa5d00",
+    interview: "#1d1e1c",
+    assessment: "#8e8b87",
+    offer: "#4a4a47",
+    rejected: "#615f5c",
   };
   let statusArcOffset = 0;
   const statusOverview = trackedApplicationStatuses.map((item) => {
@@ -10455,11 +10455,21 @@ function DashboardView({
   }
 
   return (
-    <section className="job-scroll flex h-screen min-w-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-4 xl:overflow-hidden xl:px-4 2xl:px-5 2xl:py-4">
-      <header className="mb-3 flex shrink-0 flex-col gap-3 md:flex-row md:items-start md:justify-between 2xl:mb-4 2xl:gap-4">
-        <div>
+    <section className="job-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-4 xl:overflow-hidden xl:px-4 2xl:px-5 2xl:py-4">
+      <header className="mb-5 flex shrink-0 flex-col gap-5 md:flex-row md:items-end md:justify-between 2xl:mb-6 2xl:gap-6">
+        <div className="max-w-3xl">
+          <p className="mb-2 text-[11px] font-bold uppercase tracking-[0.16em] text-accent 2xl:text-xs">
+            Career workbench
+          </p>
           <DashboardGreeting name={profile.name} currentTime={currentTime} />
+          <p className="mt-4 max-w-2xl text-[13px] leading-5 text-muted 2xl:text-[15px] 2xl:leading-6">
+            Keep your search, applications, documents, and next move in one calm place.
+          </p>
         </div>
+        <Button onClick={onStartSearch} className="h-11 shrink-0 px-5 text-[13px] 2xl:h-12 2xl:px-6 2xl:text-sm">
+          <Search className="h-4 w-4" />
+          Find opportunities
+        </Button>
       </header>
 
       <div className="grid shrink-0 gap-2.5 sm:grid-cols-2 xl:grid-cols-4 2xl:gap-3">
@@ -10468,25 +10478,25 @@ function DashboardView({
             key={stat.label}
             type="button"
             onClick={stat.onClick}
-            className="panel group min-h-[108px] p-3 text-left transition hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.035] 2xl:min-h-[126px] 2xl:p-4"
+            className="panel group min-h-[108px] p-3 text-left transition hover:-translate-y-0.5 hover:border-[#c0bbb6] hover:bg-[#fff3e8] 2xl:min-h-[126px] 2xl:p-4"
           >
             <div className="flex items-start gap-2.5 2xl:gap-3">
               <div className={cn(
                 "grid h-9 w-9 shrink-0 place-items-center rounded-md 2xl:h-11 2xl:w-11",
-                stat.tone === "green" ? "bg-success/20 text-success" : stat.tone === "blue" ? "bg-[#2f80ed]/20 text-[#79b9ff]" : "bg-accent/20 text-accent",
+                stat.tone === "green" ? "bg-success/20 text-success" : stat.tone === "blue" ? "bg-[#fa5d00]/20 text-accent" : "bg-accent/20 text-accent",
               )}>
                 <stat.icon className="h-5 w-5 2xl:h-6 2xl:w-6" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs text-[#d6dbe4] 2xl:text-sm">{stat.label}</p>
+                <p className="text-xs text-[#1d1e1c] 2xl:text-sm">{stat.label}</p>
                 <p className="mt-1 text-[24px] font-bold leading-none 2xl:text-[28px]">{isLoading ? "—" : stat.value}</p>
                 <p className="mt-1.5 line-clamp-2 text-xs text-muted 2xl:text-sm">{isLoading ? "Loading…" : stat.note}</p>
               </div>
-              <ChevronRight className="h-4 w-4 text-muted transition group-hover:translate-x-0.5 group-hover:text-white" />
+              <ChevronRight className="h-4 w-4 text-muted transition group-hover:translate-x-0.5 group-hover:text-foreground" />
             </div>
             {stat.label === "Match Score" ? (
-              <div className="mt-3 h-1.5 rounded-full bg-white/[0.06]">
-                <div className="h-full rounded-full bg-gradient-to-r from-[#ff5a00] to-[#ff9f1a] transition-[width]" style={{ width: `${averageMatch}%` }} />
+              <div className="mt-3 h-1.5 rounded-full bg-[#fff8f1]">
+                <div className="h-full rounded-full bg-gradient-to-r from-[#fa5d00] to-[#fa5d00] transition-[width]" style={{ width: `${averageMatch}%` }} />
               </div>
             ) : null}
           </button>
@@ -10501,7 +10511,7 @@ function DashboardView({
                 <Star className="h-4 w-4 text-accent 2xl:h-5 2xl:w-5" />
                 <h2 className="text-base font-bold 2xl:text-lg">Recommended Jobs</h2>
               </div>
-              <button type="button" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:text-[#ff7a35] 2xl:gap-2 2xl:text-sm" onClick={onOpenJobs}>
+              <button type="button" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:text-[#e95300] 2xl:gap-2 2xl:text-sm" onClick={onOpenJobs}>
                 View all jobs <ChevronRight className="h-4 w-4" />
               </button>
             </div>
@@ -10510,7 +10520,7 @@ function DashboardView({
                 {recommendedJobs.map((job) => {
                   const isSaved = savedJobIds.includes(job.id);
                   return (
-                    <div key={job.id} className="grid min-h-[58px] grid-cols-[minmax(0,1fr)_36px] items-center border-b border-border last:border-0 hover:bg-white/[0.025]">
+                    <div key={job.id} className="grid min-h-[58px] grid-cols-[minmax(0,1fr)_36px] items-center border-b border-border last:border-0 hover:bg-[#fff3e8]">
                       <button
                         type="button"
                         className="grid min-w-0 grid-cols-[42px_minmax(0,1fr)_88px] items-center gap-2.5 px-3 py-2 text-left 2xl:grid-cols-[50px_minmax(0,1fr)_108px] 2xl:gap-3"
@@ -10535,7 +10545,7 @@ function DashboardView({
                         aria-label={isSaved ? `Remove ${job.title} from saved jobs` : `Save ${job.title}`}
                         title={isSaved ? "Remove from saved" : "Save job"}
                         onClick={() => onToggleSavedJob(job.id)}
-                        className="grid h-9 w-9 place-items-center rounded-md text-muted transition hover:bg-white/[0.06] hover:text-accent"
+                        className="grid h-9 w-9 place-items-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-accent"
                       >
                         <Bookmark className={cn("h-[18px] w-[18px]", isSaved && "fill-accent text-accent")} />
                       </button>
@@ -10547,7 +10557,7 @@ function DashboardView({
               <button type="button" onClick={onOpenJobs} className="grid min-h-0 flex-1 place-items-center rounded-md border border-dashed border-border px-4 text-center hover:border-accent/40 hover:bg-accent/[0.025]">
                 <span>
                   <BriefcaseBusiness className="mx-auto h-7 w-7 text-muted" />
-                  <span className="mt-2 block text-sm font-bold text-white">No jobs to recommend yet</span>
+                  <span className="mt-2 block text-sm font-bold text-foreground">No jobs to recommend yet</span>
                   <span className="mt-1 block text-xs text-muted">Start a search to add vacancies.</span>
                 </span>
               </button>
@@ -10560,7 +10570,7 @@ function DashboardView({
                 <Calendar className="h-4 w-4 text-muted" />
                 <h2 className="text-sm font-bold 2xl:text-base">Next Event</h2>
               </div>
-              <button type="button" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:text-[#ff7a35] 2xl:gap-2 2xl:text-sm" onClick={onOpenCalendar}>
+              <button type="button" className="inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:text-[#e95300] 2xl:gap-2 2xl:text-sm" onClick={onOpenCalendar}>
                 View calendar <ChevronRight className="h-4 w-4" />
               </button>
             </div>
@@ -10568,7 +10578,7 @@ function DashboardView({
               <button
                 type="button"
                 onClick={() => nextEventApplication ? onOpenApplications(nextEventApplication.id) : onOpenCalendar()}
-                className="grid w-full gap-2 rounded-md border border-border px-3 py-2 text-left transition hover:border-white/20 hover:bg-white/[0.025] sm:grid-cols-[48px_minmax(0,1fr)_150px_auto] sm:items-center"
+                className="grid w-full gap-2 rounded-md border border-border px-3 py-2 text-left transition hover:border-[#c0bbb6] hover:bg-[#fff3e8] sm:grid-cols-[48px_minmax(0,1fr)_150px_auto] sm:items-center"
               >
                 <div className="text-center">
                   <p className="text-[10px] font-bold uppercase text-accent">{new Date(nextEvent.startsAt).toLocaleDateString("en-US", { month: "short" })}</p>
@@ -10582,10 +10592,10 @@ function DashboardView({
                   <p className="flex items-center gap-1.5"><Calendar className="h-3.5 w-3.5" /> {formatApplicationEventDate(nextEvent.startsAt)}</p>
                   <p className="flex items-center gap-1.5"><CircleDot className="h-3.5 w-3.5" /> {formatApplicationEventTime(nextEvent.startsAt)}</p>
                 </div>
-                <span className="rounded-md border border-border px-2 py-1 text-[10px] font-bold text-[#cbd2dd]">{getApplicationEventTypeLabel(nextEvent.type)}</span>
+                <span className="rounded-md border border-border px-2 py-1 text-[10px] font-bold text-[#4a4a47]">{getApplicationEventTypeLabel(nextEvent.type)}</span>
               </button>
             ) : (
-              <button type="button" onClick={onOpenCalendar} className="flex w-full items-center justify-between rounded-md border border-dashed border-border px-3 py-3 text-left text-xs text-muted hover:border-accent/40 hover:text-white">
+              <button type="button" onClick={onOpenCalendar} className="flex w-full items-center justify-between rounded-md border border-dashed border-border px-3 py-3 text-left text-xs text-muted hover:border-accent/40 hover:text-foreground">
                 No upcoming events. Add one in Calendar.
                 <Plus className="h-4 w-4" />
               </button>
@@ -10632,26 +10642,26 @@ function DashboardView({
                     );
                   })}
                 </svg>
-                <span className="absolute inset-[25px] grid place-items-center rounded-full border border-white/[0.06] bg-[#11171e]/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_6px_18px_rgba(0,0,0,0.2)] 2xl:inset-[29px]">
+                <span className="absolute inset-[25px] grid place-items-center rounded-full border border-border bg-[#ffffff]/95 shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_6px_18px_rgba(0,0,0,0.2)] 2xl:inset-[29px]">
                   <span className="text-center">
-                    <span className="block text-[22px] font-bold leading-none tracking-tight text-white 2xl:text-[26px]">{isLoading ? "—" : applications.length}</span>
+                    <span className="block text-[22px] font-bold leading-none tracking-tight text-foreground 2xl:text-[26px]">{isLoading ? "—" : applications.length}</span>
                     <span className="mt-1.5 block text-[10px] font-medium uppercase tracking-[0.14em] text-muted 2xl:text-[11px]">Total</span>
                   </span>
                 </span>
               </button>
               <div className="space-y-2 2xl:space-y-2.5">
                 {statusOverview.map((item) => (
-                  <button key={item.status} type="button" onClick={() => onOpenApplications()} className="flex w-full items-center gap-2.5 rounded px-1 py-0.5 text-left text-[12px] hover:bg-white/[0.04] 2xl:gap-3 2xl:text-sm">
-                    <span className="grid h-3 w-3 place-items-center rounded-full bg-white/[0.035] 2xl:h-3.5 2xl:w-3.5">
+                  <button key={item.status} type="button" onClick={() => onOpenApplications()} className="flex w-full items-center gap-2.5 rounded px-1 py-0.5 text-left text-[12px] hover:bg-[#fff3e8] 2xl:gap-3 2xl:text-sm">
+                    <span className="grid h-3 w-3 place-items-center rounded-full bg-[#fff8f1] 2xl:h-3.5 2xl:w-3.5">
                       <span className="h-1.5 w-1.5 rounded-full 2xl:h-2 2xl:w-2" style={{ backgroundColor: item.color, boxShadow: `0 0 8px ${item.color}66` }} />
                     </span>
                     <span className="flex-1 text-muted">{item.label}</span>
-                    <span className="text-[#cbd2dd]">{item.count} <span className="text-muted">({item.percentage}%)</span></span>
+                    <span className="text-[#4a4a47]">{item.count} <span className="text-muted">({item.percentage}%)</span></span>
                   </button>
                 ))}
               </div>
             </div>
-            <button type="button" className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:text-[#ff7a35] 2xl:gap-2 2xl:text-sm" onClick={() => onOpenApplications()}>
+            <button type="button" className="mt-3 inline-flex items-center gap-1.5 text-[13px] font-semibold text-accent hover:text-[#e95300] 2xl:gap-2 2xl:text-sm" onClick={() => onOpenApplications()}>
               Open applications <ChevronRight className="h-4 w-4" />
             </button>
           </section>
@@ -10666,7 +10676,7 @@ function DashboardView({
                 <Bot className="h-4 w-4" />
               </div>
               <span className="min-w-0">
-                <span className="block text-xs font-bold text-white">
+                <span className="block text-xs font-bold text-foreground">
                   {nextEventApplication && (nextEvent?.type === "interview" || nextEvent?.type === "screening") ? "Prepare for your next interview" : profileCompletion < 70 ? "Strengthen your profile" : "Plan your next moves"}
                 </span>
                 <span className="mt-1 line-clamp-2 block text-[11px] leading-4 text-muted">
@@ -10676,8 +10686,8 @@ function DashboardView({
               <Sparkles className="ml-auto h-4 w-4 shrink-0 text-accent" />
             </button>
             {profileCompletion < 100 ? (
-              <button type="button" onClick={onOpenProfile} className="mt-2 flex w-full items-center gap-2 text-left text-[11px] text-muted hover:text-white">
-                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-white/[0.07]"><span className="block h-full rounded-full bg-accent" style={{ width: `${profileCompletion}%` }} /></span>
+              <button type="button" onClick={onOpenProfile} className="mt-2 flex w-full items-center gap-2 text-left text-[11px] text-muted hover:text-foreground">
+                <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-[#fff8f1]"><span className="block h-full rounded-full bg-accent" style={{ width: `${profileCompletion}%` }} /></span>
                 Profile {profileCompletion}%
                 <ChevronRight className="h-3.5 w-3.5" />
               </button>
@@ -10752,10 +10762,10 @@ function ProfileView({
   skillsImportMessage: string;
 }) {
   return (
-    <section className="job-scroll flex h-screen min-w-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
+    <section className="job-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
       <header className="mb-4 flex shrink-0 flex-col gap-3 md:flex-row md:items-start md:justify-between">
         <div>
-          <h1 className="text-[24px] font-bold leading-tight tracking-normal text-white sm:text-[27px] 2xl:text-[31px]">My Profile</h1>
+          <h1 className="text-[24px] font-bold leading-tight tracking-normal text-foreground sm:text-[27px] 2xl:text-[31px]">My Profile</h1>
           <p className="mt-1 text-[13px] text-muted 2xl:mt-1.5 2xl:text-base">Your professional profile and job preferences</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -10763,7 +10773,7 @@ function ProfileView({
             type="button"
             variant="ghost"
             onClick={() => onOpenAssistant(assistantPrompts.improveProfile)}
-            className="h-10 rounded-md border border-accent/40 bg-accent/[0.055] px-3 text-xs font-bold text-white hover:bg-accent/[0.11] 2xl:h-11 2xl:px-4 2xl:text-sm"
+            className="h-10 rounded-md border border-accent/40 bg-accent/[0.055] px-3 text-xs font-bold text-foreground hover:bg-accent/[0.11] 2xl:h-11 2xl:px-4 2xl:text-sm"
           >
             <Sparkles className="h-4 w-4 text-accent" />
             Improve profile
@@ -10839,13 +10849,13 @@ function ProfileHero({ profile, onEditProfile }: { profile: CandidateProfile; on
       <div className="relative flex flex-col gap-4 p-4 sm:flex-row sm:items-start sm:p-5 2xl:gap-5 2xl:p-6">
         <Button
           variant="ghost"
-          className="absolute right-4 top-4 z-10 h-9 rounded-md border border-border bg-white/[0.03] px-3 text-xs font-bold text-[#e6ebf3] hover:bg-white/[0.075] sm:right-5 sm:top-5 2xl:h-10 2xl:px-4 2xl:text-[13px]"
+          className="absolute right-4 top-4 z-10 h-9 rounded-md border border-border bg-[#fff8f1] px-3 text-xs font-bold text-[#1d1e1c] hover:bg-[#fff3e8] sm:right-5 sm:top-5 2xl:h-10 2xl:px-4 2xl:text-[13px]"
           onClick={onEditProfile}
         >
           <Edit3 className="h-4 w-4" />
           Edit Profile
         </Button>
-        <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-white/[0.06] ring-1 ring-white/10 2xl:h-28 2xl:w-28">
+        <div className="relative h-24 w-24 shrink-0 overflow-hidden rounded-full bg-[#fff8f1] ring-1 ring-white/10 2xl:h-28 2xl:w-28">
           <img
             src={profile.avatar_url || defaultCandidateProfile.avatar_url}
             alt={displayProfileValue(profile.name, "Profile avatar")}
@@ -10854,18 +10864,18 @@ function ProfileHero({ profile, onEditProfile }: { profile: CandidateProfile; on
         </div>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-[24px] font-bold leading-tight text-white 2xl:text-[30px]">
+            <h2 className="text-[24px] font-bold leading-tight text-foreground 2xl:text-[30px]">
               {displayProfileValue(profile.name, "Set up your profile")}
             </h2>
           </div>
-          <p className="mt-2 text-base font-semibold text-[#d8dee8] 2xl:text-lg">
+          <p className="mt-2 text-base font-semibold text-[#1d1e1c] 2xl:text-lg">
             {displayProfileValue(profile.current_role, "Add your current role")}
           </p>
           <p className="mt-1 flex flex-wrap items-center gap-1.5 text-sm font-semibold text-muted 2xl:text-base">
             <span>Target role:</span>
             <button
               type="button"
-              className="rounded-sm text-left font-bold text-accent transition hover:text-[#ff7a1a] focus:outline-none focus:ring-2 focus:ring-accent/45"
+              className="rounded-sm text-left font-bold text-accent transition hover:text-[#e95300] focus:outline-none focus:ring-2 focus:ring-accent/45"
               onClick={onEditProfile}
             >
               {displayProfileValue(profile.desired_role, "Add the roles you want")}
@@ -10876,15 +10886,15 @@ function ProfileHero({ profile, onEditProfile }: { profile: CandidateProfile; on
             <span className="inline-flex items-center gap-1.5"><Globe className="h-4 w-4" /> {displayProfileValue(profile.work_format, "Remote, hybrid, onsite")}</span>
           </div>
           {hasProfileValue(profile.headline) ? (
-            <p className="mt-4 max-w-[720px] text-[13px] leading-5 text-[#c6ceda] 2xl:text-sm 2xl:leading-6">
+            <p className="mt-4 max-w-[720px] text-[13px] leading-5 text-[#4a4a47] 2xl:text-sm 2xl:leading-6">
               {profile.headline}
             </p>
           ) : (
-            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-md border border-dashed border-white/[0.16] bg-white/[0.025] p-3">
+            <div className="mt-4 flex flex-wrap items-center gap-3 rounded-md border border-dashed border-border bg-[#fff8f1] p-3">
               <p className="min-w-0 flex-1 text-[13px] leading-5 text-muted">
                 Add a short summary so job matching can understand your background and goals.
               </p>
-              <Button variant="ghost" className="h-8 rounded-md border border-border px-3 text-xs text-[#e6ebf3] hover:bg-white/[0.06]" onClick={onEditProfile}>
+              <Button variant="ghost" className="h-8 rounded-md border border-border px-3 text-xs text-[#1d1e1c] hover:bg-[#fff3e8]" onClick={onEditProfile}>
                 <Plus className="h-4 w-4" />
                 Add summary
               </Button>
@@ -10894,7 +10904,7 @@ function ProfileHero({ profile, onEditProfile }: { profile: CandidateProfile; on
       </div>
 
       <div className="border-t border-border p-4 md:border-l md:border-t-0 sm:p-5 2xl:p-6">
-        <h3 className="text-sm font-bold text-white 2xl:text-base">Contact & Links</h3>
+        <h3 className="text-sm font-bold text-foreground 2xl:text-base">Contact & Links</h3>
         {links.length > 0 ? (
           <div className="mt-3 grid gap-2.5 2xl:gap-3">
             {links.map((link) => (
@@ -10903,13 +10913,13 @@ function ProfileHero({ profile, onEditProfile }: { profile: CandidateProfile; on
                 href={link.href}
                 target="_blank"
                 rel="noreferrer"
-                className="grid grid-cols-[36px_minmax(0,1fr)_16px] items-center gap-3 rounded-md border border-transparent p-1.5 transition hover:border-white/[0.10] hover:bg-white/[0.035]"
+                className="grid grid-cols-[36px_minmax(0,1fr)_16px] items-center gap-3 rounded-md border border-transparent p-1.5 transition hover:border-[#c0bbb6] hover:bg-[#fff3e8]"
               >
-                <span className="grid h-9 w-9 place-items-center rounded-md border border-border bg-white/[0.035] text-[#d8dee8]">
+                <span className="grid h-9 w-9 place-items-center rounded-md border border-border bg-[#fff8f1] text-[#1d1e1c]">
                   <link.icon className="h-4 w-4" />
                 </span>
                 <span className="min-w-0">
-                  <span className="block text-[13px] font-bold text-white 2xl:text-sm">{link.label}</span>
+                  <span className="block text-[13px] font-bold text-foreground 2xl:text-sm">{link.label}</span>
                   <span className="block truncate text-xs text-muted 2xl:text-[13px]">{link.value}</span>
                 </span>
                 <ExternalLink className="h-4 w-4 text-muted" />
@@ -10944,13 +10954,13 @@ function EmptyProfileState({
   className?: string;
 }) {
   return (
-    <div className={cn("rounded-md border border-dashed border-white/[0.16] bg-white/[0.025] p-3", className)}>
-      <p className="text-sm font-bold text-white">{title}</p>
+    <div className={cn("rounded-md border border-dashed border-border bg-[#fff8f1] p-3", className)}>
+      <p className="text-sm font-bold text-foreground">{title}</p>
       <p className="mt-1 text-xs leading-5 text-muted 2xl:text-[13px]">{description}</p>
       <Button
         type="button"
         variant="ghost"
-        className="mt-3 h-8 rounded-md border border-border bg-transparent px-3 text-xs text-[#e6ebf3] hover:bg-white/[0.06]"
+        className="mt-3 h-8 rounded-md border border-border bg-transparent px-3 text-xs text-[#1d1e1c] hover:bg-[#fff3e8]"
         onClick={onAction}
       >
         <Plus className="h-4 w-4" />
@@ -10987,7 +10997,7 @@ function ExperiencePanel({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-bold text-[#e6ebf3] transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45 2xl:text-[13px]"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-bold text-[#1d1e1c] transition hover:bg-[#fff3e8] disabled:cursor-not-allowed disabled:opacity-45 2xl:text-[13px]"
             onClick={onImportExperienceFromCv}
             disabled={!hasResume || isExperienceImporting}
             title={hasResume ? "Import experience from attached CV" : "Attach a CV first"}
@@ -10997,7 +11007,7 @@ function ExperiencePanel({
           </button>
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-bold text-accent transition hover:bg-accent/10 hover:text-[#ff7a1a] 2xl:text-[13px]"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-bold text-accent transition hover:bg-accent/10 hover:text-[#e95300] 2xl:text-[13px]"
             onClick={onAddExperience}
           >
             <Plus className="h-4 w-4" />
@@ -11011,13 +11021,13 @@ function ExperiencePanel({
       {experienceItems.length > 0 ? (
         <div className="mt-4 space-y-4">
           {experienceItems.map((item) => (
-            <article key={item.id} className="grid grid-cols-[40px_minmax(0,1fr)_auto] gap-3 rounded-md border border-border bg-white/[0.025] p-3">
-              <span className="grid h-10 w-10 place-items-center rounded-md bg-white/[0.06] text-[#d8dee8]">
+            <article key={item.id} className="grid grid-cols-[40px_minmax(0,1fr)_auto] gap-3 rounded-md border border-border bg-[#fff8f1] p-3">
+              <span className="grid h-10 w-10 place-items-center rounded-md bg-[#fff8f1] text-[#1d1e1c]">
                 <BriefcaseBusiness className="h-5 w-5" />
               </span>
               <div className="min-w-0">
-                <h3 className="text-sm font-bold text-white 2xl:text-base">{item.title}</h3>
-                <p className="mt-0.5 text-[13px] font-semibold text-[#d8dee8] 2xl:text-sm">{item.company}</p>
+                <h3 className="text-sm font-bold text-foreground 2xl:text-base">{item.title}</h3>
+                <p className="mt-0.5 text-[13px] font-semibold text-[#1d1e1c] 2xl:text-sm">{item.company}</p>
                 <p className="mt-1 text-xs text-muted 2xl:text-[13px]">
                   {[item.employment_type, item.location].filter(Boolean).join(" • ")}
                 </p>
@@ -11033,7 +11043,7 @@ function ExperiencePanel({
                   type="button"
                   aria-label="Edit experience"
                   onClick={() => onEditExperience(item)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
                 >
                   <Edit3 className="h-4 w-4" />
                 </button>
@@ -11041,7 +11051,7 @@ function ExperiencePanel({
                   type="button"
                   aria-label="Delete experience"
                   onClick={() => onDeleteExperience(item.id)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-[#ff6b6b]/12 hover:text-[#ff7a7a]"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-[#fa5d00]/12 hover:text-[#fa5d00]"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -11095,7 +11105,7 @@ function SkillsPanel({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-bold text-[#e6ebf3] transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45 2xl:text-[13px]"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-bold text-[#1d1e1c] transition hover:bg-[#fff3e8] disabled:cursor-not-allowed disabled:opacity-45 2xl:text-[13px]"
             onClick={onImportSkillsFromCv}
             disabled={!hasResume || isSkillsImporting}
             title={hasResume ? "Import skills from attached CV" : "Attach a CV first"}
@@ -11105,7 +11115,7 @@ function SkillsPanel({
           </button>
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-bold text-accent transition hover:bg-accent/10 hover:text-[#ff7a1a] 2xl:text-[13px]"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-bold text-accent transition hover:bg-accent/10 hover:text-[#e95300] 2xl:text-[13px]"
             onClick={onEditSkills}
           >
             <Edit3 className="h-4 w-4" />
@@ -11119,14 +11129,14 @@ function SkillsPanel({
       {skillItems.length > 0 ? (
         <div className="mt-4 flex flex-wrap gap-2">
           {visibleSkillItems.map((skill) => (
-            <span key={skill} className="inline-flex min-h-7 items-center rounded-md border border-border bg-white/[0.035] px-2.5 text-xs font-semibold text-[#d8dee8]">
+            <span key={skill} className="inline-flex min-h-7 items-center rounded-md border border-border bg-[#fff8f1] px-2.5 text-xs font-semibold text-[#1d1e1c]">
               {skill}
             </span>
           ))}
           {hiddenSkillCount > 0 && (
             <button
               type="button"
-              className="inline-flex min-h-7 items-center rounded-md border border-accent/35 bg-accent/10 px-2.5 text-xs font-bold text-[#ffd1b0] transition hover:border-accent/65 hover:bg-accent/15"
+              className="inline-flex min-h-7 items-center rounded-md border border-accent/35 bg-accent/10 px-2.5 text-xs font-bold text-accent transition hover:border-accent/65 hover:bg-accent/15"
               onClick={onEditSkills}
             >
               +{hiddenSkillCount} more
@@ -11173,7 +11183,7 @@ function EducationPanel({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-bold text-[#e6ebf3] transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45 2xl:text-[13px]"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-bold text-[#1d1e1c] transition hover:bg-[#fff3e8] disabled:cursor-not-allowed disabled:opacity-45 2xl:text-[13px]"
             onClick={onImportEducationFromCv}
             disabled={!hasResume || isEducationImporting}
             title={hasResume ? "Import education from attached CV" : "Attach a CV first"}
@@ -11183,7 +11193,7 @@ function EducationPanel({
           </button>
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-bold text-accent transition hover:bg-accent/10 hover:text-[#ff7a1a] 2xl:text-[13px]"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-bold text-accent transition hover:bg-accent/10 hover:text-[#e95300] 2xl:text-[13px]"
             onClick={onAddEducation}
           >
             <Plus className="h-4 w-4" />
@@ -11197,15 +11207,15 @@ function EducationPanel({
       {educationItems.length > 0 ? (
         <div className="mt-4 space-y-4">
           {educationItems.map((item) => (
-            <article key={item.id} className="grid grid-cols-[40px_minmax(0,1fr)_auto] gap-3 rounded-md border border-border bg-white/[0.025] p-3">
-              <span className="grid h-10 w-10 place-items-center rounded-md bg-white/[0.06] text-[#d8dee8]">
+            <article key={item.id} className="grid grid-cols-[40px_minmax(0,1fr)_auto] gap-3 rounded-md border border-border bg-[#fff8f1] p-3">
+              <span className="grid h-10 w-10 place-items-center rounded-md bg-[#fff8f1] text-[#1d1e1c]">
                 <GraduationCap className="h-5 w-5" />
               </span>
               <div className="min-w-0">
-                <h3 className="text-sm font-bold text-white 2xl:text-base">
+                <h3 className="text-sm font-bold text-foreground 2xl:text-base">
                   {item.credential || "Education"}
                 </h3>
-                <p className="mt-0.5 text-[13px] font-semibold text-[#d8dee8] 2xl:text-sm">
+                <p className="mt-0.5 text-[13px] font-semibold text-[#1d1e1c] 2xl:text-sm">
                   {item.institution || "Institution not specified"}
                 </p>
                 {(item.field_of_study || item.location) && (
@@ -11227,7 +11237,7 @@ function EducationPanel({
                   type="button"
                   aria-label="Edit education"
                   onClick={() => onEditEducation(item)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
                 >
                   <Edit3 className="h-4 w-4" />
                 </button>
@@ -11235,7 +11245,7 @@ function EducationPanel({
                   type="button"
                   aria-label="Delete education"
                   onClick={() => onDeleteEducation(item.id)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-[#ff6b6b]/12 hover:text-[#ff7a7a]"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-[#fa5d00]/12 hover:text-[#fa5d00]"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -11281,7 +11291,7 @@ function DocumentsPanel({
         {documentItems.length > 0 && (
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-bold text-accent transition hover:bg-accent/10 hover:text-[#ff7a1a] 2xl:text-[13px]"
+            className="inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-bold text-accent transition hover:bg-accent/10 hover:text-[#e95300] 2xl:text-[13px]"
             onClick={onAddDocument}
           >
             <Plus className="h-4 w-4" />
@@ -11293,18 +11303,18 @@ function DocumentsPanel({
       {documentItems.length > 0 ? (
         <div className="mt-4 space-y-4">
           {documentItems.map((item) => (
-            <article key={item.id} className="grid grid-cols-[40px_minmax(0,1fr)_auto] gap-3 rounded-md border border-border bg-white/[0.025] p-3">
-              <span className="grid h-10 w-10 place-items-center rounded-md bg-white/[0.06] text-[#d8dee8]">
+            <article key={item.id} className="grid grid-cols-[40px_minmax(0,1fr)_auto] gap-3 rounded-md border border-border bg-[#fff8f1] p-3">
+              <span className="grid h-10 w-10 place-items-center rounded-md bg-[#fff8f1] text-[#1d1e1c]">
                 <FileText className="h-5 w-5" />
               </span>
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
-                  <h3 className="min-w-0 text-sm font-bold text-white 2xl:text-base">{item.title || item.file_name}</h3>
-                  <span className="rounded bg-white/[0.06] px-2 py-0.5 text-[11px] font-bold text-muted">{item.category}</span>
-                  {item.category === "CV / Resume" && item.language ? <span className="rounded bg-[#2f80ed]/15 px-2 py-0.5 text-[11px] font-bold text-[#8cc7ff]">{item.language}</span> : null}
+                  <h3 className="min-w-0 text-sm font-bold text-foreground 2xl:text-base">{item.title || item.file_name}</h3>
+                  <span className="rounded bg-[#fff8f1] px-2 py-0.5 text-[11px] font-bold text-muted">{item.category}</span>
+                  {item.category === "CV / Resume" && item.language ? <span className="rounded bg-[#fa5d00]/15 px-2 py-0.5 text-[11px] font-bold text-accent">{item.language}</span> : null}
                 </div>
                 {item.issuer && (
-                  <p className="mt-0.5 text-[13px] font-semibold text-[#d8dee8] 2xl:text-sm">{item.issuer}</p>
+                  <p className="mt-0.5 text-[13px] font-semibold text-[#1d1e1c] 2xl:text-sm">{item.issuer}</p>
                 )}
                 <p className="mt-1 truncate text-xs text-muted 2xl:text-[13px]">
                   {item.file_name}
@@ -11320,7 +11330,7 @@ function DocumentsPanel({
                   aria-label="Download document"
                   href={item.data_url}
                   download={item.file_name || item.title}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
                 >
                   <Download className="h-4 w-4" />
                 </a>
@@ -11328,7 +11338,7 @@ function DocumentsPanel({
                   type="button"
                   aria-label="Edit document"
                   onClick={() => onEditDocument(item)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
                 >
                   <Edit3 className="h-4 w-4" />
                 </button>
@@ -11336,7 +11346,7 @@ function DocumentsPanel({
                   type="button"
                   aria-label="Delete document"
                   onClick={() => onDeleteDocument(item.id)}
-                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-[#ff6b6b]/12 hover:text-[#ff7a7a]"
+                  className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-[#fa5d00]/12 hover:text-[#fa5d00]"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -11364,7 +11374,7 @@ function ActivityPanel({ profile, onEditProfile }: { profile: CandidateProfile; 
     <section className="panel p-4 2xl:p-5">
       <div className="flex items-center justify-between gap-3">
         <h2 className="text-base font-bold 2xl:text-lg">Profile Snapshot</h2>
-        <Button variant="ghost" size="sm" className="h-8 border border-border px-2 text-[11px] text-[#e6ebf3]" onClick={onEditProfile}>
+        <Button variant="ghost" size="sm" className="h-8 border border-border px-2 text-[11px] text-[#1d1e1c]" onClick={onEditProfile}>
           Edit
         </Button>
       </div>
@@ -11373,12 +11383,12 @@ function ActivityPanel({ profile, onEditProfile }: { profile: CandidateProfile; 
         <MiniMetric icon={Star} value={parseProfileLines(profile.skills).length.toString()} label="Skills" color="orange" />
         <MiniMetric icon={Globe} value={getProfileLinks(profile).filter((link) => hasProfileValue(link.value) && link.href).length.toString()} label="Links" color="green" />
       </div>
-      <div className="mt-4 rounded-md border border-border bg-white/[0.025] p-3">
+      <div className="mt-4 rounded-md border border-border bg-[#fff8f1] p-3">
         <div className="flex items-end gap-3">
-          <p className="text-[28px] font-bold leading-none text-white">{completion}%</p>
+          <p className="text-[28px] font-bold leading-none text-foreground">{completion}%</p>
           <p className="pb-1 text-xs font-medium text-muted">Profile completeness</p>
         </div>
-        <div className="mt-3 h-2 rounded-full bg-white/[0.08]">
+        <div className="mt-3 h-2 rounded-full bg-[#fff8f1]">
           <div className="h-full rounded-full bg-success" style={{ width: `${completion}%` }} />
         </div>
         <p className="mt-2 text-xs font-medium text-muted">
@@ -11396,14 +11406,14 @@ function AiMatchProfilePanel({ profile, onEditProfile }: { profile: CandidatePro
   return (
     <section className="panel p-4 2xl:p-5">
       <div className="flex items-center gap-2.5">
-        <span className="grid h-8 w-8 place-items-center rounded-full bg-[#2f80ed]/20 text-sm font-black text-[#9cc6ff]">AI</span>
+        <span className="grid h-8 w-8 place-items-center rounded-full bg-[#fa5d00]/20 text-sm font-black text-accent">AI</span>
         <h2 className="text-base font-bold 2xl:text-lg">AI Match Profile</h2>
       </div>
       {hasSignals ? (
         <div className="mt-4 divide-y divide-border rounded-md border border-border">
           <AiProfileGroup title="Signals" icon={Check} iconClassName="text-success" items={matchProfile.signals} />
           {matchProfile.gaps.length > 0 ? (
-            <AiProfileGroup title="Next gaps" icon={CircleDot} iconClassName="text-[#ffb020]" items={matchProfile.gaps} />
+            <AiProfileGroup title="Next gaps" icon={CircleDot} iconClassName="text-[#fa5d00]" items={matchProfile.gaps} />
           ) : (
             <AiProfileGroup title="Ready for matching" icon={Check} iconClassName="text-success" items={["Profile has enough structured signal for job matching"]} />
           )}
@@ -11440,17 +11450,17 @@ function PreferencesPanel({
             <div
               key={group.label}
               className={cn(
-                "rounded-md border border-border bg-white/[0.025] p-3",
+                "rounded-md border border-border bg-[#fff8f1] p-3",
                 group.label === "Notes" && "md:col-span-2",
               )}
             >
               <p className="text-[11px] font-bold uppercase tracking-normal text-muted">{group.label}</p>
               {group.label === "Notes" ? (
-                <p className="mt-2 whitespace-pre-line text-[13px] leading-5 text-[#d8dee8]">{group.values.join("\n")}</p>
+                <p className="mt-2 whitespace-pre-line text-[13px] leading-5 text-[#1d1e1c]">{group.values.join("\n")}</p>
               ) : (
                 <div className="mt-2 flex flex-wrap gap-2">
                   {group.values.map((value) => (
-                    <span key={value} className="inline-flex min-h-7 items-center rounded-md border border-border bg-white/[0.035] px-2.5 text-xs font-semibold text-[#d8dee8]">
+                    <span key={value} className="inline-flex min-h-7 items-center rounded-md border border-border bg-[#fff8f1] px-2.5 text-xs font-semibold text-[#1d1e1c]">
                       {value}
                     </span>
                   ))}
@@ -11488,7 +11498,7 @@ function DealbreakersPanel({
         <div className="mt-4 space-y-2.5">
           {dealbreakers.map((item) => (
             <p key={item} className="flex items-center gap-2 text-[13px] text-muted 2xl:text-sm">
-              <Ban className="h-4 w-4 text-[#ff6b6b]" />
+              <Ban className="h-4 w-4 text-[#fa5d00]" />
               {item}
             </p>
           ))}
@@ -11517,7 +11527,7 @@ function AdditionalNotesPanel({
     <section className="panel p-4 2xl:p-5">
       <ProfileSectionHeader title="Additional Notes" action="Edit Notes" onAction={onEditAdditionalNotes} />
       {hasProfileValue(profile.additional_notes) ? (
-        <div className="mt-4 whitespace-pre-line rounded-md border border-border bg-white/[0.025] p-3 text-[13px] leading-5 text-[#d8dee8]">
+        <div className="mt-4 whitespace-pre-line rounded-md border border-border bg-[#fff8f1] p-3 text-[13px] leading-5 text-[#1d1e1c]">
           {profile.additional_notes}
         </div>
       ) : (
@@ -11552,14 +11562,14 @@ function ProfileCompletenessPanel({ profile }: { profile: CandidateProfile }) {
           "inline-flex min-h-8 items-center self-start rounded-md border px-2.5 text-xs font-bold",
           missingItems.length === 0
             ? "border-success/40 bg-success/12 text-success"
-            : "border-[#ffb020]/35 bg-[#ffb020]/10 text-[#ffd18a]",
+            : "border-[#fa5d00]/35 bg-[#fa5d00]/10 text-accent",
         )}>
           {missingItems.length === 0 ? "Ready" : `${missingItems.length} next step${missingItems.length === 1 ? "" : "s"}`}
         </span>
       </div>
       {missingItems.length === 0 ? (
         <div className="mt-4 rounded-md border border-success/25 bg-success/10 p-3">
-          <p className="text-sm font-bold text-white">Profile has enough signal for matching</p>
+          <p className="text-sm font-bold text-foreground">Profile has enough signal for matching</p>
           <p className="mt-1 text-xs leading-5 text-muted 2xl:text-[13px]">
             Keep it fresh when your resume, target roles, or application constraints change.
           </p>
@@ -11567,10 +11577,10 @@ function ProfileCompletenessPanel({ profile }: { profile: CandidateProfile }) {
       ) : (
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           {visibleMissingItems.map((item) => (
-            <div key={item.label} className="flex items-start gap-2 rounded-md border border-border bg-white/[0.025] p-3">
-              <CircleDot className="mt-0.5 h-4 w-4 shrink-0 text-[#ffb020]" />
+            <div key={item.label} className="flex items-start gap-2 rounded-md border border-border bg-[#fff8f1] p-3">
+              <CircleDot className="mt-0.5 h-4 w-4 shrink-0 text-[#fa5d00]" />
               <div className="min-w-0">
-                <p className="text-xs font-bold text-white 2xl:text-[13px]">{item.label}</p>
+                <p className="text-xs font-bold text-foreground 2xl:text-[13px]">{item.label}</p>
                 <p className="mt-1 text-xs leading-5 text-muted">{item.action}</p>
               </div>
             </div>
@@ -11583,8 +11593,8 @@ function ProfileCompletenessPanel({ profile }: { profile: CandidateProfile }) {
 
 function ProfileTextItem({ icon: Icon, text, compact = false }: { icon: typeof FileText; text: string; compact?: boolean }) {
   return (
-    <div className={cn("grid gap-3 rounded-md border border-border bg-white/[0.025] p-3", compact ? "grid-cols-[24px_minmax(0,1fr)]" : "grid-cols-[32px_minmax(0,1fr)]")}>
-      <Icon className="mt-0.5 h-5 w-5 text-[#d8dee8]" />
+    <div className={cn("grid gap-3 rounded-md border border-border bg-[#fff8f1] p-3", compact ? "grid-cols-[24px_minmax(0,1fr)]" : "grid-cols-[32px_minmax(0,1fr)]")}>
+      <Icon className="mt-0.5 h-5 w-5 text-[#1d1e1c]" />
       <p className="min-w-0 text-[13px] leading-5 text-muted 2xl:text-sm">{text}</p>
     </div>
   );
@@ -11594,7 +11604,7 @@ function ProfileSectionHeader({ title, action, onAction }: { title: string; acti
   return (
     <div className="flex items-center justify-between gap-3">
       <h2 className="text-base font-bold 2xl:text-lg">{title}</h2>
-      <button type="button" className="text-xs font-bold text-accent transition hover:text-[#ff7a1a] 2xl:text-[13px]" onClick={onAction}>
+      <button type="button" className="text-xs font-bold text-accent transition hover:text-[#e95300] 2xl:text-[13px]" onClick={onAction}>
         {action}
       </button>
     </div>
@@ -11603,9 +11613,9 @@ function ProfileSectionHeader({ title, action, onAction }: { title: string; acti
 
 function MiniMetric({ icon: Icon, value, label, color }: { icon: typeof FileText; value: string; label: string; color: "blue" | "orange" | "green" }) {
   return (
-    <div className="rounded-md border border-border bg-white/[0.025] p-3">
-      <Icon className={cn("h-5 w-5", color === "blue" ? "text-[#2f80ed]" : color === "green" ? "text-success" : "text-accent")} />
-      <p className="mt-2 text-xl font-bold leading-none text-white">{value}</p>
+    <div className="rounded-md border border-border bg-[#fff8f1] p-3">
+      <Icon className={cn("h-5 w-5", color === "blue" ? "text-[#fa5d00]" : color === "green" ? "text-success" : "text-accent")} />
+      <p className="mt-2 text-xl font-bold leading-none text-foreground">{value}</p>
       <p className="mt-1 text-[11px] text-muted">{label}</p>
     </div>
   );
@@ -11614,7 +11624,7 @@ function MiniMetric({ icon: Icon, value, label, color }: { icon: typeof FileText
 function AiProfileGroup({ title, items, icon: Icon, iconClassName }: { title: string; items: string[]; icon: typeof Check; iconClassName: string }) {
   return (
     <div className="p-3">
-      <h3 className="text-[13px] font-bold text-white">{title}</h3>
+      <h3 className="text-[13px] font-bold text-foreground">{title}</h3>
       <ul className="mt-2 space-y-1.5 text-[13px] text-muted">
         {items.map((item) => (
           <li key={item} className="flex items-center gap-2">
@@ -11657,17 +11667,17 @@ function SkillsEditorDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-3 py-4 backdrop-blur-sm">
-      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[720px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
+      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[720px] flex-col overflow-hidden border-border bg-[#ffffff]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
         <div className="flex shrink-0 items-start justify-between gap-4">
           <div>
-            <h2 className="text-[22px] font-bold leading-tight text-white 2xl:text-[24px]">Edit Skills</h2>
+            <h2 className="text-[22px] font-bold leading-tight text-foreground 2xl:text-[24px]">Edit Skills</h2>
             <p className="mt-1 text-sm font-medium text-muted">Add skills one at a time, similar to LinkedIn.</p>
           </div>
           <button
             type="button"
             aria-label="Close skills editor"
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
@@ -11682,19 +11692,19 @@ function SkillsEditorDialog({
             }}
           >
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Skill</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Skill</span>
               <input
                 value={skillInput}
                 onChange={(event) => onSkillInputChange(event.target.value)}
                 placeholder="e.g. Python, FastAPI, Docker"
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               />
               <span className="text-xs font-medium text-muted">Type to search suggestions, then click a chip or press Add.</span>
             </label>
             <Button
               type="submit"
               variant="ghost"
-              className="mt-6 h-10 rounded-md border border-border bg-white/[0.035] px-4 text-[13px] text-[#e6ebf3] hover:bg-white/[0.07]"
+              className="mt-6 h-10 rounded-md border border-border bg-[#fff8f1] px-4 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
             >
               <Plus className="h-4 w-4" />
               Add
@@ -11702,16 +11712,16 @@ function SkillsEditorDialog({
           </form>
 
           <div className="mt-5">
-            <h3 className="text-sm font-bold text-white">Selected skills</h3>
+            <h3 className="text-sm font-bold text-foreground">Selected skills</h3>
             {skills.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {skills.map((skill) => (
-                  <span key={skill} className="inline-flex min-h-8 items-center gap-2 rounded-md border border-border bg-white/[0.04] px-2.5 text-xs font-semibold text-[#d8dee8]">
+                  <span key={skill} className="inline-flex min-h-8 items-center gap-2 rounded-md border border-border bg-[#fff8f1] px-2.5 text-xs font-semibold text-[#1d1e1c]">
                     {skill}
                     <button
                       type="button"
                       aria-label={`Remove ${skill}`}
-                      className="inline-flex h-5 w-5 items-center justify-center rounded text-muted transition hover:bg-white/[0.08] hover:text-white"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
                       onClick={() => onRemoveSkill(skill)}
                     >
                       <X className="h-3.5 w-3.5" />
@@ -11720,7 +11730,7 @@ function SkillsEditorDialog({
                 ))}
               </div>
             ) : (
-              <p className="mt-3 rounded-md border border-dashed border-white/[0.16] bg-white/[0.025] p-3 text-sm text-muted">
+              <p className="mt-3 rounded-md border border-dashed border-border bg-[#fff8f1] p-3 text-sm text-muted">
                 No skills selected yet.
               </p>
             )}
@@ -11728,7 +11738,7 @@ function SkillsEditorDialog({
 
           <div className="mt-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-bold text-white">Suggested skills</h3>
+              <h3 className="text-sm font-bold text-foreground">Suggested skills</h3>
               <p className="text-xs font-medium text-muted">
                 {normalizedQuery ? `${availableSuggestions.length} matches` : `${availableSuggestions.length} available`}
               </p>
@@ -11739,7 +11749,7 @@ function SkillsEditorDialog({
                   <button
                     key={skill}
                     type="button"
-                    className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border bg-white/[0.025] px-2.5 text-xs font-semibold text-[#d8dee8] transition hover:border-accent/60 hover:bg-accent/10 hover:text-white"
+                    className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border bg-[#fff8f1] px-2.5 text-xs font-semibold text-[#1d1e1c] transition hover:border-accent/60 hover:bg-accent/10 hover:text-foreground"
                     onClick={() => onAddSkill(skill)}
                   >
                     <Plus className="h-3.5 w-3.5" />
@@ -11748,7 +11758,7 @@ function SkillsEditorDialog({
                 ))}
               </div>
             ) : (
-              <p className="mt-3 rounded-md border border-dashed border-white/[0.16] bg-white/[0.025] p-3 text-sm text-muted">
+              <p className="mt-3 rounded-md border border-dashed border-border bg-[#fff8f1] p-3 text-sm text-muted">
                 No suggestions match this search. Press Add to save it as a custom skill.
               </p>
             )}
@@ -11756,19 +11766,19 @@ function SkillsEditorDialog({
         </div>
 
         <div className="mt-4 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className={cn("text-sm font-semibold", status === "error" ? "text-[#ff7a7a]" : "text-muted")}>
+          <p className={cn("text-sm font-semibold", status === "error" ? "text-[#fa5d00]" : "text-muted")}>
             {message || `${skills.length} skills selected`}
           </p>
           <div className="flex gap-2">
             <Button
               variant="ghost"
-              className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
+              className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
               onClick={onClose}
             >
               Cancel
             </Button>
             <Button
-              className="h-10 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-7 text-[13px] text-white shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#ff6a14] hover:to-[#ff4a12]"
+              className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-7 text-[13px] text-foreground shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#e95300] hover:to-[#e95300]"
               disabled={status === "loading"}
               onClick={onSave}
             >
@@ -11814,17 +11824,17 @@ function DealbreakersEditorDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-3 py-4 backdrop-blur-sm">
-      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[720px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
+      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[720px] flex-col overflow-hidden border-border bg-[#ffffff]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
         <div className="flex shrink-0 items-start justify-between gap-4">
           <div>
-            <h2 className="text-[22px] font-bold leading-tight text-white 2xl:text-[24px]">Edit Dealbreakers</h2>
+            <h2 className="text-[22px] font-bold leading-tight text-foreground 2xl:text-[24px]">Edit Dealbreakers</h2>
             <p className="mt-1 text-sm font-medium text-muted">Hard limits that should rule out a job match.</p>
           </div>
           <button
             type="button"
             aria-label="Close dealbreakers editor"
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
@@ -11839,31 +11849,31 @@ function DealbreakersEditorDialog({
             }}
           >
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Dealbreaker</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Dealbreaker</span>
               <input
                 value={dealbreakerInput}
                 onChange={(event) => onDealbreakerInputChange(event.target.value)}
                 placeholder="e.g. No onsite-only roles"
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               />
               <span className="text-xs font-medium text-muted">Leave the list empty when you have no hard limits.</span>
             </label>
             <Button
               type="submit"
               variant="ghost"
-              className="mt-6 h-10 rounded-md border border-border bg-white/[0.035] px-4 text-[13px] text-[#e6ebf3] hover:bg-white/[0.07]"
+              className="mt-6 h-10 rounded-md border border-border bg-[#fff8f1] px-4 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
             >
               <Plus className="h-4 w-4" />
               Add
             </Button>
           </form>
 
-          <div className="mt-5 rounded-md border border-border bg-white/[0.025] p-3">
+          <div className="mt-5 rounded-md border border-border bg-[#fff8f1] p-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-bold text-white">Current hard limits</h3>
+              <h3 className="text-sm font-bold text-foreground">Current hard limits</h3>
               <button
                 type="button"
-                className="inline-flex min-h-7 items-center rounded-md border border-border bg-white/[0.025] px-2.5 text-[11px] font-bold text-muted transition hover:border-accent/45 hover:bg-accent/10 hover:text-[#d8dee8]"
+                className="inline-flex min-h-7 items-center rounded-md border border-border bg-[#fff8f1] px-2.5 text-[11px] font-bold text-muted transition hover:border-accent/45 hover:bg-accent/10 hover:text-[#1d1e1c]"
                 onClick={onClearDealbreakers}
               >
                 No dealbreakers
@@ -11872,12 +11882,12 @@ function DealbreakersEditorDialog({
             {dealbreakers.length > 0 ? (
               <div className="mt-3 flex flex-wrap gap-2">
                 {dealbreakers.map((dealbreaker) => (
-                  <span key={dealbreaker} className="inline-flex min-h-8 items-center gap-2 rounded-md border border-border bg-white/[0.04] px-2.5 text-xs font-semibold text-[#d8dee8]">
+                  <span key={dealbreaker} className="inline-flex min-h-8 items-center gap-2 rounded-md border border-border bg-[#fff8f1] px-2.5 text-xs font-semibold text-[#1d1e1c]">
                     {dealbreaker}
                     <button
                       type="button"
                       aria-label={`Remove ${dealbreaker}`}
-                      className="inline-flex h-5 w-5 items-center justify-center rounded text-muted transition hover:bg-white/[0.08] hover:text-white"
+                      className="inline-flex h-5 w-5 items-center justify-center rounded text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
                       onClick={() => onRemoveDealbreaker(dealbreaker)}
                     >
                       <X className="h-3.5 w-3.5" />
@@ -11886,7 +11896,7 @@ function DealbreakersEditorDialog({
                 ))}
               </div>
             ) : (
-              <p className="mt-3 rounded-md border border-dashed border-white/[0.16] bg-white/[0.025] p-3 text-sm text-muted">
+              <p className="mt-3 rounded-md border border-dashed border-border bg-[#fff8f1] p-3 text-sm text-muted">
                 No hard limits are set. Save this empty list if every condition is flexible.
               </p>
             )}
@@ -11894,7 +11904,7 @@ function DealbreakersEditorDialog({
 
           <div className="mt-5">
             <div className="flex flex-wrap items-center justify-between gap-2">
-              <h3 className="text-sm font-bold text-white">Suggested dealbreakers</h3>
+              <h3 className="text-sm font-bold text-foreground">Suggested dealbreakers</h3>
               <p className="text-xs font-medium text-muted">
                 {normalizedQuery ? `${availableSuggestions.length} matches` : `${availableSuggestions.length} available`}
               </p>
@@ -11905,7 +11915,7 @@ function DealbreakersEditorDialog({
                   <button
                     key={dealbreaker}
                     type="button"
-                    className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border bg-white/[0.025] px-2.5 text-xs font-semibold text-[#d8dee8] transition hover:border-accent/60 hover:bg-accent/10 hover:text-white"
+                    className="inline-flex min-h-8 items-center gap-1.5 rounded-md border border-border bg-[#fff8f1] px-2.5 text-xs font-semibold text-[#1d1e1c] transition hover:border-accent/60 hover:bg-accent/10 hover:text-foreground"
                     onClick={() => onAddDealbreaker(dealbreaker)}
                   >
                     <Plus className="h-3.5 w-3.5" />
@@ -11914,7 +11924,7 @@ function DealbreakersEditorDialog({
                 ))}
               </div>
             ) : (
-              <p className="mt-3 rounded-md border border-dashed border-white/[0.16] bg-white/[0.025] p-3 text-sm text-muted">
+              <p className="mt-3 rounded-md border border-dashed border-border bg-[#fff8f1] p-3 text-sm text-muted">
                 No suggestions match this search. Press Add to save it as a custom hard limit.
               </p>
             )}
@@ -11922,19 +11932,19 @@ function DealbreakersEditorDialog({
         </div>
 
         <div className="mt-4 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className={cn("text-sm font-semibold", status === "error" ? "text-[#ff7a7a]" : "text-muted")}>
+          <p className={cn("text-sm font-semibold", status === "error" ? "text-[#fa5d00]" : "text-muted")}>
             {message || (dealbreakers.length === 0 ? "No dealbreakers set" : `${dealbreakers.length} dealbreakers selected`)}
           </p>
           <div className="flex gap-2">
             <Button
               variant="ghost"
-              className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
+              className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
               onClick={onClose}
             >
               Cancel
             </Button>
             <Button
-              className="h-10 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-7 text-[13px] text-white shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#ff6a14] hover:to-[#ff4a12]"
+              className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-7 text-[13px] text-foreground shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#e95300] hover:to-[#e95300]"
               disabled={status === "loading"}
               onClick={onSave}
             >
@@ -11967,17 +11977,17 @@ function AdditionalNotesEditorDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-3 py-4 backdrop-blur-sm">
-      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[720px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
+      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[720px] flex-col overflow-hidden border-border bg-[#ffffff]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
         <div className="flex shrink-0 items-start justify-between gap-4">
           <div>
-            <h2 className="text-[22px] font-bold leading-tight text-white 2xl:text-[24px]">Edit Additional Notes</h2>
+            <h2 className="text-[22px] font-bold leading-tight text-foreground 2xl:text-[24px]">Edit Additional Notes</h2>
             <p className="mt-1 text-sm font-medium text-muted">Extra context for matching, applications, or future automation.</p>
           </div>
           <button
             type="button"
             aria-label="Close notes editor"
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
@@ -11985,20 +11995,20 @@ function AdditionalNotesEditorDialog({
 
         <div className="job-scroll mt-5 min-h-0 flex-1 overflow-y-auto rounded-md border border-border p-4">
           <label className="grid gap-2">
-            <span className="text-xs font-bold text-[#d8dee8]">Notes</span>
+            <span className="text-xs font-bold text-[#1d1e1c]">Notes</span>
             <textarea
               value={notes}
               onChange={(event) => onChange(event.target.value)}
               placeholder="Availability, motivation, personal positioning, application context, or anything that does not fit elsewhere..."
               rows={8}
-              className="min-h-[220px] resize-none rounded-md border border-border bg-[#0d131a] px-3 py-2.5 text-sm font-semibold leading-5 text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+              className="min-h-[220px] resize-none rounded-md border border-border bg-[#ffffff] px-3 py-2.5 text-sm font-semibold leading-5 text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
             />
             <span className="text-xs font-medium text-muted">Leave empty if there is no extra context to add.</span>
           </label>
           <div className="mt-3 flex justify-end">
             <button
               type="button"
-              className="inline-flex min-h-8 items-center rounded-md border border-border bg-white/[0.025] px-3 text-xs font-bold text-muted transition hover:border-accent/45 hover:bg-accent/10 hover:text-[#d8dee8]"
+              className="inline-flex min-h-8 items-center rounded-md border border-border bg-[#fff8f1] px-3 text-xs font-bold text-muted transition hover:border-accent/45 hover:bg-accent/10 hover:text-[#1d1e1c]"
               onClick={onClear}
             >
               Clear notes
@@ -12007,19 +12017,19 @@ function AdditionalNotesEditorDialog({
         </div>
 
         <div className="mt-4 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className={cn("text-sm font-semibold", status === "error" ? "text-[#ff7a7a]" : "text-muted")}>
+          <p className={cn("text-sm font-semibold", status === "error" ? "text-[#fa5d00]" : "text-muted")}>
             {message || (notes.trim() ? "Notes ready to save" : "No notes set")}
           </p>
           <div className="flex gap-2">
             <Button
               variant="ghost"
-              className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
+              className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
               onClick={onClose}
             >
               Cancel
             </Button>
             <Button
-              className="h-10 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-7 text-[13px] text-white shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#ff6a14] hover:to-[#ff4a12]"
+              className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-7 text-[13px] text-foreground shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#e95300] hover:to-[#e95300]"
               disabled={status === "loading"}
               onClick={onSave}
             >
@@ -12055,10 +12065,10 @@ function ExperienceEditorDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-3 py-4 backdrop-blur-sm">
-      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[760px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
+      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[760px] flex-col overflow-hidden border-border bg-[#ffffff]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
         <div className="flex shrink-0 items-start justify-between gap-4">
           <div>
-            <h2 className="text-[22px] font-bold leading-tight text-white 2xl:text-[24px]">
+            <h2 className="text-[22px] font-bold leading-tight text-foreground 2xl:text-[24px]">
               {isEditMode ? "Edit Experience" : "Add Experience"}
             </h2>
             <p className="mt-1 text-sm font-medium text-muted">
@@ -12069,7 +12079,7 @@ function ExperienceEditorDialog({
             type="button"
             aria-label="Close experience editor"
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
@@ -12078,31 +12088,31 @@ function ExperienceEditorDialog({
         <div className="job-scroll mt-5 min-h-0 flex-1 overflow-y-auto rounded-md border border-border p-4">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Role title</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Role title</span>
               <input
                 value={experience.title}
                 onChange={(event) => onChange("title", event.target.value)}
                 placeholder="e.g. Junior Python Developer"
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Company / project</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Company / project</span>
               <input
                 value={experience.company}
                 onChange={(event) => onChange("company", event.target.value)}
                 placeholder="Company name or project name"
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Employment type</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Employment type</span>
               <select
                 value={experience.employment_type}
                 onChange={(event) => onChange("employment_type", event.target.value)}
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
               >
                 <option>Full-time</option>
                 <option>Part-time</option>
@@ -12114,37 +12124,37 @@ function ExperienceEditorDialog({
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Location</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Location</span>
               <input
                 value={experience.location}
                 onChange={(event) => onChange("location", event.target.value)}
                 placeholder="Remote, Zurich, Switzerland..."
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Start date</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Start date</span>
               <input
                 type="month"
                 value={experience.start_date}
                 onChange={(event) => onChange("start_date", event.target.value)}
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">End date</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">End date</span>
               <input
                 type="month"
                 value={experience.end_date}
                 disabled={experience.is_current}
                 onChange={(event) => onChange("end_date", event.target.value)}
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none disabled:opacity-45 focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none disabled:opacity-45 focus:border-accent/70"
               />
             </label>
 
-            <label className="flex items-start gap-3 rounded-md border border-border bg-white/[0.025] p-3 md:col-span-2">
+            <label className="flex items-start gap-3 rounded-md border border-border bg-[#fff8f1] p-3 md:col-span-2">
               <input
                 type="checkbox"
                 checked={experience.is_current}
@@ -12157,38 +12167,38 @@ function ExperienceEditorDialog({
                 className="mt-1 h-4 w-4 accent-accent"
               />
               <span>
-                <span className="block text-sm font-bold text-white">I currently work here</span>
+                <span className="block text-sm font-bold text-foreground">I currently work here</span>
                 <span className="mt-1 block text-xs text-muted">End date will be shown as Present.</span>
               </span>
             </label>
 
             <label className="grid gap-2 md:col-span-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Description</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Description</span>
               <textarea
                 value={experience.description}
                 onChange={(event) => onChange("description", event.target.value)}
                 placeholder="What did you build, support, automate, or improve?"
                 rows={5}
-                className="min-h-[128px] resize-none rounded-md border border-border bg-[#0d131a] px-3 py-2.5 text-sm font-semibold leading-5 text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                className="min-h-[128px] resize-none rounded-md border border-border bg-[#ffffff] px-3 py-2.5 text-sm font-semibold leading-5 text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               />
             </label>
           </div>
         </div>
 
         <div className="mt-4 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className={cn("text-sm font-semibold", status === "error" ? "text-[#ff7a7a]" : "text-muted")}>
+          <p className={cn("text-sm font-semibold", status === "error" ? "text-[#fa5d00]" : "text-muted")}>
             {message || "Role title and company are required"}
           </p>
           <div className="flex gap-2">
             <Button
               variant="ghost"
-              className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
+              className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
               onClick={onClose}
             >
               Cancel
             </Button>
             <Button
-              className="h-10 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-7 text-[13px] text-white shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#ff6a14] hover:to-[#ff4a12]"
+              className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-7 text-[13px] text-foreground shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#e95300] hover:to-[#e95300]"
               disabled={status === "loading"}
               onClick={onSave}
             >
@@ -12224,10 +12234,10 @@ function EducationEditorDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-3 py-4 backdrop-blur-sm">
-      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[760px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
+      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[760px] flex-col overflow-hidden border-border bg-[#ffffff]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
         <div className="flex shrink-0 items-start justify-between gap-4">
           <div>
-            <h2 className="text-[22px] font-bold leading-tight text-white 2xl:text-[24px]">
+            <h2 className="text-[22px] font-bold leading-tight text-foreground 2xl:text-[24px]">
               {isEditMode ? "Edit Education" : "Add Education"}
             </h2>
             <p className="mt-1 text-sm font-medium text-muted">
@@ -12238,7 +12248,7 @@ function EducationEditorDialog({
             type="button"
             aria-label="Close education editor"
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
@@ -12247,67 +12257,67 @@ function EducationEditorDialog({
         <div className="job-scroll mt-5 min-h-0 flex-1 overflow-y-auto rounded-md border border-border p-4">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Institution</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Institution</span>
               <input
                 value={education.institution}
                 onChange={(event) => onChange("institution", event.target.value)}
                 placeholder="University, school, provider..."
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Credential</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Credential</span>
               <input
                 value={education.credential}
                 onChange={(event) => onChange("credential", event.target.value)}
                 placeholder="Bachelor, certificate, course name..."
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Field of study</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Field of study</span>
               <input
                 value={education.field_of_study}
                 onChange={(event) => onChange("field_of_study", event.target.value)}
                 placeholder="Computer Science, Data Analytics..."
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Location</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Location</span>
               <input
                 value={education.location}
                 onChange={(event) => onChange("location", event.target.value)}
                 placeholder="Remote, Zurich, Switzerland..."
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Start date</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Start date</span>
               <input
                 type="month"
                 value={education.start_date}
                 onChange={(event) => onChange("start_date", event.target.value)}
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">End date</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">End date</span>
               <input
                 type="month"
                 value={education.end_date}
                 disabled={education.is_current}
                 onChange={(event) => onChange("end_date", event.target.value)}
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none disabled:opacity-45 focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none disabled:opacity-45 focus:border-accent/70"
               />
             </label>
 
-            <label className="flex items-start gap-3 rounded-md border border-border bg-white/[0.025] p-3 md:col-span-2">
+            <label className="flex items-start gap-3 rounded-md border border-border bg-[#fff8f1] p-3 md:col-span-2">
               <input
                 type="checkbox"
                 checked={education.is_current}
@@ -12320,38 +12330,38 @@ function EducationEditorDialog({
                 className="mt-1 h-4 w-4 accent-accent"
               />
               <span>
-                <span className="block text-sm font-bold text-white">I currently study here</span>
+                <span className="block text-sm font-bold text-foreground">I currently study here</span>
                 <span className="mt-1 block text-xs text-muted">End date will be shown as Present.</span>
               </span>
             </label>
 
             <label className="grid gap-2 md:col-span-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Details</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Details</span>
               <textarea
                 value={education.description}
                 onChange={(event) => onChange("description", event.target.value)}
                 placeholder="Relevant coursework, honors, thesis, certification ID, or training details..."
                 rows={5}
-                className="min-h-[128px] resize-none rounded-md border border-border bg-[#0d131a] px-3 py-2.5 text-sm font-semibold leading-5 text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                className="min-h-[128px] resize-none rounded-md border border-border bg-[#ffffff] px-3 py-2.5 text-sm font-semibold leading-5 text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               />
             </label>
           </div>
         </div>
 
         <div className="mt-4 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className={cn("text-sm font-semibold", status === "error" ? "text-[#ff7a7a]" : "text-muted")}>
+          <p className={cn("text-sm font-semibold", status === "error" ? "text-[#fa5d00]" : "text-muted")}>
             {message || "Institution and credential are required"}
           </p>
           <div className="flex gap-2">
             <Button
               variant="ghost"
-              className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
+              className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
               onClick={onClose}
             >
               Cancel
             </Button>
             <Button
-              className="h-10 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-7 text-[13px] text-white shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#ff6a14] hover:to-[#ff4a12]"
+              className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-7 text-[13px] text-foreground shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#e95300] hover:to-[#e95300]"
               disabled={status === "loading"}
               onClick={onSave}
             >
@@ -12390,10 +12400,10 @@ function DocumentEditorDialog({
   const isGeneratedDocumentSource = document.category === "CV / Resume";
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-3 py-4 backdrop-blur-sm">
-      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[720px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
+      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[720px] flex-col overflow-hidden border-border bg-[#ffffff]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
         <div className="flex shrink-0 items-start justify-between gap-4">
           <div>
-            <h2 className="text-[22px] font-bold leading-tight text-white 2xl:text-[24px]">
+            <h2 className="text-[22px] font-bold leading-tight text-foreground 2xl:text-[24px]">
               {isEditMode ? "Edit Document" : "Add Document"}
             </h2>
             <p className="mt-1 text-sm font-medium text-muted">Label a reusable personal file and attach it to your profile library.</p>
@@ -12402,7 +12412,7 @@ function DocumentEditorDialog({
             type="button"
             aria-label="Close document editor"
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
@@ -12411,21 +12421,21 @@ function DocumentEditorDialog({
         <div className="job-scroll mt-5 min-h-0 flex-1 overflow-y-auto rounded-md border border-border p-4">
           <div className="grid gap-4 md:grid-cols-2">
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Document title</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Document title</span>
               <input
                 value={document.title}
                 onChange={(event) => onChange("title", event.target.value)}
                 placeholder="Main CV, Swiss work permit, diploma..."
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               />
             </label>
 
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Type</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Type</span>
               <select
                 value={document.category}
                 onChange={(event) => onChange("category", event.target.value)}
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
               >
                 {documentCategories.map((category) => (
                   <option key={category}>{category}</option>
@@ -12435,11 +12445,11 @@ function DocumentEditorDialog({
 
             {isGeneratedDocumentSource ? (
               <label className="grid gap-2 md:col-span-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Document language</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Document language</span>
                 <select
                   value={document.language}
                   onChange={(event) => onChange("language", event.target.value)}
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                 >
                   <option value="">Select language</option>
                   <option value="English">English</option>
@@ -12450,24 +12460,24 @@ function DocumentEditorDialog({
             ) : null}
 
             <label className="grid gap-2 md:col-span-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Issued by / source</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Issued by / source</span>
               <input
                 value={document.issuer}
                 onChange={(event) => onChange("issuer", event.target.value)}
                 placeholder="University, certification provider, employer, immigration office..."
-                className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               />
             </label>
 
-            <div className="rounded-md border border-border bg-white/[0.025] p-3 md:col-span-2">
+            <div className="rounded-md border border-border bg-[#fff8f1] p-3 md:col-span-2">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-white">Attached file</p>
+                  <p className="text-sm font-bold text-foreground">Attached file</p>
                   <p className="mt-1 truncate text-xs text-muted">
                     {document.file_name ? `${document.file_name}${document.file_size ? ` • ${document.file_size}` : ""}` : isGeneratedDocumentSource ? "DOCX under 5MB — its design will be preserved" : "PDF, DOC, DOCX, PNG, JPG, or WebP under 5MB"}
                   </p>
                 </div>
-                <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-white/[0.035] px-3 text-xs font-semibold text-[#e6ebf3] transition hover:bg-white/[0.07]">
+                <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-[#fff8f1] px-3 text-xs font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8]">
                   <Upload className="h-4 w-4" />
                   {document.file_name ? "Replace file" : "Attach file"}
                   <input
@@ -12487,32 +12497,32 @@ function DocumentEditorDialog({
             </div>
 
             <label className="grid gap-2 md:col-span-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Notes</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Notes</span>
               <textarea
                 value={document.notes}
                 onChange={(event) => onChange("notes", event.target.value)}
                 placeholder="When to use it, expiration date, original language, or anything important..."
                 rows={4}
-                className="min-h-[112px] resize-none rounded-md border border-border bg-[#0d131a] px-3 py-2.5 text-sm font-semibold leading-5 text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                className="min-h-[112px] resize-none rounded-md border border-border bg-[#ffffff] px-3 py-2.5 text-sm font-semibold leading-5 text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               />
             </label>
           </div>
         </div>
 
         <div className="mt-4 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className={cn("text-sm font-semibold", status === "error" ? "text-[#ff7a7a]" : "text-muted")}>
+          <p className={cn("text-sm font-semibold", status === "error" ? "text-[#fa5d00]" : "text-muted")}>
             {message || "Title and file are required"}
           </p>
           <div className="flex gap-2">
             <Button
               variant="ghost"
-              className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
+              className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
               onClick={onClose}
             >
               Cancel
             </Button>
             <Button
-              className="h-10 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-7 text-[13px] text-white shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#ff6a14] hover:to-[#ff4a12]"
+              className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-7 text-[13px] text-foreground shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#e95300] hover:to-[#e95300]"
               disabled={status === "loading"}
               onClick={onSave}
             >
@@ -12561,17 +12571,17 @@ function PreferencesEditorDialog({
 }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-3 py-4 backdrop-blur-sm">
-      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[880px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
+      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[880px] flex-col overflow-hidden border-border bg-[#ffffff]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
         <div className="flex shrink-0 items-start justify-between gap-4">
           <div>
-            <h2 className="text-[22px] font-bold leading-tight text-white 2xl:text-[24px]">Edit Job Preferences</h2>
+            <h2 className="text-[22px] font-bold leading-tight text-foreground 2xl:text-[24px]">Edit Job Preferences</h2>
             <p className="mt-1 text-sm font-medium text-muted">Define the roles and conditions that should guide search, matching, and recommendations.</p>
           </div>
           <button
             type="button"
             aria-label="Close preferences editor"
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
@@ -12639,13 +12649,13 @@ function PreferencesEditorDialog({
               onSetAny={onSetAny}
             />
 
-            <div className="grid gap-4 rounded-md border border-border bg-white/[0.025] p-3 sm:grid-cols-[130px_minmax(0,1fr)]">
+            <div className="grid gap-4 rounded-md border border-border bg-[#fff8f1] p-3 sm:grid-cols-[130px_minmax(0,1fr)]">
               <label className="grid gap-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Currency</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Currency</span>
                 <select
                   value={preferences.salary_currency}
                   onChange={(event) => onChange("salary_currency", event.target.value)}
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                 >
                   {["CHF", "EUR", "USD", "GBP"].map((currency) => (
                     <option key={currency}>{currency}</option>
@@ -12653,14 +12663,14 @@ function PreferencesEditorDialog({
                 </select>
               </label>
               <label className="grid gap-2">
-                <span className="text-xs font-bold text-[#d8dee8]">Minimum salary</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Minimum salary</span>
                 <input
                   inputMode="numeric"
                   value={preferences.salary_min}
                   disabled={preferences.no_preference.includes("salary")}
                   onChange={(event) => onChange("salary_min", event.target.value.replace(/[^\d\s.,']/g, ""))}
                   placeholder="90000"
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 disabled:opacity-45 focus:border-accent/70"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 disabled:opacity-45 focus:border-accent/70"
                 />
               </label>
               <button
@@ -12668,8 +12678,8 @@ function PreferencesEditorDialog({
                 className={cn(
                   "inline-flex min-h-9 items-center justify-center rounded-md border px-3 text-xs font-bold transition sm:col-span-2",
                   preferences.no_preference.includes("salary")
-                    ? "border-accent/65 bg-accent/14 text-white"
-                    : "border-border bg-white/[0.025] text-[#d8dee8] hover:border-accent/45 hover:bg-accent/10",
+                    ? "border-accent/65 bg-accent/14 text-foreground"
+                    : "border-border bg-[#fff8f1] text-[#1d1e1c] hover:border-accent/45 hover:bg-accent/10",
                 )}
                 onClick={() => onSetAny("salary")}
               >
@@ -12677,14 +12687,14 @@ function PreferencesEditorDialog({
               </button>
             </div>
 
-            <div className="grid gap-3 rounded-md border border-border bg-white/[0.025] p-3">
-              <span className="text-xs font-bold text-[#d8dee8]">Work authorization</span>
+            <div className="grid gap-3 rounded-md border border-border bg-[#fff8f1] p-3">
+              <span className="text-xs font-bold text-[#1d1e1c]">Work authorization</span>
               <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_180px]">
                 <select
                   value={preferences.work_authorization}
                   disabled={preferences.no_preference.includes("work_authorization")}
                   onChange={(event) => onChange("work_authorization", event.target.value)}
-                  className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none disabled:opacity-45 focus:border-accent/70"
+                  className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none disabled:opacity-45 focus:border-accent/70"
                 >
                   <option value="">Not specified</option>
                   {preferenceOptions.work_authorization.map((item) => (
@@ -12696,8 +12706,8 @@ function PreferencesEditorDialog({
                   className={cn(
                     "inline-flex min-h-10 items-center justify-center rounded-md border px-3 text-xs font-bold transition",
                     preferences.no_preference.includes("work_authorization")
-                      ? "border-accent/65 bg-accent/14 text-white"
-                      : "border-border bg-white/[0.025] text-[#d8dee8] hover:border-accent/45 hover:bg-accent/10",
+                      ? "border-accent/65 bg-accent/14 text-foreground"
+                      : "border-border bg-[#fff8f1] text-[#1d1e1c] hover:border-accent/45 hover:bg-accent/10",
                   )}
                   onClick={() => onSetAny("work_authorization")}
                 >
@@ -12706,11 +12716,11 @@ function PreferencesEditorDialog({
               </div>
               {preferences.work_authorization === "Swiss permit" && !preferences.no_preference.includes("work_authorization") ? (
                 <label className="grid gap-2">
-                  <span className="text-xs font-bold text-[#d8dee8]">Swiss permit status</span>
+                  <span className="text-xs font-bold text-[#1d1e1c]">Swiss permit status</span>
                   <select
                     value={preferences.swiss_permit_status}
                     onChange={(event) => onChange("swiss_permit_status", event.target.value)}
-                    className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none focus:border-accent/70"
+                    className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                   >
                     <option value="">Select permit status</option>
                     {preferenceOptions.swiss_permit_status.map((item) => (
@@ -12722,32 +12732,32 @@ function PreferencesEditorDialog({
             </div>
 
             <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#d8dee8]">Notes</span>
+              <span className="text-xs font-bold text-[#1d1e1c]">Notes</span>
               <textarea
                 value={preferences.notes}
                 onChange={(event) => onChange("notes", event.target.value)}
                 placeholder="Availability, preferred tech stack, relocation timing, or other matching context..."
                 rows={4}
-                className="min-h-[112px] resize-none rounded-md border border-border bg-[#0d131a] px-3 py-2.5 text-sm font-semibold leading-5 text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                className="min-h-[112px] resize-none rounded-md border border-border bg-[#ffffff] px-3 py-2.5 text-sm font-semibold leading-5 text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
               />
             </label>
           </div>
         </div>
 
         <div className="mt-4 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className={cn("text-sm font-semibold", status === "error" ? "text-[#ff7a7a]" : "text-muted")}>
+          <p className={cn("text-sm font-semibold", status === "error" ? "text-[#fa5d00]" : "text-muted")}>
             {message || "Empty preferences stay hidden"}
           </p>
           <div className="flex gap-2">
             <Button
               variant="ghost"
-              className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
+              className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
               onClick={onClose}
             >
               Cancel
             </Button>
             <Button
-              className="h-10 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-7 text-[13px] text-white shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#ff6a14] hover:to-[#ff4a12]"
+              className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-7 text-[13px] text-foreground shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#e95300] hover:to-[#e95300]"
               disabled={status === "loading"}
               onClick={onSave}
             >
@@ -12784,16 +12794,16 @@ function PreferenceListEditor({
   const suggestionListId = `${field}-suggestions`;
 
   return (
-    <div className="rounded-md border border-border bg-white/[0.025] p-3">
+    <div className="rounded-md border border-border bg-[#fff8f1] p-3">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-bold text-[#d8dee8]">{config.label}</p>
+        <p className="text-xs font-bold text-[#1d1e1c]">{config.label}</p>
         <button
           type="button"
           className={cn(
             "inline-flex min-h-7 items-center rounded-md border px-2.5 text-[11px] font-bold transition",
             isAny
-              ? "border-accent/65 bg-accent/14 text-white"
-              : "border-border bg-white/[0.025] text-muted hover:border-accent/45 hover:bg-accent/10 hover:text-[#d8dee8]",
+              ? "border-accent/65 bg-accent/14 text-foreground"
+              : "border-border bg-[#fff8f1] text-muted hover:border-accent/45 hover:bg-accent/10 hover:text-[#1d1e1c]",
           )}
           onClick={() => onSetAny(field)}
         >
@@ -12813,7 +12823,7 @@ function PreferenceListEditor({
             }
           }}
           placeholder={config.placeholder}
-          className="h-9 min-w-0 flex-1 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 disabled:opacity-45 focus:border-accent/70"
+          className="h-9 min-w-0 flex-1 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 disabled:opacity-45 focus:border-accent/70"
         />
         <datalist id={suggestionListId}>
           {preferenceSuggestions[field].map((suggestion) => (
@@ -12822,7 +12832,7 @@ function PreferenceListEditor({
         </datalist>
         <button
           type="button"
-          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border text-[#e6ebf3] transition hover:bg-white/[0.06] disabled:cursor-not-allowed disabled:opacity-45"
+          className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-border text-[#1d1e1c] transition hover:bg-[#fff3e8] disabled:cursor-not-allowed disabled:opacity-45"
           onClick={() => onAdd(field)}
           disabled={isAny}
           aria-label={`Add ${config.label.toLowerCase()}`}
@@ -12831,7 +12841,7 @@ function PreferenceListEditor({
         </button>
       </div>
       {isAny && (
-        <p className="mt-3 rounded-md border border-accent/25 bg-accent/10 px-3 py-2 text-xs font-semibold text-[#ffd1b0]">
+        <p className="mt-3 rounded-md border border-accent/25 bg-accent/10 px-3 py-2 text-xs font-semibold text-accent">
           Any {config.label.toLowerCase()} is acceptable.
         </p>
       )}
@@ -12841,7 +12851,7 @@ function PreferenceListEditor({
             <button
               key={value}
               type="button"
-              className="inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border bg-white/[0.04] px-2.5 text-xs font-semibold text-[#d8dee8] transition hover:border-[#ff6b6b]/50 hover:text-white"
+              className="inline-flex min-h-7 items-center gap-1.5 rounded-md border border-border bg-[#fff8f1] px-2.5 text-xs font-semibold text-[#1d1e1c] transition hover:border-[#fa5d00]/50 hover:text-foreground"
               onClick={() => onRemove(field, value)}
             >
               {value}
@@ -12877,16 +12887,16 @@ function PreferenceToggleGroup({
   className?: string;
 }) {
   return (
-    <div className={cn("rounded-md border border-border bg-white/[0.025] p-3", className)}>
+    <div className={cn("rounded-md border border-border bg-[#fff8f1] p-3", className)}>
       <div className="flex items-center justify-between gap-3">
-        <p className="text-xs font-bold text-[#d8dee8]">{title}</p>
+        <p className="text-xs font-bold text-[#1d1e1c]">{title}</p>
         <button
           type="button"
           className={cn(
             "inline-flex min-h-7 items-center rounded-md border px-2.5 text-[11px] font-bold transition",
             isAny
-              ? "border-accent/65 bg-accent/14 text-white"
-              : "border-border bg-white/[0.025] text-muted hover:border-accent/45 hover:bg-accent/10 hover:text-[#d8dee8]",
+              ? "border-accent/65 bg-accent/14 text-foreground"
+              : "border-border bg-[#fff8f1] text-muted hover:border-accent/45 hover:bg-accent/10 hover:text-[#1d1e1c]",
           )}
           onClick={() => onSetAny(field)}
         >
@@ -12903,8 +12913,8 @@ function PreferenceToggleGroup({
               className={cn(
                 "inline-flex min-h-8 items-center rounded-md border px-2.5 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-45",
                 isSelected
-                  ? "border-accent/65 bg-accent/14 text-white"
-                  : "border-border bg-white/[0.025] text-[#d8dee8] hover:border-accent/45 hover:bg-accent/10",
+                  ? "border-accent/65 bg-accent/14 text-foreground"
+                  : "border-border bg-[#fff8f1] text-[#1d1e1c] hover:border-accent/45 hover:bg-accent/10",
               )}
               disabled={isAny}
               onClick={() => onToggle(field, option)}
@@ -12915,7 +12925,7 @@ function PreferenceToggleGroup({
         })}
       </div>
       {isAny && (
-        <p className="mt-3 rounded-md border border-accent/25 bg-accent/10 px-3 py-2 text-xs font-semibold text-[#ffd1b0]">
+        <p className="mt-3 rounded-md border border-accent/25 bg-accent/10 px-3 py-2 text-xs font-semibold text-accent">
           Any {title.toLowerCase()} is acceptable.
         </p>
       )}
@@ -12978,24 +12988,24 @@ function ProfileEditorDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-3 py-4 backdrop-blur-sm">
-      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[820px] flex-col overflow-hidden border-white/[0.11] bg-[#111820]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
+      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[820px] flex-col overflow-hidden border-border bg-[#ffffff]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] sm:p-5">
         <div className="flex shrink-0 items-start justify-between gap-4">
           <div>
-            <h2 className="text-[22px] font-bold leading-tight text-white 2xl:text-[24px]">Edit Profile</h2>
+            <h2 className="text-[22px] font-bold leading-tight text-foreground 2xl:text-[24px]">Edit Profile</h2>
             <p className="mt-1 text-sm font-medium text-muted">Add the details you want job matching and applications to use.</p>
           </div>
           <button
             type="button"
             aria-label="Close profile editor"
             onClick={onClose}
-            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-white/[0.08] hover:text-white"
+            className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
         </div>
 
         <div className="job-scroll mt-5 min-h-0 flex-1 overflow-y-auto rounded-md border border-border p-4">
-          <div className="mb-5 flex flex-col gap-4 rounded-md border border-border bg-white/[0.025] p-4 sm:flex-row sm:items-center">
+          <div className="mb-5 flex flex-col gap-4 rounded-md border border-border bg-[#fff8f1] p-4 sm:flex-row sm:items-center">
             <img
               src={profile.avatar_url || defaultCandidateProfile.avatar_url}
               alt=""
@@ -13003,10 +13013,10 @@ function ProfileEditorDialog({
               aria-hidden="true"
             />
             <div className="min-w-0 flex-1">
-              <p className="text-sm font-bold text-white">Avatar</p>
+              <p className="text-sm font-bold text-foreground">Avatar</p>
               <p className="mt-1 text-xs leading-5 text-muted">Default is the pug image. Upload PNG, JPG, WebP, GIF, or SVG under 1MB.</p>
               <div className="mt-3 flex flex-wrap gap-2">
-                <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-white/[0.035] px-3 text-xs font-semibold text-[#e6ebf3] transition hover:bg-white/[0.07]">
+                <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-[#fff8f1] px-3 text-xs font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8]">
                   <Upload className="h-4 w-4" />
                   Change Avatar
                   <input
@@ -13018,7 +13028,7 @@ function ProfileEditorDialog({
                 </label>
                 <button
                   type="button"
-                  className="inline-flex h-9 items-center justify-center rounded-md border border-border bg-transparent px-3 text-xs font-semibold text-[#e6ebf3] transition hover:bg-white/[0.06]"
+                  className="inline-flex h-9 items-center justify-center rounded-md border border-border bg-transparent px-3 text-xs font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8]"
                   onClick={() => onChange("avatar_url", defaultCandidateProfile.avatar_url)}
                 >
                   Use Default
@@ -13033,21 +13043,21 @@ function ProfileEditorDialog({
                 key={item.field}
                 className={cn("grid gap-2", item.type === "textarea" && "md:col-span-2")}
               >
-                <span className="text-xs font-bold text-[#d8dee8]">{item.label}</span>
+                <span className="text-xs font-bold text-[#1d1e1c]">{item.label}</span>
                 {item.type === "textarea" ? (
                   <textarea
                     value={profile[item.field]}
                     onChange={(event) => onChange(item.field, event.target.value)}
                     placeholder={item.placeholder}
                     rows={4}
-                    className="min-h-[112px] resize-none rounded-md border border-border bg-[#0d131a] px-3 py-2.5 text-sm font-semibold leading-5 text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                    className="min-h-[112px] resize-none rounded-md border border-border bg-[#ffffff] px-3 py-2.5 text-sm font-semibold leading-5 text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
                   />
                 ) : (
                   <input
                     value={profile[item.field]}
                     onChange={(event) => onChange(item.field, event.target.value)}
                     placeholder={item.placeholder}
-                    className="h-10 rounded-md border border-border bg-[#0d131a] px-3 text-sm font-semibold text-white outline-none placeholder:text-muted/70 focus:border-accent/70"
+                    className="h-10 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
                   />
                 )}
               </label>
@@ -13056,19 +13066,19 @@ function ProfileEditorDialog({
         </div>
 
         <div className="mt-4 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p className={cn("text-sm font-semibold", status === "error" ? "text-[#ff7a7a]" : "text-muted")}>
+          <p className={cn("text-sm font-semibold", status === "error" ? "text-[#fa5d00]" : "text-muted")}>
             {message || "Empty fields stay hidden on the profile page"}
           </p>
           <div className="flex gap-2">
             <Button
               variant="ghost"
-              className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#e6ebf3] hover:bg-white/[0.06]"
+              className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"
               onClick={onClose}
             >
               Cancel
             </Button>
             <Button
-              className="h-10 rounded-md bg-gradient-to-r from-[#ff5a00] to-[#ff3d00] px-7 text-[13px] text-white shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#ff6a14] hover:to-[#ff4a12]"
+              className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-7 text-[13px] text-foreground shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#e95300] hover:to-[#e95300]"
               disabled={status === "loading"}
               onClick={onSave}
             >
@@ -13098,23 +13108,23 @@ function AppSidebar({
     : navItems;
 
   return (
-    <aside className="app-sidebar hidden h-screen w-[190px] shrink-0 overflow-y-auto border-r border-border bg-white/[0.025] px-2.5 py-4 lg:flex lg:flex-col 2xl:w-[220px] 2xl:px-3 2xl:py-5">
-      <div className="app-sidebar-brand mb-5 flex items-center gap-2 px-2 2xl:mb-7 2xl:gap-2.5">
+    <header className="app-sidebar z-40 flex shrink-0 flex-wrap items-center gap-2 bg-background/90 px-3 py-2.5 backdrop-blur-xl sm:gap-3 sm:px-4 xl:flex-nowrap xl:px-5 2xl:gap-5 2xl:px-7 2xl:py-3.5">
+      <div className="app-sidebar-brand flex shrink-0 items-center gap-2 pr-1 2xl:gap-2.5 2xl:pr-3">
         <img
           src="/brand/rufina-mark.png"
           alt=""
-          className="app-sidebar-mark h-[42px] w-[42px] object-contain 2xl:h-12 2xl:w-12"
+          className="app-sidebar-mark h-10 w-10 object-contain 2xl:h-11 2xl:w-11"
           aria-hidden="true"
         />
         <div className="min-w-0">
-          <p className="text-[19px] font-extrabold leading-none tracking-[-0.025em] text-[#f5f2f0] 2xl:text-[22px]">Rufina</p>
-          <p className="mt-1.5 whitespace-nowrap text-[10px] font-medium leading-none tracking-[0.015em] text-[#aeb5c2] 2xl:text-[11px]">
-            Career Assistant
+          <p className="text-[19px] font-bold leading-none tracking-[-0.025em] text-foreground 2xl:text-[21px]">Rufina</p>
+          <p className="mt-1 whitespace-nowrap text-[9px] font-semibold uppercase leading-none tracking-[0.14em] text-accent 2xl:text-[10px]">
+            Career workbench
           </p>
         </div>
       </div>
 
-      <nav className="app-sidebar-nav space-y-1.5 2xl:space-y-2">
+      <nav className="app-sidebar-nav order-last flex w-full items-center gap-1 overflow-x-auto pb-0.5 xl:order-none xl:w-auto xl:min-w-0 xl:flex-1 2xl:gap-1.5">
         {visibleNavItems.map((item) => (
           <a
             href={item.href}
@@ -13125,27 +13135,27 @@ function AppSidebar({
               }
             }}
             className={cn(
-              "app-sidebar-nav-item group flex h-10 w-full items-center gap-2.5 rounded-md px-3 text-left text-[14px] text-[#d9dee7] transition 2xl:h-11 2xl:gap-3 2xl:px-4 2xl:text-[15px]",
+              "app-sidebar-nav-item group flex h-9 shrink-0 items-center gap-2 rounded-md border px-3 text-left text-[12px] font-semibold transition 2xl:h-10 2xl:px-3.5 2xl:text-[13px]",
               item.view === activeView || (activeView === "ApplicationWorkspace" && item.view === "Applications")
-                ? "border border-white/[0.12] bg-white/10 text-white shadow-[inset_4px_0_0_#ff5a00]"
+                ? "border-accent/45 bg-white text-accent shadow-[0_6px_18px_rgba(250,166,0,0.18)]"
                 : item.view
-                  ? "hover:bg-white/[0.055] hover:text-white"
-                  : "cursor-default opacity-70",
+                  ? "border-transparent text-[#4a4a47] hover:border-[#e3d6c5] hover:bg-white hover:text-foreground"
+                  : "cursor-default border-transparent text-muted opacity-65",
             )}
           >
-            <item.icon className="h-[18px] w-[18px] 2xl:h-5 2xl:w-5" />
+            <item.icon className="h-4 w-4 2xl:h-[18px] 2xl:w-[18px]" />
             <span>{item.label}</span>
           </a>
         ))}
       </nav>
 
-      <div className="app-sidebar-footer mt-auto border-t border-border pt-3 2xl:pt-4">
+      <div className="app-sidebar-footer ml-auto flex shrink-0 items-center gap-1.5">
         <a
           href="#profile"
           onClick={() => onChangeView("Profile")}
           className={cn(
-            "app-sidebar-profile mb-2 flex items-center gap-1.5 rounded-md px-1.5 py-1.5 text-left transition hover:bg-white/[0.055] 2xl:mb-3 2xl:gap-2",
-            activeView === "Profile" && "border border-white/[0.12] bg-white/10 shadow-[inset_4px_0_0_#ff5a00]",
+            "app-sidebar-profile flex h-10 items-center gap-2 rounded-md border border-transparent bg-white px-1.5 pr-2.5 text-left shadow-[0_4px_16px_rgba(227,214,197,0.55)] transition hover:border-[#e3d6c5]",
+            activeView === "Profile" && "border-accent/45",
           )}
         >
           <img
@@ -13154,40 +13164,39 @@ function AppSidebar({
             className="h-8 w-8 shrink-0 rounded-full object-cover 2xl:h-8 2xl:w-8"
             aria-hidden="true"
           />
-          <div className="min-w-0 flex-1">
-            <p className="truncate text-xs font-semibold leading-tight text-white 2xl:text-[13px]">
+          <div className="hidden min-w-0 flex-1 2xl:block">
+            <p className="max-w-[110px] truncate text-xs font-semibold leading-tight text-foreground">
               {displayProfileFirstName(profile.name, "Set up profile")}
             </p>
-            <p className="truncate text-[10px] leading-tight text-muted 2xl:text-[11px]">
+            <p className="max-w-[110px] truncate text-[10px] leading-tight text-muted">
               {displayProfileValue(profile.current_role, "Add your role")}
             </p>
           </div>
-          <ChevronRight className="h-3.5 w-3.5 shrink-0 text-muted 2xl:h-4 2xl:w-4" />
         </a>
         <a
           href="#settings"
+          aria-label="Settings"
+          title="Settings"
           onClick={() => onChangeView("Settings")}
           className={cn(
-            "app-sidebar-settings flex h-10 items-center gap-2.5 rounded-md px-3 text-sm text-muted transition hover:bg-white/[0.055] hover:text-white 2xl:h-11 2xl:gap-3 2xl:text-base",
-            activeView === "Settings" && "border border-white/[0.12] bg-white/10 text-white shadow-[inset_4px_0_0_#ff5a00]",
+            "app-sidebar-settings grid h-10 w-10 place-items-center rounded-md border border-transparent text-muted transition hover:border-[#e3d6c5] hover:bg-white hover:text-foreground",
+            activeView === "Settings" && "border-accent/45 bg-white text-accent",
           )}
         >
-          <Settings className="h-[18px] w-[18px] 2xl:h-5 2xl:w-5" />
-          <span>Settings</span>
-          <ChevronRight className="ml-auto h-[18px] w-[18px] 2xl:h-5 2xl:w-5" />
+          <Settings className="h-[18px] w-[18px]" />
         </a>
         <a
           href="https://github.com/vivalabit/rufina"
           target="_blank"
           rel="noreferrer"
-          className="app-sidebar-source flex h-9 items-center gap-2.5 rounded-md px-3 text-xs text-muted transition hover:bg-white/[0.055] hover:text-white 2xl:h-10 2xl:gap-3 2xl:text-sm"
+          aria-label="Source code"
+          title="Source code"
+          className="app-sidebar-source hidden h-10 w-10 place-items-center rounded-md border border-transparent text-muted transition hover:border-[#e3d6c5] hover:bg-white hover:text-foreground sm:grid"
         >
-          <Github className="h-4 w-4 2xl:h-[18px] 2xl:w-[18px]" />
-          <span>Source Code</span>
-          <ExternalLink className="ml-auto h-3.5 w-3.5 2xl:h-4 2xl:w-4" />
+          <Github className="h-[18px] w-[18px]" />
         </a>
       </div>
-    </aside>
+    </header>
   );
 }
 
@@ -13250,10 +13259,10 @@ function JobMainPanel({
           {breakdownItems.map((item) => (
             <div key={item.key} className="grid grid-cols-[minmax(92px,0.36fr)_minmax(0,1fr)_54px] items-center gap-3">
               <span className="text-[13px] font-semibold text-muted 2xl:text-sm">{item.label}</span>
-              <div className="h-2 flex-1 rounded-full bg-white/[0.08]">
+              <div className="h-2 flex-1 rounded-full bg-[#fff8f1]">
                 <div className="h-full rounded-full bg-success" style={{ width: `${item.progress}%` }} />
               </div>
-              <span className="text-right text-[12px] font-bold text-[#d8dee8] 2xl:text-sm">
+              <span className="text-right text-[12px] font-bold text-[#1d1e1c] 2xl:text-sm">
                 {item.value}/{item.max}
               </span>
             </div>
@@ -13277,7 +13286,7 @@ function JobMainPanel({
             <ul className="mt-2.5 space-y-1.5 text-[13px] leading-5 text-muted 2xl:space-y-2 2xl:text-sm">
               {gaps.map((item) => (
                 <li key={item} className="flex gap-2">
-                  <CircleDot className="mt-0.5 h-4 w-4 shrink-0 text-[#ffb020]" />
+                  <CircleDot className="mt-0.5 h-4 w-4 shrink-0 text-[#fa5d00]" />
                   {item}
                 </li>
               ))}
@@ -13288,7 +13297,7 @@ function JobMainPanel({
         <div className="mt-5 grid gap-4 border-t border-border pt-5 md:grid-cols-2 2xl:mt-6 2xl:pt-6">
           <section>
             <h4 className="text-[13px] font-bold 2xl:text-sm">Raw Openclaw/local explanation</h4>
-            <p className="mt-2.5 rounded-md border border-border bg-white/[0.025] p-3 text-[13px] leading-5 text-muted 2xl:text-sm 2xl:leading-6">
+            <p className="mt-2.5 rounded-md border border-border bg-[#fff8f1] p-3 text-[13px] leading-5 text-muted 2xl:text-sm 2xl:leading-6">
               {rawExplanation}
             </p>
           </section>
@@ -13317,7 +13326,7 @@ function JobMainPanel({
             {recommendationPlan.length ? recommendationPlan.map((recommendation) => (
               <div key={`${recommendation.text}-${recommendation.gain}`} className="grid gap-2 py-3 text-[13px] leading-5 md:grid-cols-[minmax(0,0.8fr)_minmax(0,1fr)_auto] md:items-start 2xl:text-sm">
                 <div>
-                  <p className="font-bold text-[#d8dee8]">{recommendation.text}</p>
+                  <p className="font-bold text-[#1d1e1c]">{recommendation.text}</p>
                   <p className="mt-1 text-muted">{recommendation.action}</p>
                 </div>
                 <p className="text-muted">{recommendation.why}</p>
@@ -13339,7 +13348,7 @@ function JobMainPanel({
         <h3 className="text-base font-bold 2xl:text-lg">Reviews</h3>
         <div className="mt-3 space-y-2.5 2xl:mt-4 2xl:space-y-3">
           {job.reviews.map((review) => (
-            <p key={review} className="rounded-md border border-border bg-white/[0.025] p-3 text-[13px] leading-5 text-muted 2xl:text-sm 2xl:leading-6">
+            <p key={review} className="rounded-md border border-border bg-[#fff8f1] p-3 text-[13px] leading-5 text-muted 2xl:text-sm 2xl:leading-6">
               {review}
             </p>
           ))}
@@ -13354,8 +13363,8 @@ function JobMainPanel({
         <h3 className="text-base font-bold 2xl:text-lg">Similar Jobs</h3>
         <div className="mt-3 space-y-2.5 2xl:mt-4 2xl:space-y-3">
           {job.similarJobs.map((similarJob) => (
-            <div key={similarJob} className="flex items-center justify-between rounded-md border border-border bg-white/[0.025] p-3">
-              <p className="text-[13px] font-semibold text-[#d8dee8] 2xl:text-sm">{similarJob}</p>
+            <div key={similarJob} className="flex items-center justify-between rounded-md border border-border bg-[#fff8f1] p-3">
+              <p className="text-[13px] font-semibold text-[#1d1e1c] 2xl:text-sm">{similarJob}</p>
               <ChevronDown className="h-4 w-4 -rotate-90 text-muted" />
             </div>
           ))}
@@ -13428,13 +13437,13 @@ function MatchPanel({
     <article className="panel p-4 2xl:p-5">
       <div className="flex items-start justify-between gap-3">
         <h3 className="text-base font-bold 2xl:text-lg">AI Match Score</h3>
-        <div className="rounded-md border border-border bg-white/[0.035] px-2 py-1 text-[10px] font-bold uppercase text-muted 2xl:text-xs" title={job.aiMatch?.providerError}>
+        <div className="rounded-md border border-border bg-[#fff8f1] px-2 py-1 text-[10px] font-bold uppercase text-muted 2xl:text-xs" title={job.aiMatch?.providerError}>
           {sourceDisplay}
           {job.aiMatch?.confidence ? ` · ${job.aiMatch.confidence}` : ""}
         </div>
       </div>
       <p className="mt-3 text-[34px] font-bold leading-none text-success 2xl:mt-4 2xl:text-[40px]">{formatMatchValue(job)}</p>
-      <div className="mt-2.5 h-2 rounded-full bg-white/[0.09] 2xl:mt-3">
+      <div className="mt-2.5 h-2 rounded-full bg-[#fff8f1] 2xl:mt-3">
         <div className="h-full rounded-full bg-success" style={{ width: `${getDisplayMatch(job)}%` }} />
       </div>
       <div className="mt-4 grid gap-2 sm:grid-cols-3 2xl:mt-5">
@@ -13447,8 +13456,8 @@ function MatchPanel({
               variant="ghost"
               disabled={isSavingFeedback}
               className={cn(
-                "h-9 rounded-md border border-border bg-transparent px-2 text-[11px] font-bold text-[#d8dee8] hover:bg-white/[0.055] disabled:cursor-not-allowed disabled:opacity-55 2xl:h-10 2xl:text-xs",
-                isActive && "border-accent/65 bg-accent/12 text-white",
+                "h-9 rounded-md border border-border bg-transparent px-2 text-[11px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8] disabled:cursor-not-allowed disabled:opacity-55 2xl:h-10 2xl:text-xs",
+                isActive && "border-accent/65 bg-accent/12 text-foreground",
               )}
               onClick={() => onFeedback(job, option.feedback)}
             >
@@ -13472,7 +13481,7 @@ function MatchPanel({
           <ul className="mt-2.5 space-y-1.5 text-[13px] text-muted 2xl:mt-3 2xl:space-y-2 2xl:text-sm">
             {gaps.map((item) => (
               <li key={item} className="flex items-center gap-2">
-                <CircleDot className="h-4 w-4 text-[#ffb020]" />
+                <CircleDot className="h-4 w-4 text-[#fa5d00]" />
                 {item}
               </li>
             ))}
@@ -13501,7 +13510,7 @@ function RecommendationsPanel({ job, onViewAllRecommendations }: { job: Job; onV
           <div key={recommendation.text} className="flex items-center justify-between gap-4 py-2 text-[13px] 2xl:py-2.5 2xl:text-sm">
             <div>
               <p className="text-muted">{recommendation.text}</p>
-              <p className="mt-1 text-[11px] font-semibold text-[#aeb8c5]">{recommendation.action}</p>
+              <p className="mt-1 text-[11px] font-semibold text-[#4a4a47]">{recommendation.action}</p>
             </div>
             <p className="shrink-0 font-bold text-success">{recommendation.gain}</p>
           </div>
@@ -13525,7 +13534,7 @@ function SalaryInsights({ job }: { job: Job }) {
       <p className="mt-4 text-[26px] font-bold leading-none 2xl:mt-6 2xl:text-[30px]">{job.salaryAverage}</p>
       <p className="mt-1.5 text-[13px] text-muted 2xl:mt-2 2xl:text-sm">Average total compensation</p>
       <div className="mt-6 2xl:mt-8">
-        <div className="relative h-2 rounded-full bg-white/[0.10]">
+        <div className="relative h-2 rounded-full bg-[#fff8f1]">
           <div className="absolute left-0 top-0 h-full w-1/2 rounded-full bg-accent" />
           <span className="absolute left-1/2 top-1/2 h-3.5 w-3.5 -translate-x-1/2 -translate-y-1/2 rounded-full bg-accent" />
         </div>
@@ -13555,7 +13564,7 @@ function JobDetails({ job }: { job: Job }) {
         {details.map(([label, value]) => (
           <div key={label} className="grid grid-cols-[112px_1fr] gap-3 text-[13px] 2xl:grid-cols-[130px_1fr] 2xl:gap-4 2xl:text-sm">
             <dt className="text-muted">{label}</dt>
-            <dd className="font-semibold text-[#d8dee8]">{value}</dd>
+            <dd className="font-semibold text-[#1d1e1c]">{value}</dd>
           </div>
         ))}
       </dl>
@@ -13565,9 +13574,9 @@ function JobDetails({ job }: { job: Job }) {
 
 function InfoStat({ label, value, title }: { label: string; value: string; title?: string }) {
   return (
-    <div className="rounded-md border border-border bg-white/[0.025] p-2.5 2xl:p-3" title={title}>
+    <div className="rounded-md border border-border bg-[#fff8f1] p-2.5 2xl:p-3" title={title}>
       <p className="text-xs font-semibold uppercase text-muted">{label}</p>
-      <p className="mt-1.5 text-[13px] font-bold text-white 2xl:mt-2 2xl:text-sm">{value}</p>
+      <p className="mt-1.5 text-[13px] font-bold text-foreground 2xl:mt-2 2xl:text-sm">{value}</p>
     </div>
   );
 }
@@ -13609,7 +13618,7 @@ function JobMatchRing({ job }: { job: Job }) {
           {hasScore ? (
             <>
               <tspan>{normalizedMatch}</tspan>
-              <tspan fill="#9da6b5" fontSize="8" fontWeight="700">%</tspan>
+              <tspan fill="#615f5c" fontSize="8" fontWeight="700">%</tspan>
             </>
           ) : (
             "AI"
@@ -13621,30 +13630,30 @@ function JobMatchRing({ job }: { job: Job }) {
 }
 
 const jobRoleVisuals = {
-  ai: { label: "AI / Machine Learning", icon: BrainCircuit, className: "border-orange-400/25 bg-orange-400/10 text-orange-300" },
-  analytics: { label: "Analytics", icon: BarChart3, className: "border-emerald-400/25 bg-emerald-400/10 text-emerald-300" },
-  backend: { label: "Backend", icon: Server, className: "border-blue-400/25 bg-blue-400/10 text-blue-300" },
-  data: { label: "Data Engineering", icon: Database, className: "border-cyan-400/25 bg-cyan-400/10 text-cyan-300" },
-  design: { label: "Product Design", icon: Palette, className: "border-pink-400/25 bg-pink-400/10 text-pink-300" },
-  devops: { label: "DevOps / Cloud", icon: Cloud, className: "border-indigo-400/25 bg-indigo-400/10 text-indigo-300" },
-  frontend: { label: "Frontend", icon: Code2, className: "border-violet-400/25 bg-violet-400/10 text-violet-300" },
-  mobile: { label: "Mobile", icon: Smartphone, className: "border-teal-400/25 bg-teal-400/10 text-teal-300" },
-  qa: { label: "Quality Assurance", icon: FlaskConical, className: "border-amber-400/25 bg-amber-400/10 text-amber-300" },
-  security: { label: "Security", icon: ShieldCheck, className: "border-red-400/25 bg-red-400/10 text-red-300" },
+  ai: { label: "AI / Machine Learning", icon: BrainCircuit, className: "border-accent/25 bg-accent/10 text-accent" },
+  analytics: { label: "Analytics", icon: BarChart3, className: "border-accent/25 bg-accent/10 text-accent" },
+  backend: { label: "Backend", icon: Server, className: "border-accent/25 bg-accent/10 text-accent" },
+  data: { label: "Data Engineering", icon: Database, className: "border-accent/25 bg-accent/10 text-accent" },
+  design: { label: "Product Design", icon: Palette, className: "border-accent/25 bg-accent/10 text-accent" },
+  devops: { label: "DevOps / Cloud", icon: Cloud, className: "border-accent/25 bg-accent/10 text-accent" },
+  frontend: { label: "Frontend", icon: Code2, className: "border-accent/25 bg-accent/10 text-accent" },
+  mobile: { label: "Mobile", icon: Smartphone, className: "border-accent/25 bg-accent/10 text-accent" },
+  qa: { label: "Quality Assurance", icon: FlaskConical, className: "border-accent/25 bg-accent/10 text-accent" },
+  security: { label: "Security", icon: ShieldCheck, className: "border-accent/25 bg-accent/10 text-accent" },
   software: { label: "Software Engineering", icon: Code2, className: "border-slate-400/25 bg-slate-400/10 text-slate-300" },
-  general: { label: "General", icon: BriefcaseBusiness, className: "border-white/15 bg-white/[0.06] text-[#cbd2dc]" },
+  general: { label: "General", icon: BriefcaseBusiness, className: "border-border bg-[#fff8f1] text-[#4a4a47]" },
 } as const;
 
 type JobRoleCategory = keyof typeof jobRoleVisuals;
 
 const jobSourceBadges: Record<Job["logo"], { label: string; text: string; className: string }> = {
-  linkedin: { label: "LinkedIn", text: "in", className: "bg-[#0a66c2] text-white" },
+  linkedin: { label: "LinkedIn", text: "in", className: "bg-[#0a66c2] text-foreground" },
   indeed: { label: "Indeed", text: "indeed", className: "bg-white text-[#2557a7] tracking-[-0.08em]" },
-  jobs_ch: { label: "jobs.ch", text: "jobs.ch", className: "bg-white text-[#e30613] tracking-[-0.08em]" },
-  company: { label: "Direct company", text: "DC", className: "bg-[#6d45c8] text-white tracking-[-0.04em]" },
-  manual: { label: "Manually added", text: "+", className: "bg-[#2a323d] text-[#dce2ea]" },
-  figma: { label: "Figma", text: "F", className: "bg-black text-white" },
-  stripe: { label: "Stripe", text: "S", className: "bg-[#635bff] text-white" },
+  jobs_ch: { label: "jobs.ch", text: "jobs.ch", className: "bg-white text-[#fa5d00] tracking-[-0.08em]" },
+  company: { label: "Direct company", text: "DC", className: "bg-[#fa5d00] text-foreground tracking-[-0.04em]" },
+  manual: { label: "Manually added", text: "+", className: "bg-[#fff8f1] text-[#1d1e1c]" },
+  figma: { label: "Figma", text: "F", className: "bg-black text-foreground" },
+  stripe: { label: "Stripe", text: "S", className: "bg-[#635bff] text-foreground" },
 };
 
 function getJobSourceLabel(job: Job) {
@@ -13709,7 +13718,7 @@ function JobRoleIcon({ job, large = false, compact = false }: { job: Job; large?
       <div
         title={`${directCompany.name} · Direct company`}
         className={cn(
-          "grid shrink-0 place-items-center overflow-hidden rounded-lg border border-white/20 bg-white",
+          "grid shrink-0 place-items-center overflow-hidden rounded-lg border border-border bg-white",
           sizeClass,
           logoPaddingClass,
         )}
@@ -13735,7 +13744,7 @@ function JobRoleIcon({ job, large = false, compact = false }: { job: Job; large?
       <Icon className={iconSizeClass} strokeWidth={large ? 1.7 : 1.9} aria-hidden="true" />
       <span
         aria-hidden="true"
-        className={cn("absolute grid place-items-center rounded border border-[#111820] font-black leading-none shadow-sm", source.className, badgeSizeClass)}
+        className={cn("absolute grid place-items-center rounded border border-[#ffffff] font-black leading-none shadow-sm", source.className, badgeSizeClass)}
       >
         {source.text}
       </span>

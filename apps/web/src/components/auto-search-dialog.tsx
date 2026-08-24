@@ -555,7 +555,7 @@ export function AutoSearchDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="auto-search-dialog-title"
-        className="panel flex max-h-[calc(100vh-24px)] w-full max-w-[1040px] flex-col overflow-hidden border-white/[0.11] bg-[#101720]/98 shadow-[0_28px_90px_rgba(0,0,0,0.62)] sm:max-h-[calc(100vh-40px)]"
+        className="panel flex max-h-[calc(100vh-24px)] w-full max-w-[1040px] flex-col overflow-hidden border-border bg-[#ffffff]/98 shadow-[0_28px_90px_rgba(0,0,0,0.62)] sm:max-h-[calc(100vh-40px)]"
       >
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
           <div className="flex min-w-0 items-start gap-3">
@@ -567,19 +567,19 @@ export function AutoSearchDialog({
                   setView("list");
                   setMessage("");
                 }}
-                className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border text-muted transition hover:bg-white/[0.06] hover:text-white"
+                className="mt-0.5 grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
               >
                 <ArrowLeft className="h-4 w-4" />
               </button>
             ) : (
-              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-violet-500/15 text-violet-300">
+              <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-accent/10 text-accent">
                 <CalendarClock className="h-5 w-5" />
               </div>
             )}
             <div className="min-w-0">
               <h2
                 id="auto-search-dialog-title"
-                className="truncate text-xl font-bold text-white sm:text-2xl"
+                className="truncate text-xl font-bold text-foreground sm:text-2xl"
               >
                 {view === "list"
                   ? "Automatic searches"
@@ -604,7 +604,7 @@ export function AutoSearchDialog({
             type="button"
             aria-label="Close automatic searches"
             onClick={onClose}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted transition hover:bg-white/[0.08] hover:text-white"
+            className="grid h-9 w-9 shrink-0 place-items-center rounded-lg text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
           >
             <X className="h-5 w-5" />
           </button>
@@ -655,8 +655,8 @@ export function AutoSearchDialog({
             className={cn(
               "shrink-0 border-t border-border px-4 py-2.5 text-xs font-semibold sm:px-6",
               status === "error"
-                ? "bg-red-500/8 text-red-200"
-                : "bg-white/[0.025] text-[#cbd3df]",
+                ? "bg-accent/10 text-accent"
+                : "bg-[#fff8f1] text-[#4a4a47]",
             )}
           >
             {message}
@@ -718,10 +718,10 @@ function AutoSearchList({
             <LoaderCircle className="h-6 w-6 animate-spin" />
           </div>
         ) : schedules.length === 0 ? (
-          <div className="grid min-h-[300px] place-items-center rounded-xl border border-dashed border-border bg-white/[0.018] p-6 text-center">
+          <div className="grid min-h-[300px] place-items-center rounded-xl border border-dashed border-border bg-[#fff8f1] p-6 text-center">
             <div>
               <CalendarClock className="mx-auto h-9 w-9 text-muted" />
-              <h3 className="mt-3 text-lg font-bold text-white">
+              <h3 className="mt-3 text-lg font-bold text-foreground">
                 No automatic searches yet
               </h3>
               <p className="mt-1 max-w-md text-sm text-muted">
@@ -742,7 +742,7 @@ function AutoSearchList({
               return (
                 <article
                   key={schedule.id}
-                  className="rounded-xl border border-border bg-white/[0.025] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]"
+                  className="rounded-xl border border-border bg-[#fff8f1] p-4 shadow-[inset_0_1px_0_rgba(255,255,255,0.025)]"
                 >
                   <div className="grid gap-4 xl:grid-cols-[minmax(180px,1.2fr)_minmax(130px,.8fr)_minmax(150px,1fr)_minmax(170px,1fr)_minmax(165px,1fr)_auto] xl:items-center">
                     <div className="min-w-0">
@@ -751,11 +751,11 @@ function AutoSearchList({
                           className={cn(
                             "h-2 w-2 shrink-0 rounded-full",
                             schedule.enabled
-                              ? "bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.7)]"
+                              ? "bg-accent shadow-[0_0_10px_rgba(52,211,153,0.7)]"
                               : "bg-slate-500",
                           )}
                         />
-                        <h3 className="truncate text-sm font-bold text-white">
+                        <h3 className="truncate text-sm font-bold text-foreground">
                           {schedule.name}
                         </h3>
                       </div>
@@ -768,7 +768,7 @@ function AutoSearchList({
                         {schedule.sources.map((source) => (
                           <span
                             key={source}
-                            className="rounded-md border border-white/[0.08] bg-white/[0.035] px-2 py-1 text-[10px] font-bold text-[#d9e0ea]"
+                            className="rounded-md border border-border bg-[#fff8f1] px-2 py-1 text-[10px] font-bold text-[#1d1e1c]"
                           >
                             {sourceLabel(source)}
                           </span>
@@ -776,7 +776,7 @@ function AutoSearchList({
                       </div>
                     </ListField>
                     <ListField label="Config">
-                      <span className="line-clamp-2 text-xs font-semibold text-[#d9e0ea]">
+                      <span className="line-clamp-2 text-xs font-semibold text-[#1d1e1c]">
                         {config?.name ?? "Missing config"}
                       </span>
                       {config ? (
@@ -786,7 +786,7 @@ function AutoSearchList({
                       ) : null}
                     </ListField>
                     <ListField label="Schedule">
-                      <span className="text-xs font-semibold text-[#d9e0ea]">
+                      <span className="text-xs font-semibold text-[#1d1e1c]">
                         {scheduleLabel(schedule)}
                       </span>
                       <span className="mt-0.5 block text-[10px] text-muted">
@@ -794,7 +794,7 @@ function AutoSearchList({
                       </span>
                     </ListField>
                     <ListField label="Next run">
-                      <span className="text-xs font-semibold text-[#d9e0ea]">
+                      <span className="text-xs font-semibold text-[#1d1e1c]">
                         {formatNextRun(schedule)}
                       </span>
                     </ListField>
@@ -875,7 +875,7 @@ function ScreeningAudit({
         <div className="grid min-h-[300px] place-items-center rounded-xl border border-dashed border-border text-center">
           <div>
             <ShieldCheck className="mx-auto h-9 w-9 text-muted" />
-            <h3 className="mt-3 text-lg font-bold text-white">
+            <h3 className="mt-3 text-lg font-bold text-foreground">
               No screening decisions yet
             </h3>
             <p className="mt-1 text-sm text-muted">
@@ -890,7 +890,7 @@ function ScreeningAudit({
             return (
               <article
                 key={entry.id}
-                className="rounded-xl border border-border bg-white/[0.025] p-4"
+                className="rounded-xl border border-border bg-[#fff8f1] p-4"
               >
                 <div className="flex flex-wrap items-start justify-between gap-3">
                   <div className="min-w-0">
@@ -899,21 +899,21 @@ function ScreeningAudit({
                         className={cn(
                           "rounded-full px-2 py-0.5 text-[10px] font-black uppercase",
                           entry.decision === "keep"
-                            ? "bg-emerald-500/15 text-emerald-300"
+                            ? "bg-accent/10 text-accent"
                             : entry.decision === "reject"
-                              ? "bg-red-500/15 text-red-300"
-                              : "bg-amber-500/15 text-amber-200",
+                              ? "bg-accent/10 text-accent"
+                              : "bg-accent/10 text-accent",
                         )}
                       >
                         {entry.decision}
                       </span>
                       {entry.manuallyAllowedAt ? (
-                        <span className="text-[10px] font-bold text-violet-300">
+                        <span className="text-[10px] font-bold text-accent">
                           Allowed manually
                         </span>
                       ) : null}
                     </div>
-                    <h3 className="mt-2 text-sm font-bold text-white">
+                    <h3 className="mt-2 text-sm font-bold text-foreground">
                       {entry.title || entry.jobId}
                     </h3>
                     <p className="mt-0.5 text-xs text-muted">
@@ -924,15 +924,15 @@ function ScreeningAudit({
                     {formatAuditTime(entry.checkedAt)}
                   </time>
                 </div>
-                <div className="mt-3 rounded-lg border border-white/[0.06] bg-black/10 p-3">
-                  <p className="text-xs font-bold text-[#dde4ee]">
+                <div className="mt-3 rounded-lg border border-border bg-black/10 p-3">
+                  <p className="text-xs font-bold text-[#1d1e1c]">
                     {entry.reasonCode}
                   </p>
                   <p className="mt-1 text-xs leading-5 text-muted">
                     {entry.reason}
                   </p>
                   {entry.matchedRuleIds.length ? (
-                    <p className="mt-2 text-[10px] text-violet-300">
+                    <p className="mt-2 text-[10px] text-accent">
                       Matched rules: {entry.matchedRuleIds.join(", ")}
                     </p>
                   ) : null}
@@ -948,7 +948,7 @@ function ScreeningAudit({
                         href={entry.sourceUrl}
                         target="_blank"
                         rel="noreferrer"
-                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-2.5 text-[10px] font-bold text-muted hover:text-white"
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border px-2.5 text-[10px] font-bold text-muted hover:text-foreground"
                       >
                         <ExternalLink className="h-3.5 w-3.5" />
                         Source
@@ -1137,8 +1137,8 @@ function AutoSearchForm({
                     className={cn(
                       "h-10 rounded-lg border text-xs font-bold transition",
                       selected
-                        ? "border-violet-400/70 bg-violet-500/15 text-white"
-                        : "border-border bg-white/[0.025] text-muted hover:bg-white/[0.06] hover:text-white",
+                        ? "border-accent/25 bg-accent/10 text-foreground"
+                        : "border-border bg-[#fff8f1] text-muted hover:bg-[#fff3e8] hover:text-foreground",
                     )}
                   >
                     {selected ? <Check className="mr-1 inline h-3.5 w-3.5" /> : null}
@@ -1198,7 +1198,7 @@ function AutoSearchForm({
               aria-label="Enabled"
               aria-checked={draft.enabled}
               onClick={() => patch({ enabled: !draft.enabled })}
-              className="flex h-10 w-full items-center justify-between rounded-lg border border-border bg-white/[0.025] px-3 text-xs font-bold text-[#dce3ec]"
+              className="flex h-10 w-full items-center justify-between rounded-lg border border-border bg-[#fff8f1] px-3 text-xs font-bold text-[#1d1e1c]"
             >
               Run this rule automatically
               <Toggle enabled={draft.enabled} />
@@ -1317,7 +1317,7 @@ function AutoSearchForm({
                 aria-label="Deduplication"
                 aria-checked={draft.deduplicate}
                 onClick={() => patch({ deduplicate: !draft.deduplicate })}
-                className="flex h-10 w-full items-center justify-between rounded-lg border border-border bg-white/[0.025] px-3 text-xs font-bold text-[#dce3ec]"
+                className="flex h-10 w-full items-center justify-between rounded-lg border border-border bg-[#fff8f1] px-3 text-xs font-bold text-[#1d1e1c]"
               >
                 Remove repeats
                 <Toggle enabled={draft.deduplicate} />
@@ -1345,10 +1345,10 @@ function AutoSearchForm({
                   screeningEnabled: !draft.screeningEnabled,
                 })
               }
-              className="flex min-h-12 w-full items-center justify-between rounded-lg border border-border bg-white/[0.025] px-3 text-left"
+              className="flex min-h-12 w-full items-center justify-between rounded-lg border border-border bg-[#fff8f1] px-3 text-left"
             >
               <span>
-                <span className="block text-xs font-bold text-[#dce3ec]">
+                <span className="block text-xs font-bold text-[#1d1e1c]">
                   Filter vacancies before saving
                 </span>
                 <span className="mt-0.5 block text-[10px] text-muted">
@@ -1593,8 +1593,8 @@ function AutoSearchForm({
                       className={cn(
                         "h-9 rounded-lg border text-[10px] font-bold transition",
                         selected
-                          ? "border-violet-400/70 bg-violet-500/15 text-white"
-                          : "border-border bg-white/[0.025] text-muted",
+                          ? "border-accent/25 bg-accent/10 text-foreground"
+                          : "border-border bg-[#fff8f1] text-muted",
                       )}
                     >
                       {day.short}
@@ -1638,14 +1638,14 @@ function AutoSearchForm({
         </FormSection>
 
         <FormSection title="Analysis">
-          <div className="rounded-lg border border-violet-400/15 bg-violet-500/[0.055] p-3 text-[11px] leading-5 text-[#c9c3db]">
+          <div className="rounded-lg border border-accent/25 bg-accent/10 p-3 text-[11px] leading-5 text-[#4a4a47]">
             Automatic AI Match is controlled globally in Settings. When enabled,
             every new vacancy that passes pre-screening is analyzed immediately.
           </div>
         </FormSection>
       </div>
 
-      <footer className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-[#101720]/95 px-4 py-3 backdrop-blur sm:px-6">
+      <footer className="sticky bottom-0 flex justify-end gap-2 border-t border-border bg-[#ffffff]/95 px-4 py-3 backdrop-blur sm:px-6">
         <Button type="button" variant="ghost" onClick={onCancel}>
           Cancel
         </Button>
@@ -1674,11 +1674,11 @@ function FormSection({
   return (
     <section
       className={cn(
-        "grid content-start gap-3 rounded-xl border border-border bg-white/[0.018] p-4",
+        "grid content-start gap-3 rounded-xl border border-border bg-[#fff8f1] p-4",
         className,
       )}
     >
-      <h3 className="text-sm font-bold text-white">{title}</h3>
+      <h3 className="text-sm font-bold text-foreground">{title}</h3>
       {children}
     </section>
   );
@@ -1711,8 +1711,8 @@ function SeniorityPicker({
               className={cn(
                 "rounded-md border px-2 py-1.5 text-[10px] font-bold transition",
                 active
-                  ? "border-violet-400/70 bg-violet-500/15 text-white"
-                  : "border-border bg-white/[0.025] text-muted hover:text-white",
+                  ? "border-accent/25 bg-accent/10 text-foreground"
+                  : "border-border bg-[#fff8f1] text-muted hover:text-foreground",
               )}
             >
               {option.label}
@@ -1733,7 +1733,7 @@ function Field({
 }) {
   return (
     <div className="grid gap-1.5">
-      <span className="text-[11px] font-bold text-[#cbd3df]">{label}</span>
+      <span className="text-[11px] font-bold text-[#4a4a47]">{label}</span>
       {children}
     </div>
   );
@@ -1777,8 +1777,8 @@ function IconAction({
       disabled={disabled}
       onClick={onClick}
       className={cn(
-        "grid h-8 w-8 place-items-center rounded-lg border border-border text-muted transition hover:bg-white/[0.07] hover:text-white disabled:cursor-not-allowed disabled:opacity-45",
-        danger && "hover:border-red-400/30 hover:bg-red-500/10 hover:text-red-200",
+        "grid h-8 w-8 place-items-center rounded-lg border border-border text-muted transition hover:bg-[#fff3e8] hover:text-foreground disabled:cursor-not-allowed disabled:opacity-45",
+        danger && "hover:border-accent/25 hover:bg-accent/10 hover:text-accent",
       )}
     >
       {children}
@@ -1791,7 +1791,7 @@ function Toggle({ enabled }: { enabled: boolean }) {
     <span
       className={cn(
         "flex h-5 w-9 shrink-0 items-center rounded-full p-0.5 transition",
-        enabled ? "justify-end bg-violet-500" : "justify-start bg-slate-700",
+        enabled ? "justify-end bg-accent" : "justify-start bg-slate-700",
       )}
     >
       <span className="h-4 w-4 rounded-full bg-white shadow" />
@@ -2331,16 +2331,16 @@ function formatAuditTime(value: string): string {
 
 const jsonHeaders = { "Content-Type": "application/json" };
 const inputClass =
-  "h-10 w-full rounded-lg border border-border bg-[#0b1118] px-3 text-xs font-semibold text-white outline-none placeholder:text-muted/60 focus:border-violet-400/70";
+  "h-10 w-full rounded-lg border border-border bg-[#ffffff] px-3 text-xs font-semibold text-foreground outline-none placeholder:text-muted/60 focus:border-accent/25";
 const textareaClass =
-  "min-h-20 w-full resize-y rounded-lg border border-border bg-[#0b1118] px-3 py-2 text-xs font-semibold text-white outline-none placeholder:text-muted/60 focus:border-violet-400/70";
+  "min-h-20 w-full resize-y rounded-lg border border-border bg-[#ffffff] px-3 py-2 text-xs font-semibold text-foreground outline-none placeholder:text-muted/60 focus:border-accent/25";
 
 function choiceClass(selected: boolean): string {
   return cn(
     "h-9 rounded-lg border text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-40",
     selected
-      ? "border-violet-400/70 bg-violet-500/15 text-white"
-      : "border-border bg-white/[0.025] text-muted hover:bg-white/[0.06] hover:text-white",
+      ? "border-accent/25 bg-accent/10 text-foreground"
+      : "border-border bg-[#fff8f1] text-muted hover:bg-[#fff3e8] hover:text-foreground",
   );
 }
 

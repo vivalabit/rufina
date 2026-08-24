@@ -228,7 +228,7 @@ export function ResumeTemplatePicker({
       <>
         <section
           aria-labelledby="resume-template-picker-title"
-          className="mt-4 border-t border-white/[0.08] pt-4"
+          className="mt-4 border-t border-border pt-4"
         >
           <div className="grid grid-cols-[76px_minmax(0,1fr)] items-center gap-4">
             <span className="relative block w-full max-w-[9rem]">
@@ -238,7 +238,7 @@ export function ResumeTemplatePicker({
                   template={selectedTemplate}
                 />
               ) : (
-                <span className="block aspect-[9/16] w-full border border-dashed border-white/[0.12] bg-white/[0.02]" />
+                <span className="block aspect-[9/16] w-full border border-dashed border-border bg-[#fff8f1]" />
               )}
             </span>
             <div className="min-w-0">
@@ -248,20 +248,20 @@ export function ResumeTemplatePicker({
               >
                 Resume template
               </p>
-              <p className="mt-2 truncate text-[11px] font-bold text-white">
+              <p className="mt-2 truncate text-[11px] font-bold text-foreground">
                 {selectedTemplate?.name ?? "Select a template"}
               </p>
               <button
                 type="button"
                 onClick={() => setIsTemplateDialogOpen(true)}
-                className="mt-2 border-b border-white/25 pb-0.5 text-[9px] font-bold text-[#dce3ec] transition hover:border-accent hover:text-white"
+                className="mt-2 border-b border-border pb-0.5 text-[9px] font-bold text-[#1d1e1c] transition hover:border-accent hover:text-foreground"
               >
                 Change template
               </button>
             </div>
           </div>
           {notice ? (
-            <p role="status" className="mt-3 text-[9px] leading-4 text-amber-100">
+            <p role="status" className="mt-3 text-[9px] leading-4 text-accent">
               {notice}
             </p>
           ) : null}
@@ -280,14 +280,14 @@ export function ResumeTemplatePicker({
               aria-modal="true"
               aria-labelledby="resume-template-dialog-title"
               aria-describedby="resume-template-dialog-description"
-              className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-white/[0.12] bg-[#0c131c] shadow-[0_30px_90px_rgba(0,0,0,0.55)]"
+              className="flex max-h-[88vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-[6px_8px_36px_rgba(227,214,197,0.72)]"
             >
-              <header className="flex items-start justify-between gap-4 border-b border-white/[0.08] px-5 py-4 sm:px-6">
+              <header className="flex items-start justify-between gap-4 border-b border-border px-5 py-4 sm:px-6">
                 <div>
                   <p className="text-[9px] font-black uppercase tracking-[0.14em] text-accent">
                     Resume appearance
                   </p>
-                  <h2 id="resume-template-dialog-title" className="mt-1 text-lg font-bold text-white">
+                  <h2 id="resume-template-dialog-title" className="mt-1 text-lg font-bold text-foreground">
                     Choose resume template
                   </h2>
                   <p id="resume-template-dialog-description" className="mt-1 text-[10px] leading-4 text-muted">
@@ -298,7 +298,7 @@ export function ResumeTemplatePicker({
                   type="button"
                   aria-label="Close template selection"
                   onClick={() => setIsTemplateDialogOpen(false)}
-                  className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-white/[0.09] text-muted transition hover:bg-white/[0.05] hover:text-white"
+                  className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
                 >
                   <X className="h-4 w-4" />
                 </button>
@@ -331,7 +331,7 @@ export function ResumeTemplatePicker({
   return (
     <section
       aria-labelledby="resume-template-picker-title"
-      className="mt-3 rounded-xl border border-white/[0.07] bg-white/[0.02] p-3"
+      className="mt-3 rounded-xl border border-border bg-[#fff8f1] p-3"
     >
       <div className="flex items-center justify-between gap-3">
         <p
@@ -384,7 +384,7 @@ export function ResumeTemplatePicker({
       {notice ? (
         <p
           role="status"
-          className="mt-3 rounded-lg border border-amber-400/20 bg-amber-400/[0.06] px-2.5 py-2 text-[9px] leading-4 text-amber-100"
+          className="mt-3 rounded-lg border border-accent/25 bg-accent/10 px-2.5 py-2 text-[9px] leading-4 text-accent"
         >
           {notice}
         </p>
@@ -426,7 +426,7 @@ function TemplatePickerGroup({
                 "group min-w-0 rounded-lg border p-2 text-center transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/70",
                 isSelected
                   ? "border-accent/55 bg-accent/[0.08] shadow-[0_0_0_1px_rgba(255,90,0,0.08)]"
-                  : "border-white/[0.08] bg-black/15 hover:border-white/[0.2] hover:bg-white/[0.03]",
+                  : "border-border bg-black/15 hover:border-[#c0bbb6] hover:bg-[#fff3e8]",
               )}
             >
               <span className="relative mx-auto block w-full max-w-[9rem]">
@@ -435,12 +435,12 @@ function TemplatePickerGroup({
                   template={template}
                 />
                 {isSelected ? (
-                  <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-accent/50 bg-[#15100d] shadow-lg">
+                  <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-accent/50 bg-[#ffffff] shadow-lg">
                     <Check className="h-3 w-3 text-accent" />
                   </span>
                 ) : null}
               </span>
-              <span className="mt-2.5 flex min-h-8 items-start justify-center text-[10px] font-bold leading-4 text-white">
+              <span className="mt-2.5 flex min-h-8 items-start justify-center text-[10px] font-bold leading-4 text-foreground">
                 <span className="line-clamp-2">{template.name}</span>
               </span>
             </button>
@@ -721,14 +721,14 @@ export function ResumePdfReview({
   return (
     <section
       aria-labelledby="resume-pdf-review-title"
-      className="mt-5 overflow-hidden rounded-2xl border border-white/[0.08] bg-black/15"
+      className="mt-5 overflow-hidden rounded-2xl border border-border bg-black/15"
     >
-      <div className="flex flex-col gap-3 border-b border-white/[0.07] px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-3 border-b border-border px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <p className="text-[9px] font-black uppercase tracking-[0.12em] text-accent">
             PDF review
           </p>
-          <h3 id="resume-pdf-review-title" className="mt-1 text-sm font-bold text-white">
+          <h3 id="resume-pdf-review-title" className="mt-1 text-sm font-bold text-foreground">
             Preview the exact submission artifact
           </h3>
           <p className="mt-1 text-[10px] leading-4 text-muted">
@@ -745,7 +745,7 @@ export function ResumePdfReview({
               type="button"
               disabled={status === "rendering" || !renderSource}
               onClick={() => void renderSelectedTemplate()}
-              className="h-9 rounded-lg bg-accent px-3 text-[10px] font-bold text-white hover:bg-[#ff6a14] disabled:opacity-45"
+              className="h-9 rounded-lg bg-accent px-3 text-[10px] font-bold text-foreground hover:bg-[#e95300] disabled:opacity-45"
             >
               {status === "rendering" ? (
                 <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
@@ -762,7 +762,7 @@ export function ResumePdfReview({
               href={downloadHref}
               download={downloadName}
               onClick={confirmImaginatorDownload}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.09] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"
             >
               <Download className="h-3.5 w-3.5" />
               Download PDF
@@ -773,7 +773,7 @@ export function ResumePdfReview({
               href={docxHref}
               download={docxName}
               onClick={confirmImaginatorDownload}
-              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-white/[0.09] px-3 text-[10px] font-bold text-white transition hover:bg-white/[0.05]"
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"
             >
               <FileText className="h-3.5 w-3.5" />
               Download DOCX
@@ -784,14 +784,14 @@ export function ResumePdfReview({
       {isImaginator ? (
         <div
           role="alert"
-          className="flex items-start gap-2 border-b border-amber-400/20 bg-amber-400/[0.07] px-4 py-3 text-amber-100"
+          className="flex items-start gap-2 border-b border-accent/25 bg-accent/10 px-4 py-3 text-accent"
         >
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
           <div>
             <p className="text-[10px] font-bold">
               Imaginator draft · contains AI-invented claims
             </p>
-            <p className="mt-1 text-[9px] leading-4 text-amber-100/80">
+            <p className="mt-1 text-[9px] leading-4 text-accent">
               Employer names, education and candidate identity are locked. Review
               every generated claim before using this document.
             </p>
@@ -799,12 +799,12 @@ export function ResumePdfReview({
         </div>
       ) : null}
       {error ? (
-        <div role="alert" className="border-b border-red-400/20 bg-red-500/[0.06] px-4 py-3 text-[10px] text-red-200">
+        <div role="alert" className="border-b border-accent/25 bg-accent/10 px-4 py-3 text-[10px] text-accent">
           {error}
         </div>
       ) : null}
       <div className="grid lg:grid-cols-[minmax(0,1.45fr)_minmax(300px,0.75fr)]">
-        <div className="min-h-[520px] border-b border-white/[0.07] bg-[#171b20] p-3 lg:border-b-0 lg:border-r">
+        <div className="min-h-[520px] border-b border-border bg-[#ffffff] p-3 lg:border-b-0 lg:border-r">
           {status === "loading" || status === "rendering" ? (
             <div className="grid h-[496px] place-items-center text-center">
               <div>
@@ -818,10 +818,10 @@ export function ResumePdfReview({
             <iframe
               title="Resume PDF preview"
               src={previewUrl}
-              className="h-[496px] w-full rounded-lg border border-white/[0.09] bg-white"
+              className="h-[496px] w-full rounded-lg border border-border bg-white"
             />
           ) : (
-            <div className="grid h-[496px] place-items-center rounded-lg border border-dashed border-white/[0.1] text-center">
+            <div className="grid h-[496px] place-items-center rounded-lg border border-dashed border-border text-center">
               <div>
                 <Eye className="mx-auto h-6 w-6 text-muted" />
                 <p className="mt-2 text-[10px] font-bold text-muted">
@@ -832,7 +832,7 @@ export function ResumePdfReview({
           )}
         </div>
         <div className="min-w-0">
-          <div role="tablist" aria-label="Resume PDF review details" className="grid grid-cols-2 border-b border-white/[0.07] p-1.5">
+          <div role="tablist" aria-label="Resume PDF review details" className="grid grid-cols-2 border-b border-border p-1.5">
             <button
               type="button"
               role="tab"
@@ -840,7 +840,7 @@ export function ResumePdfReview({
               onClick={() => setActiveTab("overview")}
               className={cn(
                 "inline-flex h-9 items-center justify-center gap-1.5 rounded-lg text-[10px] font-bold transition",
-                activeTab === "overview" ? "bg-white/[0.09] text-white" : "text-muted hover:text-white",
+                activeTab === "overview" ? "bg-[#fff8f1] text-foreground" : "text-muted hover:text-foreground",
               )}
             >
               {isImaginator ? (
@@ -859,7 +859,7 @@ export function ResumePdfReview({
               onClick={() => setActiveTab("details")}
               className={cn(
                 "inline-flex h-9 items-center justify-center gap-1.5 rounded-lg text-[10px] font-bold transition",
-                activeTab === "details" ? "bg-white/[0.09] text-white" : "text-muted hover:text-white",
+                activeTab === "details" ? "bg-[#fff8f1] text-foreground" : "text-muted hover:text-foreground",
               )}
             >
               {isImaginator ? (
@@ -879,39 +879,39 @@ export function ResumePdfReview({
                   {syntheticClaims.map((claim, index) => (
                     <article
                       key={`${claim.path ?? "claim"}-${index}`}
-                      className="rounded-lg border border-amber-400/20 bg-amber-400/[0.045] p-3"
+                      className="rounded-lg border border-accent/25 bg-accent/10 p-3"
                     >
-                      <p className="text-[8px] font-black uppercase tracking-wide text-amber-200">
+                      <p className="text-[8px] font-black uppercase tracking-wide text-accent">
                         {claim.path || `Generated claim ${index + 1}`}
                       </p>
-                      <p className="mt-2 text-[10px] leading-4 text-[#dfe5ec]">
+                      <p className="mt-2 text-[10px] leading-4 text-[#1d1e1c]">
                         {claim.text || "Generated claim details unavailable"}
                       </p>
                     </article>
                   ))}
                 </div>
               ) : (
-                <div className="rounded-lg border border-amber-400/20 bg-amber-400/[0.045] p-3">
-                  <p className="text-[10px] font-bold text-amber-100">
+                <div className="rounded-lg border border-accent/25 bg-accent/10 p-3">
+                  <p className="text-[10px] font-bold text-accent">
                     Synthetic claim details are unavailable.
                   </p>
                 </div>
               )
             ) : isImaginator ? (
               <div className="space-y-2">
-                <article className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-3">
-                  <p className="flex items-center gap-1.5 text-[10px] font-bold text-white">
+                <article className="rounded-lg border border-border bg-[#fff8f1] p-3">
+                  <p className="flex items-center gap-1.5 text-[10px] font-bold text-foreground">
                     <LockKeyhole className="h-3.5 w-3.5 text-success" />
                     Locked source facts
                   </p>
                   <dl className="mt-3 space-y-2 text-[9px] leading-4 text-muted">
                     <div className="flex justify-between gap-3">
                       <dt>Locked claims</dt>
-                      <dd className="font-mono text-white">{lockedClaimCount}</dd>
+                      <dd className="font-mono text-foreground">{lockedClaimCount}</dd>
                     </div>
                     <div className="flex justify-between gap-3">
                       <dt>Synthetic claims</dt>
-                      <dd className="font-mono text-amber-100">{syntheticClaimCount}</dd>
+                      <dd className="font-mono text-accent">{syntheticClaimCount}</dd>
                     </div>
                     {protectedFactsAudit ? (
                       <div className="flex justify-between gap-3">
@@ -927,7 +927,7 @@ export function ResumePdfReview({
                     {sourceMasterResumeVersion ? (
                       <div className="flex justify-between gap-3">
                         <dt>Master Resume version</dt>
-                        <dd className="break-all font-mono text-white">
+                        <dd className="break-all font-mono text-foreground">
                           {sourceMasterResumeVersion}
                         </dd>
                       </div>
@@ -935,7 +935,7 @@ export function ResumePdfReview({
                     {constraintsVersion ? (
                       <div className="flex justify-between gap-3">
                         <dt>Constraints</dt>
-                        <dd className="break-all font-mono text-white">
+                        <dd className="break-all font-mono text-foreground">
                           {constraintsVersion}
                         </dd>
                       </div>
@@ -951,13 +951,13 @@ export function ResumePdfReview({
               skippedSections.length ? (
                 <div className="space-y-2">
                   {skippedSections.map((item) => (
-                    <article key={item.section} className="rounded-lg border border-amber-400/20 bg-amber-400/[0.045] p-3">
-                      <p className="text-[9px] font-black uppercase tracking-wide text-amber-200">
+                    <article key={item.section} className="rounded-lg border border-accent/25 bg-accent/10 p-3">
+                      <p className="text-[9px] font-black uppercase tracking-wide text-accent">
                         {item.section}
                       </p>
-                      <p className="mt-2 text-[10px] leading-4 text-[#dfe5ec]">{item.reason}</p>
-                      <p className="mt-2 border-t border-white/[0.07] pt-2 text-[9px] leading-4 text-muted">
-                        <strong className="text-white">Action:</strong> {item.action}
+                      <p className="mt-2 text-[10px] leading-4 text-[#1d1e1c]">{item.reason}</p>
+                      <p className="mt-2 border-t border-border pt-2 text-[9px] leading-4 text-muted">
+                        <strong className="text-foreground">Action:</strong> {item.action}
                       </p>
                     </article>
                   ))}
@@ -976,14 +976,14 @@ export function ResumePdfReview({
             ) : stageDiff.length ? (
               <div className="space-y-2">
                 {stageDiff.map((change) => (
-                  <article key={change.id} className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-3">
+                  <article key={change.id} className="rounded-lg border border-border bg-[#fff8f1] p-3">
                     <p className="text-[8px] font-black uppercase tracking-wide text-muted">
                       {change.experience} · {change.id}
                     </p>
-                    <p className="mt-2 text-[10px] leading-4 text-red-200/70 line-through">
+                    <p className="mt-2 text-[10px] leading-4 text-accent line-through">
                       {change.original}
                     </p>
-                    <p className="mt-1 text-[10px] leading-4 text-emerald-200">
+                    <p className="mt-1 text-[10px] leading-4 text-accent">
                       {change.replacement}
                     </p>
                   </article>
@@ -992,12 +992,12 @@ export function ResumePdfReview({
             ) : legacyDiff.length ? (
               <div className="space-y-2">
                 {legacyDiff.map((change) => (
-                  <article key={`${change.blockId}-${change.spanId ?? change.original}`} className="rounded-lg border border-white/[0.07] bg-white/[0.02] p-3">
+                  <article key={`${change.blockId}-${change.spanId ?? change.original}`} className="rounded-lg border border-border bg-[#fff8f1] p-3">
                     <p className="text-[8px] font-black uppercase tracking-wide text-muted">
                       {change.blockId}{change.spanId ? ` · ${change.spanId}` : ""}
                     </p>
-                    <p className="mt-2 text-[10px] leading-4 text-red-200/70 line-through">{change.original}</p>
-                    <p className="mt-1 text-[10px] leading-4 text-emerald-200">{change.replacement}</p>
+                    <p className="mt-2 text-[10px] leading-4 text-accent line-through">{change.original}</p>
+                    <p className="mt-1 text-[10px] leading-4 text-accent">{change.replacement}</p>
                     <p className="mt-2 text-[9px] leading-4 text-muted">{change.reason}</p>
                   </article>
                 ))}

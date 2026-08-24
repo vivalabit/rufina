@@ -72,17 +72,17 @@ export function ResumeTailoringProgressPanel({
       className={cn(
         "mb-4 overflow-hidden rounded-xl border",
         progress.status === "failed"
-          ? "border-red-400/25 bg-red-500/[0.045]"
-          : "border-white/[0.08] bg-black/15",
+          ? "border-accent/25 bg-accent/10"
+          : "border-border bg-black/15",
       )}
     >
-      <div className="flex flex-col gap-2 border-b border-white/[0.07] px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+      <div className="flex flex-col gap-2 border-b border-border px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex flex-wrap items-center gap-2">
-            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-white">
+            <p className="text-[10px] font-black uppercase tracking-[0.12em] text-foreground">
               Resume tailoring
             </p>
-            <span className="rounded-full border border-[#9f7aea]/25 bg-[#9f7aea]/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-[#c4a7ff]">
+            <span className="rounded-full border border-[#fa5d00]/25 bg-[#fa5d00]/10 px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-accent">
               {stageBadge}
             </span>
           </div>
@@ -90,7 +90,7 @@ export function ResumeTailoringProgressPanel({
             className={cn(
               "mt-1 text-[10px] leading-4",
               progress.status === "failed"
-                ? "text-red-200"
+                ? "text-accent"
                 : "text-muted",
             )}
           >
@@ -98,7 +98,7 @@ export function ResumeTailoringProgressPanel({
           </p>
         </div>
         {progress.attempt > 1 ? (
-          <span className="shrink-0 rounded border border-amber-400/20 bg-amber-400/[0.06] px-2 py-1 font-mono text-[9px] font-bold text-amber-200">
+          <span className="shrink-0 rounded border border-accent/25 bg-accent/10 px-2 py-1 font-mono text-[9px] font-bold text-accent">
             attempt {progress.attempt}
           </span>
         ) : null}
@@ -213,18 +213,18 @@ function stageClassName(status: DisplayStatus): string {
     return "border-success/20 bg-success/[0.05]";
   }
   if (status === "failed") {
-    return "border-red-400/25 bg-red-500/[0.06]";
+    return "border-accent/25 bg-accent/10";
   }
   if (status === "active" || status === "retrying") {
     return "border-accent/30 bg-accent/[0.07]";
   }
-  return "border-white/[0.06] bg-white/[0.015]";
+  return "border-border bg-[#fff8f1]";
 }
 
 function stageTextClassName(status: DisplayStatus): string {
   if (status === "completed") return "text-success";
-  if (status === "failed") return "text-red-200";
-  if (status === "active" || status === "retrying") return "text-white";
+  if (status === "failed") return "text-accent";
+  if (status === "active" || status === "retrying") return "text-foreground";
   return "text-muted";
 }
 
@@ -234,7 +234,7 @@ function StageIcon({ status }: { status: DisplayStatus }) {
   }
   if (status === "failed") {
     return (
-      <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-red-200" />
+      <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-accent" />
     );
   }
   if (status === "active" || status === "retrying") {
