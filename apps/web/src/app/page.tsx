@@ -13,6 +13,7 @@ import {
   BriefcaseBusiness,
   Calendar,
   CalendarDays,
+  ChartNoAxesColumnIncreasing,
   Check,
   ChevronDown,
   ChevronLeft,
@@ -22,6 +23,7 @@ import {
   Code2,
   Database,
   Download,
+  DollarSign,
   Edit3,
   ExternalLink,
   FileText,
@@ -35,6 +37,7 @@ import {
   Mail,
   MapPin,
   MoreHorizontal,
+  Monitor,
   Palette,
   Plus,
   Info,
@@ -43,7 +46,6 @@ import {
   Search,
   Send,
   Server,
-  Share2,
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
@@ -55,6 +57,7 @@ import {
   Upload,
   X,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -84,6 +87,7 @@ import {
   getJobSearchProgress,
   type JobSearchProgressPhase,
 } from "@/lib/job-search-progress";
+import { parseJobDescription } from "@/lib/job-description";
 import { normalizeJobsChJobUrl } from "@/lib/job-url";
 import { cn } from "@/lib/utils";
 
@@ -148,14 +152,7 @@ type AiMatchMetadata = {
   heuristicScore?: number;
   updatedAt?: string;
   providerError?: string;
-  feedback?: MatchFeedback;
-  calibration?: {
-    feedback: MatchFeedback;
-    adjustment: number;
-  };
 };
-
-type MatchFeedback = "good_match" | "bad_match" | "not_interested";
 
 type JobRecommendation = {
   text: string;
@@ -658,7 +655,7 @@ const demoJobs: Job[] = [
   },
 ];
 
-const tabs = ["Overview", "Company", "AI Match", "Reviews", "Similar Jobs"];
+const tabs = ["Overview", "AI Match"];
 type ParserSearchStatus = "idle" | "loading" | "ready" | "error";
 
 const applicationStatuses: Array<{ status: ApplicationStatus; label: string }> = [
@@ -795,13 +792,202 @@ const matchFilterOptions = [
 const jobSortOptions: JobSortBy[] = ["AI Match", "Time", "Salary"];
 
 const jobFilterWidths: Record<JobFilterKey, string> = {
-  location: "w-[112px] 2xl:w-[136px]",
-  remote: "w-[96px] 2xl:w-[136px]",
-  salary: "w-[96px] 2xl:w-[136px]",
-  experience: "w-[126px] 2xl:w-[136px]",
-  type: "w-[118px] 2xl:w-[136px]",
-  match: "w-[118px] 2xl:w-[136px]",
+  location: "w-[126px] 2xl:w-[154px]",
+  remote: "w-[112px] 2xl:w-[146px]",
+  salary: "w-[108px] 2xl:w-[138px]",
+  experience: "w-[142px] 2xl:w-[164px]",
+  type: "w-[132px] 2xl:w-[154px]",
+  match: "w-[132px] 2xl:w-[154px]",
 };
+
+type JobFilterDropdownProps = {
+  filterKey: JobFilterKey;
+  label: string;
+  value: string;
+  options: Array<{ value: string; label: string }>;
+  icon: LucideIcon;
+  className?: string;
+  onChange: (value: string) => void;
+};
+
+function JobFilterDropdown({
+  filterKey,
+  label,
+  value,
+  options,
+  icon: Icon,
+  className,
+  onChange,
+}: JobFilterDropdownProps) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const rootRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const normalizedSearch = searchQuery.trim().toLowerCase();
+  const visibleOptions = options.filter((option) =>
+    option.label.toLowerCase().includes(normalizedSearch),
+  );
+  const selectedLabel =
+    value === "Any"
+      ? label
+      : options.find((option) => option.value === value)?.label ?? value;
+  const menuId = `jobs-${filterKey}-filter-menu`;
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const focusTimer = window.setTimeout(() => searchRef.current?.focus(), 0);
+
+    function closeOnOutsideClick(event: MouseEvent) {
+      if (!rootRef.current?.contains(event.target as Node)) {
+        setIsOpen(false);
+        setSearchQuery("");
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key !== "Escape") return;
+      setIsOpen(false);
+      setSearchQuery("");
+      triggerRef.current?.focus();
+    }
+
+    document.addEventListener("mousedown", closeOnOutsideClick);
+    document.addEventListener("keydown", closeOnEscape);
+
+    return () => {
+      window.clearTimeout(focusTimer);
+      document.removeEventListener("mousedown", closeOnOutsideClick);
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [isOpen]);
+
+  function selectValue(nextValue: string) {
+    onChange(nextValue);
+    setIsOpen(false);
+    setSearchQuery("");
+    window.requestAnimationFrame(() => triggerRef.current?.focus());
+  }
+
+  return (
+    <div ref={rootRef} className={cn("relative", className)}>
+      <button
+        ref={triggerRef}
+        type="button"
+        aria-label={label}
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? menuId : undefined}
+        onClick={() => {
+          setIsOpen((current) => !current);
+          if (isOpen) setSearchQuery("");
+        }}
+        onKeyDown={(event) => {
+          if (event.key !== "ArrowDown") return;
+          event.preventDefault();
+          setIsOpen(true);
+        }}
+        className={cn(
+          "inline-flex h-8 w-full items-center gap-2 rounded-md border border-border/80 bg-[#fff8f1] px-2.5 text-left text-xs font-semibold text-[#1d1e1c] shadow-[0_3px_10px_rgba(227,214,197,0.24)] transition hover:border-[#c0bbb6] hover:bg-[#fff3e8] focus-visible:!outline-none focus-visible:border-accent/70 focus-visible:ring-2 focus-visible:ring-accent/20 2xl:h-10 2xl:gap-2.5 2xl:px-4 2xl:text-sm",
+          value !== "Any" && "border-accent/70 bg-accent/15 text-foreground",
+        )}
+      >
+        <Icon className="h-4 w-4 shrink-0 text-[#686762] 2xl:h-[18px] 2xl:w-[18px]" strokeWidth={1.9} />
+        <span className="min-w-0 flex-1 truncate">{selectedLabel}</span>
+        <ChevronDown
+          className={cn(
+            "h-3.5 w-3.5 shrink-0 text-muted transition-transform 2xl:h-4 2xl:w-4",
+            isOpen && "rotate-180",
+          )}
+        />
+      </button>
+
+      {isOpen ? (
+        <div
+          id={menuId}
+          role="dialog"
+          aria-label={`${label} filter`}
+          className="absolute left-0 top-[calc(100%+8px)] z-50 w-[min(340px,calc(100vw-32px))] overflow-hidden rounded-xl border border-border bg-white shadow-[0_18px_48px_rgba(74,61,48,0.18)]"
+        >
+          <div className="border-b border-border/70 bg-[#fffaf6] p-2.5">
+            <label className="flex h-9 items-center gap-2 rounded-lg border border-border bg-white px-3 focus-within:border-accent/70 focus-within:ring-2 focus-within:ring-accent/15">
+              <Search className="h-4 w-4 shrink-0 text-muted" />
+              <input
+                ref={searchRef}
+                type="search"
+                value={searchQuery}
+                onChange={(event) => setSearchQuery(event.target.value)}
+                placeholder={`Search ${label.toLowerCase()}...`}
+                aria-label={`Search ${label} options`}
+                className="h-full min-w-0 flex-1 !border-transparent !bg-transparent text-sm font-medium outline-none placeholder:text-muted focus-visible:!outline-none"
+              />
+              {searchQuery ? (
+                <button
+                  type="button"
+                  aria-label={`Clear ${label} search`}
+                  onClick={() => {
+                    setSearchQuery("");
+                    searchRef.current?.focus();
+                  }}
+                  className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground focus-visible:!outline-none focus-visible:ring-2 focus-visible:ring-accent/25"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </label>
+          </div>
+
+          <div id={`${menuId}-options`} role="listbox" aria-label={`${label} options`} className="job-scroll max-h-64 overflow-y-auto p-1.5">
+            {!normalizedSearch ? (
+              <button
+                type="button"
+                role="option"
+                aria-selected={value === "Any"}
+                onClick={() => selectValue("Any")}
+                className={cn(
+                  "flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-semibold text-[#4a4a47] transition hover:bg-[#fff3e8] focus-visible:!outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/25",
+                  value === "Any" && "bg-accent/10 text-foreground",
+                )}
+              >
+                <span className="min-w-0 flex-1">All {label.toLowerCase()}</span>
+                {value === "Any" ? <Check className="h-4 w-4 shrink-0 text-accent" /> : null}
+              </button>
+            ) : null}
+
+            {visibleOptions.map((option) => {
+              const isSelected = value === option.value;
+              return (
+                <button
+                  key={option.value}
+                  type="button"
+                  role="option"
+                  aria-selected={isSelected}
+                  title={option.label}
+                  onClick={() => selectValue(option.value)}
+                  className={cn(
+                    "flex min-h-10 w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm font-medium text-[#4a4a47] transition hover:bg-[#fff3e8] focus-visible:!outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-accent/25",
+                    isSelected && "bg-accent/10 font-semibold text-foreground",
+                  )}
+                >
+                  <span className="min-w-0 flex-1 truncate">{option.label}</span>
+                  {isSelected ? <Check className="h-4 w-4 shrink-0 text-accent" /> : null}
+                </button>
+              );
+            })}
+
+            {visibleOptions.length === 0 ? (
+              <div className="px-3 py-8 text-center">
+                <Search className="mx-auto h-5 w-5 text-muted/70" />
+                <p className="mt-2 text-sm font-semibold text-muted">No options found</p>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 const defaultUiSettings: UiSettings = {
   showLogs: false,
@@ -3166,7 +3352,6 @@ export default function HomePage() {
   const [parserSearchMessage, setParserSearchMessage] = useState("");
   const [forceMatchingJobId, setForceMatchingJobId] = useState("");
   const [aiMatchErrorMessage, setAiMatchErrorMessage] = useState("");
-  const [matchFeedbackSavingJobId, setMatchFeedbackSavingJobId] = useState("");
   const [parserSearchForm, setParserSearchForm] = useState<ParserSearchForm>(defaultParserSearchForm);
   const hasParserSearchInteractionRef = useRef(false);
   const [activeSearchSource, setActiveSearchSource] = useState<ActiveSearchSource>("linkedin");
@@ -3255,14 +3440,15 @@ export default function HomePage() {
   const jobFilterControls: Array<{
     key: JobFilterKey;
     label: string;
+    icon: LucideIcon;
     options: Array<{ value: string; label: string }>;
   }> = [
-    { key: "location", label: "Location", options: locationFilterOptions },
-    { key: "remote", label: "Remote", options: remoteFilterOptions },
-    { key: "salary", label: "Salary", options: salaryFilterOptions },
-    { key: "experience", label: "Experience", options: experienceFilterOptions },
-    { key: "type", label: "Job Type", options: typeFilterOptions },
-    { key: "match", label: "AI Match", options: matchFilterOptions },
+    { key: "location", label: "Location", icon: MapPin, options: locationFilterOptions },
+    { key: "remote", label: "Remote", icon: Monitor, options: remoteFilterOptions },
+    { key: "salary", label: "Salary", icon: DollarSign, options: salaryFilterOptions },
+    { key: "experience", label: "Experience", icon: ChartNoAxesColumnIncreasing, options: experienceFilterOptions },
+    { key: "type", label: "Job Type", icon: BriefcaseBusiness, options: typeFilterOptions },
+    { key: "match", label: "AI Match", icon: Sparkles, options: matchFilterOptions },
   ];
 
   const filteredJobs = useMemo(() => {
@@ -4530,6 +4716,16 @@ export default function HomePage() {
 
   function updateJobFilter(filter: JobFilterKey, value: string) {
     setJobFilters((current) => ({ ...current, [filter]: value }));
+    setSelectedJobId("");
+    setActiveTab("Overview");
+  }
+
+  function clearAllJobFilters() {
+    setQuery("");
+    setJobFilters(defaultJobFilters);
+    setSortBy("AI Match");
+    setShowSavedJobs(false);
+    setShowArchivedJobs(false);
     setSelectedJobId("");
     setActiveTab("Overview");
   }
@@ -5904,32 +6100,6 @@ export default function HomePage() {
     }
   }
 
-  async function saveMatchFeedback(job: Job, feedback: MatchFeedback) {
-    setMatchFeedbackSavingJobId(job.id);
-    try {
-      const response = await fetch(`${apiBaseUrl}/jobs/${encodeURIComponent(job.id)}/match-feedback`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ feedback }),
-      });
-      if (!response.ok) return;
-
-      const payload = (await response.json()) as { id: string; data: unknown };
-      const updatedJobs = normalizeStoredJobs([payload.data]);
-      if (updatedJobs.length === 0) return;
-
-      setJobList((currentJobs) => {
-        const nextJobs = mergeJobs(updatedJobs, currentJobs);
-        window.localStorage.setItem(importedJobsStorageKey, JSON.stringify(keepStoredUserJobs(nextJobs.filter(isUserManagedJob))));
-        return nextJobs;
-      });
-    } catch {
-      // Feedback is useful for calibration but should not block the main workflow.
-    } finally {
-      setMatchFeedbackSavingJobId((currentId) => (currentId === job.id ? "" : currentId));
-    }
-  }
-
   async function pollAiMatchStatus(): Promise<AiMatchJobStatus | null> {
     for (let attempt = 0; attempt < aiMatchStatusPollMaxAttempts; attempt += 1) {
       await wait(aiMatchStatusPollDelayMs);
@@ -6106,6 +6276,21 @@ export default function HomePage() {
                   }),
               sources: group.sources,
               sourceConfigIds: group.sourceConfigIds,
+              sourceFilters: Object.fromEntries(
+                group.sources.flatMap((source) => {
+                  if (!selectedParserSources.has(source)) return [];
+                  const parserSource = source as ParserId;
+                  return [
+                    [
+                      source,
+                      sourceSearchFiltersFromForm({
+                        ...parserSearchForm,
+                        ...sourceDraftFor(parserSource),
+                      }),
+                    ],
+                  ];
+                }),
+              ),
               aiAnalysisEnabled: true,
             }),
           });
@@ -6486,21 +6671,12 @@ export default function HomePage() {
           <LogsView logs={appLogs} onClear={clearAppLogs} />
         ) : (
         <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
-        <header className="grid shrink-0 gap-2.5 xl:grid-cols-[84px_minmax(240px,440px)_1fr] 2xl:grid-cols-[140px_minmax(280px,560px)_1fr] xl:items-center">
+        <header className="shrink-0">
           <h1 className="text-[24px] font-bold leading-tight tracking-normal text-foreground sm:text-[27px] 2xl:text-[31px]">Jobs</h1>
 
-          <label className="flex h-10 min-w-0 items-center gap-2.5 rounded-md border border-border bg-[#fff8f1] px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.06)] focus-within:border-accent/70 2xl:h-12 2xl:px-4">
-            <Search className="h-[18px] w-[18px] shrink-0 text-muted 2xl:h-5 2xl:w-5" />
-            <input
-              value={query}
-              onChange={(event) => setQuery(event.target.value)}
-              placeholder="Search jobs..."
-              className="h-full min-w-0 flex-1 bg-transparent text-[13px] font-medium text-foreground outline-none placeholder:text-muted 2xl:text-sm"
-            />
-          </label>
-
           <JobsToolbar
-            className="xl:col-span-3"
+            className="mt-2.5 2xl:mt-4"
+            searchQuery={query}
             savedJobsCount={savedJobsCount}
             archivedJobsCount={archivedJobsCount}
             showSavedJobs={showSavedJobs}
@@ -6509,6 +6685,7 @@ export default function HomePage() {
             bulkAnalysisScope={bulkAnalysisScope}
             recentAnalysisCount={recentAnalysisJobs.length}
             missingAnalysisCount={missingAnalysisJobs.length}
+            onSearchQueryChange={setQuery}
             onAddVacancy={openManualJobDialog}
             onSearchVacancies={() => {
               setParserSearchStatus("idle");
@@ -6538,55 +6715,37 @@ export default function HomePage() {
         <div className="mt-3 flex shrink-0 flex-col gap-2 lg:flex-row lg:items-center lg:justify-between 2xl:mt-5 2xl:gap-3">
           <div className="flex flex-wrap gap-1.5 2xl:gap-2">
             {jobFilterControls.map((filter) => (
-              <label
+              <JobFilterDropdown
                 key={filter.key}
-                className={cn(
-                  "relative inline-flex h-8 items-center rounded-md border border-transparent bg-[#fff8f1] px-2.5 text-xs font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8] 2xl:h-10 2xl:px-4 2xl:text-sm",
-                  jobFilterWidths[filter.key],
-                  jobFilters[filter.key] !== "Any" && "border-accent/70 bg-accent/15 text-foreground",
-                )}
-              >
-                <select
-                  aria-label={filter.label}
-                  value={jobFilters[filter.key]}
-                  onChange={(event) => updateJobFilter(filter.key, event.target.value)}
-                  className="h-full min-w-0 flex-1 appearance-none truncate bg-transparent pr-6 font-semibold outline-none"
-                >
-                  <option value="Any">{filter.label}</option>
-                  {filter.options.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {filter.label}: {option.label}
-                    </option>
-                  ))}
-                </select>
-                <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-muted 2xl:right-4 2xl:h-4 2xl:w-4" />
-              </label>
+                filterKey={filter.key}
+                label={filter.label}
+                value={jobFilters[filter.key]}
+                options={filter.options}
+                icon={filter.icon}
+                className={jobFilterWidths[filter.key]}
+                onChange={(value) => updateJobFilter(filter.key, value)}
+              />
             ))}
             <button
               type="button"
-              onClick={() => {
-                setQuery("");
-                setJobFilters(defaultJobFilters);
-                setSortBy("AI Match");
-                setSelectedJobId("");
-                setActiveTab("Overview");
-              }}
+              onClick={clearAllJobFilters}
               className={cn(
-                "inline-flex h-8 items-center rounded-md border border-border bg-[#fff8f1] px-3 text-xs font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8] 2xl:h-10 2xl:px-5 2xl:text-sm",
+                "inline-flex h-8 items-center gap-2 rounded-md border border-border bg-[#fff8f1] px-3 text-xs font-semibold text-[#1d1e1c] shadow-[0_3px_10px_rgba(227,214,197,0.24)] transition hover:border-[#c0bbb6] hover:bg-[#fff3e8] 2xl:h-10 2xl:gap-2.5 2xl:px-5 2xl:text-sm",
                 (query || hasActiveJobFilters(jobFilters) || sortBy !== "AI Match") && "border-accent/60 text-foreground",
               )}
             >
+              <RotateCcw className="h-4 w-4 shrink-0 text-[#686762] 2xl:h-[18px] 2xl:w-[18px]" strokeWidth={1.9} />
               Reset
             </button>
           </div>
 
-          <label className="relative inline-flex h-8 w-fit min-w-[146px] items-center gap-1.5 whitespace-nowrap rounded-md bg-[#fff8f1] px-2.5 text-xs font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8] 2xl:h-10 2xl:min-w-[184px] 2xl:gap-2 2xl:px-4 2xl:text-sm">
+          <label className="relative inline-flex h-8 w-fit min-w-[146px] items-center gap-1.5 whitespace-nowrap rounded-md bg-[#fff8f1] px-2.5 text-xs font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8] focus-within:ring-2 focus-within:ring-accent/20 2xl:h-10 2xl:min-w-[184px] 2xl:gap-2 2xl:px-4 2xl:text-sm">
             <SlidersHorizontal className="h-3.5 w-3.5 text-muted 2xl:h-4 2xl:w-4" />
             <select
               aria-label="Sort jobs"
               value={sortBy}
               onChange={(event) => setSortBy(event.target.value as JobSortBy)}
-              className="h-full min-w-0 flex-1 appearance-none bg-transparent pr-6 font-semibold outline-none"
+              className="h-full min-w-0 flex-1 appearance-none !border-transparent !bg-transparent pr-6 font-semibold outline-none focus-visible:!outline-none"
             >
               {jobSortOptions.map((option) => (
                 <option key={option} value={option}>
@@ -6615,6 +6774,45 @@ export default function HomePage() {
         ) : null}
 
         <div className="mt-2.5 grid min-h-0 flex-1 gap-3 xl:grid-cols-[330px_minmax(0,1fr)] 2xl:mt-4 2xl:grid-cols-[420px_minmax(0,1fr)] 2xl:gap-4">
+          {filteredJobs.length === 0 ? (
+            <div className="relative isolate grid min-h-[360px] overflow-hidden rounded-[20px] border border-dashed border-[#f4c8ad] bg-[#fffaf6] px-5 py-10 text-center shadow-[inset_0_0_80px_rgba(255,129,51,0.035)] xl:col-span-2 2xl:min-h-[420px]">
+              <div className="m-auto flex max-w-lg flex-col items-center">
+                <div className="relative h-[82px] w-[94px] text-accent" aria-hidden="true">
+                  <span className="absolute left-0 top-[46px] h-2 w-2 rounded-sm bg-[#ffb57f]/45 rotate-12" />
+                  <span className="absolute right-1 top-[35px] h-2.5 w-2.5 rounded-full border-2 border-[#ffb57f]/45" />
+                  <span className="absolute right-3 top-[68px] h-2 w-2 rotate-45 rounded-sm bg-[#ffb57f]/40" />
+                  <span className="absolute left-[14px] top-[66px] h-2 w-2 rotate-45 rounded-sm border-2 border-[#ffb57f]/40" />
+                  <span className="absolute left-[30px] top-[5px] h-1.5 w-1.5 rounded-full bg-[#ffb57f]/35" />
+                  <span className="absolute left-[30px] top-[18px] h-[58px] w-[58px] rounded-full bg-[#ffdbc3]/35 blur-[1px]" />
+                  <Search className="absolute left-[25px] top-[10px] h-[70px] w-[70px] text-[#ffb07a]/55" strokeWidth={1.7} />
+                  <span className="absolute left-[35px] top-[20px] grid h-[42px] w-[42px] place-items-center rounded-full border border-[#ff9b5a]/50 bg-[#fffaf6]/90 shadow-[0_0_14px_rgba(255,112,32,0.12)]">
+                    <BriefcaseBusiness className="h-6 w-6 text-[#ff792e]" strokeWidth={2} />
+                  </span>
+                </div>
+
+                <h2 className="mt-4 text-[24px] font-bold leading-tight text-foreground 2xl:text-[28px]">
+                  {showArchivedJobs ? "No archived jobs" : showSavedJobs ? "No saved jobs" : "No jobs found"}
+                </h2>
+                <p className="mt-3 max-w-[480px] text-[15px] font-medium leading-relaxed text-muted 2xl:text-base">
+                  {showArchivedJobs
+                    ? "Archived vacancies will appear here after you archive them."
+                    : showSavedJobs
+                      ? "Saved vacancies will appear here after you click the bookmark or Save button."
+                      : "Try changing the search, resetting filters, or searching for new vacancies."}
+                </p>
+
+                <button
+                  type="button"
+                  onClick={clearAllJobFilters}
+                  className="mt-8 inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-[#ffb17f] bg-white/70 px-6 text-sm font-bold text-accent shadow-[0_8px_24px_rgba(255,104,25,0.07)] transition hover:border-accent hover:bg-[#fff3e8] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50 focus-visible:ring-offset-2 2xl:h-14 2xl:px-7 2xl:text-base"
+                >
+                  <RotateCcw className="h-[18px] w-[18px] 2xl:h-5 2xl:w-5" strokeWidth={2.2} />
+                  Clear all filters
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
           <aside className="flex min-h-0 flex-col overflow-hidden rounded-md bg-[#fff8f1]">
             <p className="shrink-0 px-1 pb-3 pt-3 text-sm font-semibold text-muted 2xl:pb-4 2xl:pt-5 2xl:text-base">
               {filteredJobs.length} {showArchivedJobs ? "archived jobs" : showSavedJobs ? "saved jobs" : "jobs"} found
@@ -6710,26 +6908,33 @@ export default function HomePage() {
           <section className="panel job-scroll min-h-0 overflow-y-auto p-3 md:p-4 2xl:p-5">
             {selectedJob ? (
               <>
-            <div className="grid gap-5 2xl:gap-7">
-              <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.58fr)] min-[1500px]:grid-cols-[minmax(0,1fr)_minmax(470px,0.72fr)] 2xl:gap-7">
-                <div className="flex min-w-0 items-start gap-3 2xl:gap-4">
+            <div className="grid gap-3 2xl:gap-4">
+              <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(300px,0.58fr)] min-[1500px]:grid-cols-[minmax(360px,1fr)_minmax(540px,0.95fr)] 2xl:gap-5">
+                <div className="flex min-w-0 items-start gap-2.5 2xl:gap-3">
                   <JobRoleIcon job={selectedJob} large />
                   <div className="min-w-0 pt-0.5">
-                    <h2 className="text-[22px] font-bold leading-tight text-foreground lg:text-[20px] min-[1400px]:text-[22px] min-[1500px]:text-[24px] 2xl:text-[29px]">{selectedJob.title}</h2>
-                    <p className="mt-1.5 text-sm font-semibold text-muted 2xl:mt-2 2xl:text-base">
+                    <h2 className="text-[20px] font-bold leading-[1.2] tracking-[-0.01em] text-foreground lg:text-[19px] min-[1400px]:text-[20px] min-[1500px]:text-[22px] 2xl:text-[24px]">{selectedJob.title}</h2>
+                    <p className="mt-1 text-[13px] font-semibold text-muted 2xl:mt-1.5 2xl:text-sm">
                       {selectedJob.company} <span className="text-foreground/35">•</span> {selectedJob.location} <span className="text-foreground/35">•</span> {selectedJob.type}
                     </p>
-                    <p className="mt-1 text-xs font-semibold text-[#615f5c] 2xl:text-sm">Source: {getJobSourceLabel(selectedJob)}</p>
-                    <p className="mt-2 text-sm font-semibold text-muted 2xl:mt-3 2xl:text-base">{selectedJob.salary}</p>
+                    <p className="mt-0.5 text-[11px] font-semibold text-[#615f5c] 2xl:mt-1 2xl:text-xs">
+                      Source: {getJobSourceLabel(selectedJob)}
+                      {selectedJob.salary !== "Not specified" ? (
+                        <>
+                          <span className="mx-1 text-foreground/30">•</span>
+                          {selectedJob.salary}
+                        </>
+                      ) : null}
+                    </p>
                   </div>
                 </div>
 
-                <div className="grid w-full content-start gap-2.5 sm:grid-cols-2 lg:max-w-[420px] lg:justify-self-end 2xl:max-w-[460px]">
+                <div className="grid w-full content-start gap-2 sm:grid-cols-2 lg:max-w-[420px] lg:justify-self-end min-[1500px]:max-w-[600px] min-[1500px]:grid-cols-3 2xl:max-w-[600px]">
                   {selectedJobPostingUrl ? (
                     <Button
                       asChild
                       variant="ghost"
-                      className="h-10 rounded-md border border-[#fa5d00]/45 bg-[#fa5d00]/10 px-3 text-xs font-bold text-accent shadow-none hover:border-[#fa5d00]/70 hover:bg-[#fa5d00]/18 hover:text-foreground sm:col-span-2 xl:text-[13px] 2xl:h-11 2xl:text-sm"
+                      className="h-10 rounded-md border border-[#fa5d00]/45 bg-[#fa5d00]/10 px-3 text-xs font-bold text-accent shadow-none hover:border-[#fa5d00]/70 hover:bg-[#fa5d00]/18 hover:text-foreground sm:col-span-2 min-[1500px]:col-span-1 xl:text-[13px] 2xl:h-11"
                     >
                       <a
                         href={selectedJobPostingUrl}
@@ -6746,7 +6951,7 @@ export default function HomePage() {
                       variant="ghost"
                       disabled
                       title="Vacancy link unavailable"
-                      className="h-10 rounded-md border border-border bg-transparent px-3 text-xs font-bold text-muted shadow-none sm:col-span-2 xl:text-[13px] 2xl:h-11 2xl:text-sm"
+                      className="h-10 rounded-md border border-border bg-transparent px-3 text-xs font-bold text-muted shadow-none sm:col-span-2 min-[1500px]:col-span-1 xl:text-[13px] 2xl:h-11"
                     >
                       <ExternalLink className="h-4 w-4 2xl:h-[18px] 2xl:w-[18px]" />
                       Vacancy link unavailable
@@ -6754,7 +6959,7 @@ export default function HomePage() {
                   )}
                   <Button
                     className={cn(
-                      "h-10 rounded-md border border-border bg-[#fff8f1] px-3 text-xs font-bold text-[#1d1e1c] shadow-none hover:border-[#c0bbb6] hover:bg-[#fff3e8] hover:text-foreground xl:text-[13px] 2xl:h-11 2xl:text-sm",
+                      "h-10 rounded-md border border-border bg-[#fff8f1] px-3 text-xs font-bold text-[#1d1e1c] shadow-none hover:border-[#c0bbb6] hover:bg-[#fff3e8] hover:text-foreground xl:text-[13px] 2xl:h-11",
                       selectedJobApplication && "gap-1 px-2 text-[10px] shadow-none 2xl:gap-1.5 2xl:text-xs",
                     )}
                     onClick={() => {
@@ -6776,7 +6981,7 @@ export default function HomePage() {
                   </Button>
                   <Button
                     variant="ghost"
-                    className="h-10 rounded-md border border-[#e95300] bg-accent px-3 text-xs font-bold text-foreground shadow-[0_8px_20px_rgba(255,90,0,0.18)] hover:border-[#e95300] hover:bg-[#e95300] xl:text-[13px] 2xl:h-11 2xl:text-sm"
+                    className="h-10 rounded-md border border-[#e95300] bg-accent px-3 text-xs font-bold text-foreground shadow-[0_8px_20px_rgba(255,90,0,0.18)] hover:border-[#e95300] hover:bg-[#e95300] xl:text-[13px] 2xl:h-11"
                     onClick={() => prepareJobApplication(selectedJob)}
                   >
                     <FileText className="h-4 w-4 2xl:h-5 2xl:w-5" />
@@ -6792,7 +6997,6 @@ export default function HomePage() {
               <div className="h-px bg-border" />
 
               <div>
-                <p className="mb-2 text-[10px] font-black uppercase tracking-[0.14em] text-muted 2xl:mb-3 2xl:text-xs">Ask Assistant</p>
                 <div className="grid gap-2 sm:grid-cols-2 2xl:gap-3">
                   {[
                     {
@@ -6837,7 +7041,7 @@ export default function HomePage() {
                 </div>
               </div>
 
-              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5 2xl:gap-3">
+              <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:gap-3">
                 <Button
                   type="button"
                   variant="ghost"
@@ -6864,17 +7068,6 @@ export default function HomePage() {
                 <Button
                   type="button"
                   variant="ghost"
-                  aria-label="Share job"
-                  title="Share job"
-                  className="h-10 rounded-md border border-border bg-transparent px-3 text-xs font-semibold text-[#1d1e1c] hover:bg-[#fff3e8] 2xl:h-11 2xl:text-sm"
-                  onClick={() => navigator.clipboard?.writeText(`${selectedJob.title} at ${selectedJob.company}`)}
-                >
-                  <Share2 className="h-4 w-4 2xl:h-[18px] 2xl:w-[18px]" />
-                  Share
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
                   aria-label={selectedJob.archived ? "Restore job" : "Archive job"}
                   title={selectedJob.archived ? "Restore job" : "Archive job"}
                   className="h-10 rounded-md border border-border bg-transparent px-3 text-xs font-semibold text-[#1d1e1c] hover:bg-[#fff3e8] 2xl:h-11 2xl:text-sm"
@@ -6897,7 +7090,7 @@ export default function HomePage() {
               </div>
             </div>
 
-            <div className="mt-5 flex gap-2 overflow-x-auto border-b border-border 2xl:mt-7 2xl:gap-4">
+            <div className="mt-3 flex gap-2 overflow-x-auto border-b border-border 2xl:mt-4 2xl:gap-4">
               {tabs.map((tab) => (
                 <button
                   key={tab}
@@ -6914,25 +7107,21 @@ export default function HomePage() {
             </div>
 
             <div className="mt-4 grid gap-3 min-[1800px]:grid-cols-[minmax(0,1.12fr)_minmax(320px,0.9fr)] 2xl:mt-5 2xl:gap-4">
-              <div className="grid gap-3 2xl:gap-4">
-                <JobMainPanel
-                  job={selectedJob}
-                  tab={activeTab}
-                  analysisRef={aiMatchAnalysisRef}
-                  recommendationsRef={aiMatchRecommendationsRef}
-                />
-                <SalaryInsights job={selectedJob} />
-              </div>
+              <JobMainPanel
+                job={selectedJob}
+                tab={activeTab}
+                analysisRef={aiMatchAnalysisRef}
+                recommendationsRef={aiMatchRecommendationsRef}
+              />
 
               <div className="grid content-start gap-3 2xl:gap-4">
                 <MatchPanel
                   job={selectedJob}
-                  isSavingFeedback={matchFeedbackSavingJobId === selectedJob.id}
-                  onFeedback={saveMatchFeedback}
                   onReviewFullAnalysis={() => openAiMatchSection("analysis")}
                 />
                 <RecommendationsPanel job={selectedJob} onViewAllRecommendations={() => openAiMatchSection("recommendations")} />
                 <JobDetails job={selectedJob} />
+                <SalaryInsights job={selectedJob} />
               </div>
             </div>
               </>
@@ -6954,6 +7143,8 @@ export default function HomePage() {
               </div>
             )}
           </section>
+            </>
+          )}
         </div>
 
         {isManualJobDialogOpen && (
@@ -10432,11 +10623,11 @@ function DashboardView({
   )).length;
   const statusColors: Record<ApplicationStatus, string> = {
     draft: "#c0bbb6",
-    applied: "#fa5d00",
-    interview: "#1d1e1c",
-    assessment: "#8e8b87",
-    offer: "#4a4a47",
-    rejected: "#615f5c",
+    applied: "#2563eb",
+    interview: "#0891b2",
+    assessment: "#7c3aed",
+    offer: "#16a34a",
+    rejected: "#dc2626",
   };
   let statusArcOffset = 0;
   const statusOverview = trackedApplicationStatuses.map((item) => {
@@ -13227,20 +13418,6 @@ function JobMainPanel({
   analysisRef?: RefObject<HTMLElement | null>;
   recommendationsRef?: RefObject<HTMLElement | null>;
 }) {
-  if (tab === "Company") {
-    return (
-      <article className="panel p-3 2xl:p-4">
-        <h3 className="text-base font-bold 2xl:text-lg">Company</h3>
-        <p className="mt-3 text-[13px] leading-5 text-muted 2xl:mt-4 2xl:text-sm 2xl:leading-6">{job.companyInfo}</p>
-        <div className="mt-4 grid gap-2.5 sm:grid-cols-3 2xl:mt-5 2xl:gap-3">
-          <InfoStat label="Team" value={job.department} />
-          <InfoStat label="Location" value={job.location} />
-          <InfoStat label="Role" value={job.type} />
-        </div>
-      </article>
-    );
-  }
-
   if (tab === "AI Match") {
     const breakdownItems = getAiMatchBreakdownItems(job);
     const reasons = job.aiMatch?.reasons.length ? job.aiMatch.reasons : ["Run AI matching to generate role-specific reasons."];
@@ -13389,10 +13566,43 @@ function JobMainPanel({
     );
   }
 
+  const descriptionSections = parseJobDescription(job.overview);
+
   return (
     <article className="panel p-3 2xl:p-4">
       <h3 className="text-base font-bold 2xl:text-lg">Job Description</h3>
-      <p className="mt-3 text-[13px] leading-5 text-muted 2xl:mt-4 2xl:text-sm 2xl:leading-6">{job.overview}</p>
+      <div className="mt-3 max-w-[78ch] space-y-5 2xl:mt-4 2xl:space-y-6">
+        {descriptionSections.map((section, sectionIndex) => (
+          <section key={`${section.heading ?? "overview"}-${sectionIndex}`}>
+            {section.heading ? (
+              <h4 className="border-l-2 border-accent pl-3 text-[13px] font-bold leading-5 text-foreground 2xl:text-sm 2xl:leading-6">
+                {section.heading}
+              </h4>
+            ) : null}
+
+            {section.paragraphs.length > 0 ? (
+              <div className={cn("space-y-3", section.heading && "mt-2.5 2xl:mt-3")}>
+                {section.paragraphs.map((paragraph, paragraphIndex) => (
+                  <p key={paragraphIndex} className="text-[13px] leading-6 text-muted 2xl:text-sm 2xl:leading-7">
+                    {paragraph}
+                  </p>
+                ))}
+              </div>
+            ) : null}
+
+            {section.items.length > 0 ? (
+              <ul className={cn("space-y-2.5", section.heading && "mt-2.5 2xl:mt-3")}>
+                {section.items.map((item, itemIndex) => (
+                  <li key={itemIndex} className="flex gap-3 text-[13px] leading-6 text-muted 2xl:text-sm 2xl:leading-7">
+                    <span className="mt-[0.65rem] h-1.5 w-1.5 shrink-0 rounded-full bg-accent/75" aria-hidden="true" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+          </section>
+        ))}
+      </div>
 
       <h4 className="mt-5 text-sm font-bold 2xl:mt-7 2xl:text-base">Key Responsibilities</h4>
       <ul className="mt-2.5 space-y-1.5 text-[13px] leading-5 text-muted 2xl:mt-3 2xl:space-y-2 2xl:text-sm">
@@ -13427,13 +13637,9 @@ function JobMainPanel({
 
 function MatchPanel({
   job,
-  isSavingFeedback,
-  onFeedback,
   onReviewFullAnalysis,
 }: {
   job: Job;
-  isSavingFeedback: boolean;
-  onFeedback: (job: Job, feedback: MatchFeedback) => void;
   onReviewFullAnalysis: () => void;
 }) {
   const reasons = job.aiMatch?.reasons.length
@@ -13442,45 +13648,13 @@ function MatchPanel({
       ? ["Strong profile overlap", "Relevant experience", "Skills alignment"]
       : ["Run AI matching to generate role-specific reasons."];
   const gaps = job.aiMatch?.gaps ?? [];
-  const sourceDisplay = getAiMatchSourceDisplay(job);
-  const feedbackOptions: Array<{ feedback: MatchFeedback; label: string }> = [
-    { feedback: "good_match", label: "Good match" },
-    { feedback: "bad_match", label: "Bad match" },
-    { feedback: "not_interested", label: "Not interested" },
-  ];
 
   return (
     <article className="panel p-4 2xl:p-5">
-      <div className="flex items-start justify-between gap-3">
-        <h3 className="text-base font-bold 2xl:text-lg">AI Match Score</h3>
-        <div className="rounded-md border border-border bg-[#fff8f1] px-2 py-1 text-[10px] font-bold uppercase text-muted 2xl:text-xs" title={job.aiMatch?.providerError}>
-          {sourceDisplay}
-          {job.aiMatch?.confidence ? ` · ${job.aiMatch.confidence}` : ""}
-        </div>
-      </div>
+      <h3 className="text-base font-bold 2xl:text-lg">AI Match Score</h3>
       <p className="mt-3 text-[34px] font-bold leading-none text-success 2xl:mt-4 2xl:text-[40px]">{formatMatchValue(job)}</p>
       <div className="mt-2.5 h-2 rounded-full bg-[#fff8f1] 2xl:mt-3">
         <div className="h-full rounded-full bg-success" style={{ width: `${getDisplayMatch(job)}%` }} />
-      </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-3 2xl:mt-5">
-        {feedbackOptions.map((option) => {
-          const isActive = job.aiMatch?.feedback === option.feedback;
-          return (
-            <Button
-              key={option.feedback}
-              type="button"
-              variant="ghost"
-              disabled={isSavingFeedback}
-              className={cn(
-                "h-9 rounded-md border border-border bg-transparent px-2 text-[11px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8] disabled:cursor-not-allowed disabled:opacity-55 2xl:h-10 2xl:text-xs",
-                isActive && "border-accent/65 bg-accent/12 text-foreground",
-              )}
-              onClick={() => onFeedback(job, option.feedback)}
-            >
-              {option.label}
-            </Button>
-          );
-        })}
       </div>
       <h4 className="mt-5 text-[13px] font-bold 2xl:mt-7 2xl:text-sm">Why this match?</h4>
       <ul className="mt-2.5 space-y-1.5 text-[13px] text-muted 2xl:mt-3 2xl:space-y-2 2xl:text-sm">
@@ -13608,7 +13782,7 @@ function JobMatchRing({ job }: { job: Job }) {
   return (
     <div className="h-10 w-10 shrink-0 text-accent 2xl:h-12 2xl:w-12" aria-label={hasScore ? `${job.match}% AI match` : "AI match not scored"} title={hasScore ? `${job.match}% match` : "AI match not scored"}>
       <svg className="block h-full w-full" viewBox="0 0 48 48" aria-hidden="true">
-        <circle cx="24" cy="24" r={radius} fill="none" stroke="rgba(255,255,255,0.12)" strokeWidth={strokeWidth} />
+        <circle cx="24" cy="24" r={radius} fill="none" stroke="var(--color-parchment-shadow)" strokeWidth={strokeWidth} />
         <circle
           cx="24"
           cy="24"
@@ -13624,7 +13798,7 @@ function JobMatchRing({ job }: { job: Job }) {
         <text
           x="24"
           y="24"
-          fill="white"
+          fill="var(--color-ink-black)"
           fontSize="13"
           fontWeight="700"
           textAnchor="middle"
@@ -13634,7 +13808,7 @@ function JobMatchRing({ job }: { job: Job }) {
           {hasScore ? (
             <>
               <tspan>{normalizedMatch}</tspan>
-              <tspan fill="#615f5c" fontSize="8" fontWeight="700">%</tspan>
+              <tspan fill="var(--color-warm-stone)" fontSize="8" fontWeight="700">%</tspan>
             </>
           ) : (
             "AI"
@@ -13715,12 +13889,12 @@ function JobRoleIcon({ job, large = false, compact = false }: { job: Job; large?
   const source = jobSourceBadges[job.logo];
   const directCompany = getDirectCompanyByJobId(job.id);
   const Icon = role.icon;
-  const sizeClass = compact ? "h-9 w-9 2xl:h-11 2xl:w-11" : large ? "h-16 w-16 2xl:h-[88px] 2xl:w-[88px]" : "h-11 w-11 2xl:h-14 2xl:w-14";
-  const iconSizeClass = compact ? "h-4 w-4 2xl:h-5 2xl:w-5" : large ? "h-8 w-8 2xl:h-11 2xl:w-11" : "h-5 w-5 2xl:h-6 2xl:w-6";
+  const sizeClass = compact ? "h-9 w-9 2xl:h-11 2xl:w-11" : large ? "h-14 w-14 2xl:h-16 2xl:w-16" : "h-11 w-11 2xl:h-14 2xl:w-14";
+  const iconSizeClass = compact ? "h-4 w-4 2xl:h-5 2xl:w-5" : large ? "h-7 w-7 2xl:h-8 2xl:w-8" : "h-5 w-5 2xl:h-6 2xl:w-6";
   const badgeSizeClass = compact
     ? "-bottom-0.5 -right-0.5 h-3.5 min-w-3.5 px-0.5 text-[6px] 2xl:h-4 2xl:min-w-4 2xl:text-[7px]"
     : large
-      ? "-bottom-1 -right-1 h-6 min-w-6 px-1 text-[9px] 2xl:h-7 2xl:min-w-7 2xl:text-[10px]"
+      ? "-bottom-1 -right-1 h-5 min-w-5 px-1 text-[8px] 2xl:h-6 2xl:min-w-6 2xl:text-[9px]"
       : "-bottom-0.5 -right-0.5 h-4 min-w-4 px-0.5 text-[7px] 2xl:h-5 2xl:min-w-5 2xl:text-[8px]";
 
   if (directCompany) {

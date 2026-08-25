@@ -239,6 +239,69 @@ def test_manual_run_rejects_mixed_profiles_so_each_uses_its_own_run(
     assert runner.requests == []
 
 
+def test_manual_run_uses_current_source_filters_without_saving_config(
+    api_context: ApiContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers = {"X-Rufina-Owner-Id": "source-filter-override-owner"}
+    runner = FakeRunner(
+        VacancySearchRunResult(jobs=[], source_results={}, source_errors={})
+    )
+    monkeypatch.setattr(
+        job_search_api,
+        "create_vacancy_search_runner",
+        lambda _settings: runner,
+    )
+    profile = api_context.client.post(
+        "/job-search/configs",
+        headers=headers,
+        json={
+            "name": "Swiss IT",
+            "filters": {
+                "schemaVersion": 2,
+                "search": {"keywords": "common query"},
+                "screening": {"enabled": True},
+            },
+        },
+    ).json()
+    source_config = api_context.client.post(
+        "/job-search/source-configs",
+        headers=headers,
+        json={
+            "name": "Swiss IT · jobs.ch",
+            "configId": profile["id"],
+            "source": "jobs_ch",
+            "filters": {"keywords": "stored query", "datePosted": "Any time"},
+        },
+    ).json()
+
+    response = api_context.client.post(
+        "/job-search/run",
+        headers=headers,
+        json={
+            "configId": profile["id"],
+            "sources": ["jobs_ch"],
+            "sourceConfigIds": {"jobs_ch": source_config["id"]},
+            "sourceFilters": {
+                "jobs_ch": {
+                    "keywords": "current query",
+                    "datePosted": "Past 24 hours",
+                }
+            },
+            "aiAnalysisEnabled": False,
+        },
+    )
+
+    assert response.status_code == 200
+    source_request = runner.requests[0]["source_requests"]["jobs_ch"]
+    assert source_request.keywords == "current query"
+    assert source_request.date_posted == "Past 24 hours"
+    snapshot_filters = response.json()["configSnapshot"]["sourceConfigs"][
+        "jobs_ch"
+    ]["filters"]
+    assert snapshot_filters["datePosted"] == "Past 24 hours"
+
+
 def test_manual_run_uses_explicit_direct_company_source_with_common_config(
     api_context: ApiContext,
     monkeypatch: pytest.MonkeyPatch,

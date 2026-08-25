@@ -20,6 +20,7 @@ export type BulkAnalysisScope = "recent" | "missing";
 
 type JobsToolbarProps = {
   className?: string;
+  searchQuery: string;
   savedJobsCount: number;
   archivedJobsCount: number;
   showSavedJobs: boolean;
@@ -28,6 +29,7 @@ type JobsToolbarProps = {
   bulkAnalysisScope: BulkAnalysisScope | null;
   recentAnalysisCount: number;
   missingAnalysisCount: number;
+  onSearchQueryChange: (value: string) => void;
   onAddVacancy: () => void;
   onSearchVacancies: () => void;
   onToggleSavedJobs: () => void;
@@ -42,6 +44,7 @@ const secondaryButtonClass =
 
 export function JobsToolbar({
   className,
+  searchQuery,
   savedJobsCount,
   archivedJobsCount,
   showSavedJobs,
@@ -50,6 +53,7 @@ export function JobsToolbar({
   bulkAnalysisScope,
   recentAnalysisCount,
   missingAnalysisCount,
+  onSearchQueryChange,
   onAddVacancy,
   onSearchVacancies,
   onToggleSavedJobs,
@@ -61,6 +65,7 @@ export function JobsToolbar({
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isVacancyFilterOpen, setIsVacancyFilterOpen] = useState(false);
   const [analysisMenuLeft, setAnalysisMenuLeft] = useState(0);
+  const [analysisMenuTop, setAnalysisMenuTop] = useState(0);
   const toolbarRef = useRef<HTMLDivElement>(null);
   const analysisButtonRef = useRef<HTMLButtonElement>(null);
 
@@ -78,6 +83,7 @@ export function JobsToolbar({
       const desiredLeft = buttonRect.right - toolbarRect.left - menuWidth;
       const maximumLeft = Math.max(0, toolbarRect.width - menuWidth);
       setAnalysisMenuLeft(Math.max(0, Math.min(desiredLeft, maximumLeft)));
+      setAnalysisMenuTop(buttonRect.bottom - toolbarRect.top + 8);
     };
 
     updateMenuPosition();
@@ -100,23 +106,43 @@ export function JobsToolbar({
       >
         <div
           aria-label="Jobs actions"
-          className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+          className="flex min-w-0 flex-col gap-2 pb-1 xl:flex-row xl:items-center xl:justify-between"
         >
+        <div aria-label="Primary jobs actions" className="flex shrink-0 items-center gap-2">
         <Button
-          className="h-10 shrink-0 rounded-lg border border-[#e95300] bg-[linear-gradient(135deg,#e95300_0%,#e95300_100%)] px-4 text-[13px] font-bold text-foreground shadow-[0_10px_28px_rgba(255,90,0,0.24),inset_0_1px_0_rgba(255,255,255,0.22)] hover:bg-[linear-gradient(135deg,#e95300_0%,#e95300_100%)] 2xl:h-12 2xl:px-5 2xl:text-sm"
-          onClick={onAddVacancy}
-        >
-          <Plus className="h-[18px] w-[18px] stroke-[2.3] 2xl:h-5 2xl:w-5" />
-          Add vacancy
-        </Button>
-
-        <Button
-          className="h-10 shrink-0 rounded-lg border border-[#fa5d00] bg-[linear-gradient(135deg,#fa5d00_0%,#fa5d00_100%)] px-4 text-[13px] font-bold text-foreground shadow-[0_10px_28px_rgba(124,58,237,0.30),inset_0_1px_0_rgba(255,255,255,0.18)] hover:bg-[linear-gradient(135deg,#fa5d00_0%,#fa5d00_100%)] 2xl:h-12 2xl:px-5 2xl:text-sm"
+          className="h-10 shrink-0 rounded-lg border border-[#fa5d00] bg-[linear-gradient(135deg,#fa5d00_0%,#e95300_100%)] px-4 text-[13px] font-bold text-foreground shadow-[0_10px_28px_rgba(255,90,0,0.24),inset_0_1px_0_rgba(255,255,255,0.18)] hover:bg-[linear-gradient(135deg,#fa5d00_0%,#e95300_100%)] 2xl:h-12 2xl:px-5 2xl:text-sm"
           onClick={onSearchVacancies}
         >
           <Search className="h-[18px] w-[18px] stroke-[2.3] 2xl:h-5 2xl:w-5" />
           Search vacancies
         </Button>
+
+        <Button
+          variant="ghost"
+          className="h-10 shrink-0 rounded-lg border border-[#fa5d00] bg-transparent px-4 text-[13px] font-bold text-accent shadow-none hover:border-[#e95300] hover:bg-[#fa5d00]/10 hover:text-accent 2xl:h-12 2xl:px-5 2xl:text-sm"
+          onClick={onAddVacancy}
+        >
+          <Plus className="h-[18px] w-[18px] stroke-[2.3] text-accent 2xl:h-5 2xl:w-5" />
+          Add vacancy
+        </Button>
+        </div>
+
+        <label className="flex h-10 min-w-[220px] flex-1 items-center gap-2.5 rounded-lg border border-border bg-white px-3 shadow-[0_4px_14px_rgba(227,214,197,0.3)] focus-within:border-accent/70 focus-within:ring-2 focus-within:ring-accent/15 2xl:h-12 2xl:px-4">
+          <Search className="h-[18px] w-[18px] shrink-0 text-muted 2xl:h-5 2xl:w-5" />
+          <input
+            type="search"
+            value={searchQuery}
+            onChange={(event) => onSearchQueryChange(event.target.value)}
+            aria-label="Search jobs"
+            placeholder="Search jobs..."
+            className="h-full min-w-0 flex-1 !border-transparent !bg-transparent text-[13px] font-medium text-foreground outline-none placeholder:text-muted focus-visible:!outline-none 2xl:text-sm"
+          />
+        </label>
+
+        <div
+          aria-label="Secondary jobs actions"
+          className="flex min-w-0 flex-nowrap items-center gap-2 overflow-x-auto xl:ml-auto xl:justify-end [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+        >
 
         <Button
           variant="ghost"
@@ -195,13 +221,14 @@ export function JobsToolbar({
           </Button>
         </div>
         </div>
+        </div>
 
         {isAnalysisMenuOpen ? (
           <div
             role="menu"
             aria-label="Bulk AI analysis"
-            style={{ left: analysisMenuLeft }}
-            className="absolute top-12 z-40 grid w-[min(300px,calc(100vw-2rem))] gap-1 rounded-lg border border-border bg-[#ffffff] p-2 shadow-[0_18px_40px_rgba(0,0,0,0.48)] 2xl:top-14"
+            style={{ left: analysisMenuLeft, top: analysisMenuTop }}
+            className="absolute z-40 grid w-[min(300px,calc(100vw-2rem))] gap-1 rounded-lg border border-border bg-[#ffffff] p-2 shadow-[0_18px_40px_rgba(0,0,0,0.48)]"
           >
             <p className="px-2 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
               Run AI analysis

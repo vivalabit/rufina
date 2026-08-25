@@ -260,6 +260,7 @@ def execute_job_search(
     config_snapshot: dict[str, Any] | None = None,
     sources: list[str] | None = None,
     source_configs: dict[str, JobSourceConfigRecord] | None = None,
+    source_filters: dict[str, SearchFilters] | None = None,
     ai_analysis_enabled: bool | None = None,
     scheduled_for: datetime | None = None,
     now: datetime | None = None,
@@ -282,6 +283,11 @@ def execute_job_search(
             **config_snapshot,
             "sourceConfigs": build_source_config_snapshots(source_configs),
         }
+    if source_filters:
+        config_snapshot = apply_source_filter_overrides(
+            config_snapshot,
+            source_filters,
+        )
     if JOB_FILTER_SNAPSHOT_KEY not in config_snapshot:
         config_snapshot = {
             **config_snapshot,
@@ -746,6 +752,31 @@ def build_source_config_snapshots(
         }
         for source, record in source_configs.items()
     }
+
+
+def apply_source_filter_overrides(
+    snapshot: dict[str, Any],
+    source_filters: dict[str, SearchFilters],
+) -> dict[str, Any]:
+    raw_source_configs = snapshot.get("sourceConfigs")
+    source_configs = (
+        deepcopy(raw_source_configs)
+        if isinstance(raw_source_configs, dict)
+        else {}
+    )
+    for source, filters in source_filters.items():
+        raw_source_config = source_configs.get(source)
+        source_config = (
+            dict(raw_source_config)
+            if isinstance(raw_source_config, dict)
+            else {"source": source}
+        )
+        source_config["filters"] = filters.model_dump(
+            by_alias=True,
+            exclude_none=True,
+        )
+        source_configs[source] = source_config
+    return {**snapshot, "sourceConfigs": source_configs}
 
 
 def source_requests_from_snapshot(

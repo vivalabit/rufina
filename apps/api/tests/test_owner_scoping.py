@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
-from app.core.identity import current_owner_id
 from app.core.settings import Settings, get_settings
 from app.main import app
 from app.models.applications import CandidateConfirmationRecord, StoredApplicationRecord
@@ -18,7 +17,7 @@ from app.models.documents import (
     DocumentTemplateRecord,
     DocumentVersionRecord,
 )
-from app.models.jobs import JobMatchFeedbackRecord, StoredJobRecord
+from app.models.jobs import StoredJobRecord
 from app.services.cover_letter_template_registry import (
     bundled_cover_letter_template_id,
 )
@@ -193,16 +192,6 @@ def test_application_data_is_scoped_to_request_owner() -> None:
         )
         jobs_a = client.get("/jobs", headers=owner_a)
         jobs_b = client.get("/jobs", headers=owner_b)
-        feedback_a = client.post(
-            "/jobs/shared-job/match-feedback",
-            headers=owner_a,
-            json={"feedback": "good_match"},
-        )
-        feedback_b = client.post(
-            "/jobs/shared-job/match-feedback",
-            headers=owner_b,
-            json={"feedback": "not_interested"},
-        )
     finally:
         app.dependency_overrides.clear()
 
@@ -244,28 +233,10 @@ def test_application_data_is_scoped_to_request_owner() -> None:
     }
     assert jobs_a.json()[0]["data"]["title"] == "Vacancy a"
     assert jobs_b.json()[0]["data"]["title"] == "Vacancy b"
-    assert feedback_a.status_code == 200
-    assert feedback_b.status_code == 200
     with testing_session_local() as db:
         assert db.get(StoredApplicationRecord, "created-for-b").owner_id == "owner-b"
         assert db.get(StoredJobRecord, ("owner-a", "shared-job")).data["title"] == "Vacancy a"
         assert db.get(StoredJobRecord, ("owner-b", "shared-job")).data["title"] == "Vacancy b"
-        feedback_by_owner = {
-            record.owner_id: record.feedback
-            for record in db.query(JobMatchFeedbackRecord).all()
-        }
-        assert feedback_by_owner == {
-            "owner-a": "good_match",
-            "owner-b": "not_interested",
-        }
-    owner_token = current_owner_id.set("owner-a")
-    try:
-        with testing_session_local() as db:
-            assert {
-                record.feedback for record in db.query(JobMatchFeedbackRecord).all()
-            } == {"good_match"}
-    finally:
-        current_owner_id.reset(owner_token)
 
 
 def test_non_local_requests_require_authenticated_owner_identity() -> None:

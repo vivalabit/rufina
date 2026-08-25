@@ -1003,6 +1003,10 @@ class JobSearchManualRunRequest(BaseModel):
         default_factory=dict,
         alias="sourceConfigIds",
     )
+    source_filters: dict[str, SearchFilters] = Field(
+        default_factory=dict,
+        alias="sourceFilters",
+    )
     ai_analysis_enabled: bool = Field(default=True, alias="aiAnalysisEnabled")
 
     model_config = {"extra": "forbid", "populate_by_name": True}
@@ -1020,19 +1024,40 @@ class JobSearchManualRunRequest(BaseModel):
     def normalize_source_configs(cls, value: dict[str, str]) -> dict[str, str]:
         return normalize_source_config_ids(value)
 
+    @field_validator("source_filters")
+    @classmethod
+    def normalize_source_filters(
+        cls,
+        value: dict[str, SearchFilters],
+    ) -> dict[str, SearchFilters]:
+        return {
+            validate_aggregator_source(source): filters
+            for source, filters in value.items()
+        }
+
     @model_validator(mode="after")
     def require_one_config_source(self) -> "JobSearchManualRunRequest":
         if self.preset_id:
-            if self.config_id or self.config or self.sources or self.source_config_ids:
+            if (
+                self.config_id
+                or self.config
+                or self.sources
+                or self.source_config_ids
+                or self.source_filters
+            ):
                 raise ValueError(
                     "presetId cannot be combined with configId, config, sources, "
-                    "or sourceConfigIds"
+                    "sourceConfigIds, or sourceFilters"
                 )
             return self
         if bool(self.config_id) == bool(self.config):
             raise ValueError("provide presetId or exactly one of configId or config")
         if not self.sources:
             raise ValueError("select at least one source")
+        unexpected_filter_sources = set(self.source_filters) - set(self.sources)
+        if unexpected_filter_sources:
+            source = min(unexpected_filter_sources)
+            raise ValueError(f"source filters provided for unselected source: {source}")
         return self
 
 

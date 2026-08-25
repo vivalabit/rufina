@@ -14,7 +14,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.database import Base, get_db
 from app.core.settings import Settings, get_settings
 from app.main import app
-from app.models.jobs import JobMatchFeedbackRecord, JobMatchRecord, StoredJobRecord
+from app.models.jobs import JobMatchRecord, StoredJobRecord
 from app.models.profile import CandidateMatchSnapshotRecord, ProfilePayload, ProfileRecord
 from app.services import ai_match as ai_match_service
 from app.services.ai_backend import AIRequest, AIResult, AIUsage, OpenAIAPIBackend
@@ -1709,36 +1709,17 @@ def test_ai_match_endpoint_updates_and_persists_job_scores(monkeypatch: pytest.M
             == payload["aiMatch"]["applicationGuide"]
         )
 
-        feedback_response = client.post(
-            f"/jobs/{job['id']}/match-feedback",
-            json={"feedback": "bad_match"},
-        )
-        assert feedback_response.status_code == 200
-        feedback_payload = feedback_response.json()["data"]
-        assert feedback_payload["aiMatch"]["feedback"] == "bad_match"
-
-        rerun_response = client.post(
-            "/jobs/ai-match?force=true",
-            json={"jobs": [{"id": job["id"], "data": feedback_payload}]},
-        )
-        assert rerun_response.status_code == 200
-        rerun_payload = rerun_response.json()[0]["data"]
-        assert rerun_payload["match"] < feedback_payload["match"]
-        assert rerun_payload["aiMatch"]["calibration"]["feedback"] == "bad_match"
-
         with testing_session_local() as db:
             stored_job = db.get(StoredJobRecord, ("local-owner", job["id"]))
             match_records = db.query(JobMatchRecord).filter(JobMatchRecord.job_id == job["id"]).all()
-            feedback_records = db.query(JobMatchFeedbackRecord).filter(JobMatchFeedbackRecord.job_id == job["id"]).all()
             snapshot_records = db.query(CandidateMatchSnapshotRecord).all()
             assert stored_job is not None
             assert "aiMatch" not in stored_job.data
             assert len(snapshot_records) == 1
             assert snapshot_records[0].source == "openclaw_codex"
-            assert len(match_records) == 2
-            assert len(feedback_records) == 1
+            assert len(match_records) == 1
             assert {record.profile_hash for record in match_records} == {snapshot_records[0].profile_hash}
-            assert rerun_payload["match"] in {record.score for record in match_records}
+            assert payload["match"] in {record.score for record in match_records}
             assert all(record.source == "openclaw_codex" for record in match_records)
             assert all(record.backend == "openclaw_codex" for record in match_records)
             assert all(record.breakdown for record in match_records)

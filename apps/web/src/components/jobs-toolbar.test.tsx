@@ -20,6 +20,7 @@ it("renders the requested action order and opens auto-searches locally", async (
 
   render(
     <JobsToolbar
+      searchQuery=""
       savedJobsCount={2}
       archivedJobsCount={3}
       showSavedJobs={false}
@@ -28,6 +29,7 @@ it("renders the requested action order and opens auto-searches locally", async (
       bulkAnalysisScope={null}
       recentAnalysisCount={4}
       missingAnalysisCount={5}
+      onSearchQueryChange={vi.fn()}
       onAddVacancy={vi.fn()}
       onSearchVacancies={vi.fn()}
       onToggleSavedJobs={vi.fn()}
@@ -39,13 +41,32 @@ it("renders the requested action order and opens auto-searches locally", async (
   );
 
   const toolbar = screen.getByLabelText("Jobs actions");
+  const primaryActions = within(toolbar).getByLabelText("Primary jobs actions");
+  const secondaryActions = within(toolbar).getByLabelText(
+    "Secondary jobs actions",
+  );
+
   expect(
-    within(toolbar)
-      .getAllByRole("button")
-      .map((button) => button.getAttribute("aria-label") || button.textContent?.trim()),
+    within(primaryActions).getByRole("button", { name: "Add vacancy" }),
+  ).toBeInTheDocument();
+  expect(
+    within(primaryActions).getByRole("button", { name: "Search vacancies" }),
+  ).toBeInTheDocument();
+  expect(
+    within(primaryActions).queryByRole("button", { name: /Saved Jobs/ }),
+  ).not.toBeInTheDocument();
+  expect(
+    within(secondaryActions).getByRole("button", { name: /Saved Jobs/ }),
+  ).toBeInTheDocument();
+
+  expect(
+    Array.from(toolbar.querySelectorAll("button, input")).map(
+      (control) => control.getAttribute("aria-label") || control.textContent?.trim(),
+    ),
   ).toEqual([
-    "Add vacancy",
     "Search vacancies",
+    "Add vacancy",
+    "Search jobs",
     "Saved Jobs (2)",
     "Archived (3)",
     "Auto Search",
@@ -83,6 +104,7 @@ it("shows the bulk analysis menu outside the scrolling action row", () => {
     const [isOpen, setIsOpen] = useState(false);
     return (
       <JobsToolbar
+        searchQuery=""
         savedJobsCount={0}
         archivedJobsCount={0}
         showSavedJobs={false}
@@ -91,6 +113,7 @@ it("shows the bulk analysis menu outside the scrolling action row", () => {
         bulkAnalysisScope={null}
         recentAnalysisCount={2}
         missingAnalysisCount={3}
+        onSearchQueryChange={vi.fn()}
         onAddVacancy={vi.fn()}
         onSearchVacancies={vi.fn()}
         onToggleSavedJobs={vi.fn()}

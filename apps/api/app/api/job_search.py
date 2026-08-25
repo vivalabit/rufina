@@ -816,6 +816,7 @@ def run_manual_search(
             config_snapshot=config_snapshot,
             sources=sources,
             source_configs=source_configs,
+            source_filters=request.source_filters,
             ai_analysis_enabled=request.ai_analysis_enabled,
             runner=create_vacancy_search_runner(settings),
             settings=settings,

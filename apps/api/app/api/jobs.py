@@ -16,7 +16,6 @@ from app.core.settings import Settings, get_settings
 from app.models.jobs import (
     AiMatchJobStatus,
     DismissedJobIdsRequest,
-    JobMatchFeedbackRequest,
     StoredJobPayload,
     StoredJobRecord,
     StoredJobsRequest,
@@ -31,10 +30,8 @@ from app.services.ai_match_jobs import ai_match_jobs
 from app.services.ai_privacy import record_ai_activity
 from app.services.candidate_snapshot import CandidateSnapshotError, get_candidate_match_snapshot
 from app.services.job_match_store import (
-    calibrate_job_with_feedback,
     hydrate_job_data,
     persist_job_and_match,
-    persist_match_feedback,
     strip_ai_match,
 )
 
@@ -154,21 +151,16 @@ def match_jobs(
             candidate_snapshot=candidate_snapshot.data,
         )
 
-        calibrated_jobs: list[dict[str, Any]] = []
+        persisted_jobs: list[dict[str, Any]] = []
         for job in matched_jobs:
             job_id = str(job.get("id") or "")
             if not job_id:
                 continue
-            calibrated_job = calibrate_job_with_feedback(
-                db,
-                job=job,
-                profile_hash=candidate_snapshot.profile_hash,
-            )
-            persist_job_and_match(db, job=calibrated_job, profile_hash=candidate_snapshot.profile_hash)
-            calibrated_jobs.append(calibrated_job)
+            persist_job_and_match(db, job=job, profile_hash=candidate_snapshot.profile_hash)
+            persisted_jobs.append(job)
 
         db.commit()
-        return [StoredJobPayload(id=str(job.get("id")), data=job) for job in calibrated_jobs if job.get("id")]
+        return [StoredJobPayload(id=str(job.get("id")), data=job) for job in persisted_jobs if job.get("id")]
     except SQLAlchemyError as exc:
         db.rollback()
         raise HTTPException(
@@ -365,48 +357,6 @@ def import_dismissed_job_ids(
                 record.dismissed_at = dismissed_at
         db.commit()
         return list_dismissed_job_ids(db)
-    except SQLAlchemyError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Jobs database is unavailable",
-        ) from exc
-
-
-@router.post("/{job_id}/match-feedback", response_model=StoredJobPayload)
-def save_match_feedback(
-    job_id: str,
-    request: JobMatchFeedbackRequest,
-    db: Session = Depends(get_db),
-) -> StoredJobPayload:
-    try:
-        record = db.get(StoredJobRecord, (get_bound_owner_id(), job_id))
-        if not record or record.status != ACTIVE_JOB_STATUS:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Job was not found",
-            )
-
-        profile = get_current_profile(db)
-        candidate_snapshot = get_candidate_match_snapshot(db, profile=profile)
-        persist_match_feedback(
-            db,
-            job_id=job_id,
-            profile_hash=candidate_snapshot.profile_hash,
-            feedback=request.feedback,
-        )
-        db.commit()
-        return StoredJobPayload(
-            id=record.id,
-            data=hydrate_job_data(
-                db,
-                job_id=record.id,
-                job_data=record.data,
-                profile_hash=candidate_snapshot.profile_hash,
-            ),
-        )
-    except HTTPException:
-        raise
     except SQLAlchemyError as exc:
         db.rollback()
         raise HTTPException(

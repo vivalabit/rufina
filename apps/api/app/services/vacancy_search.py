@@ -22,7 +22,11 @@ from app.models.parsers import (
 from app.services.parsers.companies import create_direct_company_parsers
 from app.services.parsers.companies.base import DirectCompanyRequestError
 from app.services.parsers.indeed import IndeedJobsParser
-from app.services.parsers.jobs_ch import JobsChParser, JobsChRequestError
+from app.services.parsers.jobs_ch import (
+    JobsChParser,
+    JobsChRequestError,
+    is_within_date_posted_window,
+)
 from app.services.parsers.linkedin import (
     BrightDataConfigurationError,
     BrightDataRequestError,
@@ -178,8 +182,17 @@ class VacancySearchRunner:
                     duration_seconds=time.monotonic() - source_started_at,
                 )
 
+        filtered_jobs = filter_jobs_by_date_posted(
+            jobs,
+            request=request,
+            source_requests=source_requests,
+        )
         return VacancySearchRunResult(
-            jobs=deduplicate_jobs(jobs) if request.deduplicate else jobs,
+            jobs=(
+                deduplicate_jobs(filtered_jobs)
+                if request.deduplicate
+                else filtered_jobs
+            ),
             source_results=source_results,
             source_errors=source_errors,
         )
@@ -284,6 +297,41 @@ def unique_sources(sources: Sequence[str]) -> list[str]:
     if unsupported:
         raise ValueError(f"Unsupported vacancy source: {unsupported[0]}")
     return unique
+
+
+def filter_jobs_by_date_posted(
+    jobs: Sequence[ParsedJob],
+    *,
+    request: LinkedInSearchRequest,
+    source_requests: Mapping[str, LinkedInSearchRequest] | None = None,
+) -> list[ParsedJob]:
+    """Enforce date windows after every parser has returned normalized jobs."""
+    filtered: list[ParsedJob] = []
+    for job in jobs:
+        selected_request = (
+            source_requests.get(job.source, request)
+            if source_requests is not None
+            else request
+        )
+        if selected_request.date_posted == "Any time":
+            filtered.append(job)
+            continue
+
+        filter_date = job.posted_at
+        if job.source == "jobs_ch":
+            initial_publication_date = job.raw.get("initialPublicationDate")
+            if (
+                isinstance(initial_publication_date, str)
+                and initial_publication_date.strip()
+            ):
+                filter_date = initial_publication_date
+
+        if is_within_date_posted_window(
+            filter_date,
+            selected_request.date_posted,
+        ):
+            filtered.append(job)
+    return filtered
 
 
 def deduplicate_jobs(jobs: Sequence[ParsedJob]) -> list[ParsedJob]:

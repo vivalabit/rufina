@@ -9,19 +9,9 @@ from uuid import uuid4
 from sqlalchemy.orm import Session
 
 from app.core.identity import get_bound_owner_id
-from app.models.jobs import JobMatchFeedbackRecord, JobMatchRecord, StoredJobRecord
+from app.models.jobs import JobMatchRecord, StoredJobRecord
 from app.services.ai_match import MATCHER_VERSION
 
-FEEDBACK_SCORE_ADJUSTMENTS = {
-    "good_match": 8,
-    "bad_match": -12,
-    "not_interested": -25,
-}
-FEEDBACK_LABELS = {
-    "good_match": "User marked this as a good match",
-    "bad_match": "User marked this as a bad match",
-    "not_interested": "User marked this as not interesting",
-}
 APPLICATION_GUIDE_STORAGE_KEY = "_applicationGuide"
 
 
@@ -37,9 +27,6 @@ def hydrate_job_data(
     if match_record:
         next_job_data["match"] = match_record.score
         next_job_data["aiMatch"] = match_record_to_ai_match(match_record)
-        feedback_record = latest_feedback_record(db, job_id=job_id, profile_hash=profile_hash)
-        if feedback_record:
-            next_job_data["aiMatch"]["feedback"] = feedback_record.feedback
         return next_job_data
 
     return next_job_data
@@ -147,90 +134,6 @@ def persist_job_and_match(db: Session, *, job: dict[str, Any], profile_hash: str
     ai_match = job.get("aiMatch")
     if isinstance(ai_match, dict) and should_insert_match_record(db, job_id, profile_hash, ai_match):
         db.add(build_match_record(job_id=job_id, profile_hash=profile_hash, ai_match=ai_match))
-
-
-def persist_match_feedback(
-    db: Session,
-    *,
-    job_id: str,
-    profile_hash: str,
-    feedback: str,
-) -> JobMatchFeedbackRecord:
-    record = JobMatchFeedbackRecord(
-        id=uuid4().hex,
-        job_id=job_id,
-        profile_hash=profile_hash,
-        matcher_version=MATCHER_VERSION,
-        feedback=feedback,
-        created_at=datetime.now(UTC),
-    )
-    db.add(record)
-    return record
-
-
-def latest_feedback_record(
-    db: Session,
-    *,
-    job_id: str,
-    profile_hash: str,
-) -> JobMatchFeedbackRecord | None:
-    return (
-        db.query(JobMatchFeedbackRecord)
-        .filter(
-            JobMatchFeedbackRecord.job_id == job_id,
-            JobMatchFeedbackRecord.profile_hash == profile_hash,
-            JobMatchFeedbackRecord.matcher_version == MATCHER_VERSION,
-        )
-        .order_by(JobMatchFeedbackRecord.created_at.desc(), JobMatchFeedbackRecord.id.desc())
-        .first()
-    )
-
-
-def calibrate_job_with_feedback(
-    db: Session,
-    *,
-    job: dict[str, Any],
-    profile_hash: str,
-) -> dict[str, Any]:
-    job_id = str(job.get("id") or "")
-    ai_match = job.get("aiMatch")
-    if not job_id or not isinstance(ai_match, dict):
-        return job
-
-    feedback_record = latest_feedback_record(db, job_id=job_id, profile_hash=profile_hash)
-    if not feedback_record:
-        return job
-
-    adjustment = FEEDBACK_SCORE_ADJUSTMENTS.get(feedback_record.feedback, 0)
-    if adjustment == 0:
-        return job
-
-    next_job = dict(job)
-    next_ai_match = dict(ai_match)
-    calibrated_score = clamp_int(next_ai_match.get("score"), clamp_int(next_job.get("match"), 0))
-    calibrated_score = max(0, min(100, calibrated_score + adjustment))
-    next_job["match"] = calibrated_score
-    next_ai_match["score"] = calibrated_score
-    next_ai_match["feedback"] = feedback_record.feedback
-    next_ai_match["calibration"] = {
-        "feedback": feedback_record.feedback,
-        "adjustment": adjustment,
-    }
-
-    label = FEEDBACK_LABELS.get(feedback_record.feedback, "User feedback adjusted this match")
-    if adjustment > 0:
-        reasons = normalize_string_list(next_ai_match.get("reasons"))
-        if label not in reasons:
-            reasons = [label, *reasons][:3]
-        next_ai_match["reasons"] = reasons
-    else:
-        gaps = normalize_string_list(next_ai_match.get("gaps"))
-        if label not in gaps:
-            gaps = [label, *gaps][:3]
-        next_ai_match["gaps"] = gaps
-
-    next_job["aiMatch"] = next_ai_match
-    return next_job
 
 
 def should_insert_match_record(

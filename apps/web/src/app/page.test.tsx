@@ -2340,6 +2340,10 @@ it("selects a separate query config inside each source's settings", async () => 
   fireEvent.change(screen.getByLabelText("jobs.ch query config"), {
     target: { value: "entry-it-jobs-ch" },
   });
+  fireEvent.change(
+    screen.getByRole("combobox", { name: /Date posted/ }),
+    { target: { value: "Past 24 hours" } },
+  );
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
 
   expect(
@@ -2351,6 +2355,9 @@ it("selects a separate query config inside each source's settings", async () => 
     configId: "entry-it",
     sources: ["linkedin", "indeed", "jobs_ch"],
     sourceConfigIds,
+    sourceFilters: {
+      jobs_ch: { datePosted: "Past 24 hours" },
+    },
   });
 });
 
@@ -4862,7 +4869,12 @@ it("shows seeded vacancies and calendar events only in demo mode", async () => {
   vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "0");
   const regularMode = render(<HomePage />);
 
-  expect(await screen.findByText("0 jobs found")).toBeInTheDocument();
+  expect(
+    await screen.findByRole("heading", { name: "No jobs found" }),
+  ).toBeInTheDocument();
+  expect(
+    screen.getByRole("button", { name: "Clear all filters" }),
+  ).toBeInTheDocument();
   expect(screen.queryByText("Stripe")).not.toBeInTheDocument();
   expect(screen.queryByText("Figma")).not.toBeInTheDocument();
 
@@ -4881,6 +4893,36 @@ it("shows seeded vacancies and calendar events only in demo mode", async () => {
   expect(await screen.findByText("2 jobs found")).toBeInTheDocument();
   expect(screen.getAllByText("Stripe").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Figma").length).toBeGreaterThan(0);
+  expect(screen.queryByRole("button", { name: "Share job" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Company" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Reviews" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Similar Jobs" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Good match" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Bad match" })).not.toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Not interested" })).not.toBeInTheDocument();
+  expect(screen.queryByText("Ask Assistant")).not.toBeInTheDocument();
+  expect(screen.queryByText("Static score")).not.toBeInTheDocument();
+  expect(
+    screen.getByLabelText("92% AI match").querySelector("text"),
+  ).toHaveAttribute("fill", "var(--color-ink-black)");
+
+  fireEvent.click(screen.getByRole("button", { name: "Remote" }));
+  const remoteSearch = screen.getByRole("searchbox", {
+    name: "Search Remote options",
+  });
+  fireEvent.change(remoteSearch, { target: { value: "hyb" } });
+  expect(screen.getByRole("option", { name: "Hybrid" })).toBeInTheDocument();
+  expect(
+    screen.queryByRole("option", { name: "Remote only" }),
+  ).not.toBeInTheDocument();
+  fireEvent.click(screen.getByRole("option", { name: "Hybrid" }));
+  expect(screen.getByRole("button", { name: "Remote" })).toHaveTextContent(
+    "Hybrid",
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Reset" }));
+  expect(screen.getByRole("button", { name: "Remote" })).toHaveTextContent(
+    "Remote",
+  );
 
   fireEvent.click(screen.getByRole("link", { name: "Calendar" }));
   expect(

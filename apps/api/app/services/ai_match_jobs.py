@@ -23,7 +23,7 @@ from app.services.ai_match import (
     VacancyMatchingAIFacade,
     create_vacancy_matching_ai_facade,
 )
-from app.services.job_match_store import calibrate_job_with_feedback, hydrate_job_data, persist_job_and_match
+from app.services.job_match_store import hydrate_job_data, persist_job_and_match
 
 SessionFactory = Callable[[], Session]
 
@@ -203,10 +203,9 @@ class AiMatchJobManager:
 
         db = session_factory()
         try:
-            calibrated_job = calibrate_job_with_feedback(db, job=job, profile_hash=profile_hash)
-            persist_job_and_match(db, job=calibrated_job, profile_hash=profile_hash)
+            persist_job_and_match(db, job=job, profile_hash=profile_hash)
             db.commit()
-            return hydrate_job_data(db, job_id=job_id, job_data=calibrated_job, profile_hash=profile_hash)
+            return hydrate_job_data(db, job_id=job_id, job_data=job, profile_hash=profile_hash)
         except SQLAlchemyError:
             db.rollback()
             raise

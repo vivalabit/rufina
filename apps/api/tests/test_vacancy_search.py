@@ -1,5 +1,6 @@
 import json
 import logging
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -212,6 +213,47 @@ def test_runner_merges_deduplicates_and_preserves_partial_results(
         ("indeed", 0),
         ("jobs_ch", 2),
     ]
+
+
+def test_runner_filters_old_jobs_after_parser_results_are_collected() -> None:
+    fresh_date = (datetime.now(UTC) - timedelta(hours=2)).isoformat()
+    old_date = (datetime.now(UTC) - timedelta(days=2)).isoformat()
+    fresh_job = ParsedJob(
+        source="jobs_ch",
+        title="Fresh job",
+        company="Acme",
+        posted_at=fresh_date,
+        url="https://jobs.example/vacancies/fresh",
+    )
+    old_job = ParsedJob(
+        source="jobs_ch",
+        title="Old job returned by unstable parser",
+        company="Acme",
+        posted_at=old_date,
+        url="https://jobs.example/vacancies/old",
+    )
+    relisted_old_job = ParsedJob(
+        source="jobs_ch",
+        title="Relisted old job",
+        company="Acme",
+        posted_at=fresh_date,
+        url="https://jobs.example/vacancies/relisted",
+        raw={"initialPublicationDate": old_date},
+    )
+    parser = CompletedParser(
+        "jobs_ch",
+        [fresh_job, old_job, relisted_old_job],
+    )
+    runner = VacancySearchRunner({"jobs_ch": parser})
+
+    result = runner.run(
+        sources=["jobs_ch"],
+        request=LinkedInSearchRequest(date_posted="Past 24 hours"),
+        wait_for_snapshots=False,
+    )
+
+    assert [job.title for job in result.jobs] == ["Fresh job"]
+    assert len(result.source_results["jobs_ch"].jobs) == 3
 
 
 def test_runner_applies_one_common_config_to_every_source() -> None:

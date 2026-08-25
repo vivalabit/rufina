@@ -172,10 +172,6 @@ class DismissedJobIdsRequest(BaseModel):
     job_ids: list[str] = Field(default_factory=list, max_length=10_000)
 
 
-class JobMatchFeedbackRequest(BaseModel):
-    feedback: Literal["good_match", "bad_match", "not_interested"]
-
-
 class AiMatchJobFailure(BaseModel):
     id: str = Field(min_length=1, max_length=160)
     error: str = Field(min_length=1, max_length=240)
