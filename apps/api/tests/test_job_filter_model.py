@@ -49,6 +49,37 @@ def test_missing_job_filter_snapshot_is_the_disabled_default() -> None:
     assert settings.enabled is False
 
 
+def test_job_filter_supports_independent_criteria_switches_and_posting_age() -> None:
+    settings = JobFilterSettings.model_validate(
+        {
+            "enabled": True,
+            "seniorityEnabled": False,
+            "allowedSeniority": ["senior"],
+            "postingAgeEnabled": True,
+            "maxPostingAgeDays": 7,
+            "technologyStackEnabled": False,
+            "targetTechnologies": ["Python"],
+        }
+    )
+
+    assert settings.seniority_enabled is False
+    assert settings.posting_age_enabled is True
+    assert settings.max_posting_age_days == 7
+    assert settings.technology_stack_enabled is False
+    assert job_filter_settings_snapshot(settings) == {
+        "schemaVersion": 1,
+        "enabled": True,
+        "seniorityEnabled": False,
+        "allowedSeniority": ["senior"],
+        "excludedSeniority": [],
+        "postingAgeEnabled": True,
+        "maxPostingAgeDays": 7,
+        "technologyStackEnabled": False,
+        "targetTechnologies": ["Python"],
+        "excludedTechnologies": [],
+    }
+
+
 def test_job_filter_settings_upsert_is_atomic() -> None:
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
@@ -112,6 +143,8 @@ def test_job_filter_settings_upsert_is_atomic() -> None:
         {"targetTechnologies": [f"technology-{index}" for index in range(51)]},
         {"schemaVersion": 2},
         {"enabled": "true"},
+        {"postingAgeEnabled": True},
+        {"postingAgeEnabled": True, "maxPostingAgeDays": 3},
         {"unknown": True},
     ],
 )

@@ -5,6 +5,7 @@ import re
 import subprocess
 from collections import Counter
 from dataclasses import dataclass
+from datetime import UTC, datetime, time, timedelta
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
@@ -33,7 +34,7 @@ from app.services.resume_import import (
     summarize_openclaw_error,
 )
 
-JOB_SCREENING_PROMPT_VERSION = "job-screening-prompt-v3"
+JOB_SCREENING_PROMPT_VERSION = "job-screening-prompt-v4"
 MAX_SCREENING_REASON_CHARS = 500
 MAX_COMPACT_TEXT_CHARS = 1_000
 MAX_SCREENING_JOBS_PER_RESPONSE = 100
@@ -230,6 +231,118 @@ def deterministic_seniority_decision(
         reasonCode="seniority_mismatch",
         matchedRuleIds=[],
         reason=reason,
+    )
+
+
+def deterministic_posting_age_decision(
+    screening_config: ScreeningConfig,
+    job: CompactScreeningJob | dict[str, Any],
+    *,
+    job_id: str,
+) -> JobScreeningDecision | None:
+    """Apply the posting cutoff when the vacancy exposes a parseable date."""
+    if not screening_config.posted_after:
+        return None
+
+    try:
+        cutoff = datetime.fromisoformat(screening_config.posted_after)
+    except ValueError:
+        return None
+    cutoff = as_utc_datetime(cutoff)
+    reference = cutoff + timedelta(days=screening_config.max_posting_age_days or 0)
+    posted_value = (
+        job.posted_at
+        if isinstance(job, CompactScreeningJob)
+        else str(job.get("posted_at") or job.get("postedAt") or job.get("posted") or "")
+    )
+    posted_at = parse_posted_datetime(posted_value, reference=reference)
+    if posted_at is None:
+        return None
+    if posted_at < cutoff:
+        return JobScreeningDecision(
+            id=job_id,
+            decision="reject",
+            reasonCode="posting_too_old",
+            matchedRuleIds=[],
+            reason=f"Vacancy was posted before the configured cutoff {cutoff.date().isoformat()}",
+        )
+    if has_non_posting_criteria(screening_config):
+        return None
+    return JobScreeningDecision(
+        id=job_id,
+        decision="keep",
+        reasonCode="posting_age_match",
+        matchedRuleIds=[],
+        reason="Vacancy is within the configured posting-age window",
+    )
+
+
+def parse_posted_datetime(value: str, *, reference: datetime) -> datetime | None:
+    text = re.sub(r"\s+", " ", value.strip().lower())
+    if not text:
+        return None
+    if text in {"today", "heute", "aujourd'hui"}:
+        return reference
+    if text in {"yesterday", "gestern", "hier"}:
+        return reference - timedelta(days=1)
+
+    relative = re.fullmatch(
+        r"(?:posted\s+)?(\d+)\s*(hour|hours|hr|hrs|h|day|days|d|week|weeks|w|month|months|mo)(?:\s+ago)?",
+        text,
+    )
+    if relative:
+        amount = int(relative.group(1))
+        unit = relative.group(2)
+        if unit in {"hour", "hours", "hr", "hrs", "h"}:
+            return reference - timedelta(hours=amount)
+        if unit in {"week", "weeks", "w"}:
+            return reference - timedelta(weeks=amount)
+        if unit in {"month", "months", "mo"}:
+            return reference - timedelta(days=amount * 30)
+        return reference - timedelta(days=amount)
+
+    iso_value = value.strip().replace("Z", "+00:00")
+    try:
+        parsed = datetime.fromisoformat(iso_value)
+    except ValueError:
+        parsed = None
+    if parsed is not None:
+        if "T" not in iso_value and " " not in iso_value:
+            parsed = datetime.combine(parsed.date(), time.max)
+        return as_utc_datetime(parsed)
+
+    for date_format in (
+        "%d.%m.%Y",
+        "%b %d, %Y",
+        "%B %d, %Y",
+        "%d %b %Y",
+        "%d %B %Y",
+    ):
+        try:
+            parsed_date = datetime.strptime(value.strip(), date_format).replace(tzinfo=UTC).date()
+        except ValueError:
+            continue
+        return datetime.combine(parsed_date, time.max, tzinfo=UTC)
+    return None
+
+
+def as_utc_datetime(value: datetime) -> datetime:
+    return (
+        value.replace(tzinfo=UTC)
+        if value.tzinfo is None
+        else value.astimezone(UTC)
+    )
+
+
+def has_non_posting_criteria(config: ScreeningConfig) -> bool:
+    return bool(
+        config.target_roles
+        or config.excluded_roles
+        or config.allowed_seniority
+        or config.excluded_seniority
+        or config.target_technologies
+        or config.excluded_technologies
+        or any(rule.enabled for rule in config.hard_rules)
     )
 
 
@@ -634,6 +747,8 @@ def build_job_screening_prompt(
         "nice-to-have, legacy, migration-source, or integration-only mention neither "
         "satisfies targetTechnologies nor triggers excludedTechnologies. A qualifying "
         "excluded technology takes precedence over a target technology match.\n"
+        "- postedAfter is an inclusive UTC cutoff. Reject a vacancy only when postedAt "
+        "clearly predates it; when the posting date is absent or ambiguous, return uncertain.\n"
         "Use matchedRuleIds only for hard-rule IDs that directly affected the decision. "
         "Use [] when no hard rule matched.\n"
         "reasonCode must be a stable lowercase snake_case token. reason must be a "

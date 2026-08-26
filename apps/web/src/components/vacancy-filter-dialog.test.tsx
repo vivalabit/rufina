@@ -15,8 +15,12 @@ import {
 const initialSettings: VacancyFilterSettings = {
   schemaVersion: 1,
   enabled: true,
+  seniorityEnabled: true,
   allowedSeniority: ["mid", "senior"],
   excludedSeniority: ["director"],
+  postingAgeEnabled: true,
+  maxPostingAgeDays: 7,
+  technologyStackEnabled: true,
   targetTechnologies: ["Python", "Django"],
   excludedTechnologies: ["C#", ".NET"],
   updatedAt: "2026-08-20T08:00:00Z",
@@ -84,12 +88,70 @@ it("loads the global filter and preserves its criteria when it is disabled", asy
   expect(writes[0]).toEqual({
     schemaVersion: 1,
     enabled: false,
+    seniorityEnabled: true,
     allowedSeniority: ["mid", "senior"],
     excludedSeniority: ["director"],
+    postingAgeEnabled: true,
+    maxPostingAgeDays: 7,
+    technologyStackEnabled: true,
     targetTechnologies: ["Python", "Django"],
     excludedTechnologies: ["C#", ".NET"],
   });
   expect(onClose).toHaveBeenCalledTimes(1);
+});
+
+it("lets each criterion be disabled without losing its configured values", async () => {
+  let savedBody: Record<string, unknown> | null = null;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "PUT") {
+        savedBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+        return response({ ...initialSettings, ...savedBody });
+      }
+      return response(initialSettings);
+    }),
+  );
+
+  render(<VacancyFilterDialog open onClose={vi.fn()} />);
+  await screen.findByRole("switch", { name: "Filter incoming vacancies" });
+
+  const senioritySwitch = screen.getByRole("switch", {
+    name: "Enable seniority filter",
+  });
+  const postingAgeSwitch = screen.getByRole("switch", {
+    name: "Enable date posted filter",
+  });
+  const technologySwitch = screen.getByRole("switch", {
+    name: "Enable technology stack filter",
+  });
+
+  fireEvent.click(senioritySwitch);
+  fireEvent.click(postingAgeSwitch);
+  fireEvent.click(technologySwitch);
+
+  expect(senioritySwitch).toHaveAttribute("aria-checked", "false");
+  expect(postingAgeSwitch).toHaveAttribute("aria-checked", "false");
+  expect(technologySwitch).toHaveAttribute("aria-checked", "false");
+  expect(screen.getByLabelText("Target technologies")).toHaveValue(
+    "Python\nDjango",
+  );
+  expect(screen.getByRole("button", { name: "Past week" })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+
+  fireEvent.click(screen.getByRole("button", { name: "Save filter" }));
+
+  await waitFor(() => expect(savedBody).not.toBeNull());
+  expect(savedBody).toMatchObject({
+    seniorityEnabled: false,
+    allowedSeniority: ["mid", "senior"],
+    postingAgeEnabled: false,
+    maxPostingAgeDays: 7,
+    technologyStackEnabled: false,
+    targetTechnologies: ["Python", "Django"],
+  });
 });
 
 it("keeps seniority groups exclusive and normalizes technology entries", async () => {

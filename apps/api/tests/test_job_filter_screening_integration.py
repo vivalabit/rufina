@@ -1,4 +1,5 @@
 import json
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import create_engine, select
@@ -19,6 +20,7 @@ from app.models.parsers import ParserSearchResponse
 from app.services.job_screening import (
     CompactScreeningJob,
     build_job_screening_prompt,
+    deterministic_posting_age_decision,
 )
 from app.services.job_screening_store import build_screening_config_hash
 from app.services.job_search_execution import (
@@ -115,6 +117,54 @@ def test_enabled_filter_merges_seniority_and_adds_user_technologies() -> None:
     assert effective.excluded_seniority == ["director", "junior"]
     assert effective.target_technologies == ["Python", "FastAPI"]
     assert effective.excluded_technologies == ["C#", ".NET"]
+
+
+def test_disabled_criteria_are_preserved_but_not_applied() -> None:
+    config = search_config()
+    effective = effective_screening_config(
+        config,
+        screening_required=False,
+        job_filter=JobFilterSettings(
+            enabled=True,
+            seniorityEnabled=False,
+            allowedSeniority=["senior"],
+            technologyStackEnabled=False,
+            targetTechnologies=["Python"],
+            postingAgeEnabled=True,
+            maxPostingAgeDays=7,
+        ),
+        now=datetime(2026, 8, 27, 12, tzinfo=UTC),
+    )
+
+    assert effective.enabled is True
+    assert effective.allowed_seniority == []
+    assert effective.target_technologies is None
+    assert effective.posted_after == "2026-08-20T12:00:00+00:00"
+    assert effective.max_posting_age_days == 7
+
+
+def test_posting_age_filter_rejects_old_vacancies_and_keeps_recent_ones() -> None:
+    config = ScreeningConfig(
+        enabled=True,
+        postedAfter="2026-08-20T12:00:00+00:00",
+        maxPostingAgeDays=7,
+    )
+
+    old = deterministic_posting_age_decision(
+        config,
+        CompactScreeningJob(id="old", postedAt="2026-08-19"),
+        job_id="old",
+    )
+    recent = deterministic_posting_age_decision(
+        config,
+        CompactScreeningJob(id="recent", postedAt="2 days ago"),
+        job_id="recent",
+    )
+
+    assert old is not None and old.decision == "reject"
+    assert old.reason_code == "posting_too_old"
+    assert recent is not None and recent.decision == "keep"
+    assert recent.reason_code == "posting_age_match"
 
 
 def test_non_overlapping_allowed_seniority_is_an_explicit_conflict() -> None:

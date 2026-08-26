@@ -58,6 +58,7 @@ from app.services.job_screening import (
     JobScreeningDecision,
     JobScreeningPayload,
     create_job_screening_ai_facade,
+    deterministic_posting_age_decision,
     deterministic_seniority_decision,
     normalize_screening_decisions,
     screening_rule_ids,
@@ -147,6 +148,7 @@ def effective_screening_config(
     *,
     screening_required: bool,
     job_filter: JobFilterSettings | None = None,
+    now: datetime | None = None,
 ) -> ScreeningConfig:
     screening = config.screening
     derived_levels = EXPERIENCE_LEVEL_SENIORITY.get(
@@ -173,10 +175,12 @@ def effective_screening_config(
             ),
             "targetRoles": target_roles,
             "allowedSeniority": allowed_seniority,
-            # Technology constraints are global-user-filter-only. Ignore any
-            # values embedded in a per-search config.
+            # Technology and posting-age constraints are global-user-filter-only.
+            # Ignore any values embedded in a per-search config.
             "targetTechnologies": None,
             "excludedTechnologies": None,
+            "postedAfter": None,
+            "maxPostingAgeDays": None,
         }
     )
     if (
@@ -185,24 +189,43 @@ def effective_screening_config(
         or not job_filter_has_criteria(job_filter)
     ):
         return effective
-    return combine_screening_with_job_filter(effective, job_filter)
+    return combine_screening_with_job_filter(effective, job_filter, now=now)
 
 
 def job_filter_has_criteria(job_filter: JobFilterSettings) -> bool:
     return bool(
-        job_filter.allowed_seniority
-        or job_filter.excluded_seniority
-        or job_filter.target_technologies
-        or job_filter.excluded_technologies
+        (
+            job_filter.seniority_enabled is not False
+            and (
+                job_filter.allowed_seniority
+                or job_filter.excluded_seniority
+            )
+        )
+        or (
+            job_filter.technology_stack_enabled is not False
+            and (
+                job_filter.target_technologies
+                or job_filter.excluded_technologies
+            )
+        )
+        or (
+            job_filter.posting_age_enabled is True
+            and job_filter.max_posting_age_days is not None
+        )
     )
 
 
 def combine_screening_with_job_filter(
     screening: ScreeningConfig,
     job_filter: JobFilterSettings,
+    *,
+    now: datetime | None = None,
 ) -> ScreeningConfig:
     config_allowed = list(screening.allowed_seniority)
-    user_allowed = list(job_filter.allowed_seniority)
+    seniority_enabled = job_filter.seniority_enabled is not False
+    user_allowed = (
+        list(job_filter.allowed_seniority) if seniority_enabled else []
+    )
     if config_allowed and user_allowed:
         allowed_seniority = [
             level for level in config_allowed if level in set(user_allowed)
@@ -219,7 +242,7 @@ def combine_screening_with_job_filter(
         dict.fromkeys(
             [
                 *screening.excluded_seniority,
-                *job_filter.excluded_seniority,
+                *(job_filter.excluded_seniority if seniority_enabled else []),
             ]
         )
     )
@@ -235,8 +258,27 @@ def combine_screening_with_job_filter(
                 "seniority level"
             )
 
-    target_technologies = list(job_filter.target_technologies) or None
-    excluded_technologies = list(job_filter.excluded_technologies) or None
+    technology_stack_enabled = job_filter.technology_stack_enabled is not False
+    target_technologies = (
+        list(job_filter.target_technologies) or None
+        if technology_stack_enabled
+        else None
+    )
+    excluded_technologies = (
+        list(job_filter.excluded_technologies) or None
+        if technology_stack_enabled
+        else None
+    )
+    max_posting_age_days = (
+        job_filter.max_posting_age_days
+        if job_filter.posting_age_enabled is True
+        else None
+    )
+    cutoff = (
+        (now or datetime.now(UTC)) - timedelta(days=max_posting_age_days)
+        if max_posting_age_days is not None
+        else None
+    )
     return ScreeningConfig.model_validate(
         {
             **screening.model_dump(by_alias=True, exclude_none=True),
@@ -245,6 +287,8 @@ def combine_screening_with_job_filter(
             "excludedSeniority": excluded_seniority,
             "targetTechnologies": target_technologies,
             "excludedTechnologies": excluded_technologies,
+            "postedAfter": cutoff.isoformat() if cutoff is not None else None,
+            "maxPostingAgeDays": max_posting_age_days,
         }
     )
 
@@ -349,6 +393,7 @@ def execute_job_search(
                     normalized_config,
                     screening_required=screening_required,
                     job_filter=job_filter,
+                    now=started_at,
                 )
             }
         )
@@ -905,6 +950,15 @@ def screen_new_job_candidates(
     uncached: list[NewJobCandidate] = []
 
     for candidate in candidates:
+        posting_age_decision = deterministic_posting_age_decision(
+            screening_config,
+            compact_jobs[candidate.job_id],
+            job_id=candidate.job_id,
+        )
+        if posting_age_decision is not None:
+            decisions_by_id[candidate.job_id] = posting_age_decision
+            deterministic.append(candidate)
+            continue
         seniority_decision = deterministic_seniority_decision(
             screening_config,
             compact_jobs[candidate.job_id],

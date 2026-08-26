@@ -27,22 +27,38 @@ const seniorityOptions = [
   { id: "executive", label: "Executive" },
 ] as const;
 
+const postingAgeOptions = [
+  { days: 1, label: "Past 24 hours" },
+  { days: 7, label: "Past week" },
+  { days: 30, label: "Past month" },
+] as const;
+
 type VacancySeniority = (typeof seniorityOptions)[number]["id"];
+type PostingAgeDays = (typeof postingAgeOptions)[number]["days"];
 
 export type VacancyFilterSettings = {
   schemaVersion: number;
   enabled: boolean;
+  seniorityEnabled?: boolean;
   allowedSeniority: VacancySeniority[];
   excludedSeniority: VacancySeniority[];
+  postingAgeEnabled?: boolean;
+  maxPostingAgeDays?: PostingAgeDays | null;
+  technologyStackEnabled?: boolean;
   targetTechnologies: string[];
   excludedTechnologies: string[];
   updatedAt?: string | null;
 };
 
-type VacancyFilterDraft = Omit<
-  VacancyFilterSettings,
-  "targetTechnologies" | "excludedTechnologies" | "updatedAt"
-> & {
+type VacancyFilterDraft = {
+  schemaVersion: number;
+  enabled: boolean;
+  seniorityEnabled: boolean;
+  allowedSeniority: VacancySeniority[];
+  excludedSeniority: VacancySeniority[];
+  postingAgeEnabled: boolean;
+  maxPostingAgeDays: PostingAgeDays;
+  technologyStackEnabled: boolean;
   targetTechnologies: string;
   excludedTechnologies: string;
   updatedAt: string;
@@ -63,8 +79,12 @@ type VacancyFilterDialogProps = {
 const defaultSettings: VacancyFilterSettings = {
   schemaVersion: 1,
   enabled: false,
+  seniorityEnabled: true,
   allowedSeniority: [],
   excludedSeniority: [],
+  postingAgeEnabled: false,
+  maxPostingAgeDays: 7,
+  technologyStackEnabled: true,
   targetTechnologies: [],
   excludedTechnologies: [],
   updatedAt: "",
@@ -168,6 +188,17 @@ export function VacancyFilterDialog({
     setMessage("");
   }
 
+  function toggleCriterion(
+    field:
+      | "seniorityEnabled"
+      | "postingAgeEnabled"
+      | "technologyStackEnabled",
+  ) {
+    setDraft((current) => ({ ...current, [field]: !current[field] }));
+    setStatus("idle");
+    setMessage("");
+  }
+
   async function saveSettings() {
     const validationMessage = validateTechnologies(
       targetTechnologies,
@@ -188,8 +219,12 @@ export function VacancyFilterDialog({
         body: JSON.stringify({
           schemaVersion: draft.schemaVersion,
           enabled: draft.enabled,
+          seniorityEnabled: draft.seniorityEnabled,
           allowedSeniority: draft.allowedSeniority,
           excludedSeniority: draft.excludedSeniority,
+          postingAgeEnabled: draft.postingAgeEnabled,
+          maxPostingAgeDays: draft.maxPostingAgeDays,
+          technologyStackEnabled: draft.technologyStackEnabled,
           targetTechnologies,
           excludedTechnologies,
         }),
@@ -322,17 +357,17 @@ export function VacancyFilterDialog({
               </section>
 
               <section className="grid gap-4 rounded-xl border border-border bg-[#fff8f1] p-4">
-                <div>
-                  <h3 className="text-sm font-bold text-foreground">Seniority</h3>
-                  <p className="mt-1 text-[11px] leading-5 text-muted">
-                    Empty groups add no global seniority restriction. A level
-                    cannot be both allowed and excluded.
-                  </p>
-                </div>
+                <CriterionHeader
+                  title="Seniority"
+                  description="Empty groups add no global seniority restriction. A level cannot be both allowed and excluded."
+                  enabled={draft.seniorityEnabled}
+                  onToggle={() => toggleCriterion("seniorityEnabled")}
+                />
                 <div className="grid gap-3 lg:grid-cols-2">
                   <SeniorityPicker
                     label="Allowed seniority"
                     selected={draft.allowedSeniority}
+                    disabled={!draft.seniorityEnabled}
                     onToggle={(value) =>
                       toggleSeniority("allowedSeniority", value)
                     }
@@ -340,6 +375,7 @@ export function VacancyFilterDialog({
                   <SeniorityPicker
                     label="Excluded seniority"
                     selected={draft.excludedSeniority}
+                    disabled={!draft.seniorityEnabled}
                     onToggle={(value) =>
                       toggleSeniority("excludedSeniority", value)
                     }
@@ -348,13 +384,58 @@ export function VacancyFilterDialog({
               </section>
 
               <section className="grid gap-4 rounded-xl border border-border bg-[#fff8f1] p-4">
-                <div>
-                  <h3 className="text-sm font-bold text-foreground">Technology stack</h3>
-                  <p className="mt-1 text-[11px] leading-5 text-muted">
-                    Enter one technology per line or separate values with commas.
-                    Matching is case-insensitive.
-                  </p>
+                <CriterionHeader
+                  title="Date posted"
+                  description="Keep only vacancies published within the selected time window."
+                  enabled={draft.postingAgeEnabled}
+                  onToggle={() => toggleCriterion("postingAgeEnabled")}
+                />
+                <div
+                  role="group"
+                  aria-label="Posting age"
+                  className={cn(
+                    "flex flex-wrap gap-2 transition",
+                    !draft.postingAgeEnabled && "opacity-50",
+                  )}
+                >
+                  {postingAgeOptions.map((option) => {
+                    const active = draft.maxPostingAgeDays === option.days;
+                    return (
+                      <button
+                        key={option.days}
+                        type="button"
+                        aria-pressed={active}
+                        disabled={!draft.postingAgeEnabled}
+                        onClick={() => {
+                          setDraft((current) => ({
+                            ...current,
+                            maxPostingAgeDays: option.days,
+                          }));
+                          setStatus("idle");
+                          setMessage("");
+                        }}
+                        className={cn(
+                          "inline-flex h-9 items-center gap-1 rounded-md border px-3 text-[11px] font-bold transition disabled:cursor-not-allowed",
+                          active
+                            ? "border-accent/25 bg-accent/10 text-foreground"
+                            : "border-border bg-[#fff8f1] text-muted hover:text-foreground",
+                        )}
+                      >
+                        {active ? <Check className="h-3 w-3" /> : null}
+                        {option.label}
+                      </button>
+                    );
+                  })}
                 </div>
+              </section>
+
+              <section className="grid gap-4 rounded-xl border border-border bg-[#fff8f1] p-4">
+                <CriterionHeader
+                  title="Technology stack"
+                  description="Enter one technology per line or separate values with commas. Matching is case-insensitive."
+                  enabled={draft.technologyStackEnabled}
+                  onToggle={() => toggleCriterion("technologyStackEnabled")}
+                />
                 <div className="grid gap-3 lg:grid-cols-2">
                   <label className="grid gap-1.5">
                     <span className="text-[11px] font-bold text-[#4a4a47]">
@@ -362,6 +443,7 @@ export function VacancyFilterDialog({
                     </span>
                     <textarea
                       aria-label="Target technologies"
+                      disabled={!draft.technologyStackEnabled}
                       value={draft.targetTechnologies}
                       onChange={(event) => {
                         setDraft((current) => ({
@@ -384,6 +466,7 @@ export function VacancyFilterDialog({
                     </span>
                     <textarea
                       aria-label="Excluded technologies"
+                      disabled={!draft.technologyStackEnabled}
                       value={draft.excludedTechnologies}
                       onChange={(event) => {
                         setDraft((current) => ({
@@ -459,10 +542,12 @@ export function VacancyFilterDialog({
 function SeniorityPicker({
   label,
   selected,
+  disabled,
   onToggle,
 }: {
   label: string;
   selected: VacancySeniority[];
+  disabled: boolean;
   onToggle: (value: VacancySeniority) => void;
 }) {
   return (
@@ -471,7 +556,10 @@ function SeniorityPicker({
       <div
         role="group"
         aria-label={label}
-        className="flex min-h-[88px] flex-wrap content-start gap-1.5 rounded-lg border border-border bg-black/10 p-2"
+        className={cn(
+          "flex min-h-[88px] flex-wrap content-start gap-1.5 rounded-lg border border-border bg-black/10 p-2 transition",
+          disabled && "opacity-50",
+        )}
       >
         {seniorityOptions.map((option) => {
           const active = selected.includes(option.id);
@@ -480,9 +568,10 @@ function SeniorityPicker({
               key={option.id}
               type="button"
               aria-pressed={active}
+              disabled={disabled}
               onClick={() => onToggle(option.id)}
               className={cn(
-                "inline-flex h-8 items-center gap-1 rounded-md border px-2.5 text-[10px] font-bold transition",
+                "inline-flex h-8 items-center gap-1 rounded-md border px-2.5 text-[10px] font-bold transition disabled:cursor-not-allowed",
                 active
                   ? "border-accent/25 bg-accent/10 text-foreground"
                   : "border-border bg-[#fff8f1] text-muted hover:text-foreground",
@@ -494,6 +583,37 @@ function SeniorityPicker({
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function CriterionHeader({
+  title,
+  description,
+  enabled,
+  onToggle,
+}: {
+  title: string;
+  description: string;
+  enabled: boolean;
+  onToggle: () => void;
+}) {
+  return (
+    <div className="flex items-start justify-between gap-4">
+      <div>
+        <h3 className="text-sm font-bold text-foreground">{title}</h3>
+        <p className="mt-1 text-[11px] leading-5 text-muted">{description}</p>
+      </div>
+      <button
+        type="button"
+        role="switch"
+        aria-label={`Enable ${title.toLowerCase()} filter`}
+        aria-checked={enabled}
+        onClick={onToggle}
+        className="mt-0.5 shrink-0"
+      >
+        <Toggle enabled={enabled} />
+      </button>
     </div>
   );
 }
@@ -513,9 +633,14 @@ function Toggle({ enabled }: { enabled: boolean }) {
 
 function settingsToDraft(settings: VacancyFilterSettings): VacancyFilterDraft {
   return {
-    ...settings,
+    schemaVersion: settings.schemaVersion,
+    enabled: settings.enabled,
+    seniorityEnabled: settings.seniorityEnabled ?? true,
     allowedSeniority: [...settings.allowedSeniority],
     excludedSeniority: [...settings.excludedSeniority],
+    postingAgeEnabled: settings.postingAgeEnabled ?? false,
+    maxPostingAgeDays: settings.maxPostingAgeDays ?? 7,
+    technologyStackEnabled: settings.technologyStackEnabled ?? true,
     targetTechnologies: settings.targetTechnologies.join("\n"),
     excludedTechnologies: settings.excludedTechnologies.join("\n"),
     updatedAt: settings.updatedAt ?? "",
@@ -528,12 +653,31 @@ function normalizeSettings(value: unknown): VacancyFilterSettings {
     schemaVersion:
       typeof payload.schemaVersion === "number" ? payload.schemaVersion : 1,
     enabled: typeof payload.enabled === "boolean" ? payload.enabled : false,
+    seniorityEnabled:
+      typeof payload.seniorityEnabled === "boolean"
+        ? payload.seniorityEnabled
+        : true,
     allowedSeniority: normalizeSeniority(payload.allowedSeniority),
     excludedSeniority: normalizeSeniority(payload.excludedSeniority),
+    postingAgeEnabled:
+      typeof payload.postingAgeEnabled === "boolean"
+        ? payload.postingAgeEnabled
+        : false,
+    maxPostingAgeDays: normalizePostingAge(payload.maxPostingAgeDays),
+    technologyStackEnabled:
+      typeof payload.technologyStackEnabled === "boolean"
+        ? payload.technologyStackEnabled
+        : true,
     targetTechnologies: normalizeEntries(payload.targetTechnologies),
     excludedTechnologies: normalizeEntries(payload.excludedTechnologies),
     updatedAt: typeof payload.updatedAt === "string" ? payload.updatedAt : "",
   };
+}
+
+function normalizePostingAge(value: unknown): PostingAgeDays {
+  return postingAgeOptions.some((option) => option.days === value)
+    ? (value as PostingAgeDays)
+    : 7;
 }
 
 function normalizeSeniority(value: unknown): VacancySeniority[] {
@@ -613,30 +757,44 @@ function filterSummary(
   }
 
   if (
-    draft.allowedSeniority.length === 0 &&
-    draft.excludedSeniority.length === 0 &&
-    targetTechnologies.length === 0 &&
-    excludedTechnologies.length === 0
+    (!draft.seniorityEnabled ||
+      (draft.allowedSeniority.length === 0 &&
+        draft.excludedSeniority.length === 0)) &&
+    !draft.postingAgeEnabled &&
+    (!draft.technologyStackEnabled ||
+      (targetTechnologies.length === 0 &&
+        excludedTechnologies.length === 0))
   ) {
     return "The global filter is enabled but has no criteria, so it has no effect. Search-specific screening still applies.";
   }
 
   const parts: string[] = [];
-  if (draft.allowedSeniority.length > 0) {
+  if (draft.seniorityEnabled && draft.allowedSeniority.length > 0) {
     parts.push(
       `keep ${seniorityLabels(draft.allowedSeniority)} seniority vacancies`,
     );
   }
-  if (targetTechnologies.length > 0) {
+  if (draft.postingAgeEnabled) {
+    parts.push(
+      `keep vacancies posted within ${postingAgeLabel(draft.maxPostingAgeDays)}`,
+    );
+  }
+  if (draft.technologyStackEnabled && targetTechnologies.length > 0) {
     parts.push(`target ${targetTechnologies.join(", ")}`);
   }
-  if (draft.excludedSeniority.length > 0) {
+  if (draft.seniorityEnabled && draft.excludedSeniority.length > 0) {
     parts.push(`exclude ${seniorityLabels(draft.excludedSeniority)} seniority`);
   }
-  if (excludedTechnologies.length > 0) {
+  if (draft.technologyStackEnabled && excludedTechnologies.length > 0) {
     parts.push(`exclude ${excludedTechnologies.join(", ")}`);
   }
   return `${capitalize(parts.join("; "))}. Search-specific screening is combined with these rules.`;
+}
+
+function postingAgeLabel(days: PostingAgeDays): string {
+  if (days === 1) return "the past 24 hours";
+  if (days === 7) return "the past week";
+  return "the past month";
 }
 
 function seniorityLabels(values: VacancySeniority[]): string {
@@ -730,4 +888,4 @@ function errorMessage(error: unknown): string {
 }
 
 const textareaClass =
-  "min-h-28 w-full resize-y rounded-lg border border-border bg-[#ffffff] px-3 py-2 text-xs font-semibold leading-5 text-foreground outline-none placeholder:text-muted/60 focus:border-accent/25";
+  "min-h-28 w-full resize-y rounded-lg border border-border bg-[#ffffff] px-3 py-2 text-xs font-semibold leading-5 text-foreground outline-none placeholder:text-muted/60 focus:border-accent/25 disabled:cursor-not-allowed disabled:opacity-50";

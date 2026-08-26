@@ -480,6 +480,15 @@ class ScreeningConfig(BaseModel):
         max_length=50,
         alias="excludedTechnologies",
     )
+    posted_after: str | None = Field(
+        default=None,
+        max_length=40,
+        alias="postedAfter",
+    )
+    max_posting_age_days: Literal[1, 7, 30] | None = Field(
+        default=None,
+        alias="maxPostingAgeDays",
+    )
     hard_rules: list[ScreeningRule] = Field(
         default_factory=list,
         max_length=100,
@@ -535,6 +544,13 @@ class ScreeningConfig(BaseModel):
 
     @model_validator(mode="after")
     def reject_conflicting_seniority(self) -> "ScreeningConfig":
+        if (self.posted_after is None) != (self.max_posting_age_days is None):
+            raise ValueError("postedAfter and maxPostingAgeDays must be configured together")
+        if self.posted_after is not None:
+            try:
+                datetime.fromisoformat(self.posted_after)
+            except ValueError as exc:
+                raise ValueError("postedAfter must be an ISO 8601 datetime") from exc
         overlap = set(self.allowed_seniority).intersection(self.excluded_seniority)
         if overlap:
             conflicting = ", ".join(sorted(overlap))

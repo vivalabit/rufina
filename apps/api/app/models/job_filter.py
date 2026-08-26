@@ -29,6 +29,7 @@ class JobFilterSettingsRecord(OwnerScoped, Base):
 class JobFilterSettings(BaseModel):
     schema_version: Literal[1] = Field(default=1, alias="schemaVersion")
     enabled: bool = False
+    seniority_enabled: bool | None = Field(default=None, alias="seniorityEnabled")
     allowed_seniority: list[ScreeningSeniority] = Field(
         default_factory=list,
         max_length=9,
@@ -38,6 +39,15 @@ class JobFilterSettings(BaseModel):
         default_factory=list,
         max_length=9,
         alias="excludedSeniority",
+    )
+    posting_age_enabled: bool | None = Field(default=None, alias="postingAgeEnabled")
+    max_posting_age_days: Literal[1, 7, 30] | None = Field(
+        default=None,
+        alias="maxPostingAgeDays",
+    )
+    technology_stack_enabled: bool | None = Field(
+        default=None,
+        alias="technologyStackEnabled",
     )
     target_technologies: list[str] = Field(
         default_factory=list,
@@ -95,6 +105,8 @@ class JobFilterSettings(BaseModel):
 
     @model_validator(mode="after")
     def reject_conflicting_filters(self) -> "JobFilterSettings":
+        if self.posting_age_enabled is True and self.max_posting_age_days is None:
+            raise ValueError("maxPostingAgeDays is required when postingAgeEnabled is true")
         seniority_overlap = set(self.allowed_seniority).intersection(self.excluded_seniority)
         if seniority_overlap:
             conflicting = ", ".join(sorted(seniority_overlap))

@@ -80,6 +80,7 @@ def job_filter_settings_snapshot(
     return settings.model_dump(
         by_alias=True,
         exclude={"updated_at"},
+        exclude_none=True,
     )
 
 
