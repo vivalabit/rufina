@@ -2,7 +2,6 @@ from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 
-
 RemoteFilter = Literal["Any", "Remote only", "Hybrid", "On-site"]
 ExperienceLevel = Literal["Any", "Entry level", "Associate", "Mid-Senior level", "Director"]
 JobType = Literal["Any", "Full-time", "Part-time", "Contract", "Internship"]
@@ -10,7 +9,7 @@ DatePosted = Literal["Any time", "Past 24 hours", "Past week", "Past month"]
 
 
 class LinkedInSearchRequest(BaseModel):
-    keywords: str = Field(default="", max_length=200)
+    keywords: str = Field(default="", max_length=2000)
     location: str = Field(default="", max_length=160)
     remote: RemoteFilter = "Any"
     experience_level: ExperienceLevel = "Any"

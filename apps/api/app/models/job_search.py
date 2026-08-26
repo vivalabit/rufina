@@ -400,7 +400,7 @@ ScreeningSeniority = Literal[
 
 
 class SearchFilters(BaseModel):
-    keywords: str = Field(default="", max_length=200)
+    keywords: str = Field(default="", max_length=2000)
     location: str = Field(default="", max_length=160)
     remote: Literal["Any", "Remote only", "Hybrid", "On-site"] = "Any"
     experience_level: Literal[

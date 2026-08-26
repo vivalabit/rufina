@@ -244,6 +244,8 @@ def test_manual_run_uses_current_source_filters_without_saving_config(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     headers = {"X-Rufina-Owner-Id": "source-filter-override-owner"}
+    current_query = " OR ".join(f"Warehouse role {index}" for index in range(30))
+    assert len(current_query) > 200
     runner = FakeRunner(
         VacancySearchRunResult(jobs=[], source_results={}, source_errors={})
     )
@@ -284,7 +286,7 @@ def test_manual_run_uses_current_source_filters_without_saving_config(
             "sourceConfigIds": {"jobs_ch": source_config["id"]},
             "sourceFilters": {
                 "jobs_ch": {
-                    "keywords": "current query",
+                    "keywords": current_query,
                     "datePosted": "Past 24 hours",
                 }
             },
@@ -294,7 +296,7 @@ def test_manual_run_uses_current_source_filters_without_saving_config(
 
     assert response.status_code == 200
     source_request = runner.requests[0]["source_requests"]["jobs_ch"]
-    assert source_request.keywords == "current query"
+    assert source_request.keywords == current_query
     assert source_request.date_posted == "Past 24 hours"
     snapshot_filters = response.json()["configSnapshot"]["sourceConfigs"][
         "jobs_ch"
