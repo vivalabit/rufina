@@ -163,6 +163,57 @@ def test_jobs_ch_search_and_detail_normalize_job() -> None:
     assert any("term=Platform+Engineer" in url for url in requested_urls)
 
 
+def test_jobs_ch_searches_each_or_term_separately_and_deduplicates() -> None:
+    requested_terms: list[str] = []
+    detail_ids: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/en/vacancies/":
+            term = request.url.params["term"]
+            requested_terms.append(term)
+            rows = {
+                "Lager": [
+                    {"id": "shared", "title": "Shared job"},
+                    {"id": "lager", "title": "Lager job"},
+                ],
+                "Logistik": [
+                    {"id": "shared", "title": "Shared job"},
+                    {"id": "logistik", "title": "Logistik job"},
+                ],
+                "Produktion": [{"id": "produktion", "title": "Produktion job"}],
+            }[term]
+            return httpx.Response(200, text=search_html(*rows))
+        if request.url.path.startswith("/en/vacancies/detail/"):
+            vacancy_id = request.url.path.rstrip("/").rsplit("/", 1)[-1]
+            detail_ids.append(vacancy_id)
+            return httpx.Response(503)
+        return httpx.Response(404)
+
+    parser = JobsChParser(
+        base_url="https://jobs.example.test",
+        detail_workers=1,
+        transport=httpx.MockTransport(handler),
+    )
+
+    response = parser.search(
+        JobsChSearchRequest(
+            keywords="Lager OR Logistik or Produktion OR lager",
+            results_limit=10,
+        )
+    )
+
+    assert requested_terms == ["Lager", "Logistik", "Produktion"]
+    assert "OR" not in " ".join(requested_terms)
+    assert [job.raw["id"] for job in response.jobs] == [
+        "shared",
+        "logistik",
+        "produktion",
+        "lager",
+    ]
+    assert sorted(detail_ids) == ["lager", "logistik", "produktion", "shared"]
+    assert response.search_url == "https://jobs.example.test/en/vacancies/?term=Lager"
+
+
 def test_jobs_ch_normalizes_broken_apply_suffix_only_for_jobs_ch() -> None:
     assert normalize_jobs_ch_url(
         "https://www.jobs.ch/en/vacancies/detail/vac-1/apply/"

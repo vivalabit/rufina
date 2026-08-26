@@ -58,9 +58,13 @@ class JobsChParser:
         self.transport = transport
 
     def search(self, request: JobsChSearchRequest) -> ParserSearchResponse:
-        search_url = self.build_search_url(request)
-        records: list[dict[str, Any]] = []
+        search_terms = split_search_terms(request.keywords)
+        query_terms: list[str | None] = search_terms or [None]
+        search_url = self.build_search_url(request, keyword=query_terms[0])
+        records_by_term: list[list[dict[str, Any]]] = []
         seen_ids: set[str] = set()
+        completed_query = False
+        last_error: Exception | None = None
 
         with httpx.Client(
             headers=JOBS_CH_HEADERS,
@@ -68,44 +72,52 @@ class JobsChParser:
             follow_redirects=True,
             transport=self.transport,
         ) as client:
-            for page in range(1, self.max_pages + 1):
-                params = self.build_search_params(request, page=page)
-                try:
-                    response = client.get(f"{self.base_url}/en/vacancies/", params=params)
-                    response.raise_for_status()
-                    init_state = extract_js_object(response.text, "__INIT__ =")
-                    bucket = get_results_bucket(init_state)
-                except (httpx.HTTPError, JobsChParseError, json.JSONDecodeError) as exc:
-                    if records:
-                        break
-                    raise JobsChRequestError("jobs.ch search request failed") from exc
-
-                rows = bucket.get("results", []) if isinstance(bucket, dict) else []
-                if not isinstance(rows, list) or not rows:
-                    break
-
-                for row in rows:
-                    if not isinstance(row, dict):
-                        continue
-                    vacancy_id = str(row.get("id") or "").strip()
-                    if not vacancy_id or vacancy_id in seen_ids:
-                        continue
-                    seen_ids.add(vacancy_id)
-                    record = dict(row)
-                    record["search_url"] = str(response.url)
-                    records.append(record)
-                    if len(records) >= request.results_limit:
+            for keyword in query_terms:
+                term_records: list[dict[str, Any]] = []
+                for page in range(1, self.max_pages + 1):
+                    params = self.build_search_params(request, page=page, keyword=keyword)
+                    try:
+                        response = client.get(f"{self.base_url}/en/vacancies/", params=params)
+                        response.raise_for_status()
+                        init_state = extract_js_object(response.text, "__INIT__ =")
+                        bucket = get_results_bucket(init_state)
+                        completed_query = True
+                    except (httpx.HTTPError, JobsChParseError, json.JSONDecodeError) as exc:
+                        last_error = exc
                         break
 
-                if len(records) >= request.results_limit:
-                    break
+                    rows = bucket.get("results", []) if isinstance(bucket, dict) else []
+                    if not isinstance(rows, list) or not rows:
+                        break
 
-                meta = bucket.get("meta", {}) if isinstance(bucket, dict) else {}
-                num_pages = meta.get("numPages") if isinstance(meta, dict) else None
-                if not isinstance(num_pages, int) or page >= num_pages:
-                    break
+                    for row in rows:
+                        if not isinstance(row, dict):
+                            continue
+                        vacancy_id = str(row.get("id") or "").strip()
+                        if not vacancy_id or vacancy_id in seen_ids:
+                            continue
+                        seen_ids.add(vacancy_id)
+                        record = dict(row)
+                        record["search_url"] = str(response.url)
+                        record["search_term"] = keyword
+                        term_records.append(record)
+                        if len(term_records) >= request.results_limit:
+                            break
 
-            selected_records = records[: request.results_limit]
+                    if len(term_records) >= request.results_limit:
+                        break
+
+                    meta = bucket.get("meta", {}) if isinstance(bucket, dict) else {}
+                    num_pages = meta.get("numPages") if isinstance(meta, dict) else None
+                    if not isinstance(num_pages, int) or page >= num_pages:
+                        break
+
+                records_by_term.append(term_records)
+
+            if not completed_query and last_error is not None:
+                raise JobsChRequestError("jobs.ch search request failed") from last_error
+
+            selected_records = interleave_records(records_by_term, request.results_limit)
             self.enrich_records(client, selected_records)
 
         jobs: list[ParsedJob] = []
@@ -199,16 +211,27 @@ class JobsChParser:
     def build_detail_url(self, vacancy_id: str) -> str:
         return f"{self.base_url}/en/vacancies/detail/{vacancy_id}/"
 
-    def build_search_url(self, request: JobsChSearchRequest) -> str:
-        query = urlencode(self.build_search_params(request, page=1))
+    def build_search_url(
+        self,
+        request: JobsChSearchRequest,
+        *,
+        keyword: str | None = None,
+    ) -> str:
+        query = urlencode(self.build_search_params(request, page=1, keyword=keyword))
         base = f"{self.base_url}/en/vacancies/"
         return f"{base}?{query}" if query else base
 
     @staticmethod
-    def build_search_params(request: JobsChSearchRequest, *, page: int) -> dict[str, str | int]:
+    def build_search_params(
+        request: JobsChSearchRequest,
+        *,
+        page: int,
+        keyword: str | None = None,
+    ) -> dict[str, str | int]:
         params: dict[str, str | int] = {}
-        if request.keywords.strip():
-            params["term"] = request.keywords.strip()
+        effective_keyword = request.keywords.strip() if keyword is None else keyword.strip()
+        if effective_keyword:
+            params["term"] = effective_keyword
         if request.location.strip():
             params["location"] = request.location.strip()
         if request.date_posted in JOBS_CH_DATE_POSTED:
@@ -243,6 +266,37 @@ class JobsChParser:
             seen.add(key)
             unique_jobs.append(job)
         return unique_jobs
+
+
+def split_search_terms(keywords: str) -> list[str]:
+    """Split an OR expression into stable, case-insensitively unique searches."""
+    terms: list[str] = []
+    seen: set[str] = set()
+    for value in re.split(r"\s+OR\s+", keywords.strip(), flags=re.IGNORECASE):
+        term = value.strip()
+        normalized = term.casefold()
+        if not term or normalized in seen:
+            continue
+        seen.add(normalized)
+        terms.append(term)
+    return terms
+
+
+def interleave_records(
+    records_by_term: list[list[dict[str, Any]]],
+    limit: int,
+) -> list[dict[str, Any]]:
+    """Merge term results fairly while retaining each query's source ordering."""
+    selected: list[dict[str, Any]] = []
+    longest = max((len(records) for records in records_by_term), default=0)
+    for index in range(longest):
+        for records in records_by_term:
+            if index >= len(records):
+                continue
+            selected.append(records[index])
+            if len(selected) >= limit:
+                return selected
+    return selected
 
 
 def extract_js_object(text: str, marker: str) -> dict[str, Any]:
