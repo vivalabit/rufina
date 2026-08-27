@@ -7904,13 +7904,14 @@ function CalendarView({
       <button
         key={event.id}
         type="button"
+        data-calendar-event-density={compact ? "compact" : "full"}
         onClick={(clickEvent) => {
           clickEvent.stopPropagation();
           openEvent(event);
         }}
         className={cn(
           "w-full rounded-md border text-left transition",
-          compact ? "px-2 py-1.5" : "px-2.5 py-2",
+          compact ? "px-2 py-1" : "px-2.5 py-2",
           theme.border,
         )}
       >
@@ -8011,7 +8012,7 @@ function CalendarView({
               {calendarWeekdays.map((day) => (
                 <div key={day} className="grid place-items-center border-b border-r border-border text-[10px] font-bold text-[#4a4a47] last:border-r-0 2xl:text-xs">{day}</div>
               ))}
-              {monthDays.map((date, index) => {
+              {monthDays.map((date) => {
                 const dateKey = getCalendarDateKey(date);
                 const dayEvents = calendarEvents.filter((event) => getCalendarDateKey(new Date(event.startsAt)) === dateKey);
                 const isCurrentMonth = date.getMonth() === visibleMonth.getMonth();
@@ -8029,8 +8030,8 @@ function CalendarView({
                   >
                     <span className={cn("inline-grid h-5 min-w-5 place-items-center rounded-full text-[11px] font-bold 2xl:h-6 2xl:min-w-6 2xl:text-xs", isToday ? "bg-accent text-foreground" : isCurrentMonth ? "text-[#1d1e1c]" : "text-[#615f5c]")}>{date.getDate()}</span>
                     <Plus className="absolute right-2 top-2 h-3.5 w-3.5 text-muted opacity-0 transition group-hover:opacity-100" />
-                    {dayEvents.length > 0 ? <div className="mt-1 space-y-1">{dayEvents.slice(0, 2).map((event) => renderEventCard(event))}</div> : null}
-                    {dayEvents.length > 2 ? <p className="mt-1 text-[9px] font-bold text-muted">+{dayEvents.length - 2} more</p> : null}
+                    {dayEvents.length > 0 ? <div className="mt-1 min-h-0 space-y-1 overflow-hidden">{dayEvents.slice(0, 1).map((event) => renderEventCard(event, true))}</div> : null}
+                    {dayEvents.length > 1 ? <p className="mt-1 text-[9px] font-bold text-muted">+{dayEvents.length - 1} more</p> : null}
                   </div>
                 );
               })}

@@ -4930,6 +4930,14 @@ it("shows seeded vacancies and calendar events only in demo mode", async () => {
   ).toBeInTheDocument();
   expect(screen.getAllByText("Technical Assessment").length).toBeGreaterThan(0);
   expect(screen.getAllByText("Future Wealth Group").length).toBeGreaterThan(0);
+  expect(
+    screen
+      .getAllByText("Technical Assessment")
+      .some(
+        (label) =>
+          label.closest("button")?.dataset.calendarEventDensity === "compact",
+      ),
+  ).toBe(true);
 });
 
 it("keeps preparation drafts out of Applications until they are marked as applied", async () => {
