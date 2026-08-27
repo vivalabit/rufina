@@ -13324,9 +13324,6 @@ function AppSidebar({
           className="app-sidebar-mark h-10 w-10 object-contain 2xl:h-11 2xl:w-11"
           aria-hidden="true"
         />
-        <div className="min-w-0">
-          <p className="text-[19px] font-bold leading-none tracking-[-0.025em] text-foreground 2xl:text-[21px]">Rufina</p>
-        </div>
       </div>
 
       <nav className="app-sidebar-nav order-last flex w-full items-center gap-1 overflow-x-auto pb-0.5 xl:order-none xl:w-auto xl:min-w-0 xl:flex-1 2xl:gap-1.5">
@@ -13340,12 +13337,12 @@ function AppSidebar({
               }
             }}
             className={cn(
-              "app-sidebar-nav-item group flex h-9 shrink-0 items-center gap-2 rounded-md border px-3 text-left text-[12px] font-semibold transition 2xl:h-10 2xl:px-3.5 2xl:text-[13px]",
+              "app-sidebar-nav-item group relative flex h-9 shrink-0 items-center gap-2 px-3 text-left text-[12px] font-semibold transition after:absolute after:inset-x-3 after:bottom-0 after:h-0.5 after:origin-center after:scale-x-0 after:bg-accent after:transition-transform 2xl:h-10 2xl:px-3.5 2xl:text-[13px] 2xl:after:inset-x-3.5",
               item.view === activeView || (activeView === "ApplicationWorkspace" && item.view === "Applications")
-                ? "border-accent/45 bg-white text-accent"
+                ? "text-accent after:scale-x-100"
                 : item.view
-                  ? "border-transparent text-[#4a4a47] hover:border-[#e3d6c5] hover:bg-white hover:text-foreground"
-                  : "cursor-default border-transparent text-muted opacity-65",
+                  ? "text-[#4a4a47] hover:text-foreground"
+                  : "cursor-default text-muted opacity-65",
             )}
           >
             <item.icon className="h-4 w-4 2xl:h-[18px] 2xl:w-[18px]" />

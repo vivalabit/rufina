@@ -178,17 +178,11 @@ select option {
 
 .app-sidebar::after {
   position: absolute;
-  right: 9%;
+  right: 0;
   bottom: -1px;
-  left: 9%;
+  left: 0;
   height: 1px;
-  background: linear-gradient(
-    90deg,
-    transparent,
-    var(--color-parchment-shadow) 18%,
-    var(--color-parchment-shadow) 82%,
-    transparent
-  );
+  background: var(--color-parchment-shadow);
   content: "";
 }
 
@@ -288,11 +282,6 @@ select option {
 }
 
 @media (max-width: 767px) {
-  .app-sidebar::after {
-    right: 16px;
-    left: 16px;
-  }
-
   .hero-title::after {
     height: 4px;
   }
