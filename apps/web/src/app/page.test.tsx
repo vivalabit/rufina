@@ -5003,7 +5003,24 @@ it("keeps preparation drafts out of Applications until they are marked as applie
   );
   fireEvent.click(await screen.findByRole("button", { name: "Applications" }));
 
-  expect(await screen.findByText("Applications (1)")).toBeInTheDocument();
+  expect(await screen.findByText("1 application")).toBeInTheDocument();
+  expect(screen.getByTestId("applications-layout")).toHaveClass(
+    "xl:grid-cols-[330px_minmax(0,1fr)]",
+  );
+  expect(screen.getByRole("searchbox", { name: "Search applications" })).toBeInTheDocument();
+  const applicationSort = screen.getByRole("combobox", { name: "Sort applications" });
+  expect(applicationSort).toHaveValue("Date applied");
+  fireEvent.change(applicationSort, { target: { value: "AI Match" } });
+  expect(applicationSort).toHaveValue("AI Match");
+  const appliedFilter = screen.getByRole("button", { name: "Applied applications: 1" });
+  fireEvent.click(appliedFilter);
+  expect(appliedFilter).toHaveAttribute("aria-pressed", "true");
+  expect(
+    screen.queryByRole("heading", { name: "Upcoming" }),
+  ).not.toBeInTheDocument();
+  expect(
+    screen.queryByRole("heading", { name: "AI Actions" }),
+  ).not.toBeInTheDocument();
   await waitFor(() => expect(savedApplicationStatuses).toContain("applied"));
 });
 

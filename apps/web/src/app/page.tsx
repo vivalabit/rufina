@@ -52,7 +52,6 @@ import {
   Smartphone,
   Star,
   Settings,
-  Target,
   Trash2,
   Upload,
   X,
@@ -204,6 +203,7 @@ type AiMatchJobStatus = {
 };
 
 type ApplicationStatus = "draft" | "applied" | "interview" | "assessment" | "offer" | "rejected";
+type ApplicationSortBy = "Date applied" | "AI Match" | "Status";
 type ApplicationEventType = "screening" | "interview" | "assessment" | "follow_up" | "offer_deadline";
 type ApplicationEventStatus = "scheduled" | "completed" | "canceled";
 type ApplicationEventOutcome = "positive" | "negative" | "neutral";
@@ -667,6 +667,7 @@ const applicationStatuses: Array<{ status: ApplicationStatus; label: string }> =
   { status: "rejected", label: "Rejected" },
 ];
 const trackedApplicationStatuses = applicationStatuses.filter((item) => item.status !== "draft");
+const applicationSortOptions: ApplicationSortBy[] = ["Date applied", "AI Match", "Status"];
 
 const applicationStatusStyles: Record<ApplicationStatus, string> = {
   draft: "border-[#fa5d00]/40 bg-[#fa5d00]/14 text-accent",
@@ -6590,8 +6591,6 @@ export default function HomePage() {
             selectedApplication={selectedApplication}
             onSelectApplication={setSelectedApplicationId}
             onOpenJobs={() => changeView("Jobs")}
-            onOpenCalendar={() => changeView("Calendar")}
-            onOpenAssistant={(prompt, applicationId) => openAssistant(prompt, "application", applicationId)}
             onPrepareApplication={openApplicationWorkspace}
             onAddManualApplication={addManualApplication}
             onChangeStatus={updateApplicationStatus}
@@ -8244,8 +8243,6 @@ function ApplicationsView({
   selectedApplication,
   onSelectApplication,
   onOpenJobs,
-  onOpenCalendar,
-  onOpenAssistant,
   onPrepareApplication,
   onAddManualApplication,
   onChangeStatus,
@@ -8262,8 +8259,6 @@ function ApplicationsView({
   selectedApplication: TrackedApplication | null;
   onSelectApplication: (applicationId: string) => void;
   onOpenJobs: () => void;
-  onOpenCalendar: () => void;
-  onOpenAssistant: (prompt: string, applicationId: string) => void;
   onPrepareApplication: (applicationId: string) => void;
   onAddManualApplication: (draft: ManualApplicationDraft) => void;
   onChangeStatus: (applicationId: string, status: ApplicationStatus) => void;
@@ -8275,6 +8270,7 @@ function ApplicationsView({
 }) {
   const [applicationQuery, setApplicationQuery] = useState("");
   const [selectedStatusFilter, setSelectedStatusFilter] = useState<ApplicationStatus | "all">("all");
+  const [applicationSortBy, setApplicationSortBy] = useState<ApplicationSortBy>("Date applied");
   const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
   const [eventDraft, setEventDraft] = useState<ApplicationEventDraft | null>(null);
   const [activeEventMenuId, setActiveEventMenuId] = useState("");
@@ -8291,26 +8287,32 @@ function ApplicationsView({
     }),
     { draft: 0, applied: 0, interview: 0, assessment: 0, offer: 0, rejected: 0 } satisfies Record<ApplicationStatus, number>,
   );
-  const activeCount = statusCounts.interview + statusCounts.assessment + statusCounts.offer;
-  const responseRate = applications.length > 0 ? Math.round((activeCount / applications.length) * 100) : 0;
-  const statCards = [
-    { label: "Total applications", value: applications.length.toString(), icon: FileText, iconClassName: "bg-[#fff8f1] text-[#1d1e1c]" },
-    { label: "Interviews", value: statusCounts.interview.toString(), icon: CalendarDays, iconClassName: "bg-accent/16 text-accent" },
-    { label: "Assessments", value: statusCounts.assessment.toString(), icon: FileText, iconClassName: "bg-[#fa5d00]/16 text-accent" },
-    { label: "Offers", value: statusCounts.offer.toString(), icon: BriefcaseBusiness, iconClassName: "bg-success/16 text-success" },
-    { label: "Response rate", value: `${responseRate}%`, icon: Target, iconClassName: "bg-[#fa5d00]/16 text-accent" },
-  ];
   const normalizedApplicationQuery = applicationQuery.trim().toLowerCase();
-  const filteredApplications = applications.filter((application) => {
-    const matchesStatus = selectedStatusFilter === "all" || application.status === selectedStatusFilter;
-    const matchesQuery =
-      normalizedApplicationQuery.length === 0 ||
-      [application.job.title, application.job.company, application.job.location, application.job.type, application.nextStep].some((value) =>
-        value.toLowerCase().includes(normalizedApplicationQuery),
-      );
+  const filteredApplications = applications
+    .filter((application) => {
+      const matchesStatus = selectedStatusFilter === "all" || application.status === selectedStatusFilter;
+      const matchesQuery =
+        normalizedApplicationQuery.length === 0 ||
+        [application.job.title, application.job.company, application.job.location, application.job.type, application.nextStep].some((value) =>
+          value.toLowerCase().includes(normalizedApplicationQuery),
+        );
 
-    return matchesStatus && matchesQuery;
-  });
+      return matchesStatus && matchesQuery;
+    })
+    .sort((left, right) => {
+      if (applicationSortBy === "AI Match") {
+        return getDisplayMatch(right.job) - getDisplayMatch(left.job);
+      }
+      if (applicationSortBy === "Status") {
+        const leftIndex = trackedApplicationStatuses.findIndex((item) => item.status === left.status);
+        const rightIndex = trackedApplicationStatuses.findIndex((item) => item.status === right.status);
+        return leftIndex - rightIndex;
+      }
+
+      const leftTime = Date.parse(left.appliedAt);
+      const rightTime = Date.parse(right.appliedAt);
+      return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
+    });
   const matchingApplicationIdSet = new Set(matchingApplicationIds);
   const visibleSelectedApplication =
     selectedApplication && filteredApplications.some((application) => application.id === selectedApplication.id)
@@ -8324,14 +8326,6 @@ function ApplicationsView({
     visibleApplicationEvents.find(
       (event) => event.status === "scheduled" && new Date(event.startsAt).getTime() >= Date.now(),
     ) ?? null;
-  const upcomingEvents = sortApplicationEvents(
-    events.filter(
-      (event) =>
-        filteredApplications.some((application) => application.id === event.applicationId) &&
-        event.status === "scheduled" &&
-        new Date(event.startsAt).getTime() >= Date.now(),
-    ),
-  ).slice(0, 3);
   const isEditingEvent = Boolean(eventDraft?.id);
   const timelineItems: ApplicationTimelineItem[] = visibleSelectedApplication
     ? [
@@ -8366,6 +8360,12 @@ function ApplicationsView({
   function openManualApplicationDialog() {
     setManualApplicationDraft(defaultManualApplicationDraft);
     setIsManualApplicationDialogOpen(true);
+  }
+
+  function clearAllApplicationFilters() {
+    setApplicationQuery("");
+    setSelectedStatusFilter("all");
+    setApplicationSortBy("Date applied");
   }
 
   function updateManualApplicationDraft<Field extends keyof ManualApplicationDraft>(
@@ -8607,165 +8607,236 @@ function ApplicationsView({
   }
 
   return (
-    <section className="job-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
-      <header className="mb-3 grid shrink-0 gap-3 xl:grid-cols-[190px_minmax(0,1fr)] xl:items-center 2xl:mb-4 2xl:grid-cols-[minmax(280px,430px)_minmax(0,1fr)]">
-        <div>
-          <h1 className="text-[24px] font-bold leading-tight tracking-normal text-foreground 2xl:text-[31px]">Applications</h1>
-          <p className="mt-1 text-[12px] text-muted 2xl:mt-1.5 2xl:text-base">Track submitted roles and next steps</p>
-        </div>
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
+      <header className="shrink-0">
+        <h1 className="text-[24px] font-bold leading-tight tracking-normal text-foreground sm:text-[27px] 2xl:text-[31px]">Applications</h1>
 
-        <div className="grid gap-2 md:grid-cols-[minmax(260px,1fr)_auto] xl:grid-cols-[minmax(210px,250px)_minmax(0,1fr)_auto] 2xl:gap-3 2xl:grid-cols-[minmax(320px,420px)_minmax(0,1fr)_auto]">
-          <label className="flex h-10 min-w-0 items-center gap-2.5 rounded-md border border-border bg-[#fff8f1] px-3 shadow-[inset_0_1px_0_rgba(255,255,255,0.05)] focus-within:border-accent/70 2xl:h-12 2xl:gap-3 2xl:px-4">
-            <Search className="h-[17px] w-[17px] shrink-0 text-muted 2xl:h-5 2xl:w-5" />
-            <input
-              value={applicationQuery}
-              onChange={(event) => setApplicationQuery(event.target.value)}
-              placeholder="Search applications..."
-              className="h-full min-w-0 flex-1 bg-transparent text-xs font-semibold text-foreground outline-none placeholder:text-muted 2xl:text-sm"
-            />
-          </label>
-
-          <div className="flex h-10 min-w-0 items-center gap-1.5 overflow-x-auto rounded-md border border-border bg-[#fff8f1] p-1.5 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] md:col-span-2 xl:col-span-1 2xl:h-12 2xl:gap-2">
-            {[
-              { value: "all" as const, label: "All" },
-              ...trackedApplicationStatuses.map((item) => ({ value: item.status, label: item.label })),
-            ].map((item) => {
-              const isActive = selectedStatusFilter === item.value;
-
-              return (
-                <button
-                  key={item.value}
-                  type="button"
-                  onClick={() => setSelectedStatusFilter(item.value)}
-                  className={cn(
-                    "h-7 shrink-0 rounded-md border px-2 text-[11px] font-bold transition 2xl:h-8 2xl:px-4 2xl:text-xs",
-                    isActive
-                      ? "border-accent/70 bg-accent/14 text-accent shadow-[0_0_0_1px_rgba(255,90,0,0.12)]"
-                      : "border-border bg-[#fff8f1] text-muted hover:bg-[#fff3e8] hover:text-foreground",
-                  )}
-                >
-                  {item.label}
-                </button>
-              );
-            })}
+        <div aria-label="Applications actions" className="mt-2.5 flex min-w-0 flex-col gap-2 pb-1 xl:flex-row xl:items-center 2xl:mt-4">
+          <div className="flex shrink-0 items-center gap-2">
+            <Button
+              className="h-10 shrink-0 rounded-lg border border-[#fa5d00] bg-[linear-gradient(135deg,#fa5d00_0%,#e95300_100%)] px-4 text-[13px] font-bold text-foreground shadow-[0_10px_28px_rgba(255,90,0,0.24),inset_0_1px_0_rgba(255,255,255,0.18)] hover:bg-[linear-gradient(135deg,#fa5d00_0%,#e95300_100%)] 2xl:h-12 2xl:px-5 2xl:text-sm"
+              onClick={openManualApplicationDialog}
+            >
+              <Plus className="h-[18px] w-[18px] stroke-[2.3] 2xl:h-5 2xl:w-5" />
+              Add application
+            </Button>
+            <Button
+              variant="ghost"
+              className="h-10 shrink-0 rounded-lg border border-[#fa5d00] bg-transparent px-4 text-[13px] font-bold text-accent shadow-none hover:border-[#e95300] hover:bg-[#fa5d00]/10 hover:text-accent 2xl:h-12 2xl:px-5 2xl:text-sm"
+              onClick={onOpenJobs}
+            >
+              <BriefcaseBusiness className="h-[18px] w-[18px] stroke-[2.3] text-accent 2xl:h-5 2xl:w-5" />
+              Browse jobs
+            </Button>
           </div>
 
-          <Button
-            className="h-10 w-full justify-center rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-3 text-xs font-bold text-foreground shadow-[0_14px_30px_rgba(255,90,0,0.25)] hover:from-[#e95300] hover:to-[#e95300] md:w-auto 2xl:h-12 2xl:px-6 2xl:text-sm"
-            onClick={openManualApplicationDialog}
-          >
-            <Plus className="h-4 w-4 2xl:h-5 2xl:w-5" />
-            Add application
-          </Button>
+          <label className="flex h-10 min-w-[220px] flex-1 items-center gap-2.5 rounded-lg border border-border bg-white px-3 shadow-[0_4px_14px_rgba(227,214,197,0.3)] focus-within:border-accent/70 focus-within:ring-2 focus-within:ring-accent/15 2xl:h-12 2xl:px-4">
+            <Search className="h-[18px] w-[18px] shrink-0 text-muted 2xl:h-5 2xl:w-5" />
+            <input
+              type="search"
+              value={applicationQuery}
+              onChange={(event) => setApplicationQuery(event.target.value)}
+              aria-label="Search applications"
+              placeholder="Search applications..."
+              className="h-full min-w-0 flex-1 !border-transparent !bg-transparent text-[13px] font-medium text-foreground outline-none placeholder:text-muted focus-visible:!outline-none 2xl:text-sm"
+            />
+          </label>
         </div>
       </header>
 
-      <div className="grid shrink-0 gap-2 sm:grid-cols-2 xl:grid-cols-5 2xl:gap-3">
-        {statCards.map((stat) => (
-          <article key={stat.label} className="panel flex min-h-[62px] items-center justify-between gap-2 p-2 2xl:min-h-[104px] 2xl:gap-3 2xl:p-4">
-            <div className="min-w-0">
-              <p className="text-[10px] font-semibold leading-tight text-muted 2xl:text-xs">{stat.label}</p>
-              <p className="mt-0.5 text-[18px] font-bold leading-none text-foreground 2xl:mt-1.5 2xl:text-[26px]">{stat.value}</p>
-            </div>
-            <div className={cn("grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border 2xl:h-10 2xl:w-10", stat.iconClassName)}>
-              <stat.icon className="h-3.5 w-3.5 2xl:h-4 2xl:w-4" />
-            </div>
-          </article>
-        ))}
+      <div className="mt-3 flex shrink-0 flex-col gap-2 lg:flex-row lg:items-center lg:justify-between 2xl:mt-5 2xl:gap-3">
+        <div className="flex flex-wrap gap-1.5 2xl:gap-2">
+          {[
+            { value: "all" as const, label: "All", count: applications.length },
+            ...trackedApplicationStatuses.map((item) => ({
+              value: item.status,
+              label: item.label,
+              count: statusCounts[item.status],
+            })),
+          ].map((item) => {
+            const isActive = selectedStatusFilter === item.value;
+
+            return (
+              <button
+                key={item.value}
+                type="button"
+                aria-label={`${item.label} applications: ${item.count}`}
+                aria-pressed={isActive}
+                onClick={() => setSelectedStatusFilter(item.value)}
+                className={cn(
+                  "inline-flex h-8 items-center gap-2 rounded-md border border-border/80 bg-[#fff8f1] px-3 text-xs font-semibold text-[#1d1e1c] shadow-[0_3px_10px_rgba(227,214,197,0.24)] transition hover:border-[#c0bbb6] hover:bg-[#fff3e8] 2xl:h-10 2xl:px-4 2xl:text-sm",
+                  isActive && "border-accent/70 bg-accent/10 text-foreground",
+                )}
+              >
+                {item.label}
+                <span className={cn("grid min-w-5 place-items-center rounded-full bg-white px-1.5 py-0.5 text-[10px] font-bold text-muted", isActive && "text-accent")}>
+                  {item.count}
+                </span>
+              </button>
+            );
+          })}
+          <button
+            type="button"
+            onClick={clearAllApplicationFilters}
+            className={cn(
+              "inline-flex h-8 items-center gap-2 rounded-md border border-border bg-[#fff8f1] px-3 text-xs font-semibold text-[#1d1e1c] shadow-[0_3px_10px_rgba(227,214,197,0.24)] transition hover:border-[#c0bbb6] hover:bg-[#fff3e8] 2xl:h-10 2xl:gap-2.5 2xl:px-5 2xl:text-sm",
+              (applicationQuery || selectedStatusFilter !== "all" || applicationSortBy !== "Date applied") && "border-accent/60 text-foreground",
+            )}
+          >
+            <RotateCcw className="h-4 w-4 shrink-0 text-[#686762] 2xl:h-[18px] 2xl:w-[18px]" strokeWidth={1.9} />
+            Reset
+          </button>
+        </div>
+
+        <label className="relative inline-flex h-8 w-fit min-w-[178px] items-center gap-1.5 whitespace-nowrap rounded-md bg-[#fff8f1] px-2.5 text-xs font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8] focus-within:ring-2 focus-within:ring-accent/20 2xl:h-10 2xl:min-w-[214px] 2xl:gap-2 2xl:px-4 2xl:text-sm">
+          <SlidersHorizontal className="h-3.5 w-3.5 text-muted 2xl:h-4 2xl:w-4" />
+          <select
+            aria-label="Sort applications"
+            value={applicationSortBy}
+            onChange={(event) => setApplicationSortBy(event.target.value as ApplicationSortBy)}
+            className="h-full min-w-0 flex-1 appearance-none !border-transparent !bg-transparent pr-6 font-semibold outline-none focus-visible:!outline-none"
+          >
+            {applicationSortOptions.map((option) => (
+              <option key={option} value={option}>
+                Sort by: {option}
+              </option>
+            ))}
+          </select>
+          <ChevronDown className="pointer-events-none absolute right-2.5 h-3.5 w-3.5 text-muted 2xl:right-4 2xl:h-4 2xl:w-4" />
+        </label>
       </div>
 
-      {applications.length === 0 ? (
-        <section className="panel mt-3 grid min-h-0 flex-1 place-items-center p-6 text-center 2xl:mt-4">
-          <div className="max-w-[440px]">
-            <div className="mx-auto grid h-14 w-14 place-items-center rounded-md bg-accent/18 text-accent">
-              <Mail className="h-7 w-7" />
-            </div>
-            <h2 className="mt-4 text-xl font-bold text-foreground">No applications yet</h2>
-            <p className="mt-2 text-sm leading-6 text-muted">Add a vacancy manually or open Jobs and mark a found vacancy as applied.</p>
-            <div className="mt-5 flex flex-col justify-center gap-2 sm:flex-row">
-              <Button className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-5 text-[13px]" onClick={openManualApplicationDialog}>
-                <Plus className="h-4 w-4" />
-                Add application
-              </Button>
-              <Button variant="ghost" className="h-10 rounded-md border border-border bg-transparent px-5 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]" onClick={onOpenJobs}>
-                Browse jobs
-                <ChevronRight className="h-4 w-4" />
-              </Button>
+      <div
+        data-testid="applications-layout"
+        className="mt-2.5 grid min-h-0 flex-1 gap-3 xl:grid-cols-[330px_minmax(0,1fr)] 2xl:mt-4 2xl:grid-cols-[420px_minmax(0,1fr)] 2xl:gap-4"
+      >
+        {applications.length === 0 ? (
+          <div className="relative isolate grid min-h-[360px] overflow-hidden rounded-[20px] border border-dashed border-[#f4c8ad] bg-[#fffaf6] px-5 py-10 text-center shadow-[inset_0_0_80px_rgba(255,129,51,0.035)] xl:col-span-2 2xl:min-h-[420px]">
+            <div className="m-auto flex max-w-lg flex-col items-center">
+              <div className="relative h-[82px] w-[94px] text-accent" aria-hidden="true">
+                <span className="absolute left-0 top-[46px] h-2 w-2 rotate-12 rounded-sm bg-[#ffb57f]/45" />
+                <span className="absolute right-1 top-[35px] h-2.5 w-2.5 rounded-full border-2 border-[#ffb57f]/45" />
+                <span className="absolute right-3 top-[68px] h-2 w-2 rotate-45 rounded-sm bg-[#ffb57f]/40" />
+                <span className="absolute left-[14px] top-[66px] h-2 w-2 rotate-45 rounded-sm border-2 border-[#ffb57f]/40" />
+                <span className="absolute left-[30px] top-[5px] h-1.5 w-1.5 rounded-full bg-[#ffb57f]/35" />
+                <span className="absolute left-[30px] top-[18px] h-[58px] w-[58px] rounded-full bg-[#ffdbc3]/35 blur-[1px]" />
+                <Search className="absolute left-[25px] top-[10px] h-[70px] w-[70px] text-[#ffb07a]/55" strokeWidth={1.7} />
+                <span className="absolute left-[35px] top-[20px] grid h-[42px] w-[42px] place-items-center rounded-full border border-[#ff9b5a]/50 bg-[#fffaf6]/90 shadow-[0_0_14px_rgba(255,112,32,0.12)]">
+                  <Mail className="h-6 w-6 text-[#ff792e]" strokeWidth={2} />
+                </span>
+              </div>
+              <h2 className="mt-4 text-[24px] font-bold leading-tight text-foreground 2xl:text-[28px]">No applications yet</h2>
+              <p className="mt-3 max-w-[480px] text-[15px] font-medium leading-relaxed text-muted 2xl:text-base">
+                Add a vacancy manually or browse Jobs and mark a matching vacancy as applied.
+              </p>
+              <div className="mt-8 flex flex-col justify-center gap-2 sm:flex-row">
+                <Button className="h-12 rounded-xl bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-6 text-sm font-bold 2xl:h-14 2xl:px-7 2xl:text-base" onClick={openManualApplicationDialog}>
+                  <Plus className="h-[18px] w-[18px] 2xl:h-5 2xl:w-5" />
+                  Add application
+                </Button>
+                <Button variant="ghost" className="h-12 rounded-xl border border-[#ffb17f] bg-white/70 px-6 text-sm font-bold text-accent hover:border-accent hover:bg-[#fff3e8] 2xl:h-14 2xl:px-7 2xl:text-base" onClick={onOpenJobs}>
+                  Browse jobs
+                  <ChevronRight className="h-[18px] w-[18px] 2xl:h-5 2xl:w-5" />
+                </Button>
+              </div>
             </div>
           </div>
-        </section>
-      ) : (
-        <div className="mt-2 grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(280px,0.86fr)_minmax(360px,1.18fr)_minmax(240px,0.7fr)] 2xl:mt-3 2xl:grid-cols-[minmax(420px,0.95fr)_minmax(480px,1.2fr)_minmax(320px,0.75fr)] 2xl:gap-4">
-          <aside className="panel flex min-h-0 flex-col overflow-hidden p-2.5 2xl:p-4">
-            <div className="mb-2.5 flex items-center justify-between 2xl:mb-3">
-              <h2 className="text-sm font-bold text-foreground 2xl:text-lg">Applications ({filteredApplications.length})</h2>
-              <button type="button" className="inline-flex h-8 items-center gap-2 rounded-md border border-border bg-[#fff8f1] px-3 text-xs font-bold text-[#1d1e1c]">
-                Date applied
-                <ChevronDown className="h-3.5 w-3.5 text-muted" />
+        ) : filteredApplications.length === 0 ? (
+          <div className="relative isolate grid min-h-[360px] overflow-hidden rounded-[20px] border border-dashed border-[#f4c8ad] bg-[#fffaf6] px-5 py-10 text-center shadow-[inset_0_0_80px_rgba(255,129,51,0.035)] xl:col-span-2 2xl:min-h-[420px]">
+            <div className="m-auto flex max-w-lg flex-col items-center">
+              <Search className="h-14 w-14 text-[#ffb07a]/70" strokeWidth={1.7} />
+              <h2 className="mt-4 text-[24px] font-bold leading-tight text-foreground 2xl:text-[28px]">No applications found</h2>
+              <p className="mt-3 max-w-[480px] text-[15px] font-medium leading-relaxed text-muted 2xl:text-base">
+                Try changing the search or resetting the status filter.
+              </p>
+              <button
+                type="button"
+                onClick={clearAllApplicationFilters}
+                className="mt-8 inline-flex h-12 items-center justify-center gap-2 rounded-xl border border-[#ffb17f] bg-white/70 px-6 text-sm font-bold text-accent shadow-[0_8px_24px_rgba(255,104,25,0.07)] transition hover:border-accent hover:bg-[#fff3e8] 2xl:h-14 2xl:px-7 2xl:text-base"
+              >
+                <RotateCcw className="h-[18px] w-[18px] 2xl:h-5 2xl:w-5" strokeWidth={2.2} />
+                Clear all filters
               </button>
             </div>
-            <div className="job-scroll min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-              {filteredApplications.length === 0 ? (
-                <div className="rounded-md border border-border bg-[#fff8f1] p-4 text-sm leading-6 text-muted">
-                  No applications match the current search or status filter.
-                </div>
-              ) : filteredApplications.map((application) => (
-                <div
-                  key={application.id}
-                  role="button"
-                  tabIndex={0}
-                  onClick={() => onSelectApplication(application.id)}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") return;
-                    event.preventDefault();
-                    onSelectApplication(application.id);
-                  }}
-                  className={cn(
-                    "grid w-full cursor-pointer grid-cols-[44px_minmax(0,1fr)_auto_auto] items-center gap-2.5 rounded-md border p-2.5 text-left transition 2xl:grid-cols-[54px_minmax(0,1fr)_auto_auto_auto] 2xl:gap-3 2xl:p-4",
-                    visibleSelectedApplication?.id === application.id
-                      ? "border-accent bg-[#fff8f1] shadow-[0_0_0_1px_rgba(255,90,0,0.12)]"
-                      : "border-border bg-[#fff8f1] hover:bg-[#fff3e8]",
-                  )}
-                >
-                  <JobRoleIcon job={application.job} />
-                  <div className="min-w-0">
-                    <h3 className="truncate text-[13px] font-bold text-foreground 2xl:text-base">{application.job.title}</h3>
-                    <p className="mt-0.5 truncate text-[11px] font-semibold text-[#4a4a47] 2xl:text-sm">{application.job.company}</p>
-                    <p className="mt-1 text-[11px] text-muted 2xl:hidden">{formatApplicationDate(application.appliedAt)} • {formatMatchValue(application.job)}</p>
-                  </div>
-                  <span className={cn("shrink-0 rounded-md border px-2 py-1 text-[10px] font-bold 2xl:text-[11px]", applicationStatusStyles[application.status])}>
-                    {matchingApplicationIdSet.has(application.id) ? "Analyzing" : getApplicationStatusLabel(application.status)}
-                  </span>
-                  <button
-                    type="button"
-                    aria-label={`Open AI info for ${application.job.title}`}
-                    title="AI info"
-                    onClick={(event) => {
-                      event.stopPropagation();
-                      openApplicationAiInfo(application.id);
+          </div>
+        ) : (
+          <>
+            <aside className="flex min-h-0 flex-col overflow-hidden rounded-md bg-[#fff8f1]">
+              <p className="shrink-0 px-1 pb-3 pt-3 text-sm font-semibold text-muted 2xl:pb-4 2xl:pt-5 2xl:text-base">
+                {filteredApplications.length} {filteredApplications.length === 1 ? "application" : "applications"}
+              </p>
+              <div className="job-scroll min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1 2xl:space-y-2">
+                {filteredApplications.map((application) => (
+                  <article
+                    key={application.id}
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => onSelectApplication(application.id)}
+                    onKeyDown={(event) => {
+                      if (event.key !== "Enter" && event.key !== " ") return;
+                      event.preventDefault();
+                      onSelectApplication(application.id);
                     }}
-                    className="grid h-8 w-8 shrink-0 place-items-center rounded-md border border-border text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
+                    className={cn(
+                      "w-full cursor-pointer rounded-[8px] border p-2.5 text-left transition 2xl:p-3",
+                      visibleSelectedApplication?.id === application.id
+                        ? "border-accent bg-[#fff8f1] shadow-[0_0_0_1px_rgba(255,90,0,0.12)]"
+                        : "border-border/80 bg-[#fff8f1] hover:border-[#c0bbb6] hover:bg-[#fff3e8]",
+                    )}
                   >
-                    <Info className="h-4 w-4" />
-                  </button>
-                  <div className="hidden text-right 2xl:block">
-                    <p className="text-xs font-semibold text-muted">{formatApplicationDate(application.appliedAt)}</p>
-                    <p className="mt-1 text-sm font-bold text-success">{formatMatchValue(application.job)}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </aside>
+                    <div className="grid grid-cols-[42px_minmax(0,1fr)_88px] gap-2 2xl:grid-cols-[48px_minmax(0,1fr)_96px] 2xl:gap-3">
+                      <JobRoleIcon job={application.job} compact />
+                      <div className="min-w-0 pt-0.5">
+                        <h3 className="line-clamp-2 text-[13px] font-bold leading-tight text-foreground 2xl:text-base">{application.job.title}</h3>
+                        <p className="mt-0.5 truncate text-xs font-bold text-[#615f5c] 2xl:text-sm">{application.job.company}</p>
+                        <p className="mt-1 truncate text-[10px] font-semibold text-[#615f5c] 2xl:text-[11px]">Applied {formatApplicationDate(application.appliedAt)}</p>
+                      </div>
+                      <div className="flex min-w-0 flex-col items-end gap-1.5">
+                        <span className={cn("max-w-full truncate rounded-md border px-2 py-1 text-[10px] font-bold 2xl:text-[11px]", applicationStatusStyles[application.status])}>
+                          {matchingApplicationIdSet.has(application.id) ? "Analyzing" : getApplicationStatusLabel(application.status)}
+                        </span>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[11px] font-bold text-success 2xl:text-xs">{formatMatchValue(application.job)}</span>
+                          <button
+                            type="button"
+                            aria-label={`Open AI info for ${application.job.title}`}
+                            title="AI info"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              openApplicationAiInfo(application.id);
+                            }}
+                            className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border bg-[#fff8f1] text-muted transition hover:border-[#c0bbb6] hover:bg-[#fff3e8] hover:text-foreground 2xl:h-8 2xl:w-8"
+                          >
+                            <Info className="h-3.5 w-3.5 2xl:h-4 2xl:w-4" />
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-2 border-t border-border/80 pt-2 2xl:mt-3 2xl:pt-2.5">
+                      <div className="grid gap-1.5 text-xs font-semibold text-muted sm:grid-cols-[minmax(0,1fr)_auto] 2xl:text-[13px]">
+                        <p className="flex min-w-0 flex-nowrap items-center gap-x-1.5">
+                          <MapPin className="h-3.5 w-3.5 shrink-0 2xl:h-4 2xl:w-4" />
+                          <span className="truncate">{formatJobLocationCompact(application.job.location)}</span>
+                          <span className="text-foreground/25">•</span>
+                          <span className="shrink-0 capitalize">{application.job.type}</span>
+                        </p>
+                        <p className="whitespace-nowrap text-left sm:text-right">{application.nextStep || "No next step"}</p>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            </aside>
 
-          <section className="panel min-h-0 overflow-hidden p-2.5 2xl:p-3">
-            {visibleSelectedApplication ? (
-              <div className="flex h-full min-h-0 flex-col">
-                <div className="flex shrink-0 flex-col gap-2.5 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="flex min-w-0 items-start gap-2.5">
-                    <JobRoleIcon job={visibleSelectedApplication.job} compact />
-                    <div className="min-w-0">
-                      <h2 className="text-[16px] font-bold leading-tight text-foreground 2xl:text-[18px]">{visibleSelectedApplication.job.title}</h2>
-                      <p className="mt-0.5 text-[11px] font-semibold text-muted 2xl:text-xs">
+            <section className="panel job-scroll min-h-0 overflow-y-auto p-3 md:p-4 2xl:p-5">
+              {visibleSelectedApplication ? (
+                <div className="grid min-h-0 gap-3 2xl:gap-4">
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-start 2xl:gap-5">
+                  <div className="flex min-w-0 items-start gap-2.5 2xl:gap-3">
+                    <JobRoleIcon job={visibleSelectedApplication.job} large />
+                    <div className="min-w-0 pt-0.5">
+                      <h2 className="text-[20px] font-bold leading-[1.2] tracking-[-0.01em] text-foreground lg:text-[19px] min-[1400px]:text-[20px] min-[1500px]:text-[22px] 2xl:text-[24px]">{visibleSelectedApplication.job.title}</h2>
+                      <p className="mt-1 text-[13px] font-semibold text-muted 2xl:mt-1.5 2xl:text-sm">
                         {visibleSelectedApplication.job.company} <span className="text-foreground/35">•</span> {visibleSelectedApplication.job.location} <span className="text-foreground/35">•</span> {visibleSelectedApplication.job.type}
                       </p>
                       {visibleSelectedApplication.job.applyUrl || visibleSelectedApplication.job.sourceUrl ? (
@@ -8773,7 +8844,7 @@ function ApplicationsView({
                           href={getJobApplyUrl(visibleSelectedApplication.job)}
                           target="_blank"
                           rel="noreferrer"
-                          className="mt-1 inline-flex items-center gap-1.5 text-[10px] font-bold text-accent hover:text-foreground 2xl:text-xs"
+                          className="mt-1 inline-flex items-center gap-1.5 text-[11px] font-bold text-accent hover:text-foreground 2xl:text-xs"
                         >
                           View job posting
                           <ExternalLink className="h-3.5 w-3.5" />
@@ -8783,21 +8854,21 @@ function ApplicationsView({
                       )}
                     </div>
                   </div>
-                  <div className="relative flex shrink-0 items-center gap-2">
+                  <div className="relative flex shrink-0 flex-wrap items-center justify-end gap-2 lg:max-w-[360px]">
                     <Button
                       type="button"
                       onClick={() => onPrepareApplication(visibleSelectedApplication.id)}
-                      className="h-8 rounded-md bg-accent px-3 text-[10px] font-bold text-foreground hover:bg-[#e95300] 2xl:h-9 2xl:text-xs"
+                      className="h-10 rounded-md border border-[#e95300] bg-accent px-4 text-xs font-bold text-foreground shadow-[0_8px_20px_rgba(255,90,0,0.18)] hover:border-[#e95300] hover:bg-[#e95300] 2xl:h-11 2xl:text-[13px]"
                     >
-                      <FileText className="h-3.5 w-3.5" />
-                      Prepare
+                      <FileText className="h-4 w-4 2xl:h-5 2xl:w-5" />
+                      Prepare application
                     </Button>
                     <button
                       type="button"
                       aria-label="Open AI info"
                       title="AI info"
                       onClick={() => openApplicationAiInfo(visibleSelectedApplication.id)}
-                      className="grid h-8 w-8 place-items-center rounded-md border border-border text-muted transition hover:bg-[#fff3e8] hover:text-foreground 2xl:h-9 2xl:w-9"
+                      className="grid h-10 w-10 place-items-center rounded-md border border-border bg-[#fff8f1] text-muted transition hover:border-[#c0bbb6] hover:bg-[#fff3e8] hover:text-foreground 2xl:h-11 2xl:w-11"
                     >
                       <Info className="h-4 w-4" />
                     </button>
@@ -8805,13 +8876,13 @@ function ApplicationsView({
                       type="button"
                       aria-label="Application actions"
                       onClick={() => setIsApplicationMenuOpen((isOpen) => !isOpen)}
-                      className="grid h-8 w-8 place-items-center rounded-md border border-border text-muted transition hover:bg-[#fff3e8] hover:text-foreground 2xl:h-9 2xl:w-9"
+                      className="grid h-10 w-10 place-items-center rounded-md border border-border bg-[#fff8f1] text-muted transition hover:border-[#c0bbb6] hover:bg-[#fff3e8] hover:text-foreground 2xl:h-11 2xl:w-11"
                     >
                       <MoreHorizontal className="h-4 w-4" />
                     </button>
 
                     {isApplicationMenuOpen && (
-                      <div className="absolute right-0 top-10 z-30 grid w-[184px] gap-1 rounded-md border border-border bg-[#ffffff] p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.42)]">
+                      <div className="absolute right-0 top-12 z-30 grid w-[184px] gap-1 rounded-md border border-border bg-[#ffffff] p-1.5 shadow-[0_18px_40px_rgba(0,0,0,0.42)]">
                         <button
                           type="button"
                           onClick={openApplicationPosting}
@@ -8855,7 +8926,9 @@ function ApplicationsView({
                   </div>
                 </div>
 
-                <section className="mt-2 shrink-0 rounded-md border border-border bg-[#fff8f1] p-2 2xl:p-2.5">
+                <div className="h-px bg-border" />
+
+                <section className="shrink-0 rounded-md border border-border bg-[#fff8f1] p-3 2xl:p-4">
                   <h3 className="text-[13px] font-bold text-foreground 2xl:text-sm">Status timeline</h3>
                   <div className="mt-2 space-y-0">
                     {timelineItems.map((item, index) => {
@@ -8946,7 +9019,7 @@ function ApplicationsView({
                   </div>
                 </section>
 
-                <section className="mt-2 shrink-0 rounded-md border border-border bg-[#fff8f1] p-2 2xl:p-2.5">
+                <section className="shrink-0 rounded-md border border-border bg-[#fff8f1] p-3 2xl:p-4">
                   <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <div className="min-w-0">
                       <h3 className="flex items-center gap-2 text-[13px] font-bold text-foreground 2xl:text-sm">
@@ -8973,7 +9046,7 @@ function ApplicationsView({
                   </div>
                 </section>
 
-                <section className="mt-2 shrink-0">
+                <section className="shrink-0">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-[13px] font-bold text-foreground 2xl:text-sm">Documents used</h3>
                     <label className="inline-flex h-7 cursor-pointer items-center gap-2 rounded-md border border-border bg-transparent px-2.5 text-[11px] font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8]">
@@ -9032,7 +9105,7 @@ function ApplicationsView({
                   </div>
                 </section>
 
-                <section className="mt-2 min-h-0 shrink rounded-md border border-border bg-[#fff8f1] p-2 2xl:p-2.5">
+                <section className="min-h-0 shrink rounded-md border border-border bg-[#fff8f1] p-3 2xl:p-4">
                   <div className="flex items-center justify-between gap-3">
                     <h3 className="text-[13px] font-bold text-foreground 2xl:text-sm">Notes</h3>
                     <Button
@@ -9057,86 +9130,10 @@ function ApplicationsView({
                 </div>
               </div>
             )}
-          </section>
-
-          <aside className="grid min-h-0 grid-rows-[auto_minmax(0,1fr)] gap-3 2xl:gap-4">
-            <section className="panel p-3 2xl:p-5">
-              <div className="flex items-center justify-between gap-3">
-                <h2 className="text-sm font-bold text-foreground 2xl:text-lg">Upcoming</h2>
-                <button type="button" onClick={onOpenCalendar} className="text-xs font-bold text-accent transition hover:text-[#e95300]">View calendar</button>
-              </div>
-              <div className="mt-4 space-y-3">
-                {upcomingEvents.length > 0 ? upcomingEvents.map((event) => {
-                  const application = applications.find((item) => item.id === event.applicationId);
-                  if (!application) return null;
-                  const eventDate = new Date(event.startsAt);
-
-                  return (
-                  <button
-                    key={event.id}
-                    type="button"
-                    onClick={() => onSelectApplication(application.id)}
-                    className="grid w-full grid-cols-[44px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-md border border-border bg-[#fff8f1] p-2.5 text-left transition hover:bg-[#fff3e8] 2xl:grid-cols-[52px_minmax(0,1fr)_auto] 2xl:gap-3 2xl:p-3"
-                  >
-                    <div className="rounded-md border border-accent/45 bg-accent/10 py-1.5 text-center">
-                      <p className="text-[9px] font-black uppercase text-accent 2xl:text-[10px]">
-                        {Number.isNaN(eventDate.getTime()) ? "TBD" : eventDate.toLocaleDateString("en-US", { month: "short" })}
-                      </p>
-                      <p className="text-lg font-bold leading-none text-foreground 2xl:text-xl">
-                        {Number.isNaN(eventDate.getTime()) ? "-" : eventDate.getDate()}
-                      </p>
-                    </div>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-bold text-foreground">{event.title}</p>
-                      <p className="mt-1 truncate text-xs text-muted">
-                        {formatApplicationEventTime(event.startsAt)} • {application.job.company}
-                      </p>
-                    </div>
-                    <span className="rounded-md bg-[#fff8f1] px-2 py-1 text-[11px] font-bold text-muted">
-                      {getApplicationEventTypeLabel(event.type)}
-                    </span>
-                  </button>
-                  );
-                }) : (
-                  <button
-                    type="button"
-                    onClick={openScheduleDialog}
-                    className="w-full rounded-md border border-dashed border-border bg-[#fff8f1] p-3 text-left text-xs font-semibold leading-5 text-muted transition hover:border-accent/55 hover:text-foreground"
-                  >
-                    No scheduled events yet. Add a screening, interview, assessment deadline, or follow-up.
-                  </button>
-                )}
-              </div>
             </section>
-
-            <section className="panel h-full min-h-0 p-3 2xl:p-5">
-              <h2 className="text-sm font-bold text-foreground 2xl:text-lg">AI Actions</h2>
-              <div className="mt-3 grid gap-2 2xl:mt-4">
-                {[
-                  { label: "Follow-up", prompt: assistantPrompts.followUpApplication },
-                  { label: "Prepare interview", prompt: assistantPrompts.prepareInterview },
-                  { label: "Summarize fit", prompt: "Summarize my fit for this role, including the strongest evidence, gaps, and next step." },
-                ].map((action) => (
-                  <Button
-                    key={action.label}
-                    variant="ghost"
-                    onClick={() => visibleSelectedApplication && onOpenAssistant(action.prompt, visibleSelectedApplication.id)}
-                    disabled={!visibleSelectedApplication}
-                    className="h-9 justify-start rounded-md border border-border bg-transparent text-xs text-[#1d1e1c] hover:bg-[#fff3e8] disabled:opacity-45 2xl:h-11 2xl:text-[13px]"
-                  >
-                    <span className="grid h-6 w-6 place-items-center rounded-md bg-accent/14 text-accent 2xl:h-7 2xl:w-7">
-                      <Sparkles className="h-3.5 w-3.5 2xl:h-4 2xl:w-4" />
-                    </span>
-                    {action.label}
-                    <ChevronRight className="ml-auto h-4 w-4 text-muted" />
-                  </Button>
-                ))}
-              </div>
-            </section>
-
-          </aside>
-        </div>
-      )}
+          </>
+        )}
+      </div>
 
       {aiInfoApplication && (
         <ApplicationAiInfoDialog
