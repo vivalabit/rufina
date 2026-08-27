@@ -19,20 +19,38 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import { DirectCompaniesSource } from "@/components/direct-companies-source";
 import { directCompanyCatalog } from "@/lib/direct-company-catalog";
 import { cn } from "@/lib/utils";
 
 const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-const sourceOptions = [
-  { id: "linkedin", label: "LinkedIn" },
-  { id: "indeed", label: "Indeed" },
-  { id: "jobs_ch", label: "jobs.ch" },
-  ...directCompanyCatalog.map((company) => ({
-    id: company.id,
-    label: company.name,
-  })),
-];
+const aggregatorSourceOptions = [
+  {
+    id: "linkedin",
+    label: "LinkedIn",
+    description: "Extract jobs from LinkedIn",
+    mark: "in",
+    color: "bg-[#0a66c2]",
+  },
+  {
+    id: "indeed",
+    label: "Indeed",
+    description: "Extract jobs from Indeed",
+    mark: "i",
+    color: "bg-[#2557a7]",
+  },
+  {
+    id: "jobs_ch",
+    label: "jobs.ch",
+    description: "Extract jobs from jobs.ch",
+    mark: "j",
+    color: "bg-[#e4002b]",
+  },
+] as const;
+const directCompanyIds = new Set(
+  directCompanyCatalog.map((company) => company.id),
+);
 const weekdayOptions = [
   { id: 0, short: "Mon", label: "Monday" },
   { id: 1, short: "Tue", label: "Tuesday" },
@@ -93,6 +111,8 @@ const screeningOperatorOptions = [
 type JobSearchSource = string;
 type JobSearchFrequency = "daily" | "weekdays" | "selected_days";
 type ScreeningSeniority = (typeof seniorityOptions)[number]["id"];
+type AutoSearchSource =
+  (typeof aggregatorSourceOptions)[number]["id"] | "direct_companies";
 
 type ScreeningHardRuleDraft = {
   id: string;
@@ -555,7 +575,7 @@ export function AutoSearchDialog({
         role="dialog"
         aria-modal="true"
         aria-labelledby="auto-search-dialog-title"
-        className="panel flex max-h-[calc(100vh-24px)] w-full max-w-[1040px] flex-col overflow-hidden border-border bg-[#ffffff]/98 shadow-[0_28px_90px_rgba(0,0,0,0.62)] sm:max-h-[calc(100vh-40px)]"
+        className="panel flex max-h-[calc(100vh-24px)] w-full max-w-[1180px] flex-col overflow-hidden border-border bg-[#ffffff]/98 shadow-[0_28px_90px_rgba(0,0,0,0.62)] sm:max-h-[calc(100vh-40px)]"
       >
         <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-4 py-4 sm:px-6">
           <div className="flex min-w-0 items-start gap-3">
@@ -596,7 +616,7 @@ export function AutoSearchDialog({
                   ? "Run vacancy searches on your schedule."
                   : view === "audit"
                     ? "Internal screening decisions are kept separate from the vacancy list."
-                    : "Each rule has one local run time. Duplicate it to add another time."}
+                    : "Choose exact sources, then set when this auto-search should run."}
               </p>
             </div>
           </div>
@@ -725,7 +745,8 @@ function AutoSearchList({
                 No automatic searches yet
               </h3>
               <p className="mt-1 max-w-md text-sm text-muted">
-                Create a rule for each source and local run time you need.
+                Choose one or more exact sources and the local time when they
+                should run.
               </p>
               <Button className="mt-5" onClick={onCreate}>
                 <Plus className="h-4 w-4" />
@@ -765,14 +786,17 @@ function AutoSearchList({
                     </div>
                     <ListField label="Sources">
                       <div className="flex flex-wrap gap-1">
-                        {schedule.sources.map((source) => (
-                          <span
-                            key={source}
-                            className="rounded-md border border-border bg-[#fff8f1] px-2 py-1 text-[10px] font-bold text-[#1d1e1c]"
-                          >
-                            {sourceLabel(source)}
-                          </span>
-                        ))}
+                        {groupScheduleSources(schedule.sources).map(
+                          (source) => (
+                            <span
+                              key={source.key}
+                              title={source.title}
+                              className="rounded-md border border-border bg-[#fff8f1] px-2 py-1 text-[10px] font-bold text-[#1d1e1c]"
+                            >
+                              {source.label}
+                            </span>
+                          ),
+                        )}
                       </div>
                     </ListField>
                     <ListField label="Config">
@@ -1009,6 +1033,13 @@ function AutoSearchForm({
   onCancel: () => void;
   onSave: () => void;
 }) {
+  const [activeSource, setActiveSource] = useState<AutoSearchSource>(() =>
+    preferredAutoSearchSource(draft.sources),
+  );
+  const selectedDirectCompanyIds = draft.sources.filter((source) =>
+    directCompanyIds.has(source),
+  );
+
   function patch(update: Partial<ScheduleDraft>) {
     const changesPresetInputs = Object.keys(update).some((field) =>
       [
@@ -1031,6 +1062,38 @@ function AutoSearchForm({
       ...(changesPresetInputs ? { presetId: "" } : {}),
       ...update,
     });
+  }
+
+  function updateSources(sources: JobSearchSource[]) {
+    const normalizedSources = Array.from(new Set(sources));
+    const selectedSources = new Set(normalizedSources);
+    patch({
+      presetId: "",
+      sources: normalizedSources,
+      sourceConfigIds: Object.fromEntries(
+        Object.entries(draft.sourceConfigIds).filter(([source]) =>
+          selectedSources.has(source),
+        ),
+      ),
+    });
+  }
+
+  function toggleAggregatorSource(
+    source: Exclude<AutoSearchSource, "direct_companies">,
+  ) {
+    setActiveSource(source);
+    updateSources(
+      draft.sources.includes(source)
+        ? draft.sources.filter((item) => item !== source)
+        : [...draft.sources, source],
+    );
+  }
+
+  function updateDirectCompanySources(companyIds: string[]) {
+    updateSources([
+      ...draft.sources.filter(isAggregatorSource),
+      ...companyIds.filter((source) => directCompanyIds.has(source)),
+    ]);
   }
 
   function toggleSeniority(
@@ -1074,136 +1137,369 @@ function AutoSearchForm({
       }}
     >
       <div className="grid gap-5 px-4 py-5 sm:px-6 lg:grid-cols-2">
-        <FormSection title="Rule">
-          <Field label="Rule name">
-            <input
-              autoFocus
-              aria-label="Rule name"
-              value={draft.name}
-              onChange={(event) => patch({ name: event.target.value })}
-              className={inputClass}
-              placeholder="LinkedIn lunchtime search"
-            />
-          </Field>
+        <FormSection title="Auto-search rule" className="lg:col-span-2">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_260px] lg:items-end">
+            <Field label="Rule name">
+              <input
+                autoFocus
+                aria-label="Rule name"
+                value={draft.name}
+                onChange={(event) => patch({ name: event.target.value })}
+                className={inputClass}
+                placeholder="LinkedIn lunchtime search"
+              />
+            </Field>
 
-          <Field label="Run preset">
-            <select
-              aria-label="Run preset"
-              value={draft.presetId}
-              onChange={(event) => {
-                const preset = presets.find((item) => item.id === event.target.value);
-                if (!preset) {
-                  patch({ presetId: "" });
-                  return;
-                }
-                const next = {
-                  ...draft,
-                  presetId: preset.id,
-                  configId: preset.configId,
-                  createConfig: false,
-                  sources: [...preset.sources],
-                  sourceConfigIds: { ...preset.sourceConfigIds },
-                };
-                const config = configs.find((item) => item.id === preset.configId);
-                if (config) applyConfigToDraft(next, config);
-                onChange(next);
-              }}
-              className={inputClass}
-            >
-              <option value="">Custom source mapping</option>
-              {presets.map((preset) => (
-                <option key={preset.id} value={preset.id}>{preset.name}</option>
-              ))}
-            </select>
-          </Field>
+            <Field label="Run preset">
+              <select
+                aria-label="Run preset"
+                value={draft.presetId}
+                onChange={(event) => {
+                  const preset = presets.find(
+                    (item) => item.id === event.target.value,
+                  );
+                  if (!preset) {
+                    patch({ presetId: "" });
+                    return;
+                  }
+                  const next = {
+                    ...draft,
+                    presetId: preset.id,
+                    configId: preset.configId,
+                    createConfig: false,
+                    sources: [...preset.sources],
+                    sourceConfigIds: { ...preset.sourceConfigIds },
+                  };
+                  const config = configs.find(
+                    (item) => item.id === preset.configId,
+                  );
+                  if (config) applyConfigToDraft(next, config);
+                  setActiveSource(preferredAutoSearchSource(preset.sources));
+                  onChange(next);
+                }}
+                className={inputClass}
+              >
+                <option value="">Custom source mapping</option>
+                {presets.map((preset) => (
+                  <option key={preset.id} value={preset.id}>
+                    {preset.name}
+                  </option>
+                ))}
+              </select>
+            </Field>
 
-          <Field label="Sources">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {sourceOptions.map((source) => {
-                const selected = draft.sources.includes(source.id);
-                return (
+            <Field label="Status">
+              <button
+                type="button"
+                role="switch"
+                aria-label="Enabled"
+                aria-checked={draft.enabled}
+                onClick={() => patch({ enabled: !draft.enabled })}
+                className="flex h-10 w-full items-center justify-between rounded-lg border border-border bg-[#ffffff] px-3 text-xs font-bold text-[#1d1e1c]"
+              >
+                Run automatically
+                <Toggle enabled={draft.enabled} />
+              </button>
+            </Field>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-border bg-[#ffffff]">
+            <div className="grid min-h-0 md:grid-cols-[280px_minmax(0,1fr)] xl:grid-cols-[300px_minmax(0,1fr)]">
+              <section className="min-w-0 border-b border-border p-4 md:border-b-0">
+                <h3 className="text-sm font-bold text-foreground">
+                  1. Choose sources
+                </h3>
+                <p className="mt-1 text-xs font-medium text-muted">
+                  Select the sources this rule should run.
+                </p>
+                <div className="mt-4 grid gap-3">
+                  {aggregatorSourceOptions.map((source) => {
+                    const selected = draft.sources.includes(source.id);
+                    const active = activeSource === source.id;
+                    return (
+                      <div
+                        key={source.id}
+                        className={cn(
+                          "flex w-full min-w-0 items-center rounded-md border bg-[#fff8f1] p-2 transition",
+                          active
+                            ? "border-accent shadow-[0_0_0_1px_rgba(255,90,0,0.18)]"
+                            : "border-border hover:border-[#c0bbb6] hover:bg-[#fff3e8]",
+                        )}
+                      >
+                        <button
+                          type="button"
+                          aria-label={`Configure ${source.label}`}
+                          aria-current={active ? "true" : undefined}
+                          onClick={() => setActiveSource(source.id)}
+                          className="flex min-w-0 flex-1 items-center gap-3 rounded p-1 text-left outline-none focus-visible:ring-2 focus-visible:ring-accent/70"
+                        >
+                          <span
+                            className={cn(
+                              "grid h-9 w-9 shrink-0 place-items-center rounded-md text-base font-black text-white",
+                              source.color,
+                            )}
+                          >
+                            {source.mark}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="flex flex-wrap items-center gap-2">
+                              <span className="text-sm font-bold text-foreground">
+                                {source.label}
+                              </span>
+                              {source.id === "linkedin" ? (
+                                <span className="rounded bg-success/18 px-2 py-0.5 text-[10px] font-bold text-success">
+                                  Recommended
+                                </span>
+                              ) : null}
+                            </span>
+                            <span className="mt-1 block text-xs font-medium text-muted">
+                              {source.description}
+                            </span>
+                          </span>
+                        </button>
+                        <button
+                          type="button"
+                          aria-label={`Include ${source.label} in auto-search`}
+                          aria-pressed={selected}
+                          onClick={() => toggleAggregatorSource(source.id)}
+                          className={cn(
+                            "grid h-8 w-8 shrink-0 place-items-center rounded outline-none transition focus-visible:ring-2 focus-visible:ring-accent/70",
+                            selected ? "bg-accent/10" : "hover:bg-[#fff3e8]",
+                          )}
+                        >
+                          <span
+                            className={cn(
+                              "grid h-5 w-5 place-items-center rounded border-2",
+                              selected
+                                ? "border-accent bg-accent"
+                                : "border-border",
+                            )}
+                          >
+                            {selected ? (
+                              <Check className="h-3.5 w-3.5 text-white" />
+                            ) : null}
+                          </span>
+                        </button>
+                      </div>
+                    );
+                  })}
+
                   <button
-                    key={source.id}
                     type="button"
-                    aria-pressed={selected}
-                    onClick={() =>
-                      patch({
-                        presetId: "",
-                        sources: selected
-                          ? draft.sources.filter((item) => item !== source.id)
-                          : [...draft.sources, source.id],
-                      })
+                    aria-label="Configure Direct Companies"
+                    aria-current={
+                      activeSource === "direct_companies" ? "true" : undefined
                     }
+                    onClick={() => setActiveSource("direct_companies")}
                     className={cn(
-                      "h-10 rounded-lg border text-xs font-bold transition",
-                      selected
-                        ? "border-accent/25 bg-accent/10 text-foreground"
-                        : "border-border bg-[#fff8f1] text-muted hover:bg-[#fff3e8] hover:text-foreground",
+                      "flex w-full min-w-0 items-center gap-3 rounded-md border bg-[#fff8f1] p-3 text-left outline-none transition focus-visible:ring-2 focus-visible:ring-[#fa5d00]/70",
+                      activeSource === "direct_companies"
+                        ? "border-[#fa5d00] shadow-[0_0_0_1px_rgba(255,90,0,0.2)]"
+                        : "border-border hover:border-[#c0bbb6] hover:bg-[#fff3e8]",
                     )}
                   >
-                    {selected ? <Check className="mr-1 inline h-3.5 w-3.5" /> : null}
-                    {source.label}
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-md bg-[#fa5d00] text-[11px] font-black uppercase tracking-tight text-white">
+                      dc
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-bold text-foreground">
+                          Direct Companies
+                        </span>
+                        <span className="rounded bg-[#fa5d00]/20 px-2 py-0.5 text-[10px] font-bold text-accent">
+                          {selectedDirectCompanyIds.length > 0
+                            ? `${selectedDirectCompanyIds.length} selected`
+                            : "Choose companies"}
+                        </span>
+                      </span>
+                      <span className="mt-1 block text-xs font-medium text-muted">
+                        Track official company career pages
+                      </span>
+                    </span>
                   </button>
-                );
-              })}
+                </div>
+              </section>
+
+              <section className="min-w-0 p-4 md:border-l md:border-border">
+                <h3 className="text-sm font-bold text-foreground">
+                  2. Configure{" "}
+                  {activeSource === "direct_companies"
+                    ? "Direct Companies"
+                    : sourceLabel(activeSource)}
+                </h3>
+                <p className="mt-1 text-xs font-medium text-muted">
+                  {activeSource === "direct_companies"
+                    ? "Choose the exact company career pages for this schedule."
+                    : `Choose an optional saved query for ${sourceLabel(activeSource)}.`}
+                </p>
+
+                <div className="mt-4">
+                  {activeSource === "direct_companies" ? (
+                    <DirectCompaniesSource
+                      companies={directCompanyCatalog}
+                      selectedCompanyIds={selectedDirectCompanyIds}
+                      onSelectedCompanyIdsChange={updateDirectCompanySources}
+                    />
+                  ) : (
+                    (() => {
+                      const selected = draft.sources.includes(activeSource);
+                      const options = sourceConfigs.filter(
+                        (config) =>
+                          config.source === activeSource &&
+                          config.configId === draft.configId,
+                      );
+                      return (
+                        <div className="grid gap-3 rounded-md border border-accent/25 bg-accent/[0.025] p-3">
+                          <Field label="Query config">
+                            <select
+                              aria-label={`${activeSource} source query config`}
+                              value={draft.sourceConfigIds[activeSource] ?? ""}
+                              disabled={!selected}
+                              onChange={(event) =>
+                                patch({
+                                  presetId: "",
+                                  sourceConfigIds: event.target.value
+                                    ? {
+                                        ...draft.sourceConfigIds,
+                                        [activeSource]: event.target.value,
+                                      }
+                                    : Object.fromEntries(
+                                        Object.entries(
+                                          draft.sourceConfigIds,
+                                        ).filter(
+                                          ([mappedSource]) =>
+                                            mappedSource !== activeSource,
+                                        ),
+                                      ),
+                                })
+                              }
+                              className={inputClass}
+                            >
+                              <option value="">Use common fallback</option>
+                              {options.map((config) => (
+                                <option key={config.id} value={config.id}>
+                                  {config.name}
+                                </option>
+                              ))}
+                            </select>
+                          </Field>
+                          <p className="text-[10px] leading-4 text-muted">
+                            {selected
+                              ? options.length > 0
+                                ? "This mapping applies only to this source."
+                                : "No saved query configs match the selected common config."
+                              : `Include ${sourceLabel(activeSource)} to configure and run it.`}
+                          </p>
+                        </div>
+                      );
+                    })()
+                  )}
+                </div>
+              </section>
+            </div>
+            <div className="border-t border-border bg-[#fff8f1] px-4 py-2.5 text-xs font-semibold text-muted">
+              Selected sources:{" "}
+              <span className="text-foreground">
+                {autoSearchSourcesLabel(draft.sources)}
+              </span>
+            </div>
+          </div>
+        </FormSection>
+
+        <FormSection title="3. Schedule">
+          <Field label="Frequency">
+            <div className="grid grid-cols-3 gap-2">
+              {(
+                [
+                  ["daily", "Daily"],
+                  ["weekdays", "Weekdays"],
+                  ["selected_days", "Custom"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  aria-pressed={draft.frequency === value}
+                  onClick={() =>
+                    patch({
+                      frequency: value,
+                      weekdays:
+                        value === "weekdays"
+                          ? [0, 1, 2, 3, 4]
+                          : draft.weekdays,
+                    })
+                  }
+                  className={choiceClass(draft.frequency === value)}
+                >
+                  {label}
+                </button>
+              ))}
             </div>
           </Field>
 
-          {draft.sources.some(isAggregatorSource) ? (
-            <Field label="Source query configs">
-              <div className="grid gap-2">
-                {draft.sources.filter(isAggregatorSource).map((source) => {
-                  const options = sourceConfigs.filter(
-                    (config) => config.source === source && config.configId === draft.configId,
-                  );
+          {draft.frequency === "selected_days" ? (
+            <Field label="Run on">
+              <div className="grid grid-cols-7 gap-1.5">
+                {weekdayOptions.map((day) => {
+                  const selected = draft.weekdays.includes(day.id);
                   return (
-                    <label key={source} className="grid grid-cols-[90px_minmax(0,1fr)] items-center gap-2">
-                      <span className="text-[11px] font-bold text-muted">
-                        {sourceOptions.find((option) => option.id === source)?.label ?? source}
-                      </span>
-                      <select
-                        aria-label={`${source} source query config`}
-                        value={draft.sourceConfigIds[source] ?? ""}
-                        onChange={(event) => patch({
-                          presetId: "",
-                          sourceConfigIds: event.target.value
-                            ? {
-                                ...draft.sourceConfigIds,
-                                [source]: event.target.value,
-                              }
-                            : Object.fromEntries(
-                                Object.entries(draft.sourceConfigIds).filter(
-                                  ([mappedSource]) => mappedSource !== source,
-                                ),
-                              ),
-                        })}
-                        className={inputClass}
-                      >
-                        <option value="">Use common fallback</option>
-                        {options.map((config) => (
-                          <option key={config.id} value={config.id}>{config.name}</option>
-                        ))}
-                      </select>
-                    </label>
+                    <button
+                      key={day.id}
+                      type="button"
+                      title={day.label}
+                      aria-pressed={selected}
+                      onClick={() =>
+                        patch({
+                          weekdays: selected
+                            ? draft.weekdays.filter((item) => item !== day.id)
+                            : [...draft.weekdays, day.id].sort(),
+                        })
+                      }
+                      className={cn(
+                        "h-9 rounded-lg border text-[10px] font-bold transition",
+                        selected
+                          ? "border-accent/25 bg-accent/10 text-foreground"
+                          : "border-border bg-[#fff8f1] text-muted",
+                      )}
+                    >
+                      {day.short}
+                    </button>
                   );
                 })}
               </div>
             </Field>
           ) : null}
 
-          <Field label="Enabled">
-            <button
-              type="button"
-              role="switch"
-              aria-label="Enabled"
-              aria-checked={draft.enabled}
-              onClick={() => patch({ enabled: !draft.enabled })}
-              className="flex h-10 w-full items-center justify-between rounded-lg border border-border bg-[#fff8f1] px-3 text-xs font-bold text-[#1d1e1c]"
-            >
-              Run this rule automatically
-              <Toggle enabled={draft.enabled} />
-            </button>
-          </Field>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Local time">
+              <input
+                type="time"
+                aria-label="Local time"
+                value={draft.localTime}
+                onChange={(event) => patch({ localTime: event.target.value })}
+                className={inputClass}
+              />
+            </Field>
+            <Field label="Timezone">
+              <input
+                list="auto-search-timezones"
+                aria-label="Timezone"
+                value={draft.timezone}
+                onChange={(event) => patch({ timezone: event.target.value })}
+                className={inputClass}
+                placeholder="Europe/Zurich"
+              />
+              <datalist id="auto-search-timezones">
+                {timezoneSuggestions.map((timezone) => (
+                  <option key={timezone} value={timezone} />
+                ))}
+              </datalist>
+            </Field>
+          </div>
+          <p className="text-[10px] leading-4 text-muted">
+            Need another run time? Duplicate this rule and change its source or
+            time.
+          </p>
         </FormSection>
 
         <FormSection title="Search config">
@@ -1541,103 +1837,7 @@ function AutoSearchForm({
           )}
         </FormSection>
 
-        <FormSection title="Days and time">
-          <Field label="Frequency">
-            <div className="grid grid-cols-3 gap-2">
-              {(
-                [
-                  ["daily", "Daily"],
-                  ["weekdays", "Weekdays"],
-                  ["selected_days", "Custom"],
-                ] as const
-              ).map(([value, label]) => (
-                <button
-                  key={value}
-                  type="button"
-                  aria-pressed={draft.frequency === value}
-                  onClick={() =>
-                    patch({
-                      frequency: value,
-                      weekdays:
-                        value === "weekdays"
-                          ? [0, 1, 2, 3, 4]
-                          : draft.weekdays,
-                    })
-                  }
-                  className={choiceClass(draft.frequency === value)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </Field>
-
-          {draft.frequency === "selected_days" ? (
-            <Field label="Run on">
-              <div className="grid grid-cols-7 gap-1.5">
-                {weekdayOptions.map((day) => {
-                  const selected = draft.weekdays.includes(day.id);
-                  return (
-                    <button
-                      key={day.id}
-                      type="button"
-                      title={day.label}
-                      aria-pressed={selected}
-                      onClick={() =>
-                        patch({
-                          weekdays: selected
-                            ? draft.weekdays.filter((item) => item !== day.id)
-                            : [...draft.weekdays, day.id].sort(),
-                        })
-                      }
-                      className={cn(
-                        "h-9 rounded-lg border text-[10px] font-bold transition",
-                        selected
-                          ? "border-accent/25 bg-accent/10 text-foreground"
-                          : "border-border bg-[#fff8f1] text-muted",
-                      )}
-                    >
-                      {day.short}
-                    </button>
-                  );
-                })}
-              </div>
-            </Field>
-          ) : null}
-
-          <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Local time">
-              <input
-                type="time"
-                aria-label="Local time"
-                value={draft.localTime}
-                onChange={(event) => patch({ localTime: event.target.value })}
-                className={inputClass}
-              />
-            </Field>
-            <Field label="Timezone">
-              <input
-                list="auto-search-timezones"
-                aria-label="Timezone"
-                value={draft.timezone}
-                onChange={(event) => patch({ timezone: event.target.value })}
-                className={inputClass}
-                placeholder="Europe/Zurich"
-              />
-              <datalist id="auto-search-timezones">
-                {timezoneSuggestions.map((timezone) => (
-                  <option key={timezone} value={timezone} />
-                ))}
-              </datalist>
-            </Field>
-          </div>
-          <p className="text-[10px] leading-4 text-muted">
-            Need another run time? Duplicate this rule and change its source or
-            time.
-          </p>
-        </FormSection>
-
-        <FormSection title="Analysis">
+        <FormSection title="Analysis" className="lg:col-span-2">
           <div className="rounded-lg border border-accent/25 bg-accent/10 p-3 text-[11px] leading-5 text-[#4a4a47]">
             Automatic AI Match is controlled globally in Settings. When enabled,
             every new vacancy that passes pre-screening is analyzed immediately.
@@ -1826,6 +2026,19 @@ function draftFromSchedule(
 
 function isAggregatorSource(source: string): boolean {
   return source === "linkedin" || source === "indeed" || source === "jobs_ch";
+}
+
+function preferredAutoSearchSource(
+  sources: JobSearchSource[],
+): AutoSearchSource {
+  const aggregator = aggregatorSourceOptions.find((source) =>
+    sources.includes(source.id),
+  );
+  if (aggregator) return aggregator.id;
+  if (sources.some((source) => !isAggregatorSource(source))) {
+    return "direct_companies";
+  }
+  return "linkedin";
 }
 
 function applyConfigToDraft(
@@ -2233,7 +2446,45 @@ function formatNextRun(schedule: JobSearchSchedule): string {
 }
 
 function sourceLabel(source: JobSearchSource): string {
-  return sourceOptions.find((item) => item.id === source)?.label ?? source;
+  return (
+    aggregatorSourceOptions.find((item) => item.id === source)?.label ??
+    directCompanyCatalog.find((company) => company.id === source)?.name ??
+    source
+  );
+}
+
+function autoSearchSourcesLabel(sources: JobSearchSource[]): string {
+  if (sources.length === 0) return "None yet";
+  const labels = sources.filter(isAggregatorSource).map(sourceLabel);
+  const directSourceCount = sources.filter(
+    (source) => !isAggregatorSource(source),
+  ).length;
+  if (directSourceCount > 0) {
+    labels.push(`Direct Companies (${directSourceCount})`);
+  }
+  return labels.join(" + ");
+}
+
+function groupScheduleSources(sources: JobSearchSource[]): Array<{
+  key: string;
+  label: string;
+  title?: string;
+}> {
+  const groups: Array<{ key: string; label: string; title?: string }> = sources
+    .filter(isAggregatorSource)
+    .map((source) => ({
+      key: source,
+      label: sourceLabel(source),
+    }));
+  const directSources = sources.filter((source) => !isAggregatorSource(source));
+  if (directSources.length > 0) {
+    groups.push({
+      key: "direct_companies",
+      label: `Direct Companies (${directSources.length})`,
+      title: directSources.map(sourceLabel).join(", "),
+    });
+  }
+  return groups;
 }
 
 function localTimezone(): string {

@@ -242,10 +242,14 @@ describe("AutoSearchDialog", () => {
       target: { value: "Indeed · 15:00" },
     });
     fireEvent.click(
-      screen.getByRole("button", { name: "LinkedIn" }),
+      screen.getByRole("button", {
+        name: "Include LinkedIn in auto-search",
+      }),
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Indeed" }),
+      screen.getByRole("button", {
+        name: "Include Indeed in auto-search",
+      }),
     );
     fireEvent.change(screen.getByLabelText("Local time"), {
       target: { value: "15:00" },
@@ -264,6 +268,68 @@ describe("AutoSearchDialog", () => {
       timezone: "Europe/Zurich",
       aiAnalysisEnabled: true,
       enabled: true,
+    });
+  });
+
+  it("groups Direct Companies and schedules only the selected company sources", async () => {
+    const schedulePayloads: Array<Record<string, unknown>> = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+        const path = new URL(String(input)).pathname;
+        const method = init?.method ?? "GET";
+        if (path === "/job-search/configs") return response([config]);
+        if (path === "/job-search/schedules" && method === "GET") {
+          return response([]);
+        }
+        if (path === "/job-search/schedules" && method === "POST") {
+          const body = JSON.parse(String(init?.body));
+          schedulePayloads.push(body);
+          return response({ ...schedule, ...body, id: "schedule-direct" });
+        }
+        throw new Error(`Unexpected request: ${method} ${path}`);
+      }),
+    );
+
+    render(<AutoSearchDialog open onClose={vi.fn()} />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Create first rule" }),
+    );
+
+    expect(
+      screen.queryByRole("checkbox", { name: /SBB CFF FFS/ }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Configure Direct Companies" }),
+    );
+    fireEvent.click(screen.getByRole("checkbox", { name: /SBB CFF FFS/ }));
+    fireEvent.click(screen.getByRole("checkbox", { name: /Swisscom/ }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Include LinkedIn in auto-search",
+      }),
+    );
+
+    expect(screen.getByText("2 selected")).toBeInTheDocument();
+    expect(screen.getByText("Direct Companies (2)")).toBeInTheDocument();
+    fireEvent.change(screen.getByLabelText("Rule name"), {
+      target: { value: "Company pages at lunch" },
+    });
+    fireEvent.change(screen.getByLabelText("Local time"), {
+      target: { value: "12:30" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Create auto-search" }),
+    );
+
+    await waitFor(() => expect(schedulePayloads).toHaveLength(1));
+    expect(schedulePayloads[0]).toMatchObject({
+      name: "Company pages at lunch",
+      configId: config.id,
+      sources: ["sbb", "swisscom"],
+      frequency: "weekdays",
+      localTime: "12:30:00",
+      timezone: "Europe/Zurich",
     });
   });
 
@@ -302,7 +368,11 @@ describe("AutoSearchDialog", () => {
     fireEvent.click(
       await screen.findByRole("button", { name: "Create first rule" }),
     );
-    fireEvent.click(screen.getByRole("button", { name: "Indeed" }));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Include Indeed in auto-search",
+      }),
+    );
 
     fireEvent.change(screen.getByLabelText("Rule name"), {
       target: { value: "Daily backend roles" },
