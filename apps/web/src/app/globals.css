@@ -131,7 +131,7 @@ textarea {
   outline-offset: 4px;
 }
 
-input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]),
+input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]):not([type="file"]):not(.assistant-history-search-input),
 select,
 textarea {
   border-color: var(--color-bone) !important;

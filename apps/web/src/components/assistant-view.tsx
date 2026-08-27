@@ -661,7 +661,7 @@ export function AssistantView({
   const [contextKind, setContextKind] = useState<AssistantContextKind>("profile");
   const [contextId, setContextId] = useState("");
   const [isGenerating, setIsGenerating] = useState(false);
-  const [connectionStatus, setConnectionStatus] = useState<AssistantConnectionStatus>("idle");
+  const [, setConnectionStatus] = useState<AssistantConnectionStatus>("idle");
   const [streamingMessageId, setStreamingMessageId] = useState("");
   const [copiedMessageId, setCopiedMessageId] = useState("");
   const [isLoaded, setIsLoaded] = useState(false);
@@ -684,16 +684,6 @@ export function AssistantView({
     : null;
   const selectedJob = getContextJob(contextKind, contextId, jobs, applications);
   const contextLabel = getContextLabel(contextKind, contextId, jobs, applications);
-  const connectionLabel = connectionStatus === "connecting"
-    ? "Connecting…"
-    : connectionStatus === "connected"
-      ? "Connected"
-      : connectionStatus === "reconnecting"
-        ? "Reconnecting…"
-        : connectionStatus === "disconnected"
-          ? "Connection lost"
-          : "Ready";
-
   const filteredThreads = useMemo(() => {
     const query = historyQuery.trim().toLowerCase();
     return threads
@@ -878,19 +868,6 @@ export function AssistantView({
       content: message.content,
       jobId: selectedJob?.id ?? "",
       applicationId: selectedApplication?.id ?? "",
-    });
-    setDocumentError("");
-  }
-
-  function openSavedDocument(document: AssistantDocument) {
-    if (document.type !== "cover_letter") return;
-    setDocumentDraft({
-      id: document.id,
-      type: document.type,
-      title: document.title,
-      content: currentDocumentContent(document),
-      jobId: document.jobId ?? "",
-      applicationId: document.applicationIds[0] ?? "",
     });
     setDocumentError("");
   }
@@ -1360,10 +1337,7 @@ export function AssistantView({
             <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-[#e95300] to-[#df4f00] text-foreground shadow-[0_10px_28px_rgba(255,90,0,0.28)]">
               <Sparkles className="h-[18px] w-[18px]" />
             </span>
-            <div>
-              <h1 className="text-[24px] font-bold leading-tight text-foreground sm:text-[27px] 2xl:text-[31px]">AI Assistant</h1>
-              <p className="mt-0.5 text-[12px] text-muted 2xl:text-sm">Your context-aware job search workspace</p>
-            </div>
+            <h1 className="text-[24px] font-bold leading-tight text-foreground sm:text-[27px] 2xl:text-[31px]">AI Assistant</h1>
           </div>
         </div>
         <Button onClick={startNewChat} disabled={isGenerating} className="h-9 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-3 text-xs 2xl:h-10 2xl:text-sm">
@@ -1389,7 +1363,7 @@ export function AssistantView({
             </div>
             <label className="mt-2.5 flex h-9 items-center gap-2 rounded-md border border-border bg-[#fff8f1] px-2.5 focus-within:border-accent/60">
               <Search className="h-3.5 w-3.5 text-muted" />
-              <input value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="Search history" className="min-w-0 flex-1 bg-transparent text-xs text-foreground outline-none placeholder:text-muted" />
+              <input value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder="Search history" className="assistant-history-search-input min-w-0 flex-1 appearance-none border-0 !bg-transparent text-xs text-foreground outline-none placeholder:text-muted focus-visible:outline-none focus-visible:outline-offset-0" />
             </label>
           </div>
           <div className="job-scroll min-h-0 flex-1 overflow-y-auto p-2">
@@ -1456,21 +1430,6 @@ export function AssistantView({
                 <ChevronDown className="pointer-events-none absolute right-2 top-2 h-4 w-4 text-muted" />
               </div>
             )}
-            <span className={cn(
-              "ml-auto hidden items-center gap-1.5 text-[10px] font-semibold sm:inline-flex",
-              connectionStatus === "connected" && "text-success",
-              ["connecting", "reconnecting"].includes(connectionStatus) && "text-accent",
-              connectionStatus === "disconnected" && "text-accent",
-              connectionStatus === "idle" && "text-muted",
-            )}>
-              <span className={cn(
-                "h-1.5 w-1.5 rounded-full",
-                connectionStatus === "connected" && "bg-success",
-                ["connecting", "reconnecting"].includes(connectionStatus) && "animate-pulse bg-accent",
-                connectionStatus === "disconnected" && "bg-accent",
-                connectionStatus === "idle" && "bg-muted",
-              )} /> {connectionLabel}
-            </span>
           </div>
 
           <div className="job-scroll min-h-0 flex-1 overflow-y-auto px-3 py-4 sm:px-5 2xl:px-7 2xl:py-6">
@@ -1639,7 +1598,7 @@ export function AssistantView({
                 }}
                 rows={2}
                 placeholder={showArchived ? "Restore a conversation to continue…" : "Ask anything about your job search…"}
-                className="max-h-32 min-h-[42px] w-full resize-none bg-transparent px-2 py-1 text-[13px] leading-5 text-foreground outline-none placeholder:text-muted 2xl:text-sm"
+                className="max-h-32 min-h-[42px] w-full resize-none appearance-none border-0 !bg-transparent px-2 py-1 text-[13px] leading-5 text-foreground outline-none placeholder:text-muted focus-visible:outline-none focus-visible:outline-offset-0 2xl:text-sm"
               />
               <div className="flex items-center justify-between gap-2 px-1">
                 <p className="truncate text-[10px] text-muted">
@@ -1661,77 +1620,44 @@ export function AssistantView({
           </div>
         </main>
 
-        <aside className="panel hidden min-h-0 overflow-y-auto xl:block">
+        <aside className="panel job-scroll hidden min-h-0 overflow-y-auto xl:block">
           <div className="border-b border-border p-3.5 2xl:p-4">
-            <p className="text-xs font-bold uppercase tracking-[0.12em] text-muted">Active context</p>
-            <div className="mt-3 rounded-lg border border-accent/25 bg-accent/[0.07] p-3">
-              <span className="grid h-8 w-8 place-items-center rounded-md bg-accent/16 text-accent">
-                {contextKind === "profile" ? <UserRound className="h-4 w-4" /> : contextKind === "job" ? <BriefcaseBusiness className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-muted 2xl:text-xs">Active context</p>
+            <div className="mt-3 flex min-h-[72px] items-center gap-2.5 rounded-lg border border-accent/35 bg-accent/[0.065] p-3 2xl:min-h-[78px] 2xl:gap-3 2xl:p-3.5">
+              <span className="grid h-8 w-8 shrink-0 place-items-center text-accent 2xl:h-9 2xl:w-9">
+                {contextKind === "profile" ? <UserRound className="h-5 w-5 2xl:h-6 2xl:w-6" /> : contextKind === "job" ? <BriefcaseBusiness className="h-5 w-5 2xl:h-6 2xl:w-6" /> : <FileText className="h-5 w-5 2xl:h-6 2xl:w-6" />}
               </span>
-              <p className="mt-2.5 text-sm font-bold leading-5 text-foreground">{contextLabel}</p>
-              {selectedJob && <p className="mt-1 text-[11px] text-muted">{selectedJob.location} · {selectedJob.match}% match</p>}
-              {selectedApplication && <span className="mt-2 inline-flex rounded-md border border-border bg-[#fff8f1] px-2 py-1 text-[10px] font-bold capitalize text-[#1d1e1c]">{selectedApplication.status}</span>}
+              <div className="min-w-0">
+                <p className="truncate text-sm font-bold leading-5 text-foreground 2xl:text-[15px]">{contextLabel}</p>
+                {selectedJob && <p className="mt-0.5 text-[10px] text-muted 2xl:text-[11px]">{selectedJob.location} · {selectedJob.match}% match</p>}
+                {selectedApplication && <span className="mt-2 inline-flex rounded-md border border-border bg-white px-2 py-1 text-[10px] font-bold capitalize text-[#1d1e1c]">{selectedApplication.status}</span>}
+              </div>
             </div>
           </div>
 
           <div className="border-b border-border p-3.5 2xl:p-4">
-            <p className="text-xs font-bold text-foreground">Sources available</p>
-            <div className="mt-3 space-y-2.5">
+            <p className="text-sm font-bold text-foreground 2xl:text-[15px]">Sources available</p>
+            <div className="mt-2 divide-y divide-border/70">
               {[
                 { label: "Candidate profile", ready: Boolean(profile.name || profile.current_role || profile.skills) },
                 { label: "Resume", ready: Boolean(profile.resume_file_name) },
                 { label: "Vacancy details", ready: Boolean(selectedJob) },
                 { label: "Application notes", ready: Boolean(selectedApplication?.notes) },
               ].map((source) => (
-                <div key={source.label} className="flex items-center gap-2 text-[11px]">
-                  <span className={cn("grid h-4 w-4 place-items-center rounded-full border", source.ready ? "border-success/40 bg-success/12 text-success" : "border-border text-muted")}>
-                    {source.ready ? <Check className="h-2.5 w-2.5" /> : <span className="h-1 w-1 rounded-full bg-current" />}
+                <div key={source.label} className="flex min-h-[44px] items-center gap-2.5 py-2.5 2xl:min-h-[48px] 2xl:gap-3">
+                  <span className={cn("grid h-5 w-5 shrink-0 place-items-center rounded-full border", source.ready ? "border-accent/40 text-accent" : "border-[#dedede] text-[#999999]")}>
+                    {source.ready ? <Check className="h-3 w-3" strokeWidth={2.4} /> : <span className="h-1.5 w-1.5 rounded-full bg-current" />}
                   </span>
-                  <span className={source.ready ? "text-[#1d1e1c]" : "text-muted"}>{source.label}</span>
-                  <span className="ml-auto text-[9px] font-bold uppercase text-muted">{source.ready ? "Ready" : "Missing"}</span>
+                  <span className={cn("min-w-0 flex-1 text-xs 2xl:text-[13px]", source.ready ? "text-[#1d1e1c]" : "text-muted")}>{source.label}</span>
+                  <span className={cn("shrink-0 text-[9px] font-bold uppercase tracking-[0.04em] 2xl:text-[10px]", source.ready ? "text-[#18a52b]" : "text-[#8e8b87]")}>{source.ready ? "Ready" : "Missing"}</span>
                 </div>
               ))}
             </div>
           </div>
 
-          <div className="border-b border-border p-3.5 2xl:p-4">
-            <div className="flex items-center justify-between gap-2">
-              <p className="text-xs font-bold text-foreground">Saved documents</p>
-              <span className="text-[9px] font-bold uppercase text-muted">{documents.length}</span>
-            </div>
-            {documentError && !documentDraft ? (
-              <p className="mt-2 text-[10px] leading-4 text-accent">{documentError}</p>
-            ) : null}
-            <div className="mt-2 space-y-1.5">
-              {documents.length ? documents.slice(0, 5).map((document) => (
-                <div key={document.id} className="flex items-center gap-1.5 rounded-md border border-border bg-[#fff8f1] p-2">
-                  {document.type === "cover_letter" ? <button type="button" onClick={() => openSavedDocument(document)} className="min-w-0 flex-1 text-left">
-                    <p className="truncate text-[10px] font-bold text-[#1d1e1c]">{document.title}</p>
-                    <p className="mt-0.5 text-[9px] text-muted">
-                      Cover letter · v{document.currentVersion}
-                    </p>
-                  </button> : <div className="min-w-0 flex-1">
-                    <p className="truncate text-[10px] font-bold text-[#1d1e1c]">{document.title}</p>
-                    <p className="mt-0.5 text-[9px] text-muted">Historical resume · download only · v{document.currentVersion}</p>
-                  </div>}
-                  <a
-                    href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`}
-                    download={documentFileName(document)}
-                    aria-label={`Download ${document.title}`}
-                    className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
-                  >
-                    <Download className="h-3.5 w-3.5" />
-                  </a>
-                </div>
-              )) : (
-                <p className="text-[10px] leading-4 text-muted">Save an Assistant response as an editable cover-letter DOCX.</p>
-              )}
-            </div>
-          </div>
-
           <div className="p-3.5 2xl:p-4">
-            <p className="text-xs font-bold text-foreground">How Rufina uses context</p>
-            <p className="mt-2 text-[11px] leading-5 text-muted">Answers are grounded in the selected data. Missing evidence is called out instead of being invented.</p>
+            <p className="text-xs font-bold text-foreground 2xl:text-sm">How Rufina uses context</p>
+            <p className="mt-1.5 text-[11px] leading-4 text-muted 2xl:text-xs 2xl:leading-5">Answers are grounded in the selected data. Missing evidence is called out instead of being invented.</p>
             {selectedJob?.skills.length ? (
               <div className="mt-3 flex flex-wrap gap-1.5">
                 {selectedJob.skills.slice(0, 6).map((skill) => <span key={skill} className="rounded-md border border-border bg-[#fff8f1] px-2 py-1 text-[10px] text-[#4a4a47]">{skill}</span>)}
