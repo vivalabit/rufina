@@ -172,7 +172,10 @@ class VacancySearchRunner:
                 )
                 if wait_for_snapshots and result.status != "completed":
                     source_errors[source] = (
-                        f"{source} snapshot polling timed out with status {result.status}"
+                        f"{source} snapshot {result.snapshot_id or 'unknown'} is still "
+                        f"{result.status} after "
+                        f"{self.snapshot_poll_timeout_seconds:g}s; no results were "
+                        "downloaded yet"
                     )
             except SOURCE_ERRORS as exc:
                 source_errors[source] = str(exc)
@@ -218,6 +221,7 @@ def log_source_finished(
                 "source": source,
                 "vacanciesParsed": len(result.jobs),
                 "status": result.status,
+                "snapshotId": result.snapshot_id,
                 "durationSeconds": round(duration_seconds, 3),
             },
             ensure_ascii=False,
@@ -285,7 +289,21 @@ def request_for_source(
         "jobs_ch": JobsChSearchRequest,
     }.get(source)
     if request_type is None and is_direct_company_source(source):
-        return request
+        # Direct-company parsers scan their complete catalog. Keep parser-level
+        # query fields neutral so a shared aggregator request can never narrow
+        # the company inventory before global vacancy screening runs.
+        return request.model_copy(
+            update={
+                "keywords": "",
+                "location": "",
+                "remote": "Any",
+                "experience_level": "Any",
+                "job_type": "Any",
+                "date_posted": "Any time",
+                "country": "Any",
+                "linkedin_queries": [],
+            }
+        )
     if request_type is None:
         raise ValueError(f"Unsupported vacancy source: {source}")
     return request_type.model_validate(request.model_dump())
@@ -308,6 +326,9 @@ def filter_jobs_by_date_posted(
     """Enforce date windows after every parser has returned normalized jobs."""
     filtered: list[ParsedJob] = []
     for job in jobs:
+        if is_direct_company_source(job.source):
+            filtered.append(job)
+            continue
         selected_request = (
             source_requests.get(job.source, request)
             if source_requests is not None

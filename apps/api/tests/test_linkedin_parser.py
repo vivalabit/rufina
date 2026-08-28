@@ -32,6 +32,160 @@ def test_linkedin_parser_builds_search_url() -> None:
     assert "f_TPR=r604800" in url
 
 
+def test_linkedin_parser_builds_batched_keyword_discovery_inputs() -> None:
+    request = LinkedInSearchRequest.model_validate(
+        {
+            "keywords": "Entry IT",
+            "location": "Switzerland",
+            "country": "CH",
+            "date_posted": "Past week",
+            "remote": "Remote only",
+            "linkedin_queries": [
+                {
+                    "keyword": "software engineer",
+                    "experience_levels": ["Entry level", "Internship"],
+                },
+                {
+                    "keyword": "working student IT",
+                    "experience_levels": [],
+                    "job_type": "Part-time",
+                },
+            ],
+        }
+    )
+
+    inputs = LinkedInJobsParser.build_discovery_inputs(request)
+
+    assert inputs == [
+        {
+            "location": "Switzerland",
+            "keyword": "software engineer",
+            "selective_search": True,
+            "country": "CH",
+            "time_range": "Past week",
+            "experience_level": "Entry level",
+            "remote": "Remote",
+        },
+        {
+            "location": "Switzerland",
+            "keyword": "software engineer",
+            "selective_search": True,
+            "country": "CH",
+            "time_range": "Past week",
+            "experience_level": "Internship",
+            "remote": "Remote",
+        },
+        {
+            "location": "Switzerland",
+            "keyword": "working student IT",
+            "selective_search": True,
+            "country": "CH",
+            "time_range": "Past week",
+            "job_type": "Part-time",
+            "remote": "Remote",
+        },
+    ]
+
+
+def test_linkedin_discovery_maps_internship_job_type_to_experience_level() -> None:
+    request = LinkedInSearchRequest.model_validate(
+        {
+            "keywords": "Entry IT",
+            "location": "Switzerland",
+            "country": "CH",
+            "linkedin_queries": [
+                {
+                    "keyword": "IT",
+                    "experience_levels": [],
+                    "job_type": "Internship",
+                },
+                {
+                    "keyword": "ICT",
+                    "experience_levels": [],
+                    "job_type": "Internship",
+                },
+            ],
+        }
+    )
+
+    inputs = LinkedInJobsParser.build_discovery_inputs(request)
+
+    assert inputs == [
+        {
+            "location": "Switzerland",
+            "keyword": "IT",
+            "selective_search": True,
+            "country": "CH",
+            "experience_level": "Internship",
+        },
+        {
+            "location": "Switzerland",
+            "keyword": "ICT",
+            "selective_search": True,
+            "country": "CH",
+            "experience_level": "Internship",
+        },
+    ]
+
+
+def test_linkedin_search_uses_async_keyword_discovery_and_upstream_limits(
+    monkeypatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    class FakeClient:
+        def __init__(self, *, timeout: float) -> None:
+            self.timeout = timeout
+
+        def __enter__(self) -> Self:
+            return self
+
+        def __exit__(self, *args: object) -> None:
+            return None
+
+        def post(self, url: str, **kwargs: object) -> httpx.Response:
+            captured.update(url=url, **kwargs)
+            return httpx.Response(
+                200,
+                json={"snapshot_id": "snapshot-123"},
+                request=httpx.Request("POST", url),
+            )
+
+    monkeypatch.setattr(httpx, "Client", FakeClient)
+    parser = LinkedInJobsParser(api_key="key", api_url="https://api.example.test")
+
+    response = parser.search(
+        LinkedInSearchRequest(
+            keywords="software engineer",
+            location="Switzerland",
+            country="Switzerland",
+            results_limit=200,
+            limit_per_input=10,
+        )
+    )
+
+    assert captured["url"] == "https://api.example.test/trigger"
+    assert captured["params"] == {
+        "dataset_id": "gd_lpfll7v5hcqtkxl6l",
+        "type": "discover_new",
+        "discover_by": "keyword",
+        "format": "json",
+        "include_errors": "true",
+        "limit_per_input": 10,
+        "limit_multiple_results": 200,
+    }
+    assert captured["json"] == [
+        {
+            "location": "Switzerland",
+            "keyword": "software engineer",
+            "selective_search": True,
+            "country": "CH",
+        }
+    ]
+    assert response.status == "queued"
+    assert response.snapshot_id == "snapshot-123"
+
+
 def test_linkedin_parser_normalizes_job_record() -> None:
     job = LinkedInJobsParser.normalize_job(
         {
@@ -123,6 +277,33 @@ def test_linkedin_snapshot_normalizes_downloaded_records(monkeypatch) -> None:
     assert response.snapshot_id == "snapshot-123"
     assert len(response.jobs) == 1
     assert response.jobs[0].title == "Senior Product Designer"
+
+
+def test_linkedin_snapshot_deduplicates_job_id_across_url_variants(monkeypatch) -> None:
+    parser = LinkedInJobsParser(api_key="key", api_url="https://api.example.test")
+
+    monkeypatch.setattr(parser, "get_snapshot_progress", lambda snapshot_id: {"status": "ready"})
+    monkeypatch.setattr(
+        parser,
+        "download_snapshot",
+        lambda snapshot_id: [
+            {
+                "job_posting_id": "4385163817",
+                "job_title": "Junior Software Engineer",
+                "url": "https://www.linkedin.com/jobs/view/junior-software-engineer-4385163817?_l=en",
+            },
+            {
+                "job_title": "Junior Software Engineer",
+                "url": "https://www.linkedin.com/jobs/view/4385163817?trackingId=abc",
+            },
+            {"error": "temporary discovery error"},
+        ],
+    )
+
+    response = parser.get_snapshot("snapshot-123", results_limit=10, deduplicate=True)
+
+    assert len(response.jobs) == 1
+    assert response.jobs[0].title == "Junior Software Engineer"
 
 
 def test_linkedin_search_requires_brightdata_key(monkeypatch) -> None:

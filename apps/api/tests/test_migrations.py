@@ -16,6 +16,40 @@ from app.core.migrations import (
     upgrade_database,
 )
 
+EXPECTED_ENTRY_IT_TARGET_ROLES = [
+    "Software Engineer",
+    "Softwareentwickler",
+    "Applikationsentwickler",
+    "Backend Developer",
+    "Full Stack Developer",
+    "Python Developer",
+    "Data Engineer",
+    "Data Analyst",
+    "Data Scientist",
+    "Machine Learning Engineer",
+    "AI Engineer",
+    "QA Engineer",
+    "Test Engineer",
+    "Informatiker",
+]
+
+EXPECTED_ENTRY_IT_PROFESSIONS = [
+    "software engineer",
+    "softwareentwickler",
+    "applikationsentwickler",
+    "backend developer",
+    "full stack developer",
+    "python developer",
+    "data engineer",
+    "data analyst",
+    "data scientist",
+    "machine learning engineer",
+    "AI engineer",
+    "QA engineer",
+    "test engineer",
+    "informatiker",
+]
+
 
 def test_baseline_migration_matches_current_schema(tmp_path) -> None:
     database_url = f"sqlite:///{tmp_path / 'baseline.sqlite'}"
@@ -169,7 +203,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260820_0039"
+            assert revision == "20260827_0043"
             entry_it = connection.execute(
                 text(
                     "SELECT id, owner_id, name, filters "
@@ -183,18 +217,26 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
                 entry_it_filters = json.loads(entry_it_filters)
             assert entry_it_filters["schemaVersion"] == 2
             assert "sources" not in entry_it_filters["search"]
-            assert entry_it_filters["search"]["resultsLimit"] == 50
-            assert entry_it_filters["screening"]["targetRoles"] == [
-                "Software Engineer",
-                "Software Developer",
-                "Python Developer",
-                "Data Engineer",
-                "Machine Learning Engineer",
-                "AI Engineer",
-                "Web Developer",
-                "IT Intern",
-                "Working Student IT",
-                "Junior IT",
+            assert entry_it_filters["search"]["resultsLimit"] == 200
+            assert entry_it_filters["search"]["limitPerInput"] == 10
+            assert len(entry_it_filters["search"]["linkedinQueries"]) == 14
+            assert [
+                query["keyword"]
+                for query in entry_it_filters["search"]["linkedinQueries"]
+                if query["experienceLevels"]
+            ] == EXPECTED_ENTRY_IT_PROFESSIONS
+            assert all(
+                query["experienceLevels"] == ["Entry level", "Internship"]
+                for query in entry_it_filters["search"]["linkedinQueries"]
+                if query["experienceLevels"]
+            )
+            assert entry_it_filters["screening"]["targetRoles"] == (
+                EXPECTED_ENTRY_IT_TARGET_ROLES
+            )
+            assert entry_it_filters["screening"]["allowedSeniority"] == [
+                "intern",
+                "entry",
+                "junior",
             ]
             assert all(
                 len(role) <= 160
@@ -625,18 +667,9 @@ def test_entry_it_role_fix_repairs_already_migrated_config(tmp_path) -> None:
                 )
             ).scalar_one()
             filters = json.loads(raw_filters) if isinstance(raw_filters, str) else raw_filters
-            assert filters["screening"]["targetRoles"] == [
-                "Software Engineer",
-                "Software Developer",
-                "Python Developer",
-                "Data Engineer",
-                "Machine Learning Engineer",
-                "AI Engineer",
-                "Web Developer",
-                "IT Intern",
-                "Working Student IT",
-                "Junior IT",
-            ]
+            assert filters["screening"]["targetRoles"] == (
+                EXPECTED_ENTRY_IT_TARGET_ROLES
+            )
     finally:
         engine.dispose()
 
@@ -702,21 +735,28 @@ def test_legacy_entry_it_config_is_migrated_without_changing_its_id(tmp_path) ->
                 filters = json.loads(filters)
             assert entry_it["id"] == legacy_id
             assert filters["schemaVersion"] == 2
-            assert filters["search"]["keywords"] == legacy_filters["keywords"]
+            assert filters["search"]["keywords"] != legacy_filters["keywords"]
+            assert filters["search"]["location"] == "Switzerland"
+            assert filters["search"]["country"] == "CH"
+            assert filters["search"]["datePosted"] == "Past week"
+            assert filters["search"]["resultsLimit"] == 200
+            assert filters["search"]["limitPerInput"] == 10
+            assert len(filters["search"]["linkedinQueries"]) == 14
+            assert [
+                query["keyword"]
+                for query in filters["search"]["linkedinQueries"]
+                if query["experienceLevels"]
+            ] == EXPECTED_ENTRY_IT_PROFESSIONS
+            assert all(
+                query["experienceLevels"] == ["Entry level", "Internship"]
+                for query in filters["search"]["linkedinQueries"]
+                if query["experienceLevels"]
+            )
             assert "sources" not in filters["search"]
             assert filters["screening"]["enabled"] is True
-            assert filters["screening"]["targetRoles"] == [
-                "Software Engineer",
-                "Software Developer",
-                "Python Developer",
-                "Data Engineer",
-                "Machine Learning Engineer",
-                "AI Engineer",
-                "Web Developer",
-                "IT Intern",
-                "Working Student IT",
-                "Junior IT",
-            ]
+            assert filters["screening"]["targetRoles"] == (
+                EXPECTED_ENTRY_IT_TARGET_ROLES
+            )
             source_configs = connection.execute(
                 text(
                     "SELECT source, config_id FROM job_source_configs "
@@ -1104,7 +1144,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260820_0039"
+            assert revision == "20260827_0043"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
@@ -1144,7 +1184,7 @@ def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> Non
                     "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
                 )
             ).scalar_one()
-        assert revision == "20260820_0039"
+        assert revision == "20260827_0043"
         assert entry_it_count == 1
         assert LEGACY_RECOVERABLE_MISSING_TABLES <= set(
             inspect(engine).get_table_names()

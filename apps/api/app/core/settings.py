@@ -112,14 +112,14 @@ class Settings(BaseSettings):
     brightdata_linkedin_jobs_dataset_id: str = "gd_lpfll7v5hcqtkxl6l"
     brightdata_indeed_jobs_dataset_id: str = "gd_l4dx9j9sscpvs7no2"
     brightdata_snapshot_poll_interval_seconds: float = Field(
-        default=1.0,
+        default=10.0,
         ge=0.1,
         le=30,
     )
     brightdata_snapshot_poll_timeout_seconds: float = Field(
-        default=180.0,
+        default=600.0,
         ge=0,
-        le=600,
+        le=3600,
     )
     jobs_ch_base_url: str = "https://www.jobs.ch"
     jobs_ch_timeout_seconds: float = Field(default=30.0, ge=1, le=120)

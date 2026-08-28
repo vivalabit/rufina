@@ -2186,6 +2186,134 @@ it("loads a server config and refreshes backend-persisted search results", async
   ).toBeGreaterThan(0);
 });
 
+it("reports an unfinished provider snapshot without claiming zero results", async () => {
+  window.history.replaceState(null, "", "#jobs");
+  const entryItConfig = {
+    id: "entry-it",
+    name: "Entry IT",
+    createdAt: "2026-07-21T00:00:00.000Z",
+    updatedAt: "2026-07-21T00:00:00.000Z",
+    filters: {
+      schemaVersion: 2,
+      search: { keywords: "software engineer" },
+      screening: { enabled: true },
+    },
+  };
+  const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+    const url = new URL(requestUrl, "http://localhost");
+    const method = init?.method ?? "GET";
+
+    if (url.pathname === "/job-search/configs" && method === "GET") {
+      return Response.json([entryItConfig]);
+    }
+    if (url.pathname === "/job-search/source-configs" && method === "GET") {
+      return Response.json([
+        {
+          id: "entry-it-linkedin",
+          name: "Entry IT · LinkedIn",
+          configId: "entry-it",
+          source: "linkedin",
+          filters: entryItConfig.filters.search,
+          createdAt: "2026-07-21T00:00:00.000Z",
+          updatedAt: "2026-07-21T00:00:00.000Z",
+        },
+      ]);
+    }
+    if (url.pathname === "/job-search/run" && method === "POST") {
+      return Response.json({
+        id: "timed-out-linkedin-run",
+        scheduleId: null,
+        runType: "manual",
+        scheduledFor: null,
+        configSnapshot: {},
+        sources: ["linkedin"],
+        status: "completed",
+        jobsFound: 0,
+        jobsAlreadyKnown: 0,
+        jobsDiscoveredNew: 0,
+        jobsDiscoveredUpdated: 0,
+        jobsAlreadyObserved: 0,
+        jobsScreened: 0,
+        jobsPassed: 0,
+        jobsRejected: 0,
+        jobsUncertain: 0,
+        jobsAdded: 0,
+        jobsAnalyzed: 0,
+        screeningErrors: 0,
+        jobsScreeningAiCalls: 0,
+        sourceErrors: {
+          linkedin:
+            "linkedin snapshot snapshot-1 is still running after 600s; no results were downloaded yet",
+        },
+        startedAt: "2026-08-27T20:00:00.000Z",
+        completedAt: "2026-08-27T20:10:00.000Z",
+        warning: null,
+      });
+    }
+    if (url.pathname === "/job-search/runs" && method === "GET") {
+      return Response.json([]);
+    }
+    if (
+      (url.pathname === "/jobs" ||
+        url.pathname === "/jobs/dismissed-ids" ||
+        url.pathname === "/applications" ||
+        url.pathname === "/applications/events") &&
+      method === "GET"
+    ) {
+      return Response.json([]);
+    }
+    if (url.pathname === "/profile" && method === "GET") {
+      return Response.json({});
+    }
+    if (url.pathname === "/settings" && method === "GET") {
+      return Response.json(configuredAppSettings);
+    }
+    if (
+      (url.pathname === "/applications" ||
+        url.pathname === "/applications/events") &&
+      method === "PUT"
+    ) {
+      return Response.json([]);
+    }
+    throw new Error(`Unhandled request: ${method} ${url.pathname}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<HomePage />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Search vacancies" }),
+  );
+  await waitFor(() => {
+    expect(screen.getByLabelText("LinkedIn query config")).toHaveValue(
+      "entry-it-linkedin",
+    );
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Start search" }));
+
+  await waitFor(() => {
+    const logs = JSON.parse(
+      window.localStorage.getItem("tasko.appLogs.v1") ?? "[]",
+    ) as Array<{ area: string; message: string }>;
+    expect(logs).toContainEqual(
+      expect.objectContaining({
+        area: "Vacancy search",
+        message: "LinkedIn search incomplete: provider results were not ready",
+      }),
+    );
+  });
+  expect(
+    screen.queryByText(
+      "LinkedIn search finished: 0 found, 0 matched config, 0 added",
+    ),
+  ).not.toBeInTheDocument();
+});
+
 it("selects a separate query config inside each source's settings", async () => {
   window.history.replaceState(null, "", "#jobs");
   const runBodies: Array<Record<string, unknown>> = [];
@@ -2635,6 +2763,157 @@ it("imports legacy local search configs to the server only once", async () => {
   expect(configWrites).toHaveLength(1);
 });
 
+it("adds and removes LinkedIn professions without dropping supporting queries", async () => {
+  window.history.replaceState(null, "", "#jobs");
+  const savedFilters: Array<Record<string, unknown>> = [];
+  const commonConfig = {
+    id: "entry-it",
+    name: "Entry IT",
+    createdAt: "2026-07-21T00:00:00.000Z",
+    updatedAt: "2026-07-21T00:00:00.000Z",
+    filters: {
+      schemaVersion: 2,
+      search: { keywords: "entry IT" },
+      screening: { enabled: true },
+    },
+  };
+  const sourceConfig = {
+    id: "entry-it-linkedin",
+    name: "Entry IT · LinkedIn",
+    configId: "entry-it",
+    source: "linkedin",
+    filters: {
+      keywords: "entry IT",
+      linkedinQueries: [
+        {
+          keyword: "Software Engineer",
+          experienceLevels: ["Entry level", "Internship"],
+          jobType: null,
+          selectiveSearch: true,
+        },
+        {
+          keyword: "Data Analyst",
+          experienceLevels: ["Entry level", "Internship"],
+          jobType: null,
+          selectiveSearch: true,
+        },
+        {
+          keyword: "junior",
+          experienceLevels: [],
+          jobType: null,
+          selectiveSearch: true,
+        },
+      ],
+      limitPerInput: 10,
+    },
+    createdAt: "2026-07-21T00:00:00.000Z",
+    updatedAt: "2026-07-21T00:00:00.000Z",
+  };
+  const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+    const url = new URL(requestUrl, "http://localhost");
+    const method = init?.method ?? "GET";
+
+    if (url.pathname === "/job-search/configs" && method === "GET") {
+      return Response.json([commonConfig]);
+    }
+    if (url.pathname === "/job-search/source-configs" && method === "GET") {
+      return Response.json([sourceConfig]);
+    }
+    if (
+      url.pathname === "/job-search/source-configs/entry-it-linkedin" &&
+      method === "PATCH"
+    ) {
+      const body = JSON.parse(String(init?.body)) as {
+        filters: Record<string, unknown>;
+      };
+      savedFilters.push(body.filters);
+      return Response.json({
+        ...sourceConfig,
+        ...body,
+        updatedAt: "2026-08-27T12:00:00.000Z",
+      });
+    }
+    if (
+      (url.pathname === "/jobs" ||
+        url.pathname === "/jobs/dismissed-ids" ||
+        url.pathname === "/applications" ||
+        url.pathname === "/applications/events") &&
+      method === "GET"
+    ) {
+      return Response.json([]);
+    }
+    if (url.pathname === "/profile" && method === "GET") {
+      return Response.json({});
+    }
+    if (url.pathname === "/settings" && method === "GET") {
+      return Response.json(configuredAppSettings);
+    }
+    if (
+      (url.pathname === "/applications" ||
+        url.pathname === "/applications/events") &&
+      method === "PUT"
+    ) {
+      return Response.json([]);
+    }
+    throw new Error(`Unhandled request: ${method} ${url.pathname}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<HomePage />);
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Search vacancies" }),
+  );
+  await waitFor(() => {
+    expect(screen.getByLabelText("LinkedIn query config")).toHaveValue(
+      "entry-it-linkedin",
+    );
+  });
+
+  expect(
+    screen.getByText(
+      /1 supporting entry-level search term stays active automatically\./,
+    ),
+  ).toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole("button", {
+      name: "Remove profession Software Engineer",
+    }),
+  );
+  fireEvent.change(screen.getByLabelText("New LinkedIn profession"), {
+    target: { value: "Security Analyst" },
+  });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Add LinkedIn profession" }),
+  );
+  expect(screen.getByText("Security Analyst")).toBeInTheDocument();
+
+  fireEvent.click(
+    screen.getByRole("button", { name: "Save LinkedIn query config" }),
+  );
+  await waitFor(() => expect(savedFilters).toHaveLength(1));
+
+  const savedQueries = savedFilters[0].linkedinQueries as Array<{
+    keyword: string;
+    experienceLevels: string[];
+  }>;
+  expect(savedQueries.map((query) => query.keyword)).toEqual([
+    "Data Analyst",
+    "junior",
+    "Security Analyst",
+  ]);
+  expect(
+    savedQueries.find((query) => query.keyword === "Security Analyst"),
+  ).toMatchObject({
+    experienceLevels: ["Entry level", "Internship"],
+  });
+});
+
 it("keeps query configs in source settings and removes the legacy panels", async () => {
   window.history.replaceState(null, "", "#jobs");
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
@@ -2708,7 +2987,7 @@ it("keeps query configs in source settings and removes the legacy panels", async
   ).toBeInTheDocument();
 });
 
-it("uses the current fields for a direct-company-only search", async () => {
+it("uses a broad direction and full-catalog filters for a direct-company-only search", async () => {
   window.history.replaceState(null, "", "#jobs");
   const runBodies: Array<Record<string, unknown>> = [];
   const entryItConfig = {
@@ -2802,12 +3081,11 @@ it("uses the current fields for a direct-company-only search", async () => {
   fireEvent.click(
     screen.getByRole("button", { name: "Include LinkedIn in search" }),
   );
-  fireEvent.change(
-    screen.getByPlaceholderText(
-      "e.g. Product Designer, UX Designer, Design System",
-    ),
-    { target: { value: "direct company query" } },
-  );
+  expect(screen.queryByText("Job title or keywords")).not.toBeInTheDocument();
+  expect(screen.queryByText("Experience level")).not.toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Direct company direction"), {
+    target: { value: "marketing" },
+  });
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
 
   expect(
@@ -2821,7 +3099,23 @@ it("uses the current fields for a direct-company-only search", async () => {
     config: {
       name: "Entry IT",
       filters: {
-        search: { keywords: "direct company query" },
+        search: {
+          keywords: "",
+          location: "",
+          remote: "Any",
+          experienceLevel: "Any",
+          jobType: "Any",
+          datePosted: "Any time",
+          resultsLimit: 1000,
+          country: "Any",
+          deduplicate: true,
+        },
+        screening: {
+          enabled: true,
+          targetRoles: ["Marketing"],
+          allowedSeniority: [],
+          excludedSeniority: [],
+        },
       },
     },
   });

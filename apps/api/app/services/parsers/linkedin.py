@@ -1,5 +1,6 @@
+import re
 from typing import Any
-from urllib.parse import urlencode
+from urllib.parse import urlencode, urlsplit, urlunsplit
 
 import httpx
 
@@ -33,6 +34,21 @@ DATE_POSTED = {
     "Past month": "r2592000",
 }
 
+REMOTE_DISCOVERY_FILTERS = {
+    "Remote only": "Remote",
+    "Hybrid": "Hybrid",
+    "On-site": "On-site",
+}
+
+COUNTRY_CODES = {
+    "switzerland": "CH",
+    "schweiz": "CH",
+    "suisse": "CH",
+    "svizzera": "CH",
+}
+
+LINKEDIN_JOB_ID_PATTERN = re.compile(r"/jobs/view/(?:[^/?#]*-)?(?P<id>\d+)(?:[/?#]|$)")
+
 
 class BrightDataConfigurationError(RuntimeError):
     pass
@@ -63,18 +79,21 @@ class LinkedInJobsParser:
             raise BrightDataConfigurationError("BRIGHTDATA_API_KEY is not configured")
 
         search_url = self.build_search_url(request)
-        payload = {"input": [self.build_search_input(request, search_url)]}
+        payload = self.build_discovery_inputs(request)
         params = {
             "dataset_id": self.dataset_id,
             "type": "discover_new",
-            "discover_by": "url",
+            "discover_by": "keyword",
             "format": "json",
+            "include_errors": "true",
+            "limit_per_input": min(request.limit_per_input, request.results_limit),
+            "limit_multiple_results": request.results_limit,
         }
 
         try:
             with httpx.Client(timeout=self.timeout_seconds) as client:
                 response = client.post(
-                    f"{self.api_url}/scrape",
+                    f"{self.api_url}/trigger",
                     headers={
                         "Authorization": f"Bearer {self.api_key}",
                         "Content-Type": "application/json",
@@ -105,7 +124,11 @@ class LinkedInJobsParser:
             )
 
         records = data if isinstance(data, list) else data.get("data", []) if isinstance(data, dict) else []
-        jobs = [self.normalize_job(record) for record in records if isinstance(record, dict)]
+        jobs = [
+            self.normalize_job(record)
+            for record in records
+            if isinstance(record, dict) and self.is_job_record(record)
+        ]
         if request.deduplicate:
             jobs = self.deduplicate(jobs)
 
@@ -116,12 +139,91 @@ class LinkedInJobsParser:
             jobs=jobs[: request.results_limit],
         )
 
+    @classmethod
+    def build_discovery_inputs(
+        cls,
+        request: LinkedInSearchRequest,
+    ) -> list[dict[str, Any]]:
+        query_specs: list[tuple[str, list[str], str | None, bool]] = []
+        if request.linkedin_queries:
+            query_specs.extend(
+                (
+                    query.keyword.strip(),
+                    list(query.experience_levels),
+                    query.job_type,
+                    query.selective_search,
+                )
+                for query in request.linkedin_queries
+            )
+        else:
+            query_specs.append(
+                (
+                    request.keywords.strip(),
+                    [] if request.experience_level == "Any" else [request.experience_level],
+                    request.job_type,
+                    bool(request.keywords.strip()),
+                )
+            )
+
+        location = request.location.strip()
+        if not location and request.country != "Any":
+            location = request.country.strip()
+        if not location:
+            location = "Worldwide"
+
+        country_code = cls.country_code(request.country)
+        inputs: list[dict[str, Any]] = []
+        seen: set[tuple[str, str, str, bool]] = set()
+        for keyword, experience_levels, query_job_type, selective_search in query_specs:
+            levels: list[str | None] = experience_levels or [None]
+            for experience_level in levels:
+                job_type = query_job_type or request.job_type
+                discovery_experience_level = experience_level
+                discovery_job_type = job_type
+                if job_type == "Internship":
+                    # Bright Data models internships as an experience level for
+                    # LinkedIn discovery, not as a job type. Sending
+                    # job_type="Internship" rejects the entire batch with 400.
+                    discovery_experience_level = "Internship"
+                    discovery_job_type = None
+                identity = (
+                    keyword.casefold(),
+                    discovery_experience_level or "",
+                    ""
+                    if not discovery_job_type or discovery_job_type == "Any"
+                    else discovery_job_type,
+                    selective_search,
+                )
+                if identity in seen:
+                    continue
+                seen.add(identity)
+
+                item: dict[str, Any] = {
+                    "location": location,
+                    "keyword": keyword,
+                    "selective_search": selective_search,
+                }
+                if country_code:
+                    item["country"] = country_code
+                if request.date_posted != "Any time":
+                    item["time_range"] = request.date_posted
+                if discovery_job_type and discovery_job_type != "Any":
+                    item["job_type"] = discovery_job_type
+                if discovery_experience_level:
+                    item["experience_level"] = discovery_experience_level
+                if request.remote in REMOTE_DISCOVERY_FILTERS:
+                    item["remote"] = REMOTE_DISCOVERY_FILTERS[request.remote]
+                inputs.append(item)
+        return inputs
+
     @staticmethod
-    def build_search_input(request: LinkedInSearchRequest, search_url: str) -> dict[str, Any]:
-        return {
-            "url": search_url,
-            "selective_search": bool(request.keywords.strip()),
-        }
+    def country_code(country: str) -> str | None:
+        normalized = country.strip()
+        if not normalized or normalized == "Any":
+            return None
+        if len(normalized) == 2 and normalized.isalpha():
+            return normalized.upper()
+        return COUNTRY_CODES.get(normalized.casefold())
 
     def get_snapshot(
         self,
@@ -156,7 +258,11 @@ class LinkedInJobsParser:
                 message="snapshot_not_ready",
             )
 
-        jobs = [self.normalize_job(record) for record in records if isinstance(record, dict)]
+        jobs = [
+            self.normalize_job(record)
+            for record in records
+            if isinstance(record, dict) and self.is_job_record(record)
+        ]
         if deduplicate:
             jobs = self.deduplicate(jobs)
 
@@ -256,12 +362,35 @@ class LinkedInJobsParser:
         seen: set[str] = set()
         unique_jobs: list[ParsedJob] = []
         for job in jobs:
-            key = job.url or f"{job.title}|{job.company}|{job.location}"
+            posting_id = first_present(job.raw, "job_posting_id", "job_id")
+            if not posting_id:
+                posting_id = linkedin_job_id(job.url)
+            key = (
+                f"linkedin:{posting_id}"
+                if posting_id
+                else canonical_url(job.url)
+                or f"{job.title}|{job.company}|{job.location}"
+            )
             if key in seen:
                 continue
             seen.add(key)
             unique_jobs.append(job)
         return unique_jobs
+
+    @staticmethod
+    def is_job_record(record: dict[str, Any]) -> bool:
+        return bool(
+            first_present(record, "job_posting_id", "job_id", "job_title", "title")
+            or linkedin_job_id(
+                first_present(
+                    record,
+                    "url",
+                    "job_url",
+                    "job_posting_url",
+                    "linkedin_job_url",
+                )
+            )
+        )
 
 
 def first_present(record: dict[str, Any], *keys: str) -> str | None:
@@ -270,3 +399,30 @@ def first_present(record: dict[str, Any], *keys: str) -> str | None:
         if value is not None and value != "":
             return str(value)
     return None
+
+
+def linkedin_job_id(value: str | None) -> str | None:
+    if not value:
+        return None
+    match = LINKEDIN_JOB_ID_PATTERN.search(value)
+    return match.group("id") if match else None
+
+
+def canonical_url(value: str | None) -> str:
+    if not value:
+        return ""
+    try:
+        parts = urlsplit(value.strip())
+    except ValueError:
+        return value.strip().casefold()
+    if not parts.netloc:
+        return value.strip().casefold()
+    return urlunsplit(
+        (
+            parts.scheme.casefold(),
+            parts.netloc.casefold(),
+            parts.path.rstrip("/"),
+            "",
+            "",
+        )
+    )

@@ -252,6 +252,12 @@ select option {
   letter-spacing: -0.025em;
 }
 
+.page-title {
+  font-family: var(--font-monarch);
+  font-weight: 400;
+  letter-spacing: -0.025em;
+}
+
 .hero-title::after {
   position: absolute;
   right: 3%;

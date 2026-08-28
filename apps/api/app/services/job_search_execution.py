@@ -737,7 +737,7 @@ def search_request_from_config(
     )
     parser_fields = {
         key: value
-        for key, value in normalized.search.model_dump().items()
+        for key, value in normalized.search.model_dump(exclude_none=True).items()
         if key in LinkedInSearchRequest.model_fields
     }
     return LinkedInSearchRequest.model_validate(parser_fields)
@@ -840,7 +840,7 @@ def source_requests_from_snapshot(
         normalized = SearchFilters.model_validate(filters)
         parser_fields = {
             key: value
-            for key, value in normalized.model_dump().items()
+            for key, value in normalized.model_dump(exclude_none=True).items()
             if key in LinkedInSearchRequest.model_fields
         }
         requests[source] = LinkedInSearchRequest.model_validate(parser_fields)

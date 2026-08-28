@@ -151,6 +151,35 @@ def test_runner_returns_latest_snapshot_status_after_polling_timeout() -> None:
     assert parser.snapshot_calls == 3
 
 
+def test_runner_reports_pending_snapshot_without_claiming_zero_results() -> None:
+    parser = RunningSnapshotParser()
+    current_time = [0.0]
+
+    def advance(seconds: float) -> None:
+        current_time[0] += seconds
+
+    runner = VacancySearchRunner(
+        {"linkedin": parser},
+        snapshot_poll_interval_seconds=0.5,
+        snapshot_poll_timeout_seconds=1,
+        clock=lambda: current_time[0],
+        sleep=advance,
+    )
+
+    result = runner.run(
+        sources=["linkedin"],
+        request=LinkedInSearchRequest(results_limit=10),
+    )
+
+    assert result.jobs == []
+    assert result.source_errors == {
+        "linkedin": (
+            "linkedin snapshot snapshot-1 is still running after 1s; "
+            "no results were downloaded yet"
+        )
+    }
+
+
 def test_runner_merges_deduplicates_and_preserves_partial_results(
     caplog: pytest.LogCaptureFixture,
 ) -> None:
@@ -277,3 +306,50 @@ def test_runner_applies_one_common_config_to_every_source() -> None:
     assert indeed.requests[0].location == "Zurich"
     assert linkedin.requests[0].results_limit == 25
     assert indeed.requests[0].results_limit == 25
+
+
+def test_runner_neutralizes_query_filters_for_direct_company_catalogs() -> None:
+    sbb = RecordingParser("sbb")
+    runner = VacancySearchRunner({"sbb": sbb})
+
+    runner.run(
+        sources=["sbb"],
+        request=LinkedInSearchRequest(
+            keywords="software engineer",
+            location="Zurich",
+            remote="Remote only",
+            experience_level="Entry level",
+            job_type="Full-time",
+            date_posted="Past 24 hours",
+            country="Switzerland",
+            results_limit=25,
+        ),
+        wait_for_snapshots=False,
+    )
+
+    assert (
+        sbb.requests[0].model_dump()
+        == LinkedInSearchRequest(
+            results_limit=25,
+        ).model_dump()
+    )
+
+
+def test_runner_preserves_full_direct_company_catalog_before_screening() -> None:
+    old_date = (datetime.now(UTC) - timedelta(days=90)).isoformat()
+    old_job = ParsedJob(
+        source="sbb",
+        title="Long-running vacancy",
+        company="SBB CFF FFS",
+        posted_at=old_date,
+        url="https://jobs.sbb.ch/vacancies/old",
+    )
+    runner = VacancySearchRunner({"sbb": CompletedParser("sbb", [old_job])})
+
+    result = runner.run(
+        sources=["sbb"],
+        request=LinkedInSearchRequest(date_posted="Past 24 hours"),
+        wait_for_snapshots=False,
+    )
+
+    assert result.jobs == [old_job]

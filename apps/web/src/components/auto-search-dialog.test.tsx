@@ -329,7 +329,8 @@ describe("AutoSearchDialog", () => {
       sources: ["sbb", "swisscom"],
       frequency: "weekdays",
       localTime: "12:30:00",
-      timezone: "Europe/Zurich",
+      timezone:
+        Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Zurich",
     });
   });
 

@@ -1337,7 +1337,7 @@ export function AssistantView({
             <span className="grid h-9 w-9 place-items-center rounded-lg bg-gradient-to-br from-[#e95300] to-[#df4f00] text-foreground shadow-[0_10px_28px_rgba(255,90,0,0.28)]">
               <Sparkles className="h-[18px] w-[18px]" />
             </span>
-            <h1 className="text-[24px] font-bold leading-tight text-foreground sm:text-[27px] 2xl:text-[31px]">AI Assistant</h1>
+            <h1 className="page-title text-[24px] leading-tight text-foreground sm:text-[27px] 2xl:text-[31px]">AI Assistant</h1>
           </div>
         </div>
         <Button onClick={startNewChat} disabled={isGenerating} className="h-9 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-3 text-xs 2xl:h-10 2xl:text-sm">

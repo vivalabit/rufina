@@ -54,11 +54,13 @@ is added.
 7. `prepare_new_job_candidates()` compares inventory vacancies with
    `StoredJobRecord` entries by stable job ID, canonical URL, and identity.
    Active and dismissed user records are not processed further.
-8. `search.experienceLevel` is converted into the common screening seniority
-   allow-list for every selected source, including Direct Companies. Explicit
-   mismatches found in structured seniority or the vacancy title are rejected
-   deterministically before AI. Remaining candidates without a reusable
-   decision are sent to AI in batches.
+8. Direct Companies always receive a neutral parser request and scan their full
+   catalog. The manual-search direction is applied only after discovery, and
+   the global Vacancy Filter supplies seniority, posting-age, and technology
+   criteria. Aggregator-specific query filters remain scoped to their source.
+   Explicit seniority mismatches found in structured seniority or the vacancy
+   title are rejected deterministically before AI. Remaining candidates without
+   a reusable decision are sent to AI in batches.
    Decisions are cached by vacancy hash, configuration hash, model, and prompt
    version. A cached `keep` can materialize a missing user record, while cached
    `reject` and `uncertain` decisions remain inventory-only. Screening errors
@@ -88,10 +90,14 @@ causes a new decision without deleting old audit history. A keep from one
 configuration never makes a later ordinary search hide an active user record,
 and a dismissed record always takes precedence.
 
-Direct Company registry entries declare `full_catalog=True`. After a successful
-`completed` scan, active inventory records from that source that were not seen
-are marked `inactive` and receive `unavailable_at`. A failed, timed-out, queued,
-running, or otherwise partial scan must not mark vacancies unavailable.
+Direct Company registry entries declare `full_catalog=True`. Parser-level
+keywords, location, remote, seniority, job type, and posting-date values are
+neutralized for these sources, and the shared post-parser date filter skips
+them. This ensures every observed company vacancy reaches the inventory before
+screening. After a successful `completed` scan, active inventory records from
+that source that were not seen are marked `inactive` and receive
+`unavailable_at`. A failed, timed-out, queued, running, or otherwise partial
+scan must not mark vacancies unavailable.
 
 Run statistics distinguish new, changed, and unchanged inventory observations
 (`jobsDiscoveredNew`, `jobsDiscoveredUpdated`, `jobsAlreadyObserved`) and count

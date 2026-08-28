@@ -399,6 +399,33 @@ ScreeningSeniority = Literal[
 ]
 
 
+class LinkedInDiscoveryQueryConfig(BaseModel):
+    keyword: str = Field(min_length=1, max_length=160)
+    experience_levels: list[
+        Literal[
+            "Entry level",
+            "Internship",
+            "Associate",
+            "Mid-Senior level",
+            "Director",
+            "Executive",
+        ]
+    ] = Field(default_factory=list, max_length=6, alias="experienceLevels")
+    job_type: Literal[
+        "Any",
+        "Full-time",
+        "Part-time",
+        "Contract",
+        "Internship",
+    ] | None = Field(default=None, alias="jobType")
+    selective_search: bool = Field(default=True, alias="selectiveSearch")
+
+    model_config = {
+        "extra": "forbid",
+        "populate_by_name": True,
+    }
+
+
 class SearchFilters(BaseModel):
     keywords: str = Field(default="", max_length=2000)
     location: str = Field(default="", max_length=160)
@@ -426,6 +453,17 @@ class SearchFilters(BaseModel):
     results_limit: int = Field(default=100, ge=1, le=1000, alias="resultsLimit")
     country: str = Field(default="Any", max_length=80)
     deduplicate: bool = True
+    linkedin_queries: list[LinkedInDiscoveryQueryConfig] | None = Field(
+        default=None,
+        max_length=80,
+        alias="linkedinQueries",
+    )
+    limit_per_input: int | None = Field(
+        default=None,
+        ge=1,
+        le=1000,
+        alias="limitPerInput",
+    )
 
     search_name: str = Field(default="", max_length=160, alias="searchName")
     folder: str = Field(default="", max_length=120)

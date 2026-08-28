@@ -6,6 +6,24 @@ RemoteFilter = Literal["Any", "Remote only", "Hybrid", "On-site"]
 ExperienceLevel = Literal["Any", "Entry level", "Associate", "Mid-Senior level", "Director"]
 JobType = Literal["Any", "Full-time", "Part-time", "Contract", "Internship"]
 DatePosted = Literal["Any time", "Past 24 hours", "Past week", "Past month"]
+LinkedInDiscoveryExperienceLevel = Literal[
+    "Entry level",
+    "Internship",
+    "Associate",
+    "Mid-Senior level",
+    "Director",
+    "Executive",
+]
+
+
+class LinkedInDiscoveryQuery(BaseModel):
+    keyword: str = Field(min_length=1, max_length=160)
+    experience_levels: list[LinkedInDiscoveryExperienceLevel] = Field(
+        default_factory=list,
+        max_length=6,
+    )
+    job_type: JobType | None = None
+    selective_search: bool = True
 
 
 class LinkedInSearchRequest(BaseModel):
@@ -18,6 +36,11 @@ class LinkedInSearchRequest(BaseModel):
     results_limit: int = Field(default=100, ge=1, le=1000)
     country: str = Field(default="Any", max_length=80)
     deduplicate: bool = True
+    linkedin_queries: list[LinkedInDiscoveryQuery] = Field(
+        default_factory=list,
+        max_length=80,
+    )
+    limit_per_input: int = Field(default=25, ge=1, le=1000)
     search_name: str = Field(default="", max_length=160)
     folder: str = Field(default="", max_length=120)
 
