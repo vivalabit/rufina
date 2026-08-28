@@ -1,6 +1,7 @@
 import json
 import logging
 from datetime import UTC, datetime, timedelta
+from threading import Barrier
 
 import pytest
 
@@ -84,6 +85,37 @@ class FailingIndeedParser:
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
         raise BrightDataRequestError("Indeed upstream failed")
+
+
+class QueueRecordingParser(CompletedParser):
+    def __init__(
+        self,
+        parser_id: str,
+        *,
+        failures: int,
+        calls: list[str],
+    ) -> None:
+        super().__init__(parser_id, [])
+        self.failures = failures
+        self.calls = calls
+        self.attempts = 0
+
+    def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
+        self.attempts += 1
+        self.calls.append(self.parser_id)
+        if self.attempts <= self.failures:
+            raise BrightDataRequestError(f"{self.parser_id} temporary failure")
+        return super().search(request)
+
+
+class BarrierParser(CompletedParser):
+    def __init__(self, parser_id: str, barrier: Barrier) -> None:
+        super().__init__(parser_id, [])
+        self.barrier = barrier
+
+    def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
+        self.barrier.wait(timeout=3)
+        return super().search(request)
 
 
 class RunningSnapshotParser(SnapshotParser):
@@ -232,16 +264,74 @@ def test_runner_merges_deduplicates_and_preserves_partial_results(
         for record in caplog.records
         if '"event":"vacancy_parser.' in record.message
     ]
-    assert [event["event"] for event in events] == [
+    final_events = [
+        event
+        for event in events
+        if event["event"]
+        in {"vacancy_parser.finished", "vacancy_parser.failed"}
+    ]
+    assert [event["event"] for event in final_events] == [
         "vacancy_parser.finished",
         "vacancy_parser.failed",
         "vacancy_parser.finished",
     ]
-    assert [(event["source"], event["vacanciesParsed"]) for event in events] == [
+    assert [
+        (event["source"], event["vacanciesParsed"])
+        for event in final_events
+    ] == [
         ("linkedin", 1),
         ("indeed", 0),
         ("jobs_ch", 2),
     ]
+    retry_events = [
+        event
+        for event in events
+        if event["event"] == "vacancy_parser.retry_scheduled"
+    ]
+    assert [event["attempt"] for event in retry_events] == [1, 2]
+    assert final_events[1]["attempts"] == 3
+
+
+def test_runner_moves_failed_source_to_queue_tail_and_stops_after_three_attempts() -> None:
+    calls: list[str] = []
+    linkedin = QueueRecordingParser("linkedin", failures=3, calls=calls)
+    indeed = QueueRecordingParser("indeed", failures=0, calls=calls)
+    runner = VacancySearchRunner(
+        {"linkedin": linkedin, "indeed": indeed},
+        max_source_workers=1,
+        max_source_attempts=3,
+    )
+
+    result = runner.run(
+        sources=["linkedin", "indeed"],
+        request=LinkedInSearchRequest(),
+        wait_for_snapshots=False,
+    )
+
+    assert calls == ["linkedin", "indeed", "linkedin", "linkedin"]
+    assert result.source_attempts == {"linkedin": 3, "indeed": 1}
+    assert result.source_errors == {"linkedin": "linkedin temporary failure"}
+    assert set(result.source_results) == {"indeed"}
+
+
+def test_runner_executes_different_sources_concurrently() -> None:
+    barrier = Barrier(2)
+    runner = VacancySearchRunner(
+        {
+            "sbb": BarrierParser("sbb", barrier),
+            "swisscom": BarrierParser("swisscom", barrier),
+        },
+        max_source_workers=2,
+    )
+
+    result = runner.run(
+        sources=["sbb", "swisscom"],
+        request=LinkedInSearchRequest(),
+        wait_for_snapshots=False,
+    )
+
+    assert set(result.source_results) == {"sbb", "swisscom"}
+    assert result.source_errors == {}
 
 
 def test_runner_filters_old_jobs_after_parser_results_are_collected() -> None:

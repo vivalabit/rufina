@@ -2399,6 +2399,8 @@ class Settings(BaseSettings):
         ge=1,
         le=12,
     )
+    vacancy_parser_workers: int = Field(default=6, ge=1, le=20)
+    vacancy_parser_max_attempts: int = Field(default=3, ge=1, le=5)
     job_search_poll_interval_seconds: float = Field(default=30.0, ge=1, le=300)
     resume_template_preview_max_payload_bytes: int = Field(
         default=8_192,

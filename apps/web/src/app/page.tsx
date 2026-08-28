@@ -66,6 +66,7 @@ import {
   type AssistantLaunch,
 } from "@/components/assistant-view";
 import { ApplicationWorkspace } from "@/components/application-workspace";
+import { CriticalNotificationsBell } from "@/components/critical-notifications-bell";
 import { DashboardGreeting, useHydrationSafeCurrentTime } from "@/components/dashboard-greeting";
 import { DirectCompaniesSource } from "@/components/direct-companies-source";
 import {
@@ -14071,6 +14072,7 @@ function AppSidebar({
       </nav>
 
       <div className="app-sidebar-footer ml-auto flex shrink-0 items-center gap-1.5">
+        <CriticalNotificationsBell apiBaseUrl={apiBaseUrl} />
         <a
           href="#profile"
           onClick={() => onChangeView("Profile")}

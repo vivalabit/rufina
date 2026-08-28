@@ -2,8 +2,10 @@ import json
 import logging
 import re
 import time
+from collections import deque
 from collections.abc import Callable, Mapping, Sequence
-from dataclasses import dataclass
+from concurrent.futures import FIRST_COMPLETED, Future, ThreadPoolExecutor, wait
+from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
@@ -50,6 +52,7 @@ class VacancySearchRunResult:
     jobs: list[ParsedJob]
     source_results: dict[str, ParserSearchResponse]
     source_errors: dict[str, str]
+    source_attempts: dict[str, int] = field(default_factory=dict)
 
 
 class VacancySearchRunner:
@@ -59,12 +62,16 @@ class VacancySearchRunner:
         *,
         snapshot_poll_interval_seconds: float = 1.0,
         snapshot_poll_timeout_seconds: float = 30.0,
+        max_source_workers: int = 6,
+        max_source_attempts: int = 3,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
         self.parsers = parsers
         self.snapshot_poll_interval_seconds = max(0.01, snapshot_poll_interval_seconds)
         self.snapshot_poll_timeout_seconds = max(0.0, snapshot_poll_timeout_seconds)
+        self.max_source_workers = max(1, max_source_workers)
+        self.max_source_attempts = max(1, max_source_attempts)
         self.clock = clock
         self.sleep = sleep
 
@@ -146,43 +153,124 @@ class VacancySearchRunner:
         source_requests: Mapping[str, LinkedInSearchRequest] | None = None,
         wait_for_snapshots: bool = True,
     ) -> VacancySearchRunResult:
-        source_results: dict[str, ParserSearchResponse] = {}
+        ordered_sources = unique_sources(sources)
+        if not ordered_sources:
+            return VacancySearchRunResult(
+                jobs=[],
+                source_results={},
+                source_errors={},
+                source_attempts={},
+            )
+        completed_results: dict[str, ParserSearchResponse] = {}
         source_errors: dict[str, str] = {}
-        jobs: list[ParsedJob] = []
+        source_attempts: dict[str, int] = {}
+        source_durations = {source: 0.0 for source in ordered_sources}
+        pending = deque((source, 1) for source in ordered_sources)
+        in_flight: dict[
+            Future[ParserSearchResponse],
+            tuple[int, str, int, float],
+        ] = {}
+        submission_sequence = 0
 
-        for source in unique_sources(sources):
-            source_started_at = time.monotonic()
-            try:
-                selected_request = (
-                    source_requests.get(source, request)
-                    if source_requests is not None
-                    else request
+        with ThreadPoolExecutor(
+            max_workers=min(self.max_source_workers, len(ordered_sources)),
+            thread_name_prefix="vacancy-source",
+        ) as executor:
+            while pending or in_flight:
+                while pending and len(in_flight) < self.max_source_workers:
+                    source, attempt = pending.popleft()
+                    source_started_at = time.monotonic()
+                    submission_sequence += 1
+                    selected_request = (
+                        source_requests.get(source, request)
+                        if source_requests is not None
+                        else request
+                    )
+                    future = executor.submit(
+                        self.search_source,
+                        source,
+                        selected_request,
+                        wait_for_snapshot=wait_for_snapshots,
+                    )
+                    in_flight[future] = (
+                        submission_sequence,
+                        source,
+                        attempt,
+                        source_started_at,
+                    )
+
+                completed, _ = wait(
+                    tuple(in_flight),
+                    return_when=FIRST_COMPLETED,
                 )
-                result = self.search_source(
-                    source,
-                    selected_request,
-                    wait_for_snapshot=wait_for_snapshots,
-                )
+                for future in sorted(
+                    completed,
+                    key=lambda item: in_flight[item][0],
+                ):
+                    _, source, attempt, source_started_at = in_flight.pop(future)
+                    duration_seconds = time.monotonic() - source_started_at
+                    source_durations[source] += duration_seconds
+                    source_attempts[source] = attempt
+                    result: ParserSearchResponse | None = None
+                    error = ""
+                    try:
+                        result = future.result()
+                    except SOURCE_ERRORS as exc:
+                        error = str(exc)
+                    except Exception as exc:  # noqa: BLE001 - isolate one parser boundary
+                        error = f"{type(exc).__name__}: {exc}".rstrip()
+
+                    if (
+                        not error
+                        and result is not None
+                        and wait_for_snapshots
+                        and result.status != "completed"
+                    ):
+                        error = incomplete_source_error(
+                            source,
+                            result,
+                            timeout_seconds=self.snapshot_poll_timeout_seconds,
+                        )
+
+                    if not error and result is not None:
+                        completed_results[source] = result
+                        continue
+
+                    if attempt < self.max_source_attempts:
+                        log_source_retry_scheduled(
+                            source=source,
+                            error=error,
+                            attempt=attempt,
+                            max_attempts=self.max_source_attempts,
+                            duration_seconds=duration_seconds,
+                        )
+                        pending.append((source, attempt + 1))
+                        continue
+
+                    if result is not None:
+                        completed_results[source] = result
+                    source_errors[source] = error
+
+        source_results: dict[str, ParserSearchResponse] = {}
+        jobs: list[ParsedJob] = []
+        for source in ordered_sources:
+            result = completed_results.get(source)
+            if result is not None:
                 source_results[source] = result
                 jobs.extend(result.jobs)
+            if source in source_errors:
+                log_source_failed(
+                    source=source,
+                    error=source_errors[source],
+                    attempts=source_attempts[source],
+                    duration_seconds=source_durations[source],
+                )
+            elif result is not None:
                 log_source_finished(
                     source=source,
                     result=result,
-                    duration_seconds=time.monotonic() - source_started_at,
-                )
-                if wait_for_snapshots and result.status != "completed":
-                    source_errors[source] = (
-                        f"{source} snapshot {result.snapshot_id or 'unknown'} is still "
-                        f"{result.status} after "
-                        f"{self.snapshot_poll_timeout_seconds:g}s; no results were "
-                        "downloaded yet"
-                    )
-            except SOURCE_ERRORS as exc:
-                source_errors[source] = str(exc)
-                log_source_failed(
-                    source=source,
-                    error=str(exc),
-                    duration_seconds=time.monotonic() - source_started_at,
+                    attempts=source_attempts[source],
+                    duration_seconds=source_durations[source],
                 )
 
         filtered_jobs = filter_jobs_by_date_posted(
@@ -198,6 +286,7 @@ class VacancySearchRunner:
             ),
             source_results=source_results,
             source_errors=source_errors,
+            source_attempts=source_attempts,
         )
 
     def require_parser(self, source: str) -> Any:
@@ -211,6 +300,7 @@ def log_source_finished(
     *,
     source: str,
     result: ParserSearchResponse,
+    attempts: int,
     duration_seconds: float,
 ) -> None:
     logger.info(
@@ -222,6 +312,7 @@ def log_source_finished(
                 "vacanciesParsed": len(result.jobs),
                 "status": result.status,
                 "snapshotId": result.snapshot_id,
+                "attempts": attempts,
                 "durationSeconds": round(duration_seconds, 3),
             },
             ensure_ascii=False,
@@ -234,9 +325,10 @@ def log_source_failed(
     *,
     source: str,
     error: str,
+    attempts: int,
     duration_seconds: float,
 ) -> None:
-    logger.warning(
+    logger.error(
         json.dumps(
             {
                 "event": "vacancy_parser.failed",
@@ -244,12 +336,50 @@ def log_source_failed(
                 "source": source,
                 "vacanciesParsed": 0,
                 "status": "failed",
+                "attempts": attempts,
                 "durationSeconds": round(duration_seconds, 3),
                 "error": error[:500],
             },
             ensure_ascii=False,
             separators=(",", ":"),
         )
+    )
+
+
+def log_source_retry_scheduled(
+    *,
+    source: str,
+    error: str,
+    attempt: int,
+    max_attempts: int,
+    duration_seconds: float,
+) -> None:
+    logger.warning(
+        json.dumps(
+            {
+                "event": "vacancy_parser.retry_scheduled",
+                "message": "Vacancy parser failed; retry moved to queue tail",
+                "source": source,
+                "attempt": attempt,
+                "maxAttempts": max_attempts,
+                "durationSeconds": round(duration_seconds, 3),
+                "error": error[:500],
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        )
+    )
+
+
+def incomplete_source_error(
+    source: str,
+    result: ParserSearchResponse,
+    *,
+    timeout_seconds: float,
+) -> str:
+    return (
+        f"{source} snapshot {result.snapshot_id or 'unknown'} is still "
+        f"{result.status} after {timeout_seconds:g}s; no results were downloaded yet"
     )
 
 def create_vacancy_search_runner(settings: Settings) -> VacancySearchRunner:
@@ -276,6 +406,8 @@ def create_vacancy_search_runner(settings: Settings) -> VacancySearchRunner:
         parsers,
         snapshot_poll_interval_seconds=settings.brightdata_snapshot_poll_interval_seconds,
         snapshot_poll_timeout_seconds=settings.brightdata_snapshot_poll_timeout_seconds,
+        max_source_workers=settings.vacancy_parser_workers,
+        max_source_attempts=settings.vacancy_parser_max_attempts,
     )
 
 
@@ -399,7 +531,7 @@ def job_identity(job: ParsedJob) -> str:
     location = normalize_identity_part(job.location)
     if not title or not company:
         return ""
-    return "|".join((title, company, location))
+    return f"{title}|{company}|{location}"
 
 
 def normalize_identity_part(value: str | None) -> str:

@@ -40,6 +40,7 @@ from app.services.candidate_snapshot import (
     CandidateSnapshotError,
     get_candidate_match_snapshot,
 )
+from app.services.critical_notifications import create_parser_failure_notifications
 from app.services.discovered_vacancies import (
     DiscoveredVacancyUpsertResult,
     compact_screening_data,
@@ -452,6 +453,15 @@ def execute_job_search(
         db.commit()
         log_job_search_finished(run)
         raise
+
+    run.source_errors = search_result.source_errors
+    create_parser_failure_notifications(
+        db,
+        run_id=run.id,
+        source_errors=search_result.source_errors,
+        source_attempts=search_result.source_attempts,
+    )
+    db.commit()
 
     discovered_at = datetime.now(UTC)
     inventory_result = upsert_discovered_vacancies(
@@ -1415,7 +1425,7 @@ def stored_job_identity(data: dict[str, Any]) -> str:
     location = normalize_identity_part(str(data.get("location") or ""))
     if not title or not company:
         return ""
-    return "|".join((title, company, location))
+    return f"{title}|{company}|{location}"
 
 
 def normalize_source(value: str) -> str:

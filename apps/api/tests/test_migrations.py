@@ -132,6 +132,22 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
         assert inspect(engine).get_pk_constraint("job_filter_settings")[
             "constrained_columns"
         ] == ["owner_id"]
+        critical_notification_columns = {
+            column["name"]
+            for column in inspect(engine).get_columns("critical_notifications")
+        }
+        assert critical_notification_columns == {
+            "id",
+            "owner_id",
+            "severity",
+            "category",
+            "source",
+            "title",
+            "description",
+            "attempts",
+            "run_id",
+            "created_at",
+        }
         resume_template_columns = {
             column["name"]
             for column in inspect(engine).get_columns(
@@ -186,6 +202,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "resume_tailoring_runs",
             "resume_tailoring_stages",
             "resume_template_definitions",
+            "critical_notifications",
         }
         for table_name in owner_tables:
             owner_column = next(
@@ -203,7 +220,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260827_0043"
+            assert revision == "20260828_0044"
             entry_it = connection.execute(
                 text(
                     "SELECT id, owner_id, name, filters "
@@ -1144,7 +1161,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260827_0043"
+            assert revision == "20260828_0044"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
@@ -1184,7 +1201,7 @@ def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> Non
                     "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
                 )
             ).scalar_one()
-        assert revision == "20260827_0043"
+        assert revision == "20260828_0044"
         assert entry_it_count == 1
         assert LEGACY_RECOVERABLE_MISSING_TABLES <= set(
             inspect(engine).get_table_names()

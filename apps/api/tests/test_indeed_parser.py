@@ -1,3 +1,5 @@
+from typing import Self
+
 import httpx
 from fastapi.testclient import TestClient
 
@@ -64,14 +66,14 @@ def test_indeed_parser_has_official_brightdata_dataset_default() -> None:
     assert parser.dataset_id == INDEED_JOBS_DATASET_ID == "gd_l4dx9j9sscpvs7no2"
 
 
-def test_indeed_search_calls_brightdata_scrape_api(monkeypatch) -> None:
+def test_indeed_search_calls_brightdata_async_trigger_api(monkeypatch) -> None:
     captured: dict[str, object] = {}
 
     class FakeClient:
         def __init__(self, *, timeout: float) -> None:
             captured["timeout"] = timeout
 
-        def __enter__(self) -> "FakeClient":
+        def __enter__(self) -> Self:
             return self
 
         def __exit__(self, *args: object) -> None:
@@ -82,12 +84,7 @@ def test_indeed_search_calls_brightdata_scrape_api(monkeypatch) -> None:
             captured.update(kwargs)
             return httpx.Response(
                 200,
-                json=[
-                    {
-                        "jobid": "f236970b0305e1c7",
-                        "job_title": "Research Scientist",
-                    }
-                ],
+                json={"snapshot_id": "snapshot-indeed"},
                 request=httpx.Request("POST", url),
             )
 
@@ -96,22 +93,21 @@ def test_indeed_search_calls_brightdata_scrape_api(monkeypatch) -> None:
 
     response = parser.search(IndeedSearchRequest(keywords="Research Scientist"))
 
-    assert captured["url"] == "https://api.example.test/scrape"
+    assert captured["url"] == "https://api.example.test/trigger"
     assert captured["params"] == {
         "dataset_id": INDEED_JOBS_DATASET_ID,
         "type": "discover_new",
         "discover_by": "url",
         "format": "json",
+        "include_errors": "true",
     }
-    assert captured["json"] == {
-        "input": [
-            {
-                "url": "https://www.indeed.com/jobs?q=Research+Scientist",
-            }
-        ]
-    }
-    assert response.status == "completed"
-    assert response.jobs[0].source == "indeed"
+    assert captured["json"] == [
+        {
+            "url": "https://www.indeed.com/jobs?q=Research+Scientist",
+        }
+    ]
+    assert response.status == "queued"
+    assert response.snapshot_id == "snapshot-indeed"
 
 
 def test_indeed_snapshot_normalizes_and_deduplicates_records(monkeypatch) -> None:

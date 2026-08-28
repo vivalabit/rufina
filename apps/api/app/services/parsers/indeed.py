@@ -4,7 +4,6 @@ from urllib.parse import quote, urlencode
 from app.models.parsers import IndeedSearchRequest, ParsedJob
 from app.services.parsers.linkedin import LinkedInJobsParser, first_present
 
-
 INDEED_JOBS_DATASET_ID = "gd_l4dx9j9sscpvs7no2"
 
 REMOTE_FILTERS = {
@@ -84,6 +83,23 @@ class IndeedJobsParser(LinkedInJobsParser):
     @staticmethod
     def build_search_input(request: IndeedSearchRequest, search_url: str) -> dict[str, Any]:
         return {"url": search_url}
+
+    def build_trigger_params(self, request: IndeedSearchRequest) -> dict[str, Any]:
+        del request
+        return {
+            "dataset_id": self.dataset_id,
+            "type": "discover_new",
+            "discover_by": "url",
+            "format": "json",
+            "include_errors": "true",
+        }
+
+    def build_trigger_payload(
+        self,
+        request: IndeedSearchRequest,
+        search_url: str,
+    ) -> list[dict[str, Any]]:
+        return [self.build_search_input(request, search_url)]
 
     @staticmethod
     def normalize_job(record: dict[str, Any]) -> ParsedJob:

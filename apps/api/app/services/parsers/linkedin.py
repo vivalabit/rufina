@@ -79,16 +79,8 @@ class LinkedInJobsParser:
             raise BrightDataConfigurationError("BRIGHTDATA_API_KEY is not configured")
 
         search_url = self.build_search_url(request)
-        payload = self.build_discovery_inputs(request)
-        params = {
-            "dataset_id": self.dataset_id,
-            "type": "discover_new",
-            "discover_by": "keyword",
-            "format": "json",
-            "include_errors": "true",
-            "limit_per_input": min(request.limit_per_input, request.results_limit),
-            "limit_multiple_results": request.results_limit,
-        }
+        payload = self.build_trigger_payload(request, search_url)
+        params = self.build_trigger_params(request)
 
         try:
             with httpx.Client(timeout=self.timeout_seconds) as client:
@@ -138,6 +130,25 @@ class LinkedInJobsParser:
             search_url=search_url,
             jobs=jobs[: request.results_limit],
         )
+
+    def build_trigger_params(self, request: LinkedInSearchRequest) -> dict[str, Any]:
+        return {
+            "dataset_id": self.dataset_id,
+            "type": "discover_new",
+            "discover_by": "keyword",
+            "format": "json",
+            "include_errors": "true",
+            "limit_per_input": min(request.limit_per_input, request.results_limit),
+            "limit_multiple_results": request.results_limit,
+        }
+
+    def build_trigger_payload(
+        self,
+        request: LinkedInSearchRequest,
+        search_url: str,
+    ) -> list[dict[str, Any]]:
+        del search_url
+        return self.build_discovery_inputs(request)
 
     @classmethod
     def build_discovery_inputs(

@@ -1,20 +1,20 @@
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import Connection, create_engine
-from sqlalchemy import pool
+from sqlalchemy import Connection, create_engine, pool
 
-import app.models.assistant  # noqa: F401
-import app.models.applications  # noqa: F401
-import app.models.conversations  # noqa: F401
-import app.models.documents  # noqa: F401
-import app.models.job_filter  # noqa: F401
-import app.models.job_screening  # noqa: F401
-import app.models.job_search  # noqa: F401
-import app.models.jobs  # noqa: F401
-import app.models.profile  # noqa: F401
-import app.models.resume  # noqa: F401
-import app.models.resume_templates  # noqa: F401
+import app.models.applications
+import app.models.assistant
+import app.models.conversations
+import app.models.documents
+import app.models.job_filter
+import app.models.job_screening
+import app.models.job_search
+import app.models.jobs
+import app.models.notifications
+import app.models.profile
+import app.models.resume
+import app.models.resume_templates
 from app.core.database import Base
 from app.core.settings import get_settings
 

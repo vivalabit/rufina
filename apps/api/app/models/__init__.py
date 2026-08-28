@@ -2,6 +2,10 @@
 
 from app.models.job_screening import JobScreeningDecisionRecord
 from app.models.jobs import DiscoveredVacancyRecord
+from app.models.notifications import (
+    CriticalNotificationPayload,
+    CriticalNotificationRecord,
+)
 from app.models.job_search import (
     JobSearchConfigRecord,
     JobSearchConfigV2,
@@ -87,6 +91,8 @@ __all__ = [
     "ExperienceRewriteRequest",
     "ExperienceRewriteResponse",
     "DiscoveredVacancyRecord",
+    "CriticalNotificationPayload",
+    "CriticalNotificationRecord",
     "FinalResume",
     "ImaginatorClaimLedgerEntry",
     "ImaginatorDraft",
