@@ -1242,15 +1242,8 @@ function AutoSearchForm({
                             {source.mark}
                           </span>
                           <span className="min-w-0 flex-1">
-                            <span className="flex flex-wrap items-center gap-2">
-                              <span className="text-sm font-bold text-foreground">
-                                {source.label}
-                              </span>
-                              {source.id === "linkedin" ? (
-                                <span className="rounded bg-success/18 px-2 py-0.5 text-[10px] font-bold text-success">
-                                  Recommended
-                                </span>
-                              ) : null}
+                            <span className="text-sm font-bold text-foreground">
+                              {source.label}
                             </span>
                             <span className="mt-1 block text-xs font-medium text-muted">
                               {source.description}

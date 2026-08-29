@@ -70,7 +70,7 @@ export function DirectCompaniesSource({
         <Button
           type="button"
           variant="ghost"
-          className="h-8 shrink-0 rounded-md border border-[#fa5d00]/45 bg-[#fa5d00]/10 px-3 text-xs font-bold text-[#fff8f1] hover:bg-[#fa5d00]/20"
+          className="h-8 shrink-0 rounded-md border border-[#fa5d00]/45 bg-[#fa5d00]/10 px-3 text-xs font-bold text-foreground hover:bg-[#fa5d00]/20"
           disabled={companies.length === 0}
           onClick={() =>
             onSelectedCompanyIdsChange(

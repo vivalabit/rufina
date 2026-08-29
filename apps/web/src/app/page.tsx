@@ -73,6 +73,7 @@ import {
   JobsToolbar,
   type BulkAnalysisScope,
 } from "@/components/jobs-toolbar";
+import { LogsView, type AppLogEntry, type AppLogLevel } from "@/components/logs-view";
 import { MasterResumeEditor } from "@/components/master-resume-editor";
 import { ResumeTemplateManager } from "@/components/resume-template-manager";
 import { getAiMatchAnalysisStatus, legacyAiMatchVersion } from "@/lib/ai-match";
@@ -365,17 +366,6 @@ const isAllowedAIWorkloadModel = (model: string) =>
 
 type UiSettings = {
   showLogs: boolean;
-};
-
-type AppLogLevel = "info" | "success" | "warning" | "error";
-
-type AppLogEntry = {
-  id: string;
-  timestamp: string;
-  level: AppLogLevel;
-  area: string;
-  message: string;
-  details?: string;
 };
 
 type ParserId = "linkedin" | "indeed" | "jobs_ch";
@@ -2764,20 +2754,6 @@ function normalizeStoredLogs(value: unknown) {
 
 function isAppLogLevel(value: unknown): value is AppLogLevel {
   return value === "info" || value === "success" || value === "warning" || value === "error";
-}
-
-function formatLogTimestamp(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Time unknown";
-
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-    hour12: false,
-  });
 }
 
 function formatAiMatchTimestamp(value?: string) {
@@ -7599,16 +7575,9 @@ export default function HomePage() {
                                     {parserOption.mark}
                                   </div>
                                   <div className="min-w-0 flex-1">
-                                    <div className="flex flex-wrap items-center gap-2">
-                                      <h4 className="text-sm font-bold text-foreground">
-                                        {parserOption.label}
-                                      </h4>
-                                      {parserOption.id === "linkedin" && (
-                                        <span className="rounded bg-success/18 px-2 py-0.5 text-[11px] font-bold text-success">
-                                          Recommended
-                                        </span>
-                                      )}
-                                    </div>
+                                    <h4 className="text-sm font-bold text-foreground">
+                                      {parserOption.label}
+                                    </h4>
                                     <p className="mt-1 text-xs font-medium text-muted">
                                       {parserOption.description}
                                     </p>
@@ -7667,14 +7636,9 @@ export default function HomePage() {
                                 dc
                               </div>
                               <div className="min-w-0 flex-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <h4 className="text-sm font-bold text-foreground">
-                                    Direct Companies
-                                  </h4>
-                                  <span className="rounded bg-[#fa5d00]/20 px-2 py-0.5 text-[10px] font-bold text-accent">
-                                    Setup
-                                  </span>
-                                </div>
+                                <h4 className="text-sm font-bold text-foreground">
+                                  Direct Companies
+                                </h4>
                                 <p className="mt-1 text-xs font-medium text-muted">
                                   Track jobs on company career pages
                                 </p>
@@ -11167,72 +11131,6 @@ function SettingsView({
             </div>
           </div>
         </section>
-      </div>
-    </section>
-  );
-}
-
-function LogsView({ logs, onClear }: { logs: AppLogEntry[]; onClear: () => void }) {
-  const levelStyles: Record<AppLogLevel, string> = {
-    info: "border-[#fa5d00]/35 bg-[#fa5d00]/12 text-accent",
-    success: "border-success/35 bg-success/12 text-success",
-    warning: "border-[#fa5d00]/35 bg-[#fa5d00]/12 text-accent",
-    error: "border-[#fa5d00]/45 bg-[#fa5d00]/13 text-[#fa5d00]",
-  };
-
-  return (
-    <section className="job-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
-      <header className="mb-4 flex shrink-0 flex-col gap-3 md:flex-row md:items-start md:justify-between 2xl:mb-5">
-        <div>
-          <h1 className="page-title text-[24px] leading-tight text-foreground sm:text-[27px] 2xl:text-[31px]">
-            Logs
-          </h1>
-          <p className="mt-1 text-[13px] text-muted 2xl:mt-1.5 2xl:text-base">Local application events and parser activity</p>
-        </div>
-        <Button
-          type="button"
-          variant="ghost"
-          className="h-10 w-full rounded-md border border-border bg-transparent px-4 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8] md:w-auto 2xl:h-11"
-          disabled={logs.length === 0}
-          onClick={onClear}
-        >
-          <Trash2 className="h-4 w-4" />
-          Clear logs
-        </Button>
-      </header>
-
-      <div className="panel flex min-h-[360px] max-w-[1120px] flex-1 flex-col overflow-hidden p-0">
-        {logs.length === 0 ? (
-          <div className="grid min-h-[360px] place-items-center px-4 text-center">
-            <div>
-              <FileText className="mx-auto h-8 w-8 text-muted" />
-              <h2 className="mt-3 text-base font-bold text-foreground">No logs yet</h2>
-              <p className="mt-1 max-w-[360px] text-sm leading-6 text-muted">
-                Run a vacancy search or change settings to create log entries.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <div className="job-scroll min-h-0 flex-1 overflow-y-auto">
-            {logs.map((log) => (
-              <article key={log.id} className="border-b border-border px-4 py-3 last:border-0 2xl:px-5 2xl:py-4">
-                <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className={cn("inline-flex h-6 items-center rounded-md border px-2 text-[11px] font-bold uppercase", levelStyles[log.level])}>
-                        {log.level}
-                      </span>
-                      <span className="text-xs font-bold text-[#1d1e1c]">{log.area}</span>
-                      <span className="text-xs text-muted">{formatLogTimestamp(log.timestamp)}</span>
-                    </div>
-                    <p className="mt-2 text-sm font-semibold leading-5 text-foreground 2xl:text-base">{log.message}</p>
-                    {log.details && <p className="mt-1 whitespace-pre-wrap break-words font-mono text-xs leading-5 text-muted [overflow-wrap:anywhere]">{log.details}</p>}
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
       </div>
     </section>
   );
