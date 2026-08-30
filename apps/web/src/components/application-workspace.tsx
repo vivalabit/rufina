@@ -157,7 +157,7 @@ type WorkspaceApplicationDocument = {
   fileSize: string;
   fileType: string;
   uploadedAt: string;
-  dataUrl: string;
+  downloadUrl: string;
 };
 
 type WorkspaceApplication = {
@@ -182,7 +182,6 @@ type WorkspaceProfile = {
   resume_file_name: string;
   resume_file_size: string;
   resume_updated_at: string;
-  resume_data_url: string;
 };
 
 type GeneratedDocumentVersion = {
@@ -344,7 +343,7 @@ type ApplicationWorkspaceProps = {
       fileName: string;
       fileType: string;
       uploadedAt: string;
-      dataUrl: string;
+      downloadUrl: string;
     },
   ) => void;
   onMarkApplied: (applicationId: string) => void;
@@ -1572,7 +1571,7 @@ export function ApplicationWorkspace({
         fileName: documentFileName(saved),
         fileType: "application/pdf",
         uploadedAt: saved.updatedAt,
-        dataUrl: `${apiBaseUrl}/documents/${encodeURIComponent(saved.id)}/download`,
+        downloadUrl: `${apiBaseUrl}/documents/${encodeURIComponent(saved.id)}/download`,
       });
       return true;
     };
@@ -1752,7 +1751,7 @@ export function ApplicationWorkspace({
         fileName: documentFileName(saved),
         fileType: docxContentType,
         uploadedAt: saved.updatedAt,
-        dataUrl: `${apiBaseUrl}/documents/${encodeURIComponent(saved.id)}/download`,
+        downloadUrl: `${apiBaseUrl}/documents/${encodeURIComponent(saved.id)}/download`,
       });
       return true;
     } catch (error) {
@@ -1943,7 +1942,7 @@ export function ApplicationWorkspace({
         fileName: documentFileName(restored),
         fileType: docxContentType,
         uploadedAt: restored.updatedAt,
-        dataUrl: `${apiBaseUrl}/documents/${encodeURIComponent(restored.id)}/download`,
+        downloadUrl: `${apiBaseUrl}/documents/${encodeURIComponent(restored.id)}/download`,
       });
     } catch (error) {
       setDocumentError(error instanceof Error ? error.message : "Document version could not be restored");

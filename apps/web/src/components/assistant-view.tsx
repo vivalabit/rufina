@@ -174,7 +174,7 @@ export type AssistantDocumentAttachment = {
   fileName: string;
   fileType: string;
   uploadedAt: string;
-  dataUrl: string;
+  downloadUrl: string;
 };
 
 type AssistantViewProps = {
@@ -927,7 +927,7 @@ export function AssistantView({
           fileName: documentFileName(savedDocument),
           fileType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           uploadedAt: savedDocument.updatedAt,
-          dataUrl: `${apiBaseUrl}/documents/${encodeURIComponent(savedDocument.id)}/download`,
+          downloadUrl: `${apiBaseUrl}/documents/${encodeURIComponent(savedDocument.id)}/download`,
         });
       }
       setDocumentDraft(null);
@@ -1058,7 +1058,7 @@ export function AssistantView({
               fileName: documentFileName(savedDocument),
               fileType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
               uploadedAt: savedDocument.updatedAt,
-              dataUrl: `${apiBaseUrl}/documents/${encodeURIComponent(savedDocument.id)}/download`,
+              downloadUrl: `${apiBaseUrl}/documents/${encodeURIComponent(savedDocument.id)}/download`,
             });
           }
         }

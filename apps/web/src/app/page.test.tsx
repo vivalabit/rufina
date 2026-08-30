@@ -1173,39 +1173,48 @@ function trackedTestApplication({
   };
 }
 
-it("deletes a legacy supporting document and hides stored cover letters", async () => {
+it("deletes a stored supporting document and hides cover letters", async () => {
   window.history.replaceState(null, "", "#profile");
   vi.spyOn(window, "confirm").mockReturnValue(true);
-  const profileUpdates: Array<Record<string, unknown>> = [];
-  let storedProfile: Record<string, unknown> = {
+  const storedProfile: Record<string, unknown> = {
     name: "Eduard Ishchenko",
-    documents: JSON.stringify([
-      {
-        title: "Legacy CV",
-        category: "CV / Resume",
-        language: "English",
-        file_name: "legacy-cv.docx",
-        file_size: "60 KB",
-        file_type:
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        uploaded_at: "2026-07-20T10:00:00.000Z",
-        data_url:
-          "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,cv",
-      },
-      {
-        title: "Legacy Cover Letter",
-        category: "Cover Letter",
-        language: "German",
-        file_name: "legacy-cover.docx",
-        file_size: "37 KB",
-        file_type:
-          "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        uploaded_at: "2026-07-20T10:00:00.000Z",
-        data_url:
-          "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,cover",
-      },
-    ]),
   };
+  let profileFiles = [
+    {
+      id: "profile-file-cv",
+      kind: "supporting_document",
+      title: "Legacy CV",
+      category: "CV / Resume",
+      language: "English",
+      issuer: "",
+      notes: "",
+      fileName: "legacy-cv.docx",
+      sizeBytes: 60_000,
+      contentType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      contentSha256: "a".repeat(64),
+      createdAt: "2026-07-20T10:00:00.000Z",
+      updatedAt: "2026-07-20T10:00:00.000Z",
+      downloadUrl: "/profile/files/profile-file-cv",
+    },
+    {
+      id: "profile-file-cover",
+      kind: "supporting_document",
+      title: "Legacy Cover Letter",
+      category: "Cover Letter",
+      language: "German",
+      issuer: "",
+      notes: "",
+      fileName: "legacy-cover.docx",
+      sizeBytes: 37_000,
+      contentType:
+        "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      contentSha256: "b".repeat(64),
+      createdAt: "2026-07-20T10:00:00.000Z",
+      updatedAt: "2026-07-20T10:00:00.000Z",
+      downloadUrl: "/profile/files/profile-file-cover",
+    },
+  ];
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
     const requestUrl =
       typeof input === "string"
@@ -1225,10 +1234,11 @@ it("deletes a legacy supporting document and hides stored cover letters", async 
       return Response.json([]);
     if (url.pathname === "/profile" && method === "GET")
       return Response.json(storedProfile);
-    if (url.pathname === "/profile" && method === "PUT") {
-      storedProfile = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      profileUpdates.push(storedProfile);
-      return Response.json(storedProfile);
+    if (url.pathname === "/profile/files" && method === "GET")
+      return Response.json(profileFiles);
+    if (url.pathname === "/profile/files/profile-file-cv" && method === "DELETE") {
+      profileFiles = profileFiles.filter((file) => file.id !== "profile-file-cv");
+      return new Response(null, { status: 204 });
     }
     if (url.pathname === "/settings" && method === "GET")
       return Response.json(configuredAppSettings);
@@ -1256,16 +1266,7 @@ it("deletes a legacy supporting document and hides stored cover letters", async 
     expect(screen.queryByText("Legacy CV")).not.toBeInTheDocument(),
   );
   expect(screen.queryByText("Legacy Cover Letter")).not.toBeInTheDocument();
-  expect(profileUpdates).toHaveLength(1);
-  const savedDocuments = JSON.parse(
-    String(profileUpdates[0].documents),
-  ) as Array<{ id: string; title: string }>;
-  expect(savedDocuments).toEqual([
-    expect.objectContaining({
-      id: "legacy-document-1",
-      title: "Legacy Cover Letter",
-    }),
-  ]);
+  expect(profileFiles.map((file) => file.id)).toEqual(["profile-file-cover"]);
 });
 
 it("offers CV / Resume as a supporting document type", async () => {

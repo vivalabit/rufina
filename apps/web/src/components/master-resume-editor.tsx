@@ -178,9 +178,18 @@ type MasterResumeConfirmationResponse = {
 };
 
 type ProfileResume = {
+  fileId: string;
   fileName: string;
   fileSize?: string;
-  dataUrl: string;
+};
+
+type UploadedProfileResume = {
+  id: string;
+  fileName: string;
+  sizeBytes: number;
+  contentType: string;
+  updatedAt: string;
+  downloadUrl: string;
 };
 
 type RequestState = "idle" | "loading" | "error";
@@ -208,9 +217,11 @@ const sectionDescriptions: Record<MasterResumeReviewSectionName, string> = {
 export function MasterResumeEditor({
   apiBaseUrl,
   profileResume,
+  onProfileResumeUploaded,
 }: {
   apiBaseUrl: string;
   profileResume?: ProfileResume | null;
+  onProfileResumeUploaded?: (file: UploadedProfileResume) => void;
 }) {
   const uploadRef = useRef<HTMLInputElement>(null);
   const [importState, setImportState] = useState<RequestState>("idle");
@@ -236,7 +247,7 @@ export function MasterResumeEditor({
     [draft],
   );
 
-  async function importResume(fileName: string, dataUrl: string) {
+  async function importResume(fileName: string, profileFileId: string) {
     setImportState("loading");
     setMessage("");
     setConfirmation(null);
@@ -249,8 +260,7 @@ export function MasterResumeEditor({
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            resumeFileName: fileName,
-            resumeDataUrl: dataUrl,
+            profileFileId,
           }),
         },
         MASTER_RESUME_IMPORT_TIMEOUT_MS,
@@ -290,7 +300,30 @@ export function MasterResumeEditor({
       return;
     }
     try {
-      await importResume(file.name, await readFileAsDataUrl(file));
+      const query = new URLSearchParams({
+        kind: "primary_resume",
+        file_name: file.name,
+        title: file.name,
+        category: "CV / Resume",
+      });
+      const uploadResponse = await fetchWithTimeout(
+        `${apiBaseUrl}/profile/files?${query}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": file.type || "application/octet-stream" },
+          body: file,
+        },
+      );
+      const uploaded = (await uploadResponse.json()) as UploadedProfileResume | { detail?: string };
+      if (!uploadResponse.ok || !("id" in uploaded)) {
+        throw new Error(
+          "detail" in uploaded && uploaded.detail
+            ? uploaded.detail
+            : "Resume upload failed",
+        );
+      }
+      onProfileResumeUploaded?.(uploaded);
+      await importResume(uploaded.fileName, uploaded.id);
     } catch (error) {
       setImportState("error");
       setMessage(
@@ -450,14 +483,14 @@ export function MasterResumeEditor({
                 Continue review
               </Button>
             ) : null}
-            {!confirmation && profileResume?.dataUrl ? (
+            {!confirmation && profileResume?.fileId ? (
               <Button
                 type="button"
                 variant="ghost"
                 className="h-10 rounded-md border border-border bg-[#fff8f1] px-4 text-xs font-bold text-[#1d1e1c] hover:bg-[#fff3e8]"
                 disabled={importState === "loading"}
                 onClick={() =>
-                  importResume(profileResume.fileName, profileResume.dataUrl)
+                  importResume(profileResume.fileName, profileResume.fileId)
                 }
               >
                 {importState === "loading" ? (
@@ -1391,17 +1424,4 @@ function isSupportedResumeFile(file: File): boolean {
     file.type ===
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
   );
-}
-
-function readFileAsDataUrl(file: File): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () =>
-      typeof reader.result === "string"
-        ? resolve(reader.result)
-        : reject(new Error("Could not read the selected resume."));
-    reader.onerror = () =>
-      reject(new Error("Could not read the selected resume."));
-    reader.readAsDataURL(file);
-  });
 }

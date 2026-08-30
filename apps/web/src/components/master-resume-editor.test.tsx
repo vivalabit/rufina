@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
 import {
@@ -130,10 +130,9 @@ it("imports, edits, reviews, and confirms a Master Resume once", async () => {
     <MasterResumeEditor
       apiBaseUrl="http://localhost:8000"
       profileResume={{
+        fileId: "profile-file-1",
         fileName: "ada-resume.docx",
         fileSize: "42 KB",
-        dataUrl:
-          "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,cmVzdW1l",
       }}
     />,
   );
@@ -151,7 +150,7 @@ it("imports, edits, reviews, and confirms a Master Resume once", async () => {
     target: { value: "Augusta Ada Lovelace" },
   });
 
-  for (const _section of MASTER_RESUME_REVIEW_SECTIONS) {
+  for (let reviewIndex = 0; reviewIndex < MASTER_RESUME_REVIEW_SECTIONS.length; reviewIndex += 1) {
     fireEvent.click(screen.getByRole("button", { name: "Mark reviewed" }));
   }
 
@@ -175,9 +174,7 @@ it("imports, edits, reviews, and confirms a Master Resume once", async () => {
   expect(requests[0]).toEqual({
     path: "/profile/import-master-resume",
     body: {
-      resumeFileName: "ada-resume.docx",
-      resumeDataUrl:
-        "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,cmVzdW1l",
+      profileFileId: "profile-file-1",
     },
   });
   expect(requests[1].path).toBe(
@@ -193,6 +190,47 @@ it("imports, edits, reviews, and confirms a Master Resume once", async () => {
   });
 });
 
+it("uploads a selected resume as raw bytes before importing by file id", async () => {
+  const selectedFile = new File(["resume-bytes"], "ada-resume.pdf", {
+    type: "application/pdf",
+  });
+  const requests: Array<{ path: string; body: BodyInit | null | undefined }> = [];
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const path = new URL(String(input)).pathname;
+      requests.push({ path, body: init?.body });
+      if (path === "/profile/files") {
+        return Response.json({
+          id: "profile-file-uploaded",
+          fileName: selectedFile.name,
+          sizeBytes: selectedFile.size,
+          contentType: selectedFile.type,
+          updatedAt: "2026-08-30T10:00:00Z",
+          downloadUrl: "/profile/files/profile-file-uploaded",
+        });
+      }
+      if (path === "/profile/import-master-resume") {
+        return Response.json(importResponse);
+      }
+      throw new Error(`Unexpected request: ${path}`);
+    }),
+  );
+
+  render(<MasterResumeEditor apiBaseUrl="http://localhost:8000" />);
+  fireEvent.change(screen.getByLabelText("Choose Master Resume file"), {
+    target: { files: [selectedFile] },
+  });
+
+  expect(
+    await screen.findByRole("dialog", { name: "Review Master Resume" }),
+  ).toBeInTheDocument();
+  expect(requests[0]).toEqual({ path: "/profile/files", body: selectedFile });
+  expect(JSON.parse(String(requests[1].body))).toEqual({
+    profileFileId: "profile-file-uploaded",
+  });
+});
+
 it("invalidates a reviewed section when its content changes", async () => {
   vi.stubGlobal(
     "fetch",
@@ -203,8 +241,8 @@ it("invalidates a reviewed section when its content changes", async () => {
     <MasterResumeEditor
       apiBaseUrl="http://localhost:8000"
       profileResume={{
+        fileId: "profile-file-1",
         fileName: "ada-resume.docx",
-        dataUrl: "data:application/octet-stream;base64,cmVzdW1l",
       }}
     />,
   );
@@ -245,8 +283,8 @@ it("shows an actionable import error", async () => {
     <MasterResumeEditor
       apiBaseUrl="http://localhost:8000"
       profileResume={{
+        fileId: "profile-file-broken",
         fileName: "broken.pdf",
-        dataUrl: "data:application/pdf;base64,YnJva2Vu",
       }}
     />,
   );

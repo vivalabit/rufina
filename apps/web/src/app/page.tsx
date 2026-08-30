@@ -213,12 +213,16 @@ type ApplicationEventOutcome = "positive" | "negative" | "neutral";
 type ApplicationDocument = {
   id: string;
   artifactId?: string;
+  sourceId?: string;
+  kind: "generated" | "uploaded" | "profile";
   title: string;
   fileName: string;
   fileSize: string;
   fileType: string;
   uploadedAt: string;
-  dataUrl: string;
+  downloadUrl: string;
+  legacyDataUrl?: string;
+  pendingFile?: File;
 };
 
 type TrackedApplication = {
@@ -240,6 +244,8 @@ type ManualJobDraft = {
 };
 
 type ManualApplicationDraft = ManualJobDraft & {
+  id?: string;
+  jobId?: string;
   status: ApplicationStatus;
   documents: ApplicationDocument[];
 };
@@ -524,11 +530,46 @@ type CandidateProfile = {
   job_preferences: string;
   dealbreakers: string;
   additional_notes: string;
+  // File metadata is hydrated from /profile/files and lives only in React state.
+  // It is stripped before the profile JSON is sent to the API.
   documents: string;
+  avatar_file_id: string;
+  resume_file_id: string;
   resume_file_name: string;
   resume_file_size: string;
   resume_updated_at: string;
-  resume_data_url: string;
+  resume_download_url: string;
+};
+
+type ProfileFilePayload = {
+  id: string;
+  kind: "primary_resume" | "supporting_document" | "avatar";
+  title: string;
+  category: string;
+  language: string;
+  issuer: string;
+  notes: string;
+  fileName: string;
+  sizeBytes: number;
+  contentType: string;
+  contentSha256: string;
+  createdAt: string;
+  updatedAt: string;
+  downloadUrl: string;
+};
+
+type WorkspaceSourceFilePayload = {
+  id: string;
+  applicationId: string;
+  category: string;
+  title: string;
+  language: string;
+  fileName: string;
+  fileSize: string;
+  sizeBytes?: number;
+  fileType: string;
+  uploadedAt: string;
+  downloadUrl: string;
 };
 
 type ExperienceEntry = {
@@ -566,7 +607,8 @@ type DocumentEntry = {
   file_size: string;
   file_type: string;
   uploaded_at: string;
-  data_url: string;
+  download_url: string;
+  pending_file?: File;
 };
 
 type JobPreferences = {
@@ -747,6 +789,8 @@ const savedJobIdsStorageKey = "tasko.savedJobIds.v1";
 const archivedJobIdsStorageKey = "tasko.archivedJobIds.v1";
 const deletedJobIdsStorageKey = "tasko.deletedJobIds.v1";
 const applicationsStorageKey = "tasko.applications.v1";
+const profileFileStorageMigrationKey = "tasko.file-storage-migration.v1.profile";
+const applicationFileStorageMigrationKey = "tasko.file-storage-migration.v1.applications";
 const legacyDemoApplicationIds = new Set([
   "application-stripe-senior-product-designer",
   "application-figma-product-design-lead",
@@ -1070,15 +1114,32 @@ const defaultCandidateProfile: CandidateProfile = {
   dealbreakers: "",
   additional_notes: "",
   documents: "",
+  avatar_file_id: "",
+  resume_file_id: "",
   resume_file_name: "",
   resume_file_size: "",
   resume_updated_at: "",
-  resume_data_url: "",
+  resume_download_url: "",
 };
 
-const candidateProfileDataFields = Object.keys(defaultCandidateProfile).filter(
-  (field) => field !== "avatar_url",
-) as Array<keyof CandidateProfile>;
+const candidateProfileDataFields: Array<keyof CandidateProfile> = [
+  "name",
+  "current_role",
+  "desired_role",
+  "location",
+  "work_format",
+  "headline",
+  "linkedin",
+  "github",
+  "portfolio",
+  "personal_site",
+  "experience",
+  "skills",
+  "education",
+  "job_preferences",
+  "dealbreakers",
+  "additional_notes",
+];
 
 const defaultExperienceDraft: ExperienceEntry = {
   id: "",
@@ -1115,7 +1176,7 @@ const defaultDocumentDraft: DocumentEntry = {
   file_size: "",
   file_type: "",
   uploaded_at: "",
-  data_url: "",
+  download_url: "",
 };
 
 const defaultManualApplicationDraft: ManualApplicationDraft = {
@@ -1478,7 +1539,11 @@ const legacyCandidateProfileValues: Partial<CandidateProfile> = {
 };
 
 function normalizeCandidateProfile(profile: Partial<CandidateProfile>): CandidateProfile {
-  const normalizedProfile = { ...defaultCandidateProfile, ...profile };
+  const normalizedProfile = { ...defaultCandidateProfile };
+  for (const field of Object.keys(defaultCandidateProfile) as Array<keyof CandidateProfile>) {
+    const value = profile[field];
+    if (typeof value === "string") normalizedProfile[field] = value;
+  }
 
   if (!normalizedProfile.avatar_url || normalizedProfile.avatar_url === "/avatars/pug.svg") {
     normalizedProfile.avatar_url = defaultCandidateProfile.avatar_url;
@@ -1501,25 +1566,493 @@ function hasCandidateProfileData(profile: CandidateProfile) {
   return candidateProfileDataFields.some((field) => hasProfileValue(profile[field]));
 }
 
-function readStoredCandidateProfile() {
+type LegacyStoredCandidateProfile = Partial<CandidateProfile> & {
+  resume_data_url?: string;
+  resumeDataUrl?: string;
+  documents?: string | unknown[];
+};
+
+function readLegacyStoredCandidateProfile(): LegacyStoredCandidateProfile | null {
   try {
     const rawProfile = window.localStorage.getItem(profileStorageKey);
     if (!rawProfile) return null;
-
-    const storedProfile = normalizeCandidateProfile(JSON.parse(rawProfile) as Partial<CandidateProfile>);
-    return hasCandidateProfileData(storedProfile) ? storedProfile : null;
+    const value = JSON.parse(rawProfile) as unknown;
+    return value && typeof value === "object"
+      ? value as LegacyStoredCandidateProfile
+      : null;
   } catch {
     window.localStorage.removeItem(profileStorageKey);
     return null;
   }
 }
 
-function cacheCandidateProfile(profile: CandidateProfile) {
-  if (hasCandidateProfileData(profile)) {
-    window.localStorage.setItem(profileStorageKey, JSON.stringify(profile));
-  } else {
-    window.localStorage.removeItem(profileStorageKey);
+function profilePayloadForApi(profile: CandidateProfile) {
+  const payload: Partial<CandidateProfile> = { ...profile };
+  delete payload.documents;
+  delete payload.avatar_file_id;
+  delete payload.resume_file_id;
+  delete payload.resume_file_name;
+  delete payload.resume_file_size;
+  delete payload.resume_updated_at;
+  delete payload.resume_download_url;
+  if (isInlineDataUrl(payload.avatar_url) || payload.avatar_url?.includes("/profile/files/")) {
+    payload.avatar_url = defaultCandidateProfile.avatar_url;
   }
+  return payload;
+}
+
+function resolveApiUrl(value: string) {
+  if (/^https?:\/\//i.test(value) || isInlineDataUrl(value)) return value;
+  return `${apiBaseUrl}${value.startsWith("/") ? value : `/${value}`}`;
+}
+
+function profileFileToDocumentEntry(file: ProfileFilePayload): DocumentEntry {
+  return normalizeDocumentEntry({
+    id: file.id,
+    title: file.title,
+    category: file.category,
+    language: file.language,
+    issuer: file.issuer,
+    notes: file.notes,
+    file_name: file.fileName,
+    file_size: formatFileSize(file.sizeBytes),
+    file_type: file.contentType,
+    uploaded_at: file.updatedAt,
+    download_url: resolveApiUrl(file.downloadUrl),
+  });
+}
+
+function hydrateProfileFiles(
+  profile: CandidateProfile,
+  files: ProfileFilePayload[],
+): CandidateProfile {
+  const resume = files.find((file) => file.kind === "primary_resume");
+  const avatar = files.find((file) => file.kind === "avatar");
+  const documents = files
+    .filter((file) => file.kind === "supporting_document")
+    .map(profileFileToDocumentEntry);
+  return normalizeCandidateProfile({
+    ...profile,
+    avatar_url: avatar ? resolveApiUrl(avatar.downloadUrl) : profile.avatar_url,
+    avatar_file_id: avatar?.id ?? "",
+    documents: serializeDocumentEntries(documents),
+    resume_file_id: resume?.id ?? "",
+    resume_file_name: resume?.fileName ?? "",
+    resume_file_size: resume ? formatFileSize(resume.sizeBytes) : "",
+    resume_updated_at: resume?.updatedAt ?? "",
+    resume_download_url: resume ? resolveApiUrl(resume.downloadUrl) : "",
+  });
+}
+
+function mergeHydratedProfileMetadata(
+  savedProfile: Partial<CandidateProfile>,
+  currentProfile: CandidateProfile,
+): CandidateProfile {
+  return normalizeCandidateProfile({
+    ...savedProfile,
+    avatar_url: currentProfile.avatar_url.includes("/profile/files/")
+      ? currentProfile.avatar_url
+      : savedProfile.avatar_url,
+    avatar_file_id: currentProfile.avatar_file_id,
+    documents: currentProfile.documents,
+    resume_file_id: currentProfile.resume_file_id,
+    resume_file_name: currentProfile.resume_file_name,
+    resume_file_size: currentProfile.resume_file_size,
+    resume_updated_at: currentProfile.resume_updated_at,
+    resume_download_url: currentProfile.resume_download_url,
+  });
+}
+
+class FileUploadResponseError extends Error {
+  readonly status: number;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = "FileUploadResponseError";
+    this.status = status;
+  }
+}
+
+const permanentLegacyFileStatuses = new Set([400, 413, 415, 422]);
+
+function isInlineDataUrl(value: unknown): boolean {
+  return typeof value === "string" && value.trim().toLowerCase().startsWith("data:");
+}
+
+function decodeDataUrl(dataUrl: string): Blob {
+  const normalizedDataUrl = dataUrl.trim();
+  const match = /^data:([^;,]+)?(;base64)?,(.*)$/is.exec(normalizedDataUrl);
+  if (!match) throw new Error("Legacy file data is invalid");
+  const contentType = match[1] || "application/octet-stream";
+  const bytes = match[2]
+    ? Uint8Array.from(atob(match[3]), (character) => character.charCodeAt(0))
+    : new TextEncoder().encode(decodeURIComponent(match[3]));
+  return new Blob([bytes], { type: contentType });
+}
+
+async function uploadProfileFile(
+  file: Blob,
+  metadata: {
+    kind: ProfileFilePayload["kind"];
+    fileName: string;
+    title?: string;
+    category?: string;
+    language?: string;
+    issuer?: string;
+    notes?: string;
+    legacyDocumentId?: string;
+    replaceExisting?: boolean;
+  },
+): Promise<ProfileFilePayload> {
+  const query = new URLSearchParams({
+    kind: metadata.kind,
+    file_name: metadata.fileName,
+  });
+  if (metadata.legacyDocumentId) {
+    query.set("legacyDocumentId", metadata.legacyDocumentId);
+  }
+  if (metadata.replaceExisting !== undefined) {
+    query.set("replaceExisting", String(metadata.replaceExisting));
+  }
+  for (const [key, value] of Object.entries({
+    title: metadata.title,
+    category: metadata.category,
+    language: metadata.language,
+    issuer: metadata.issuer,
+    notes: metadata.notes,
+  })) {
+    if (value) query.set(key, value);
+  }
+  const response = await fetch(`${apiBaseUrl}/profile/files?${query}`, {
+    method: "POST",
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+    body: file,
+  });
+  if (!response.ok) {
+    throw new FileUploadResponseError(
+      await readApiErrorMessage(response, "Profile file could not be uploaded"),
+      response.status,
+    );
+  }
+  return response.json() as Promise<ProfileFilePayload>;
+}
+
+async function fetchProfileFiles(signal?: AbortSignal): Promise<ProfileFilePayload[]> {
+  const response = await fetch(`${apiBaseUrl}/profile/files`, {
+    cache: "no-store",
+    signal,
+  });
+  if (!response.ok) {
+    throw new Error(await readApiErrorMessage(response, "Profile files could not be loaded"));
+  }
+  return response.json() as Promise<ProfileFilePayload[]>;
+}
+
+async function migrateLegacyProfileFiles(
+  legacyProfile: LegacyStoredCandidateProfile,
+  existingFiles: ProfileFilePayload[],
+): Promise<string[]> {
+  const warnings: string[] = [];
+  const serverResume = existingFiles.find((file) => file.kind === "primary_resume");
+  const serverAvatar = existingFiles.find((file) => file.kind === "avatar");
+
+  async function uploadLegacyFile(
+    blob: Blob,
+    metadata: Parameters<typeof uploadProfileFile>[1],
+    label: string,
+  ) {
+    try {
+      return await uploadProfileFile(blob, metadata);
+    } catch (error) {
+      if (
+        error instanceof FileUploadResponseError
+        && permanentLegacyFileStatuses.has(error.status)
+      ) {
+        warnings.push(`${label} was removed because it is not a safe supported file.`);
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  async function matchesServerFile(blob: Blob, serverFile: ProfileFilePayload) {
+    if (!globalThis.crypto?.subtle || !serverFile.contentSha256) return false;
+    const digest = await globalThis.crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
+    const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
+    return hash === serverFile.contentSha256.toLowerCase();
+  }
+
+  const legacyResumeDataUrl = legacyProfile.resume_data_url ?? legacyProfile.resumeDataUrl;
+  if (isInlineDataUrl(legacyResumeDataUrl)) {
+    let resumeBlob: Blob | null = null;
+    try {
+      resumeBlob = decodeDataUrl(legacyResumeDataUrl as string);
+    } catch {
+      warnings.push("Malformed legacy resume was removed instead of being uploaded.");
+    }
+    if (resumeBlob && (!serverResume || !(await matchesServerFile(resumeBlob, serverResume)))) {
+      const resumeFileName = legacyProfile.resume_file_name?.trim() || "resume.pdf";
+      await uploadLegacyFile(resumeBlob, {
+        kind: serverResume ? "supporting_document" : "primary_resume",
+        fileName: resumeFileName,
+        title: serverResume ? `Legacy resume · ${resumeFileName}` : resumeFileName,
+        category: "CV / Resume",
+        legacyDocumentId: serverResume ? "legacy-primary-resume" : undefined,
+        replaceExisting: false,
+      }, "Legacy resume");
+    }
+  }
+
+  if (isInlineDataUrl(legacyProfile.avatar_url)) {
+    let blob: Blob | null = null;
+    try {
+      blob = decodeDataUrl(legacyProfile.avatar_url as string);
+    } catch {
+      warnings.push("Malformed legacy avatar was removed instead of being uploaded.");
+    }
+    const avatarExtensions: Record<string, string> = {
+      "image/png": "png",
+      "image/jpeg": "jpg",
+      "image/webp": "webp",
+      "image/gif": "gif",
+    };
+    const extension = blob ? avatarExtensions[blob.type.toLowerCase()] : undefined;
+    if (blob && extension) {
+      const matchesServer = serverAvatar
+        ? await matchesServerFile(blob, serverAvatar)
+        : false;
+      if (!matchesServer) await uploadLegacyFile(blob, {
+        kind: serverAvatar ? "supporting_document" : "avatar",
+        fileName: `avatar.${extension}`,
+        title: serverAvatar ? "Legacy profile avatar" : "Profile avatar",
+        category: serverAvatar ? "Other" : "Avatar",
+        legacyDocumentId: serverAvatar ? "legacy-profile-avatar" : undefined,
+        replaceExisting: false,
+      }, "Legacy avatar");
+    } else if (blob) {
+      warnings.push(`Unsupported legacy avatar type ${blob.type || "unknown"} was removed.`);
+    }
+  }
+
+  const serializedDocuments: unknown = legacyProfile.documents;
+  if (
+    (typeof serializedDocuments === "string" && serializedDocuments.trim())
+    || Array.isArray(serializedDocuments)
+  ) {
+    let parsed: unknown;
+    if (Array.isArray(serializedDocuments)) {
+      parsed = serializedDocuments;
+    } else {
+      try {
+        parsed = JSON.parse(serializedDocuments as string) as unknown;
+      } catch {
+        warnings.push("Malformed legacy profile document metadata was removed.");
+      }
+    }
+    if (Array.isArray(parsed)) {
+      for (const [index, value] of parsed.entries()) {
+        if (!value || typeof value !== "object") continue;
+        const document = value as Record<string, unknown>;
+        const dataUrl = document.data_url ?? document.dataUrl;
+        if (!isInlineDataUrl(dataUrl)) continue;
+        const fileName = typeof document.file_name === "string" && document.file_name.trim()
+          ? document.file_name.trim()
+          : typeof document.fileName === "string" && document.fileName.trim()
+            ? document.fileName.trim()
+          : `legacy-document-${index + 1}`;
+        const legacyDocumentId = typeof document.id === "string" && document.id.trim()
+          ? document.id.trim()
+          : `legacy-profile-document-${index + 1}`;
+        let blob: Blob | null = null;
+        try {
+          blob = decodeDataUrl(dataUrl as string);
+        } catch {
+          warnings.push(`Malformed legacy profile document ${fileName} was removed.`);
+        }
+        if (!blob) continue;
+        await uploadLegacyFile(blob, {
+          kind: "supporting_document",
+          fileName,
+          title: typeof document.title === "string" ? document.title : fileName,
+          category: typeof document.category === "string" ? document.category : "Other",
+          language: typeof document.language === "string" ? document.language : "",
+          issuer: typeof document.issuer === "string" ? document.issuer : "",
+          notes: typeof document.notes === "string" ? document.notes : "",
+          legacyDocumentId,
+        }, `Legacy profile document ${fileName}`);
+      }
+    }
+  }
+  return warnings;
+}
+
+function hasLegacyProfileInlineFiles(legacyProfile: LegacyStoredCandidateProfile) {
+  if (isInlineDataUrl(legacyProfile.resume_data_url ?? legacyProfile.resumeDataUrl)) return true;
+  if (isInlineDataUrl(legacyProfile.avatar_url)) return true;
+  const serializedDocuments: unknown = legacyProfile.documents;
+  if (serializedDocuments === null || serializedDocuments === undefined || serializedDocuments === "") return false;
+  try {
+    const documents = Array.isArray(serializedDocuments)
+      ? serializedDocuments
+      : JSON.parse(String(serializedDocuments)) as unknown;
+    return Array.isArray(documents) && documents.some((value) => (
+      Boolean(value)
+      && typeof value === "object"
+      && isInlineDataUrl(
+        (value as Record<string, unknown>).data_url
+        ?? (value as Record<string, unknown>).dataUrl,
+      )
+    ));
+  } catch {
+    // Malformed serialized document state still needs the migration path so it
+    // can be logged and scrubbed instead of silently bypassed.
+    return true;
+  }
+}
+
+function workspaceSourceToApplicationDocument(
+  source: WorkspaceSourceFilePayload,
+): ApplicationDocument {
+  return {
+    id: `source-${source.id}`,
+    sourceId: source.id,
+    kind: "uploaded",
+    title: source.title,
+    fileName: source.fileName,
+    fileSize: source.fileSize || (source.sizeBytes ? formatFileSize(source.sizeBytes) : ""),
+    fileType: source.fileType,
+    uploadedAt: source.uploadedAt,
+    downloadUrl: resolveApiUrl(source.downloadUrl),
+  };
+}
+
+async function uploadApplicationAttachment(
+  applicationId: string,
+  file: Blob,
+  metadata: {
+    fileName: string;
+    title: string;
+    legacyDocumentId?: string;
+  },
+): Promise<ApplicationDocument> {
+  const query = new URLSearchParams({
+    applicationId,
+    category: "Application Attachment",
+    title: metadata.title,
+    fileName: metadata.fileName,
+  });
+  if (metadata.legacyDocumentId) query.set("legacyDocumentId", metadata.legacyDocumentId);
+  const response = await fetch(`${apiBaseUrl}/documents/workspace-sources/upload?${query}`, {
+    method: "POST",
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+    body: file,
+  });
+  if (!response.ok) {
+    throw new FileUploadResponseError(
+      await readApiErrorMessage(response, "Application document could not be uploaded"),
+      response.status,
+    );
+  }
+  return workspaceSourceToApplicationDocument(await response.json() as WorkspaceSourceFilePayload);
+}
+
+async function fetchApplicationDocuments(
+  applicationId: string,
+  signal?: AbortSignal,
+): Promise<ApplicationDocument[]> {
+  const applicationIdQuery = encodeURIComponent(applicationId);
+  const [sourceResponse, generatedResponse] = await Promise.all([
+    fetch(`${apiBaseUrl}/documents/workspace-sources/library?applicationId=${applicationIdQuery}`, {
+      cache: "no-store",
+      signal,
+    }),
+    fetch(`${apiBaseUrl}/documents?applicationId=${applicationIdQuery}`, {
+      cache: "no-store",
+      signal,
+    }),
+  ]);
+  if (!sourceResponse.ok || !generatedResponse.ok) {
+    throw new Error("Application documents could not be loaded");
+  }
+  const sources = (await sourceResponse.json()) as WorkspaceSourceFilePayload[];
+  const generated = (await generatedResponse.json()) as Array<{
+    id: string;
+    title: string;
+    type: "cover_letter" | "tailored_resume";
+    currentVersion: number;
+    updatedAt: string;
+    versions: Array<{
+      version: number;
+      artifact?: { fileName?: string; contentType?: string } | null;
+    }>;
+  }>;
+  return [
+    ...sources
+      .filter((source) => source.category === "Application Attachment")
+      .map(workspaceSourceToApplicationDocument),
+    ...generated.map((document): ApplicationDocument => {
+      const current = document.versions.find((version) => version.version === document.currentVersion);
+      const defaultExtension = document.type === "tailored_resume" ? "docx" : "docx";
+      return {
+        id: `artifact-${document.id}`,
+        artifactId: document.id,
+        kind: "generated",
+        title: document.title,
+        fileName: current?.artifact?.fileName || `${document.title}.${defaultExtension}`,
+        fileSize: "",
+        fileType: current?.artifact?.contentType || "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        uploadedAt: document.updatedAt,
+        downloadUrl: `${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`,
+      };
+    }),
+  ];
+}
+
+async function migrateLegacyApplicationDocuments(
+  legacyDocuments: Map<string, ApplicationDocument[]>,
+): Promise<{
+  documents: Map<string, ApplicationDocument[]>;
+  warnings: string[];
+}> {
+  const migrated = new Map<string, ApplicationDocument[]>();
+  const warnings: string[] = [];
+  for (const [applicationId, documents] of legacyDocuments) {
+    const uploaded: ApplicationDocument[] = [];
+    for (const document of documents) {
+      if (!isInlineDataUrl(document.legacyDataUrl)) continue;
+      let blob: Blob | null = null;
+      try {
+        blob = decodeDataUrl(document.legacyDataUrl as string);
+      } catch {
+        warnings.push(`Malformed legacy application document ${document.fileName} was removed.`);
+      }
+      if (!blob) continue;
+      try {
+        uploaded.push(await uploadApplicationAttachment(
+          applicationId,
+          blob,
+          {
+            fileName: document.fileName,
+            title: document.title,
+            legacyDocumentId: document.id,
+          },
+        ));
+      } catch (error) {
+        if (
+          error instanceof FileUploadResponseError
+          && permanentLegacyFileStatuses.has(error.status)
+        ) {
+          warnings.push(
+            `Legacy application document ${document.fileName} was removed because it is not a safe supported file.`,
+          );
+          continue;
+        }
+        throw error;
+      }
+    }
+    migrated.set(applicationId, uploaded);
+  }
+  return { documents: migrated, warnings };
 }
 
 function displayProfileValue(value: string, fallback: string) {
@@ -1699,7 +2232,8 @@ function normalizeDocumentEntry(
     file_size: entry.file_size?.trim() ?? "",
     file_type: entry.file_type?.trim() ?? "",
     uploaded_at: entry.uploaded_at?.trim() ?? "",
-    data_url: entry.data_url ?? "",
+    download_url: entry.download_url ?? "",
+    pending_file: entry.pending_file,
   };
 }
 
@@ -1722,7 +2256,7 @@ function parseDocumentEntries(value: string): DocumentEntry[] {
         // be deterministic: parsing once for render and again for delete/edit
         // must address the same item. The next successful save persists it.
         .map((item, index) => normalizeDocumentEntry(item, `legacy-document-${index}`))
-        .filter((item) => item.title || item.file_name || item.data_url);
+        .filter((item) => item.title || item.file_name || item.download_url);
     }
   } catch {
     return [];
@@ -1734,7 +2268,11 @@ function parseDocumentEntries(value: string): DocumentEntry[] {
 function serializeDocumentEntries(entries: DocumentEntry[]) {
   if (entries.length === 0) return "";
 
-  return JSON.stringify(entries.map((entry) => normalizeDocumentEntry(entry)));
+  return JSON.stringify(entries.map((entry) => {
+    const metadata = normalizeDocumentEntry(entry);
+    delete metadata.pending_file;
+    return metadata;
+  }));
 }
 
 function normalizePreferenceList(value: unknown): string[] {
@@ -1884,7 +2422,7 @@ function getAiMatchProfile(profile: CandidateProfile) {
   const experienceEntries = parseExperienceEntries(profile.experience);
   const educationEntries = parseEducationEntries(profile.education);
   const preferences = parseJobPreferences(profile.job_preferences);
-  const hasResume = hasProfileValue(profile.resume_file_name) && hasProfileValue(profile.resume_data_url);
+  const hasResume = hasProfileValue(profile.resume_file_name) && hasProfileValue(profile.resume_file_id);
   const hasSalaryPreference = preferences.no_preference.includes("salary") || hasProfileValue(preferences.salary_min);
   const hasAuthorizationPreference = preferences.no_preference.includes("work_authorization") || hasProfileValue(preferences.work_authorization);
   const hasLocationPreference = preferences.no_preference.includes("locations") || preferences.locations.length > 0;
@@ -1978,7 +2516,7 @@ function getProfileCompletionItems(profile: CandidateProfile) {
     },
     {
       label: "Resume",
-      complete: hasProfileValue(profile.resume_file_name) && hasProfileValue(profile.resume_data_url),
+      complete: hasProfileValue(profile.resume_file_name) && hasProfileValue(profile.resume_file_id),
       action: "Attach resume",
     },
     {
@@ -2955,32 +3493,69 @@ function normalizeStoredJobIds(value: unknown) {
   return Array.from(new Set(value.filter((id): id is string => typeof id === "string" && id.trim().length > 0)));
 }
 
+function legacyFileName(index: number, dataUrl: string) {
+  const contentType = /^data:([^;,]+)/i.exec(dataUrl.trim())?.[1]?.toLowerCase() ?? "";
+  const extensionByType: Record<string, string> = {
+    "application/pdf": "pdf",
+    "application/msword": "doc",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
+    "image/png": "png",
+    "image/jpeg": "jpg",
+    "image/webp": "webp",
+    "image/gif": "gif",
+  };
+  const extension = extensionByType[contentType];
+  return `legacy-document-${index + 1}${extension ? `.${extension}` : ""}`;
+}
+
 function normalizeApplicationDocuments(value: unknown) {
   if (!Array.isArray(value)) return [];
 
-  return value.flatMap((document): ApplicationDocument[] => {
+  return value.flatMap((document, index): ApplicationDocument[] => {
     if (!document || typeof document !== "object") return [];
-    const candidate = document as Partial<ApplicationDocument>;
-    const fileName = candidate.fileName?.trim() ?? "";
-    const dataUrl = candidate.dataUrl ?? "";
+    const candidate = document as Partial<ApplicationDocument> & {
+      dataUrl?: string;
+      data_url?: string;
+      file_name?: string;
+    };
+    const rawLegacyDataUrl = candidate.legacyDataUrl ?? candidate.dataUrl ?? candidate.data_url ?? "";
+    const legacyDataUrl = isInlineDataUrl(rawLegacyDataUrl) ? rawLegacyDataUrl.trim() : "";
+    const fileName = candidate.fileName?.trim()
+      || candidate.file_name?.trim()
+      || (legacyDataUrl ? legacyFileName(index, legacyDataUrl) : "");
+    const downloadUrl = candidate.downloadUrl ?? (
+      rawLegacyDataUrl && !isInlineDataUrl(rawLegacyDataUrl) ? rawLegacyDataUrl : ""
+    );
 
-    if (typeof candidate.id !== "string" || !fileName || typeof dataUrl !== "string" || !dataUrl) {
+    if (!fileName || (!downloadUrl && !legacyDataUrl && !candidate.pendingFile)) {
       return [];
     }
 
     return [
       {
-        id: candidate.id,
+        id: typeof candidate.id === "string" && candidate.id.trim()
+          ? candidate.id
+          : `legacy-application-document-${index + 1}`,
         artifactId: candidate.artifactId?.trim() || undefined,
+        sourceId: candidate.sourceId?.trim() || undefined,
+        kind: candidate.kind ?? (candidate.artifactId ? "generated" : "uploaded"),
         title: candidate.title?.trim() || fileName.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || fileName,
         fileName,
         fileSize: candidate.fileSize?.trim() ?? "",
         fileType: candidate.fileType?.trim() ?? "application/octet-stream",
         uploadedAt: candidate.uploadedAt?.trim() ?? "",
-        dataUrl,
+        downloadUrl,
+        legacyDataUrl: legacyDataUrl || undefined,
+        pendingFile: candidate.pendingFile,
       },
     ];
   });
+}
+
+function applicationPayloadForStorage(application: TrackedApplication) {
+  const payload: Partial<TrackedApplication> = { ...application };
+  delete payload.documents;
+  return payload;
 }
 
 function normalizeStoredApplications(value: unknown) {
@@ -3018,6 +3593,23 @@ function normalizeStoredApplications(value: unknown) {
       },
     ];
   });
+}
+
+function extractLegacyApplicationDocuments(value: unknown) {
+  const documentsByApplication = new Map<string, ApplicationDocument[]>();
+  if (!Array.isArray(value)) return documentsByApplication;
+  for (const candidate of value) {
+    if (!candidate || typeof candidate !== "object") continue;
+    const application = candidate as Record<string, unknown>;
+    if (typeof application.id !== "string" || !application.id.trim()) continue;
+    if (legacyDemoApplicationIds.has(application.id)) continue;
+    const documents = normalizeApplicationDocuments(application.documents)
+      .filter((document) => Boolean(document.legacyDataUrl));
+    if (documents.length > 0) {
+      documentsByApplication.set(application.id, documents);
+    }
+  }
+  return documentsByApplication;
 }
 
 function removeLegacyDemoApplications(applications: TrackedApplication[]) {
@@ -3095,10 +3687,11 @@ function createApplicationFromJob(job: Job, status: ApplicationStatus = "applied
 }
 
 function createApplicationFromManualDraft(draft: ManualApplicationDraft): TrackedApplication {
-  const job = createManualJobFromDraft(draft);
+  const generatedJob = createManualJobFromDraft(draft);
+  const job = draft.jobId ? { ...generatedJob, id: draft.jobId } : generatedJob;
 
   return {
-    id: `application-${job.id}`,
+    id: draft.id || `application-${job.id}`,
     job,
     status: draft.status,
     appliedAt: new Date().toISOString(),
@@ -3109,16 +3702,17 @@ function createApplicationFromManualDraft(draft: ManualApplicationDraft): Tracke
 }
 
 function createProfileResumeApplicationDocument(profile: CandidateProfile): ApplicationDocument | null {
-  if (!profile.resume_file_name || !profile.resume_data_url) return null;
+  if (!profile.resume_file_name || !profile.resume_download_url) return null;
 
   return {
     id: createClientId("profile-resume"),
+    kind: "profile",
     title: profile.resume_file_name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || "Profile resume",
     fileName: profile.resume_file_name,
     fileSize: profile.resume_file_size,
     fileType: "application/octet-stream",
     uploadedAt: profile.resume_updated_at || new Date().toISOString(),
-    dataUrl: profile.resume_data_url,
+    downloadUrl: profile.resume_download_url,
   };
 }
 
@@ -3482,6 +4076,7 @@ export default function HomePage() {
   const [workspaceApplicationId, setWorkspaceApplicationId] = useState<string | null>(null);
   const [areApplicationsLoaded, setAreApplicationsLoaded] = useState(false);
   const applicationMutationQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const legacyApplicationDocumentsRef = useRef<Map<string, ApplicationDocument[]>>(new Map());
   const deletedApplicationIdsRef = useRef<Set<string>>(new Set());
   const [matchingApplicationIds, setMatchingApplicationIds] = useState<string[]>([]);
   const [applicationEvents, setApplicationEvents] = useState<ApplicationEvent[]>([]);
@@ -3508,6 +4103,8 @@ export default function HomePage() {
   const [selectedSourceConfigIds, setSelectedSourceConfigIds] = useState<Partial<Record<ParserId, string>>>({});
   const [profile, setProfile] = useState<CandidateProfile>(defaultCandidateProfile);
   const [profileDraft, setProfileDraft] = useState<CandidateProfile>(defaultCandidateProfile);
+  const [profileAvatarDraftFile, setProfileAvatarDraftFile] = useState<File | null>(null);
+  const [profileAvatarUseDefault, setProfileAvatarUseDefault] = useState(false);
   const [isProfileLoaded, setIsProfileLoaded] = useState(false);
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [isExperienceDialogOpen, setIsExperienceDialogOpen] = useState(false);
@@ -3871,8 +4468,12 @@ export default function HomePage() {
   useEffect(() => {
     try {
       const rawApplications = window.localStorage.getItem(applicationsStorageKey);
+      const parsedApplications = rawApplications ? JSON.parse(rawApplications) as unknown : [];
       const storedApplications = removeLegacyDemoApplications(
-        normalizeStoredApplications(rawApplications ? JSON.parse(rawApplications) : []),
+        normalizeStoredApplications(parsedApplications),
+      );
+      legacyApplicationDocumentsRef.current = extractLegacyApplicationDocuments(
+        parsedApplications,
       );
       setApplications(storedApplications);
       setSelectedApplicationId((currentId) => currentId || storedApplications[0]?.id || "");
@@ -3885,8 +4486,14 @@ export default function HomePage() {
 
   useEffect(() => {
     if (!areApplicationsLoaded) return;
-
-    window.localStorage.setItem(applicationsStorageKey, JSON.stringify(applications));
+    const hasPendingLegacyDocuments = legacyApplicationDocumentsRef.current.size > 0;
+    if (!hasPendingLegacyDocuments) {
+      window.localStorage.setItem(applicationFileStorageMigrationKey, "complete");
+      window.localStorage.setItem(
+        applicationsStorageKey,
+        JSON.stringify(applications.map(applicationPayloadForStorage)),
+      );
+    }
     const applicationsRevision = applicationsRevisionRef.current;
 
     async function saveStoredApplications() {
@@ -3897,7 +4504,7 @@ export default function HomePage() {
           body: JSON.stringify({
             applications: applications.map((application) => ({
               id: application.id,
-              data: application,
+              data: applicationPayloadForStorage(application),
             })),
           }),
         });
@@ -3921,16 +4528,48 @@ export default function HomePage() {
           (application) =>
             !deletedApplicationIdsRef.current.has(application.id),
         );
+        let migratedDocuments = new Map<string, ApplicationDocument[]>();
+        if (legacyApplicationDocumentsRef.current.size > 0) {
+          const migrationResult = await migrateLegacyApplicationDocuments(
+            legacyApplicationDocumentsRef.current,
+          );
+          migratedDocuments = migrationResult.documents;
+          for (const warning of migrationResult.warnings) {
+            appendAppLog({
+              level: "warning",
+              area: "Applications",
+              message: warning,
+            });
+          }
+          legacyApplicationDocumentsRef.current.clear();
+          window.localStorage.setItem(applicationFileStorageMigrationKey, "complete");
+          window.localStorage.setItem(
+            applicationsStorageKey,
+            JSON.stringify(applications.map(applicationPayloadForStorage)),
+          );
+        }
         if (applicationsRevisionRef.current !== applicationsRevision) return;
         if (authoritativeApplications.length === 0) return;
+        window.localStorage.setItem(
+          applicationsStorageKey,
+          JSON.stringify(authoritativeApplications.map(applicationPayloadForStorage)),
+        );
         setApplications((currentApplications) => {
+          const withDocuments = authoritativeApplications.map((application) => ({
+            ...application,
+            documents: [
+              ...(currentApplications.find((item) => item.id === application.id)?.documents ?? [])
+                .filter((document) => !document.legacyDataUrl),
+              ...(migratedDocuments.get(application.id) ?? []),
+            ],
+          }));
           if (
             JSON.stringify(currentApplications)
-            === JSON.stringify(authoritativeApplications)
+            === JSON.stringify(withDocuments)
           ) {
             return currentApplications;
           }
-          return authoritativeApplications;
+          return withDocuments;
         });
       });
     }
@@ -4054,12 +4693,6 @@ export default function HomePage() {
   }, [areAppLogsLoaded, appLogs]);
 
   useEffect(() => {
-    if (!isProfileLoaded) return;
-
-    cacheCandidateProfile(profile);
-  }, [isProfileLoaded, profile]);
-
-  useEffect(() => {
     const abortController = new AbortController();
     let locallyDeletedJobIds: string[] = [];
 
@@ -4140,9 +4773,37 @@ export default function HomePage() {
         );
         if (loadedApplications.length === 0) return;
 
-        setApplications(loadedApplications);
-        setSelectedApplicationId((currentId) => currentId || loadedApplications[0]?.id || "");
-        window.localStorage.setItem(applicationsStorageKey, JSON.stringify(loadedApplications));
+        const loadedWithDocuments = await Promise.all(
+          loadedApplications.map(async (application) => {
+            try {
+              return {
+                ...application,
+                documents: await fetchApplicationDocuments(application.id, abortController.signal),
+              };
+            } catch {
+              return application;
+            }
+          }),
+        );
+
+        setApplications((currentApplications) => loadedWithDocuments.map((application) => ({
+          ...application,
+          documents: [
+            ...application.documents,
+            ...(currentApplications.find((item) => item.id === application.id)?.documents ?? [])
+              .filter((document) => document.legacyDataUrl),
+          ],
+        })));
+        setSelectedApplicationId((currentId) => currentId || loadedWithDocuments[0]?.id || "");
+        if (
+          window.localStorage.getItem(applicationFileStorageMigrationKey)
+          && legacyApplicationDocumentsRef.current.size === 0
+        ) {
+          window.localStorage.setItem(
+            applicationsStorageKey,
+            JSON.stringify(loadedWithDocuments.map(applicationPayloadForStorage)),
+          );
+        }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
       }
@@ -4178,11 +4839,15 @@ export default function HomePage() {
     }
 
     async function loadProfile() {
-      const storedProfile = readStoredCandidateProfile();
-      if (storedProfile) {
-        setProfile(storedProfile);
-        setProfileDraft(storedProfile);
-      }
+      const legacyProfile = readLegacyStoredCandidateProfile();
+      const storedProfile = legacyProfile
+        ? normalizeCandidateProfile({
+            ...legacyProfile,
+            avatar_url: isInlineDataUrl(legacyProfile.avatar_url)
+              ? defaultCandidateProfile.avatar_url
+              : legacyProfile.avatar_url,
+          })
+        : null;
 
       try {
         const response = await fetch(`${apiBaseUrl}/profile`, {
@@ -4191,20 +4856,72 @@ export default function HomePage() {
         });
 
         if (!response.ok) return;
+        let initialFiles: ProfileFilePayload[] | null = null;
+        try {
+          initialFiles = await fetchProfileFiles(abortController.signal);
+        } catch {
+          // File metadata is independently recoverable; keep the text profile usable.
+        }
 
-        const loadedProfile = normalizeCandidateProfile((await response.json()) as Partial<CandidateProfile>);
+        let loadedProfile = hydrateProfileFiles(
+          normalizeCandidateProfile((await response.json()) as Partial<CandidateProfile>),
+          initialFiles ?? [],
+        );
+        let legacyProfileTextSaved = !storedProfile || hasCandidateProfileData(loadedProfile);
 
         if (!hasCandidateProfileData(loadedProfile) && storedProfile) {
-          setProfile(storedProfile);
-          setProfileDraft(storedProfile);
-
-          await fetch(`${apiBaseUrl}/profile`, {
+          const saveResponse = await fetch(`${apiBaseUrl}/profile`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(storedProfile),
+            body: JSON.stringify(profilePayloadForApi(storedProfile)),
             signal: abortController.signal,
           });
-          return;
+          if (saveResponse.ok) {
+            legacyProfileTextSaved = true;
+            loadedProfile = hydrateProfileFiles(
+              normalizeCandidateProfile((await saveResponse.json()) as Partial<CandidateProfile>),
+              initialFiles ?? [],
+            );
+          }
+        }
+
+        function finalizeLegacyProfileStorage() {
+          window.localStorage.setItem(profileFileStorageMigrationKey, "complete");
+          if (!storedProfile || legacyProfileTextSaved) {
+            window.localStorage.removeItem(profileStorageKey);
+            return;
+          }
+          window.localStorage.setItem(
+            profileStorageKey,
+            JSON.stringify(profilePayloadForApi(storedProfile)),
+          );
+          appendAppLog({
+            level: "warning",
+            area: "Profile",
+            message: "Legacy profile text was kept locally for retry; inline files were removed.",
+          });
+        }
+
+        const hasLegacyInlineFiles = legacyProfile
+          ? hasLegacyProfileInlineFiles(legacyProfile)
+          : false;
+        if (legacyProfile && hasLegacyInlineFiles && initialFiles !== null) {
+          const migrationWarnings = await migrateLegacyProfileFiles(
+            legacyProfile,
+            initialFiles,
+          );
+          const migratedFiles = await fetchProfileFiles(abortController.signal);
+          loadedProfile = hydrateProfileFiles(loadedProfile, migratedFiles);
+          for (const warning of migrationWarnings) {
+            appendAppLog({
+              level: "warning",
+              area: "Profile",
+              message: warning,
+            });
+          }
+          finalizeLegacyProfileStorage();
+        } else if (legacyProfile && !hasLegacyInlineFiles) {
+          finalizeLegacyProfileStorage();
         }
 
         setProfile(loadedProfile);
@@ -4357,12 +5074,63 @@ export default function HomePage() {
     changeView("ApplicationWorkspace", applicationId);
   }
 
-  function addManualApplication(draft: ManualApplicationDraft) {
-    const application = createApplicationFromManualDraft(draft);
+  async function addManualApplication(draft: ManualApplicationDraft) {
+    const application = { ...createApplicationFromManualDraft(draft), documents: [] };
     deletedApplicationIdsRef.current.delete(application.id);
 
-    setApplications((currentApplications) => [application, ...currentApplications]);
+    setApplications((currentApplications) => (
+      currentApplications.some((item) => item.id === application.id)
+        ? currentApplications.map((item) => (
+            item.id === application.id
+              ? { ...application, documents: item.documents }
+              : item
+          ))
+        : [application, ...currentApplications]
+    ));
     setSelectedApplicationId(application.id);
+    try {
+      const createResponse = await fetch(`${apiBaseUrl}/applications`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          id: application.id,
+          data: applicationPayloadForStorage(application),
+        }),
+      });
+      if (!createResponse.ok && createResponse.status !== 409) {
+        throw new Error(await readApiErrorMessage(createResponse, "Application could not be created"));
+      }
+      const uploadedDocuments: ApplicationDocument[] = [];
+      for (const document of draft.documents) {
+        let body: Blob | null = document.pendingFile ?? null;
+        if (!body && document.downloadUrl) {
+          const sourceResponse = await fetch(document.downloadUrl, { cache: "no-store" });
+          if (!sourceResponse.ok) {
+            throw new Error(await readApiErrorMessage(sourceResponse, "Selected resume could not be loaded"));
+          }
+          body = await sourceResponse.blob();
+        }
+        if (!body) throw new Error("Selected resume could not be loaded");
+        uploadedDocuments.push(await uploadApplicationAttachment(application.id, body, {
+          fileName: document.fileName,
+          title: document.title,
+        }));
+      }
+      if (uploadedDocuments.length > 0) {
+        setApplications((currentApplications) => currentApplications.map((item) => (
+          item.id === application.id ? { ...item, documents: uploadedDocuments } : item
+        )));
+      }
+    } catch (error) {
+      appendAppLog({
+        level: "error",
+        area: "Applications",
+        message: error instanceof Error ? error.message : "Application document could not be uploaded",
+      });
+      throw error instanceof Error
+        ? error
+        : new Error("Application document could not be uploaded");
+    }
     void analyzeApplicationWithAi(application);
     changeView("Applications");
   }
@@ -4498,7 +5266,9 @@ export default function HomePage() {
       }
       setApplications((currentApplications) =>
         currentApplications.map((item) =>
-          item.id === application.id ? authoritativeApplication : item,
+          item.id === application.id
+            ? { ...authoritativeApplication, documents: item.documents }
+            : item,
         ),
       );
       appendAppLog({
@@ -4569,6 +5339,25 @@ export default function HomePage() {
     );
   }
 
+  function applyProfileResumeUpload(file: {
+    id: string;
+    fileName: string;
+    sizeBytes: number;
+    updatedAt: string;
+    downloadUrl: string;
+  }) {
+    const apply = (current: CandidateProfile): CandidateProfile => normalizeCandidateProfile({
+      ...current,
+      resume_file_id: file.id,
+      resume_file_name: file.fileName,
+      resume_file_size: formatFileSize(file.sizeBytes),
+      resume_updated_at: file.updatedAt,
+      resume_download_url: resolveApiUrl(file.downloadUrl),
+    });
+    setProfile(apply);
+    setProfileDraft(apply);
+  }
+
   function attachGeneratedDocumentToApplication(
     applicationId: string,
     document: AssistantDocumentAttachment,
@@ -4579,12 +5368,13 @@ export default function HomePage() {
         const generatedDocument: ApplicationDocument = {
           id: `artifact-${document.artifactId}`,
           artifactId: document.artifactId,
+          kind: "generated",
           title: document.title,
           fileName: document.fileName,
           fileSize: "",
           fileType: document.fileType,
           uploadedAt: document.uploadedAt,
-          dataUrl: document.dataUrl,
+          downloadUrl: document.downloadUrl,
         };
         const existingIndex = application.documents.findIndex(
           (item) => item.artifactId === document.artifactId,
@@ -4604,7 +5394,9 @@ export default function HomePage() {
       const updatedApplication = normalizeStoredApplications([result.resource])[0];
       if (!updatedApplication) return;
       setApplications((currentApplications) => currentApplications.map((application) =>
-        application.id === updatedApplication.id ? updatedApplication : application,
+        application.id === updatedApplication.id
+          ? { ...updatedApplication, documents: application.documents }
+          : application,
       ));
       return;
     }
@@ -5198,9 +5990,17 @@ export default function HomePage() {
 
   function openProfileEditor() {
     setProfileDraft(profile);
+    setProfileAvatarDraftFile(null);
+    setProfileAvatarUseDefault(false);
     setProfileSaveStatus("idle");
     setProfileSaveMessage("");
     setIsProfileDialogOpen(true);
+  }
+
+  function closeProfileEditor() {
+    setProfileAvatarDraftFile(null);
+    setProfileAvatarUseDefault(false);
+    setIsProfileDialogOpen(false);
   }
 
   function openExperienceEditor(experience?: ExperienceEntry) {
@@ -5433,10 +6233,13 @@ export default function HomePage() {
     setProfileSaveMessage("");
 
     try {
+      const profileToSave = profileAvatarUseDefault
+        ? { ...profileDraft, avatar_url: defaultCandidateProfile.avatar_url }
+        : profileDraft;
       const response = await fetch(`${apiBaseUrl}/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profileDraft),
+        body: JSON.stringify(profilePayloadForApi(profileToSave)),
       });
 
       const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
@@ -5445,9 +6248,41 @@ export default function HomePage() {
         throw new Error(savedProfile.detail ?? "Profile save failed");
       }
 
-      const normalizedProfile = normalizeCandidateProfile(savedProfile);
+      let profileWithAvatar = profileToSave;
+      if (profileAvatarDraftFile) {
+        const uploaded = await uploadProfileFile(profileAvatarDraftFile, {
+          kind: "avatar",
+          fileName: profileAvatarDraftFile.name,
+          title: "Profile avatar",
+          category: "Avatar",
+        });
+        profileWithAvatar = normalizeCandidateProfile({
+          ...profileToSave,
+          avatar_file_id: uploaded.id,
+          avatar_url: resolveApiUrl(uploaded.downloadUrl),
+        });
+      } else if (profileAvatarUseDefault) {
+        if (profile.avatar_file_id) {
+          const deleteResponse = await fetch(
+            `${apiBaseUrl}/profile/files/${encodeURIComponent(profile.avatar_file_id)}`,
+            { method: "DELETE" },
+          );
+          if (!deleteResponse.ok && deleteResponse.status !== 404) {
+            throw new Error(await readApiErrorMessage(deleteResponse, "Avatar reset failed"));
+          }
+        }
+        profileWithAvatar = normalizeCandidateProfile({
+          ...profileToSave,
+          avatar_file_id: "",
+          avatar_url: defaultCandidateProfile.avatar_url,
+        });
+      }
+
+      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, profileWithAvatar);
       setProfile(normalizedProfile);
       setProfileDraft(normalizedProfile);
+      setProfileAvatarDraftFile(null);
+      setProfileAvatarUseDefault(false);
       setProfileSaveStatus("ready");
       setProfileSaveMessage("Saved to database");
       setIsProfileDialogOpen(false);
@@ -5483,7 +6318,7 @@ export default function HomePage() {
       const response = await fetch(`${apiBaseUrl}/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextProfile),
+        body: JSON.stringify(profilePayloadForApi(nextProfile)),
       });
       const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
 
@@ -5491,7 +6326,7 @@ export default function HomePage() {
         throw new Error(savedProfile.detail ?? "Experience save failed");
       }
 
-      const normalizedProfile = normalizeCandidateProfile(savedProfile);
+      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
       setProfile(normalizedProfile);
       setProfileDraft(normalizedProfile);
       setProfileSaveStatus("ready");
@@ -5529,7 +6364,7 @@ export default function HomePage() {
       const response = await fetch(`${apiBaseUrl}/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextProfile),
+        body: JSON.stringify(profilePayloadForApi(nextProfile)),
       });
       const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
 
@@ -5537,7 +6372,7 @@ export default function HomePage() {
         throw new Error(savedProfile.detail ?? "Education save failed");
       }
 
-      const normalizedProfile = normalizeCandidateProfile(savedProfile);
+      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
       setProfile(normalizedProfile);
       setProfileDraft(normalizedProfile);
       setProfileSaveStatus("ready");
@@ -5558,7 +6393,7 @@ export default function HomePage() {
       return;
     }
 
-    if (!normalizedDocument.data_url || !normalizedDocument.file_name) {
+    if ((!normalizedDocument.pending_file && !normalizedDocument.download_url) || !normalizedDocument.file_name) {
       setProfileSaveStatus("error");
       setProfileSaveMessage("Attach a file");
       return;
@@ -5585,29 +6420,43 @@ export default function HomePage() {
     setProfileSaveStatus("loading");
     setProfileSaveMessage("");
 
-    const documentEntries = parseDocumentEntries(profile.documents);
-    const existingDocument = documentEntries.some((entry) => entry.id === normalizedDocument.id);
-    const nextDocumentEntries = existingDocument
-      ? documentEntries.map((entry) => (entry.id === normalizedDocument.id ? normalizedDocument : entry))
-      : [...documentEntries, normalizedDocument];
-    const nextProfile = normalizeCandidateProfile({
-      ...profile,
-      documents: serializeDocumentEntries(nextDocumentEntries),
-    });
-
     try {
-      const response = await fetch(`${apiBaseUrl}/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextProfile),
-      });
-      const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
-
-      if (!response.ok) {
-        throw new Error(savedProfile.detail ?? "Document save failed");
+      if (normalizedDocument.pending_file) {
+        const uploaded = await uploadProfileFile(normalizedDocument.pending_file, {
+          kind: "supporting_document",
+          fileName: normalizedDocument.file_name,
+          title: normalizedDocument.title,
+          category: normalizedDocument.category,
+          language: normalizedDocument.language,
+          issuer: normalizedDocument.issuer,
+          notes: normalizedDocument.notes,
+        });
+        if (isDocumentEditMode && normalizedDocument.id !== uploaded.id) {
+          await fetch(`${apiBaseUrl}/profile/files/${encodeURIComponent(normalizedDocument.id)}`, {
+            method: "DELETE",
+          });
+        }
+      } else {
+        const response = await fetch(
+          `${apiBaseUrl}/profile/files/${encodeURIComponent(normalizedDocument.id)}`,
+          {
+            method: "PATCH",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              title: normalizedDocument.title,
+              category: normalizedDocument.category,
+              language: normalizedDocument.language,
+              issuer: normalizedDocument.issuer,
+              notes: normalizedDocument.notes,
+            }),
+          },
+        );
+        if (!response.ok) {
+          throw new Error(await readApiErrorMessage(response, "Document save failed"));
+        }
       }
 
-      const normalizedProfile = normalizeCandidateProfile(savedProfile);
+      const normalizedProfile = hydrateProfileFiles(profile, await fetchProfileFiles());
       setProfile(normalizedProfile);
       setProfileDraft(normalizedProfile);
       setProfileSaveStatus("ready");
@@ -5643,7 +6492,7 @@ export default function HomePage() {
       const response = await fetch(`${apiBaseUrl}/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextProfile),
+        body: JSON.stringify(profilePayloadForApi(nextProfile)),
       });
       const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
 
@@ -5651,7 +6500,7 @@ export default function HomePage() {
         throw new Error(savedProfile.detail ?? "Preferences save failed");
       }
 
-      const normalizedProfile = normalizeCandidateProfile(savedProfile);
+      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
       setProfile(normalizedProfile);
       setProfileDraft(normalizedProfile);
       setProfileSaveStatus("ready");
@@ -5677,7 +6526,7 @@ export default function HomePage() {
       const response = await fetch(`${apiBaseUrl}/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextProfile),
+        body: JSON.stringify(profilePayloadForApi(nextProfile)),
       });
       const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
 
@@ -5685,7 +6534,7 @@ export default function HomePage() {
         throw new Error(savedProfile.detail ?? "Skills save failed");
       }
 
-      const normalizedProfile = normalizeCandidateProfile(savedProfile);
+      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
       setProfile(normalizedProfile);
       setProfileDraft(normalizedProfile);
       setProfileSaveStatus("ready");
@@ -5711,7 +6560,7 @@ export default function HomePage() {
       const response = await fetch(`${apiBaseUrl}/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextProfile),
+        body: JSON.stringify(profilePayloadForApi(nextProfile)),
       });
       const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
 
@@ -5719,7 +6568,7 @@ export default function HomePage() {
         throw new Error(savedProfile.detail ?? "Dealbreakers save failed");
       }
 
-      const normalizedProfile = normalizeCandidateProfile(savedProfile);
+      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
       setProfile(normalizedProfile);
       setProfileDraft(normalizedProfile);
       setProfileSaveStatus("ready");
@@ -5744,7 +6593,7 @@ export default function HomePage() {
       const response = await fetch(`${apiBaseUrl}/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextProfile),
+        body: JSON.stringify(profilePayloadForApi(nextProfile)),
       });
       const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
 
@@ -5752,7 +6601,7 @@ export default function HomePage() {
         throw new Error(savedProfile.detail ?? "Notes save failed");
       }
 
-      const normalizedProfile = normalizeCandidateProfile(savedProfile);
+      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
       setProfile(normalizedProfile);
       setProfileDraft(normalizedProfile);
       setProfileSaveStatus("ready");
@@ -5780,7 +6629,7 @@ export default function HomePage() {
       const response = await fetch(`${apiBaseUrl}/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextProfile),
+        body: JSON.stringify(profilePayloadForApi(nextProfile)),
       });
       const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
 
@@ -5788,7 +6637,7 @@ export default function HomePage() {
         throw new Error(savedProfile.detail ?? "Experience delete failed");
       }
 
-      const normalizedProfile = normalizeCandidateProfile(savedProfile);
+      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
       setProfile(normalizedProfile);
       setProfileDraft(normalizedProfile);
       setProfileSaveStatus("ready");
@@ -5816,7 +6665,7 @@ export default function HomePage() {
       const response = await fetch(`${apiBaseUrl}/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextProfile),
+        body: JSON.stringify(profilePayloadForApi(nextProfile)),
       });
       const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
 
@@ -5824,7 +6673,7 @@ export default function HomePage() {
         throw new Error(savedProfile.detail ?? "Education delete failed");
       }
 
-      const normalizedProfile = normalizeCandidateProfile(savedProfile);
+      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
       setProfile(normalizedProfile);
       setProfileDraft(normalizedProfile);
       setProfileSaveStatus("ready");
@@ -5839,28 +6688,19 @@ export default function HomePage() {
   async function deleteDocument(documentId: string) {
     if (!window.confirm("Delete this supporting document?")) return;
 
-    const nextDocumentEntries = parseDocumentEntries(profile.documents).filter((entry) => entry.id !== documentId);
-    const nextProfile = normalizeCandidateProfile({
-      ...profile,
-      documents: serializeDocumentEntries(nextDocumentEntries),
-    });
-
     setProfileSaveStatus("loading");
     setProfileSaveMessage("");
 
     try {
-      const response = await fetch(`${apiBaseUrl}/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextProfile),
+      const response = await fetch(`${apiBaseUrl}/profile/files/${encodeURIComponent(documentId)}`, {
+        method: "DELETE",
       });
-      const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
 
       if (!response.ok) {
-        throw new Error(savedProfile.detail ?? "Document delete failed");
+        throw new Error(await readApiErrorMessage(response, "Document delete failed"));
       }
 
-      const normalizedProfile = normalizeCandidateProfile(savedProfile);
+      const normalizedProfile = hydrateProfileFiles(profile, await fetchProfileFiles());
       setProfile(normalizedProfile);
       setProfileDraft(normalizedProfile);
       setProfileSaveStatus("ready");
@@ -5873,7 +6713,7 @@ export default function HomePage() {
   }
 
   async function importExperienceFromCv() {
-    if (!profile.resume_data_url || !profile.resume_file_name) {
+    if (!profile.resume_file_id || !profile.resume_file_name) {
       setExperienceImportMessage("Attach a resume first");
       window.alert("Attach a resume before importing experience.");
       return;
@@ -5889,8 +6729,7 @@ export default function HomePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          resume_file_name: profile.resume_file_name,
-          resume_data_url: profile.resume_data_url,
+          profile_file_id: profile.resume_file_id,
         }),
       });
       const importResult = (await importResponse.json()) as ResumeExperienceImportResponse;
@@ -5929,7 +6768,7 @@ export default function HomePage() {
       const saveResponse = await fetch(`${apiBaseUrl}/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextProfile),
+        body: JSON.stringify(profilePayloadForApi(nextProfile)),
       });
       const savedProfile = (await saveResponse.json()) as Partial<CandidateProfile> & { detail?: string };
 
@@ -5937,7 +6776,7 @@ export default function HomePage() {
         throw new Error(savedProfile.detail ?? "Experience import save failed");
       }
 
-      const normalizedProfile = normalizeCandidateProfile(savedProfile);
+      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
       setProfile(normalizedProfile);
       setProfileDraft(normalizedProfile);
       setProfileSaveStatus("ready");
@@ -5954,7 +6793,7 @@ export default function HomePage() {
   }
 
   async function importEducationFromCv() {
-    if (!profile.resume_data_url || !profile.resume_file_name) {
+    if (!profile.resume_file_id || !profile.resume_file_name) {
       setEducationImportMessage("Attach a resume first");
       window.alert("Attach a resume before importing education.");
       return;
@@ -5970,8 +6809,7 @@ export default function HomePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          resume_file_name: profile.resume_file_name,
-          resume_data_url: profile.resume_data_url,
+          profile_file_id: profile.resume_file_id,
         }),
       });
       const importResult = (await importResponse.json()) as ResumeEducationImportResponse;
@@ -6010,7 +6848,7 @@ export default function HomePage() {
       const saveResponse = await fetch(`${apiBaseUrl}/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextProfile),
+        body: JSON.stringify(profilePayloadForApi(nextProfile)),
       });
       const savedProfile = (await saveResponse.json()) as Partial<CandidateProfile> & { detail?: string };
 
@@ -6018,7 +6856,7 @@ export default function HomePage() {
         throw new Error(savedProfile.detail ?? "Education import save failed");
       }
 
-      const normalizedProfile = normalizeCandidateProfile(savedProfile);
+      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
       setProfile(normalizedProfile);
       setProfileDraft(normalizedProfile);
       setProfileSaveStatus("ready");
@@ -6035,7 +6873,7 @@ export default function HomePage() {
   }
 
   async function importSkillsFromCv() {
-    if (!profile.resume_data_url || !profile.resume_file_name) {
+    if (!profile.resume_file_id || !profile.resume_file_name) {
       setSkillsImportMessage("Attach a resume first");
       window.alert("Attach a resume before importing skills.");
       return;
@@ -6051,8 +6889,7 @@ export default function HomePage() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          resume_file_name: profile.resume_file_name,
-          resume_data_url: profile.resume_data_url,
+          profile_file_id: profile.resume_file_id,
         }),
       });
       const importResult = (await importResponse.json()) as ResumeSkillsImportResponse;
@@ -6085,7 +6922,7 @@ export default function HomePage() {
       const saveResponse = await fetch(`${apiBaseUrl}/profile`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(nextProfile),
+        body: JSON.stringify(profilePayloadForApi(nextProfile)),
       });
       const savedProfile = (await saveResponse.json()) as Partial<CandidateProfile> & { detail?: string };
 
@@ -6093,7 +6930,7 @@ export default function HomePage() {
         throw new Error(savedProfile.detail ?? "Skills import save failed");
       }
 
-      const normalizedProfile = normalizeCandidateProfile(savedProfile);
+      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
       setProfile(normalizedProfile);
       setProfileDraft(normalizedProfile);
       setSkillsDraft(parseProfileLines(normalizedProfile.skills));
@@ -6138,27 +6975,22 @@ export default function HomePage() {
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string") return;
-
-      const titleFromFile = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
-      setDocumentDraft((current) =>
-        normalizeDocumentEntry({
-          ...current,
-          title: current.title || titleFromFile,
-          language: current.language || inferDocumentLanguage(file.name, titleFromFile),
-          file_name: file.name,
-          file_size: formatFileSize(file.size),
-          file_type: file.type || "application/octet-stream",
-          uploaded_at: new Date().toISOString(),
-          data_url: reader.result as string,
-        }),
-      );
-      setProfileSaveStatus("idle");
-      setProfileSaveMessage("");
-    };
-    reader.readAsDataURL(file);
+    const titleFromFile = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim();
+    setDocumentDraft((current) =>
+      normalizeDocumentEntry({
+        ...current,
+        title: current.title || titleFromFile,
+        language: current.language || inferDocumentLanguage(file.name, titleFromFile),
+        file_name: file.name,
+        file_size: formatFileSize(file.size),
+        file_type: file.type || "application/octet-stream",
+        uploaded_at: new Date().toISOString(),
+        download_url: "",
+        pending_file: file,
+      }),
+    );
+    setProfileSaveStatus("idle");
+    setProfileSaveMessage("");
   }
 
   async function persistUserJobs(userJobs: Job[]) {
@@ -6818,6 +7650,7 @@ export default function HomePage() {
         ) : activeView === "Profile" ? (
           <ProfileView
             profile={profile}
+            onProfileResumeUploaded={applyProfileResumeUpload}
             onOpenAssistant={(prompt) => openAssistant(prompt, "profile")}
             onEditProfile={openProfileEditor}
             onAddExperience={() => openExperienceEditor()}
@@ -8226,10 +9059,24 @@ export default function HomePage() {
         {isProfileDialogOpen && (
         <ProfileEditorDialog
           profile={profileDraft}
+          avatarFile={profileAvatarDraftFile}
+          useDefaultAvatar={profileAvatarUseDefault}
           status={profileSaveStatus}
           message={profileSaveMessage}
           onChange={updateProfileDraft}
-          onClose={() => setIsProfileDialogOpen(false)}
+          onAvatarFileSelected={(file) => {
+            setProfileAvatarDraftFile(file);
+            setProfileAvatarUseDefault(false);
+            setProfileSaveStatus("idle");
+            setProfileSaveMessage("");
+          }}
+          onUseDefaultAvatar={() => {
+            setProfileAvatarDraftFile(null);
+            setProfileAvatarUseDefault(true);
+            setProfileSaveStatus("idle");
+            setProfileSaveMessage("");
+          }}
+          onClose={closeProfileEditor}
           onSave={saveProfile}
         />
       )}
@@ -8938,7 +9785,7 @@ function ApplicationsView({
   onSelectApplication: (applicationId: string) => void;
   onOpenJobs: () => void;
   onPrepareApplication: (applicationId: string) => void;
-  onAddManualApplication: (draft: ManualApplicationDraft) => void;
+  onAddManualApplication: (draft: ManualApplicationDraft) => Promise<void>;
   onChangeStatus: (applicationId: string, status: ApplicationStatus) => void;
   onChangeNotes: (applicationId: string, notes: string) => void;
   onChangeDocuments: (applicationId: string, documents: ApplicationDocument[]) => void;
@@ -8958,6 +9805,8 @@ function ApplicationsView({
   const [aiInfoApplicationId, setAiInfoApplicationId] = useState("");
   const [isManualApplicationDialogOpen, setIsManualApplicationDialogOpen] = useState(false);
   const [manualApplicationDraft, setManualApplicationDraft] = useState<ManualApplicationDraft>(defaultManualApplicationDraft);
+  const [isManualApplicationSaving, setIsManualApplicationSaving] = useState(false);
+  const [manualApplicationError, setManualApplicationError] = useState("");
   const statusCounts = applications.reduce(
     (counts, application) => ({
       ...counts,
@@ -9036,7 +9885,12 @@ function ApplicationsView({
     : [];
 
   function openManualApplicationDialog() {
-    setManualApplicationDraft(defaultManualApplicationDraft);
+    setManualApplicationDraft({
+      ...defaultManualApplicationDraft,
+      id: createClientId("manual-application"),
+      jobId: createClientId("manual-job"),
+    });
+    setManualApplicationError("");
     setIsManualApplicationDialogOpen(true);
   }
 
@@ -9051,6 +9905,7 @@ function ApplicationsView({
     value: ManualApplicationDraft[Field],
   ) {
     setManualApplicationDraft((currentDraft) => ({ ...currentDraft, [field]: value }));
+    setManualApplicationError("");
   }
 
   function useProfileResumeForManualApplication() {
@@ -9082,27 +9937,23 @@ function ApplicationsView({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string") return;
-
-      const title = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || file.name;
-      updateManualApplicationDraft("documents", [
-        {
-          id: createClientId("application-resume"),
-          title,
-          fileName: file.name,
-          fileSize: formatFileSize(file.size),
-          fileType: file.type || "application/octet-stream",
-          uploadedAt: new Date().toISOString(),
-          dataUrl: reader.result,
-        },
-      ]);
-    };
-    reader.readAsDataURL(file);
+    const title = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || file.name;
+    updateManualApplicationDraft("documents", [
+      {
+        id: createClientId("application-resume"),
+        kind: "uploaded",
+        title,
+        fileName: file.name,
+        fileSize: formatFileSize(file.size),
+        fileType: file.type || "application/octet-stream",
+        uploadedAt: new Date().toISOString(),
+        downloadUrl: "",
+        pendingFile: file,
+      },
+    ]);
   }
 
-  function saveManualApplication() {
+  async function saveManualApplication() {
     if (
       !manualApplicationDraft.title.trim() ||
       !manualApplicationDraft.company.trim() ||
@@ -9113,9 +9964,19 @@ function ApplicationsView({
       return;
     }
 
-    onAddManualApplication(manualApplicationDraft);
-    setManualApplicationDraft(defaultManualApplicationDraft);
-    setIsManualApplicationDialogOpen(false);
+    setIsManualApplicationSaving(true);
+    setManualApplicationError("");
+    try {
+      await onAddManualApplication(manualApplicationDraft);
+      setManualApplicationDraft(defaultManualApplicationDraft);
+      setIsManualApplicationDialogOpen(false);
+    } catch (error) {
+      setManualApplicationError(
+        error instanceof Error ? error.message : "Application could not be saved",
+      );
+    } finally {
+      setIsManualApplicationSaving(false);
+    }
   }
 
   function openApplicationAiInfo(applicationId: string) {
@@ -9221,7 +10082,7 @@ function ApplicationsView({
     return "FILE";
   }
 
-  function attachApplicationDocument(file: File | undefined) {
+  async function attachApplicationDocument(file: File | undefined) {
     if (!file || !visibleSelectedApplication) return;
 
     const allowedTypes = new Set([
@@ -9247,41 +10108,46 @@ function ApplicationsView({
     }
 
     const application = visibleSelectedApplication;
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result !== "string") return;
-
-      const title = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || file.name;
-      const document: ApplicationDocument = {
-        id: createClientId("application-document"),
-        title,
+    const title = file.name.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || file.name;
+    try {
+      const document = await uploadApplicationAttachment(application.id, file, {
         fileName: file.name,
-        fileSize: formatFileSize(file.size),
-        fileType: file.type || "application/octet-stream",
-        uploadedAt: new Date().toISOString(),
-        dataUrl: reader.result,
-      };
-
+        title,
+      });
       onChangeDocuments(application.id, [...application.documents, document]);
-    };
-    reader.readAsDataURL(file);
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Document could not be uploaded");
+    }
   }
 
-  function deleteApplicationDocument(documentId: string) {
+  async function deleteApplicationDocument(documentId: string) {
     if (!visibleSelectedApplication) return;
 
     const document = visibleSelectedApplication.documents.find((item) => item.id === documentId);
-    if (document?.artifactId) {
-      void fetch(
-        `${apiBaseUrl}/documents/${encodeURIComponent(document.artifactId)}/attachments/${encodeURIComponent(visibleSelectedApplication.id)}`,
-        { method: "DELETE" },
+    if (!document) return;
+    try {
+      let response: Response | null = null;
+      if (document.artifactId) {
+        response = await fetch(
+          `${apiBaseUrl}/documents/${encodeURIComponent(document.artifactId)}/attachments/${encodeURIComponent(visibleSelectedApplication.id)}`,
+          { method: "DELETE" },
+        );
+      } else if (document.sourceId) {
+        response = await fetch(
+          `${apiBaseUrl}/documents/workspace-sources/${encodeURIComponent(document.sourceId)}?applicationId=${encodeURIComponent(visibleSelectedApplication.id)}`,
+          { method: "DELETE" },
+        );
+      }
+      if (response && !response.ok) {
+        throw new Error(await readApiErrorMessage(response, "Document could not be deleted"));
+      }
+      onChangeDocuments(
+        visibleSelectedApplication.id,
+        visibleSelectedApplication.documents.filter((item) => item.id !== documentId),
       );
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : "Document could not be deleted");
     }
-
-    onChangeDocuments(
-      visibleSelectedApplication.id,
-      visibleSelectedApplication.documents.filter((document) => document.id !== documentId),
-    );
   }
 
   return (
@@ -9737,7 +10603,7 @@ function ApplicationsView({
                         accept=".pdf,.doc,.docx,.png,.jpg,.jpeg,.webp,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,image/png,image/jpeg,image/webp"
                         className="hidden"
                         onChange={(event) => {
-                          attachApplicationDocument(event.target.files?.[0]);
+                          void attachApplicationDocument(event.target.files?.[0]);
                           event.currentTarget.value = "";
                         }}
                       />
@@ -9761,7 +10627,7 @@ function ApplicationsView({
                             </span>
                             <Info className="h-3.5 w-3.5 shrink-0 text-muted" />
                             <a
-                              href={document.dataUrl}
+                              href={document.downloadUrl}
                               download={document.fileName}
                               aria-label={`Download ${document.fileName}`}
                               title={`Download ${document.fileName}`}
@@ -9773,7 +10639,7 @@ function ApplicationsView({
                               type="button"
                               aria-label={`Delete ${document.fileName}`}
                               title={`Delete ${document.fileName}`}
-                              onClick={() => deleteApplicationDocument(document.id)}
+                              onClick={() => void deleteApplicationDocument(document.id)}
                               className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-muted transition hover:bg-[#fa5d00]/12 hover:text-[#fa5d00]"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
@@ -9908,7 +10774,7 @@ function ApplicationsView({
                       type="button"
                       variant="ghost"
                       className="h-8 rounded-md border border-border bg-transparent px-3 text-[12px] text-[#1d1e1c] hover:bg-[#fff3e8]"
-                      disabled={!profile.resume_file_name || !profile.resume_data_url}
+                      disabled={!profile.resume_file_name || !profile.resume_file_id}
                       onClick={useProfileResumeForManualApplication}
                     >
                       <FileText className="h-3.5 w-3.5" />
@@ -9970,7 +10836,15 @@ function ApplicationsView({
             </div>
 
             <div className="mt-5 flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-xs font-semibold text-muted">Title, company, location, link, and description are required.</p>
+              <p
+                className={cn(
+                  "text-xs font-semibold",
+                  manualApplicationError ? "text-[#fa5d00]" : "text-muted",
+                )}
+                role={manualApplicationError ? "alert" : undefined}
+              >
+                {manualApplicationError || "Title, company, location, link, and description are required."}
+              </p>
               <div className="flex gap-2">
                 <Button
                   type="button"
@@ -9984,16 +10858,17 @@ function ApplicationsView({
                   type="button"
                   className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-5 text-[13px] text-foreground"
                   disabled={
+                    isManualApplicationSaving ||
                     !manualApplicationDraft.title.trim() ||
                     !manualApplicationDraft.company.trim() ||
                     !manualApplicationDraft.location.trim() ||
                     !manualApplicationDraft.applyUrl.trim() ||
                     !manualApplicationDraft.overview.trim()
                   }
-                  onClick={saveManualApplication}
+                  onClick={() => void saveManualApplication()}
                 >
                   <Save className="h-4 w-4" />
-                  Save application
+                  {isManualApplicationSaving ? "Saving application..." : "Save application"}
                 </Button>
               </div>
             </div>
@@ -11532,6 +12407,7 @@ function getProfileLinks(profile: CandidateProfile) {
 
 function ProfileView({
   profile,
+  onProfileResumeUploaded,
   onOpenAssistant,
   onEditProfile,
   onAddExperience,
@@ -11558,6 +12434,13 @@ function ProfileView({
   skillsImportMessage,
 }: {
   profile: CandidateProfile;
+  onProfileResumeUploaded: (file: {
+    id: string;
+    fileName: string;
+    sizeBytes: number;
+    updatedAt: string;
+    downloadUrl: string;
+  }) => void;
   onOpenAssistant: (prompt: string) => void;
   onEditProfile: () => void;
   onAddExperience: () => void;
@@ -11612,12 +12495,13 @@ function ProfileView({
       <div className="mt-4 grid shrink-0 content-start gap-4 2xl:gap-5">
         <MasterResumeEditor
           apiBaseUrl={apiBaseUrl}
+          onProfileResumeUploaded={onProfileResumeUploaded}
           profileResume={
-            profile.resume_file_name && profile.resume_data_url
+            profile.resume_file_name && profile.resume_file_id
               ? {
                   fileName: profile.resume_file_name,
                   fileSize: profile.resume_file_size,
-                  dataUrl: profile.resume_data_url,
+                  fileId: profile.resume_file_id,
                 }
               : null
           }
@@ -11814,7 +12698,7 @@ function ExperiencePanel({
   importMessage: string;
 }) {
   const experienceItems = parseExperienceEntries(profile.experience);
-  const hasResume = hasProfileValue(profile.resume_data_url) && hasProfileValue(profile.resume_file_name);
+  const hasResume = hasProfileValue(profile.resume_file_id) && hasProfileValue(profile.resume_file_name);
 
   return (
     <section className="panel p-4 2xl:p-5">
@@ -11912,7 +12796,7 @@ function SkillsPanel({
   importMessage: string;
 }) {
   const skillItems = parseProfileLines(profile.skills);
-  const hasResume = hasProfileValue(profile.resume_data_url) && hasProfileValue(profile.resume_file_name);
+  const hasResume = hasProfileValue(profile.resume_file_id) && hasProfileValue(profile.resume_file_name);
   const skillPreviewLimit = 24;
   const visibleSkillItems = skillItems.slice(0, skillPreviewLimit);
   const hiddenSkillCount = Math.max(skillItems.length - visibleSkillItems.length, 0);
@@ -12000,7 +12884,7 @@ function EducationPanel({
   importMessage: string;
 }) {
   const educationItems = parseEducationEntries(profile.education);
-  const hasResume = hasProfileValue(profile.resume_data_url) && hasProfileValue(profile.resume_file_name);
+  const hasResume = hasProfileValue(profile.resume_file_id) && hasProfileValue(profile.resume_file_name);
 
   return (
     <section className="panel p-4 2xl:p-5">
@@ -12154,7 +13038,7 @@ function DocumentsPanel({
               <div className="flex shrink-0 gap-1">
                 <a
                   aria-label="Download document"
-                  href={item.data_url}
+                  href={item.download_url}
                   download={item.file_name || item.title}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
                 >
@@ -13761,22 +14645,41 @@ function PreferenceToggleGroup({
 
 function ProfileEditorDialog({
   profile,
+  avatarFile,
+  useDefaultAvatar,
   status,
   message,
   onChange,
+  onAvatarFileSelected,
+  onUseDefaultAvatar,
   onClose,
   onSave,
 }: {
   profile: CandidateProfile;
+  avatarFile: File | null;
+  useDefaultAvatar: boolean;
   status: "idle" | "loading" | "ready" | "error";
   message: string;
   onChange: <Field extends keyof CandidateProfile>(
     field: Field,
     value: CandidateProfile[Field],
   ) => void;
+  onAvatarFileSelected: (file: File) => void;
+  onUseDefaultAvatar: () => void;
   onClose: () => void;
   onSave: () => void;
 }) {
+  const [avatarPreviewUrl, setAvatarPreviewUrl] = useState("");
+  useEffect(() => {
+    if (!avatarFile || typeof URL.createObjectURL !== "function") {
+      setAvatarPreviewUrl("");
+      return;
+    }
+    const previewUrl = URL.createObjectURL(avatarFile);
+    setAvatarPreviewUrl(previewUrl);
+    return () => URL.revokeObjectURL(previewUrl);
+  }, [avatarFile]);
+
   const fields: Array<{
     field: keyof CandidateProfile;
     label: string;
@@ -13803,13 +14706,7 @@ function ProfileEditorDialog({
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === "string") {
-        onChange("avatar_url", reader.result);
-      }
-    };
-    reader.readAsDataURL(file);
+    onAvatarFileSelected(file);
   }
 
   return (
@@ -13833,21 +14730,25 @@ function ProfileEditorDialog({
         <div className="job-scroll mt-5 min-h-0 flex-1 overflow-y-auto rounded-md border border-border p-4">
           <div className="mb-5 flex flex-col gap-4 rounded-md border border-border bg-[#fff8f1] p-4 sm:flex-row sm:items-center">
             <img
-              src={profile.avatar_url || defaultCandidateProfile.avatar_url}
+              src={
+                useDefaultAvatar
+                  ? defaultCandidateProfile.avatar_url
+                  : avatarPreviewUrl || profile.avatar_url || defaultCandidateProfile.avatar_url
+              }
               alt=""
               className="h-20 w-20 shrink-0 rounded-full object-cover ring-1 ring-white/10"
               aria-hidden="true"
             />
             <div className="min-w-0 flex-1">
               <p className="text-sm font-bold text-foreground">Avatar</p>
-              <p className="mt-1 text-xs leading-5 text-muted">Default is the pug image. Upload PNG, JPG, WebP, GIF, or SVG under 1MB.</p>
+              <p className="mt-1 text-xs leading-5 text-muted">Default is the pug image. Upload PNG, JPG, or WebP under 1MB.</p>
               <div className="mt-3 flex flex-wrap gap-2">
                 <label className="inline-flex h-9 cursor-pointer items-center justify-center gap-2 rounded-md border border-border bg-[#fff8f1] px-3 text-xs font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8]">
                   <Upload className="h-4 w-4" />
                   Change Avatar
                   <input
                     type="file"
-                    accept="image/png,image/jpeg,image/webp,image/gif,image/svg+xml"
+                    accept="image/png,image/jpeg,image/webp"
                     className="hidden"
                     onChange={(event) => handleAvatarFile(event.target.files?.[0])}
                   />
@@ -13855,7 +14756,7 @@ function ProfileEditorDialog({
                 <button
                   type="button"
                   className="inline-flex h-9 items-center justify-center rounded-md border border-border bg-transparent px-3 text-xs font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8]"
-                  onClick={() => onChange("avatar_url", defaultCandidateProfile.avatar_url)}
+                  onClick={onUseDefaultAvatar}
                 >
                   Use Default
                 </button>

@@ -61,7 +61,6 @@ export function createWorkspaceProfile(
     resume_file_name: "",
     resume_file_size: "",
     resume_updated_at: "",
-    resume_data_url: "",
     ...overrides,
   };
 }
