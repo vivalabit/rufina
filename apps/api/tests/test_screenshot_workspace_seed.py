@@ -1,4 +1,3 @@
-import base64
 import importlib.util
 import sys
 from datetime import UTC, datetime
@@ -14,9 +13,10 @@ from app.models.applications import (
     StoredApplicationEventRecord,
     StoredApplicationRecord,
 )
+from app.models.documents import WorkspaceSourceDocumentRecord
 from app.models.jobs import JobMatchRecord, StoredJobRecord
 from app.models.privacy import AiPrivacySettingsRecord
-from app.models.profile import ProfilePayload, ProfileRecord
+from app.models.profile import ProfileFileRecord, ProfilePayload, ProfileRecord
 
 SCRIPT_PATH = Path(__file__).resolve().parents[3] / "scripts" / "seed_screenshot_workspace.py"
 SPEC = importlib.util.spec_from_file_location("seed_screenshot_workspace", SCRIPT_PATH)
@@ -43,13 +43,19 @@ def test_screenshot_fixture_is_valid_and_idempotent() -> None:
         assert profile_record is not None
         profile = ProfilePayload.model_validate(profile_record.data)
         assert profile.name == "Maya Keller"
-        assert profile.resume_data_url.startswith("data:application/pdf;base64,")
-        encoded_pdf = profile.resume_data_url.partition(",")[2]
-        assert base64.b64decode(encoded_pdf).startswith(b"%PDF-1.4")
+        assert "resume_data_url" not in profile_record.data
+        assert "documents" not in profile_record.data
+        profile_file = db.query(ProfileFileRecord).filter_by(kind="primary_resume").one()
+        assert profile_file.content.startswith(b"%PDF-1.4")
 
         assert db.query(StoredJobRecord).count() == 6
         assert db.query(JobMatchRecord).count() == 6
         assert db.query(StoredApplicationRecord).count() == 4
+        assert db.query(WorkspaceSourceDocumentRecord).count() == 4
+        assert all(
+            "documents" not in record.data
+            for record in db.query(StoredApplicationRecord).all()
+        )
         assert db.query(StoredApplicationEventRecord).count() == 4
         assert db.query(AiPrivacySettingsRecord).count() == 1
         assert {record.score for record in db.query(JobMatchRecord).all()} == {

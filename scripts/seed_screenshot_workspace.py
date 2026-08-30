@@ -3,7 +3,6 @@
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 import os
@@ -27,6 +26,7 @@ from app.models.applications import (
     StoredApplicationEventRecord,
     StoredApplicationRecord,
 )
+from app.models.documents import WorkspaceSourceDocumentRecord
 from app.models.jobs import (
     JobMatchFeedbackRecord,
     JobMatchRecord,
@@ -37,6 +37,7 @@ from app.models.profile import ProfilePayload
 from app.services.ai_match import MATCH_PROMPT_VERSION, MATCHER_VERSION, WEIGHTS
 from app.services.candidate_snapshot import get_candidate_match_snapshot
 from app.services.job_match_store import build_match_record
+from app.services.profile_files import store_profile_file
 from app.services.profile_versions import (
     create_profile_record,
     get_profile_record,
@@ -61,7 +62,7 @@ def iso_at(now: datetime, *, days: int = 0, hours: int = 0) -> str:
     return (now + timedelta(days=days, hours=hours)).isoformat()
 
 
-def build_demo_resume_data_url() -> str:
+def build_demo_resume_content() -> bytes:
     """Return a tiny valid one-page PDF without checking in personal files."""
     text = "Maya Keller - Senior Product Designer - Demo Resume"
     content = f"BT /F1 18 Tf 72 760 Td ({text}) Tj ET".encode("ascii")
@@ -99,8 +100,7 @@ def build_demo_resume_data_url() -> str:
             f"startxref\n{xref_offset}\n%%EOF\n"
         ).encode("ascii")
     )
-    encoded = base64.b64encode(bytes(payload)).decode("ascii")
-    return f"data:application/pdf;base64,{encoded}"
+    return bytes(payload)
 
 
 def build_profile(now: datetime) -> dict[str, Any]:
@@ -196,11 +196,6 @@ def build_profile(now: datetime) -> dict[str, Any]:
         "job_preferences": json.dumps(preferences, ensure_ascii=False),
         "dealbreakers": "No onsite-only roles\nNo unpaid assignments longer than four hours",
         "additional_notes": "Available with one month's notice.",
-        "documents": "",
-        "resume_file_name": "Maya_Keller_Demo_Resume.pdf",
-        "resume_file_size": "1 KB",
-        "resume_updated_at": iso_at(now, days=-3),
-        "resume_data_url": build_demo_resume_data_url(),
     }
 
 
@@ -390,18 +385,8 @@ def build_jobs(now: datetime) -> list[dict[str, Any]]:
 def build_applications(
     now: datetime,
     jobs: list[dict[str, Any]],
-    resume_data_url: str,
 ) -> list[dict[str, Any]]:
     by_slug = {job["id"].removeprefix(DEMO_JOB_PREFIX): job for job in jobs}
-    resume = {
-        "id": "demo-application-resume",
-        "title": "Maya Keller Resume",
-        "fileName": "Maya_Keller_Demo_Resume.pdf",
-        "fileSize": "1 KB",
-        "fileType": "application/pdf",
-        "uploadedAt": iso_at(now, days=-12),
-        "dataUrl": resume_data_url,
-    }
     application_specs = [
         (
             "novara",
@@ -440,7 +425,6 @@ def build_applications(
             "appliedAt": iso_at(now, days=days_ago),
             "nextStep": next_step,
             "notes": notes,
-            "documents": [resume],
         }
         for slug, status, days_ago, next_step, notes in application_specs
     ]
@@ -504,11 +488,7 @@ def build_fixture(now: datetime | None = None) -> ScreenshotFixture:
     resolved_now = (now or datetime.now(UTC)).astimezone(UTC).replace(microsecond=0)
     profile = build_profile(resolved_now)
     jobs = build_jobs(resolved_now)
-    applications = build_applications(
-        resolved_now,
-        jobs,
-        profile["resume_data_url"],
-    )
+    applications = build_applications(resolved_now, jobs)
     events = build_events(resolved_now)
     return ScreenshotFixture(
         profile=profile,
@@ -573,6 +553,11 @@ def demo_ai_match(
 
 
 def delete_existing_demo_records(db: Session) -> None:
+    db.query(WorkspaceSourceDocumentRecord).filter(
+        WorkspaceSourceDocumentRecord.application_id.like(
+            f"{DEMO_APPLICATION_PREFIX}%"
+        )
+    ).delete(synchronize_session=False)
     db.query(StoredApplicationEventRecord).filter(
         StoredApplicationEventRecord.id.like(f"{DEMO_EVENT_PREFIX}%")
     ).delete(synchronize_session=False)
@@ -614,6 +599,7 @@ def seed_database(
     owner_token = current_owner_id.set(DEFAULT_OWNER_ID)
     try:
         delete_existing_demo_records(db)
+        resume_content = build_demo_resume_content()
 
         profile_record = get_profile_record(db)
         if profile_record:
@@ -626,6 +612,16 @@ def seed_database(
                 )
         else:
             db.add(create_profile_record(profile_payload.model_dump()))
+
+        store_profile_file(
+            db,
+            kind="primary_resume",
+            file_name="Maya_Keller_Demo_Resume.pdf",
+            content_type="application/pdf",
+            content=resume_content,
+            title="Maya Keller Resume",
+            category="CV / Resume",
+        )
 
         snapshot = get_candidate_match_snapshot(db, profile=profile_payload)
         for job in fixture.jobs:
@@ -653,6 +649,26 @@ def seed_database(
                 StoredApplicationRecord(
                     id=application["id"],
                     data=application,
+                )
+            )
+        db.flush()
+        resume_hash = hashlib.sha256(resume_content).hexdigest()
+        for application in fixture.applications:
+            db.add(
+                WorkspaceSourceDocumentRecord(
+                    id=f"demo-source-{application['id'].removeprefix(DEMO_APPLICATION_PREFIX)}",
+                    application_id=application["id"],
+                    category="Application Attachment",
+                    title="Maya Keller Resume",
+                    language="English",
+                    file_name="Maya_Keller_Demo_Resume.pdf",
+                    content_type="application/pdf",
+                    size_bytes=len(resume_content),
+                    content_sha256=resume_hash,
+                    legacy_document_id="demo-application-resume",
+                    content=resume_content,
+                    created_at=resolved_now,
+                    updated_at=resolved_now,
                 )
             )
 
