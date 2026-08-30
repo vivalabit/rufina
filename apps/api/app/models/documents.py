@@ -1,15 +1,27 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
-from sqlalchemy import JSON, CheckConstraint, DateTime, ForeignKey, Integer, LargeBinary, String, Text, UniqueConstraint, event, inspect
+from sqlalchemy import (
+    JSON,
+    CheckConstraint,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    UniqueConstraint,
+    event,
+    inspect,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base, OwnerScoped
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class DocumentRecord(OwnerScoped, Base):
@@ -41,12 +53,12 @@ class DocumentRecord(OwnerScoped, Base):
         cascade="all, delete-orphan",
         uselist=False,
     )
-    version_generation_provenance: Mapped[
-        list["DocumentVersionGenerationProvenanceRecord"]
-    ] = relationship(
-        back_populates="document",
-        cascade="all, delete-orphan",
-        order_by="DocumentVersionGenerationProvenanceRecord.version",
+    version_generation_provenance: Mapped[list["DocumentVersionGenerationProvenanceRecord"]] = (
+        relationship(
+            back_populates="document",
+            cascade="all, delete-orphan",
+            order_by="DocumentVersionGenerationProvenanceRecord.version",
+        )
     )
     version_validations: Mapped[list["DocumentVersionValidationRecord"]] = relationship(
         back_populates="document",
@@ -135,9 +147,7 @@ class DocumentVersionGenerationProvenanceRecord(Base):
     )
     input_versions: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
-    document: Mapped[DocumentRecord] = relationship(
-        back_populates="version_generation_provenance"
-    )
+    document: Mapped[DocumentRecord] = relationship(back_populates="version_generation_provenance")
 
 
 class DocumentVersionValidationRecord(Base):
@@ -321,6 +331,18 @@ class DocumentTemplateRecord(OwnerScoped, Base):
 
 class WorkspaceSourceDocumentRecord(OwnerScoped, Base):
     __tablename__ = "workspace_source_documents"
+    __table_args__ = (
+        CheckConstraint(
+            "size_bytes > 0",
+            name="ck_workspace_source_documents_size_positive",
+        ),
+        UniqueConstraint(
+            "owner_id",
+            "application_id",
+            "legacy_document_id",
+            name="uq_workspace_source_documents_owner_application_legacy",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
     application_id: Mapped[str] = mapped_column(
@@ -334,7 +356,13 @@ class WorkspaceSourceDocumentRecord(OwnerScoped, Base):
     language: Mapped[str] = mapped_column(String(40), nullable=False, default="")
     file_name: Mapped[str] = mapped_column(String(240), nullable=False)
     content_type: Mapped[str] = mapped_column(String(160), nullable=False)
-    content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    legacy_document_id: Mapped[str | None] = mapped_column(
+        String(160),
+        nullable=True,
+    )
+    content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False, deferred=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
@@ -363,10 +391,7 @@ class DocumentFileRecord(Base):
             name="uq_document_files_imaginator_resume_pdf_source",
         ),
         CheckConstraint(
-            (
-                "source_ats_final_review_id IS NULL "
-                "OR source_imaginator_resume_id IS NULL"
-            ),
+            ("source_ats_final_review_id IS NULL OR source_imaginator_resume_id IS NULL"),
             name="ck_document_files_single_resume_pipeline_source",
         ),
     )
@@ -393,10 +418,7 @@ class DocumentFileRecord(Base):
     content_type: Mapped[str] = mapped_column(
         String(160),
         nullable=False,
-        default=(
-            "application/vnd.openxmlformats-officedocument."
-            "wordprocessingml.document"
-        ),
+        default=("application/vnd.openxmlformats-officedocument.wordprocessingml.document"),
     )
     renderer_template_id: Mapped[str | None] = mapped_column(
         String(80),
@@ -450,7 +472,11 @@ class DocumentFileRecord(Base):
 
 DocumentType = Literal["cover_letter", "tailored_resume"]
 DocumentPackPersistenceMode = Literal["atomic", "partial"]
-WorkspaceSourceCategory = Literal["CV / Resume", "Cover Letter"]
+WorkspaceSourceCategory = Literal[
+    "CV / Resume",
+    "Cover Letter",
+    "Application Attachment",
+]
 
 
 class DocumentArtifactPayload(BaseModel):
@@ -709,17 +735,6 @@ class DocumentTemplatePreflightPayload(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class WorkspaceSourceDocumentCreateRequest(BaseModel):
-    application_id: str = Field(min_length=1, max_length=160, alias="applicationId")
-    category: WorkspaceSourceCategory
-    title: str = Field(min_length=1, max_length=240)
-    language: str = Field(default="", max_length=40)
-    file_name: str = Field(min_length=1, max_length=240, alias="fileName")
-    data_url: str = Field(min_length=1, max_length=15_000_000, alias="dataUrl")
-
-    model_config = {"populate_by_name": True, "extra": "forbid"}
-
-
 class WorkspaceSourceDocumentPayload(BaseModel):
     id: str
     application_id: str = Field(alias="applicationId")
@@ -728,8 +743,11 @@ class WorkspaceSourceDocumentPayload(BaseModel):
     language: str
     file_name: str = Field(alias="fileName")
     file_size: str = Field(alias="fileSize")
+    size_bytes: int = Field(alias="sizeBytes")
     file_type: str = Field(alias="fileType")
+    content_sha256: str = Field(alias="contentSha256")
+    legacy_document_id: str | None = Field(default=None, alias="legacyDocumentId")
     uploaded_at: datetime = Field(alias="uploadedAt")
-    data_url: str = Field(alias="dataUrl")
+    download_url: str = Field(alias="downloadUrl")
 
     model_config = {"populate_by_name": True}

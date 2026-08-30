@@ -1,8 +1,9 @@
-from collections.abc import Generator
 import base64
+import hashlib
+import json
+from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from io import BytesIO
-import json
 from uuid import uuid4
 
 from docx import Document
@@ -30,14 +31,14 @@ from app.models.jobs import JobMatchRecord, StoredJobRecord
 from app.models.profile import ProfilePayload, ProfileRecord
 from app.services.ai_match import (
     DEFAULT_AI_MATCH_MODEL,
-    MATCHER_VERSION,
     MATCH_PROMPT_VERSION,
+    MATCHER_VERSION,
     build_job_snapshot,
     build_job_snapshot_hash,
     build_profile_hash,
 )
-from app.services.job_match_store import APPLICATION_GUIDE_STORAGE_KEY
 from app.services.generation_context import load_authoritative_generation_context
+from app.services.job_match_store import APPLICATION_GUIDE_STORAGE_KEY
 
 
 def test_resume_template_preflight_rejects_custom_docx_without_saving() -> None:
@@ -99,17 +100,13 @@ def test_resume_template_preflight_rejects_custom_docx_without_saving() -> None:
             },
         )
         with testing_session_local() as db:
-            template_count = db.scalar(
-                select(func.count()).select_from(DocumentTemplateRecord)
-            )
+            template_count = db.scalar(select(func.count()).select_from(DocumentTemplateRecord))
     finally:
         app.dependency_overrides.clear()
 
     assert supported.status_code == 422
     assert rejected.status_code == 422
-    assert "Custom resume DOCX templates are not supported" in (
-        supported.json()["detail"]
-    )
+    assert "Custom resume DOCX templates are not supported" in (supported.json()["detail"])
     assert template_count == 0
 
 
@@ -146,35 +143,34 @@ def test_workspace_sources_reject_resume_uploads_but_keep_cover_letters() -> Non
     output = BytesIO()
     document.save(output)
     original_content = output.getvalue()
-    data_url = (
-        "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;"
-        "base64," + base64.b64encode(original_content).decode()
-    )
+    docx_content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
     app.dependency_overrides[get_db] = override_get_db
     client = TestClient(app)
     try:
         resume_rejected = client.post(
-            "/documents/workspace-sources",
-            json={
+            "/documents/workspace-sources/upload",
+            params={
                 "applicationId": "application-sources",
                 "category": "CV / Resume",
                 "title": "Target CV",
                 "language": "English",
                 "fileName": "Résumé-Едуард.docx",
-                "dataUrl": data_url,
             },
+            content=original_content,
+            headers={"Content-Type": docx_content_type},
         )
         created = client.post(
-            "/documents/workspace-sources",
-            json={
+            "/documents/workspace-sources/upload",
+            params={
                 "applicationId": "application-sources",
                 "category": "Cover Letter",
                 "title": "Source cover letter",
                 "language": "English",
                 "fileName": "Cover-Letter.docx",
-                "dataUrl": data_url,
             },
+            content=original_content,
+            headers={"Content-Type": docx_content_type},
         )
         listed = client.get(
             "/documents/workspace-sources/library",
@@ -185,6 +181,20 @@ def test_workspace_sources_reject_resume_uploads_but_keep_cover_letters() -> Non
             params={"applicationId": "application-other"},
         )
         source_id = created.json()["id"]
+        downloaded = client.get(created.json()["downloadUrl"])
+        wrong_workspace_download = client.get(
+            f"/documents/workspace-sources/{source_id}/download",
+            params={"applicationId": "application-other"},
+        )
+        wrong_owner_download = client.get(
+            created.json()["downloadUrl"],
+            headers={"X-Rufina-Owner-Id": "another-owner"},
+        )
+        wrong_owner_delete = client.delete(
+            f"/documents/workspace-sources/{source_id}",
+            params={"applicationId": "application-sources"},
+            headers={"X-Rufina-Owner-Id": "another-owner"},
+        )
         wrong_workspace_delete = client.delete(
             f"/documents/workspace-sources/{source_id}",
             params={"applicationId": "application-other"},
@@ -205,14 +215,188 @@ def test_workspace_sources_reject_resume_uploads_but_keep_cover_letters() -> Non
     assert created.status_code == 201
     assert created.json()["fileName"] == "Cover-Letter.docx"
     assert created.json()["category"] == "Cover Letter"
+    assert created.json()["sizeBytes"] == len(original_content)
+    assert created.json()["contentSha256"] == hashlib.sha256(original_content).hexdigest()
+    assert "dataUrl" not in created.json()
     assert listed.status_code == 200
+    assert listed.headers["cache-control"] == "private, no-store"
+    assert listed.headers["vary"] == "X-Rufina-Owner-Id, X-Tasko-Owner-Id"
     assert [source["id"] for source in listed.json()] == [source_id]
-    restored_content = base64.b64decode(listed.json()[0]["dataUrl"].partition(",")[2])
-    assert restored_content == original_content
+    assert "dataUrl" not in listed.json()[0]
+    assert downloaded.status_code == 200
+    assert downloaded.content == original_content
+    assert downloaded.headers["content-type"] == docx_content_type
+    assert downloaded.headers["content-length"] == str(len(original_content))
+    assert downloaded.headers["x-content-type-options"] == "nosniff"
+    assert downloaded.headers["cross-origin-resource-policy"] == "same-site"
+    assert wrong_workspace_download.status_code == 404
+    assert wrong_owner_download.status_code == 404
+    assert wrong_owner_delete.status_code == 404
     assert other_workspace.json() == []
     assert wrong_workspace_delete.status_code == 404
     assert deleted.status_code == 204
     assert listed_after_delete.json() == []
+
+
+def test_application_attachments_validate_type_size_and_legacy_identity() -> None:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+    testing_session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+    def override_get_db() -> Generator[Session, None, None]:
+        with testing_session_local() as db:
+            yield db
+
+    with testing_session_local() as db:
+        db.add(
+            StoredApplicationRecord(
+                id="application-attachments",
+                data={"id": "application-attachments", "status": "draft"},
+            )
+        )
+        db.commit()
+
+    docx_content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+    document = Document()
+    document.add_paragraph("Supporting document")
+    docx_output = BytesIO()
+    document.save(docx_output)
+    supported_files = [
+        ("application/pdf", "details.pdf", b"%PDF-1.7 attachment"),
+        (
+            "application/msword",
+            "details.doc",
+            b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1legacy-doc-attachment",
+        ),
+        (docx_content_type, "details.docx", docx_output.getvalue()),
+        ("image/png", "details.png", b"\x89PNG\r\n\x1a\npng-attachment"),
+        ("image/jpeg", "details.jpeg", b"\xff\xd8\xffjpeg-attachment"),
+        ("image/webp", "details.webp", b"RIFF\x00\x00\x00\x00WEBPwebp-attachment"),
+    ]
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+    try:
+        created_payloads: list[dict[str, object]] = []
+        for index, (content_type, file_name, content) in enumerate(supported_files):
+            response = client.post(
+                "/documents/workspace-sources/upload",
+                params={
+                    "applicationId": "application-attachments",
+                    "category": "Application Attachment",
+                    "title": f"Attachment {index}",
+                    "fileName": file_name,
+                    **({"legacyDocumentId": "legacy-pdf"} if index == 0 else {}),
+                },
+                content=content,
+                headers={"Content-Type": content_type},
+            )
+            assert response.status_code == 201
+            assert response.json()["fileType"] == content_type
+            assert response.json()["sizeBytes"] == len(content)
+            created_payloads.append(response.json())
+
+        retried = client.post(
+            "/documents/workspace-sources/upload",
+            params={
+                "applicationId": "application-attachments",
+                "category": "Application Attachment",
+                "title": "Retried PDF",
+                "fileName": "details.pdf",
+                "legacyDocumentId": "legacy-pdf",
+            },
+            content=supported_files[0][2],
+            headers={"Content-Type": "application/pdf"},
+        )
+        legacy_conflict = client.post(
+            "/documents/workspace-sources/upload",
+            params={
+                "applicationId": "application-attachments",
+                "category": "Application Attachment",
+                "title": "Changed PDF",
+                "fileName": "details.pdf",
+                "legacyDocumentId": "legacy-pdf",
+            },
+            content=b"%PDF-1.7 changed",
+            headers={"Content-Type": "application/pdf"},
+        )
+        mismatched_type = client.post(
+            "/documents/workspace-sources/upload",
+            params={
+                "applicationId": "application-attachments",
+                "category": "Application Attachment",
+                "title": "Mismatched",
+                "fileName": "image.png",
+            },
+            content=b"mismatched",
+            headers={"Content-Type": "application/pdf"},
+        )
+        unsupported_type = client.post(
+            "/documents/workspace-sources/upload",
+            params={
+                "applicationId": "application-attachments",
+                "category": "Application Attachment",
+                "title": "Unsupported",
+                "fileName": "notes.txt",
+            },
+            content=b"unsupported",
+            headers={"Content-Type": "application/octet-stream"},
+        )
+        invalid_signature = client.post(
+            "/documents/workspace-sources/upload",
+            params={
+                "applicationId": "application-attachments",
+                "category": "Application Attachment",
+                "title": "Disguised executable",
+                "fileName": "disguised.pdf",
+            },
+            content=b"not-a-pdf",
+            headers={"Content-Type": "application/pdf"},
+        )
+        invalid_cover_letter = client.post(
+            "/documents/workspace-sources/upload",
+            params={
+                "applicationId": "application-attachments",
+                "category": "Cover Letter",
+                "title": "Invalid cover letter",
+                "fileName": "invalid.docx",
+            },
+            content=b"not-a-validated-docx",
+            headers={"Content-Type": docx_content_type},
+        )
+        oversized = client.post(
+            "/documents/workspace-sources/upload",
+            params={
+                "applicationId": "application-attachments",
+                "category": "Application Attachment",
+                "title": "Oversized",
+                "fileName": "oversized.pdf",
+            },
+            content=b"x" * 5_000_001,
+            headers={"Content-Type": "application/pdf"},
+        )
+        listed = client.get(
+            "/documents/workspace-sources/library",
+            params={"applicationId": "application-attachments"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert retried.status_code == 200
+    assert retried.json()["id"] == created_payloads[0]["id"]
+    assert legacy_conflict.status_code == 409
+    assert mismatched_type.status_code == 422
+    assert unsupported_type.status_code == 422
+    assert invalid_signature.status_code == 422
+    assert invalid_cover_letter.status_code == 422
+    assert oversized.status_code == 413
+    assert listed.status_code == 200
+    assert len(listed.json()) == len(supported_files)
+    assert all("dataUrl" not in attachment for attachment in listed.json())
 
 
 def test_document_versions_download_and_application_attachments() -> None:
@@ -264,23 +448,17 @@ def test_document_versions_download_and_application_attachments() -> None:
         )
         listed = client.get("/documents?jobId=job-figma")
         downloaded = client.get(f"/documents/{document_id}/download?version=2")
-        detached = client.delete(
-            f"/documents/{document_id}/attachments/application-one"
-        )
+        detached = client.delete(f"/documents/{document_id}/attachments/application-one")
         deleted = client.delete(f"/documents/{document_id}")
 
         with testing_session_local() as db:
             version_count = db.scalar(select(func.count()).select_from(DocumentVersionRecord))
-            attachment_count = db.scalar(
-                select(func.count()).select_from(DocumentAttachmentRecord)
-            )
+            attachment_count = db.scalar(select(func.count()).select_from(DocumentAttachmentRecord))
             provenance_count = db.scalar(
                 select(func.count()).select_from(DocumentGenerationProvenanceRecord)
             )
             version_provenance_count = db.scalar(
-                select(func.count()).select_from(
-                    DocumentVersionGenerationProvenanceRecord
-                )
+                select(func.count()).select_from(DocumentVersionGenerationProvenanceRecord)
             )
     finally:
         app.dependency_overrides.clear()
@@ -420,8 +598,7 @@ def test_cover_letter_pdf_download_converts_the_saved_docx(monkeypatch) -> None:
                 template_id="standard-cover-letter",
                 file_name="Bewerbungsschreiben-Zürich.docx",
                 content_type=(
-                    "application/vnd.openxmlformats-officedocument."
-                    "wordprocessingml.document"
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 ),
                 content=rendered_content,
             )
@@ -578,23 +755,17 @@ def test_document_version_history_is_paginated_from_newest_to_oldest() -> None:
     client = TestClient(app)
     try:
         document = client.get("/documents/paginated-document")
-        older_page = client.get(
-            "/documents/paginated-document/versions?limit=20&offset=20"
-        )
+        older_page = client.get("/documents/paginated-document/versions?limit=20&offset=20")
     finally:
         app.dependency_overrides.clear()
 
     assert document.status_code == 200
     assert document.json()["versionsTotal"] == 25
     assert document.json()["versionsHasMore"] is True
-    assert [version["version"] for version in document.json()["versions"]] == list(
-        range(6, 26)
-    )
+    assert [version["version"] for version in document.json()["versions"]] == list(range(6, 26))
     assert older_page.status_code == 200
     assert older_page.json()["total"] == 25
-    assert [version["version"] for version in older_page.json()["items"]] == list(
-        range(1, 6)
-    )
+    assert [version["version"] for version in older_page.json()["items"]] == list(range(1, 6))
 
 
 def test_document_attachment_requires_existing_application() -> None:
@@ -676,9 +847,10 @@ def test_cover_letter_template_preserves_visual_structure() -> None:
     template.sections[0].footer.paragraphs[0].text = "Private application"
     template_output = BytesIO()
     template.save(template_output)
-    data_url = "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64," + base64.b64encode(
-        template_output.getvalue()
-    ).decode()
+    data_url = (
+        "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;base64,"
+        + base64.b64encode(template_output.getvalue()).decode()
+    )
 
     app.dependency_overrides[get_db] = override_get_db
     client = TestClient(app)
@@ -825,9 +997,7 @@ def test_generated_cover_letter_skips_blocking_validation(monkeypatch) -> None:
                         "job": {
                             "id": "job-validated",
                             "aiMatch": {
-                                "applicationGuide": {
-                                    "language": "Client-controlled language"
-                                }
+                                "applicationGuide": {"language": "Client-controlled language"}
                             },
                         },
                     },
@@ -931,9 +1101,7 @@ def test_generated_cover_letter_skips_blocking_validation(monkeypatch) -> None:
         )
         generation_artifact_id = str(uuid4())
         generated_content = (
-            "Dear Hiring Team,\n\n"
-            "Built a Python service at Acme in 2023.\n\n"
-            "Kind regards,"
+            "Dear Hiring Team,\n\nBuilt a Python service at Acme in 2023.\n\nKind regards,"
         )
         with testing_session_local() as db:
             context = load_authoritative_generation_context(
@@ -1026,9 +1194,7 @@ def test_generated_cover_letter_skips_blocking_validation(monkeypatch) -> None:
                 select(func.count()).select_from(DocumentGenerationProvenanceRecord)
             )
             version_provenance_count = db.scalar(
-                select(func.count()).select_from(
-                    DocumentVersionGenerationProvenanceRecord
-                )
+                select(func.count()).select_from(DocumentVersionGenerationProvenanceRecord)
             )
     finally:
         app.dependency_overrides.clear()
@@ -1041,12 +1207,8 @@ def test_generated_cover_letter_skips_blocking_validation(monkeypatch) -> None:
     assert created.status_code == 201
     assert replayed.status_code == 409
     assert replayed.json()["detail"] == "Generation artifact has already been used"
-    assert created.json()["generationFingerprint"] == created.json()[
-        "currentGenerationFingerprint"
-    ]
-    assert created.json()["inputVersions"]["fingerprintVersion"] == (
-        "generation-fingerprint-v4"
-    )
+    assert created.json()["generationFingerprint"] == created.json()["currentGenerationFingerprint"]
+    assert created.json()["inputVersions"]["fingerprintVersion"] == ("generation-fingerprint-v4")
     assert created.json()["inputVersions"]["sourceDocument"]["id"] == uploaded.json()["id"]
     assert created.json()["inputVersions"]["profile"] != "profile-v1"
     assert created.json()["versions"][0]["hasRenderedDocx"] is True
@@ -1055,12 +1217,11 @@ def test_generated_cover_letter_skips_blocking_validation(monkeypatch) -> None:
     assert created.json()["versions"][0]["diff"] == []
     assert listed.json()[0]["versions"][0]["diff"] == []
     assert refreshed.status_code == 200
-    assert refreshed.json()[0]["generationFingerprint"] == created.json()[
-        "generationFingerprint"
-    ]
-    assert refreshed.json()[0]["currentGenerationFingerprint"] != created.json()[
-        "generationFingerprint"
-    ]
+    assert refreshed.json()[0]["generationFingerprint"] == created.json()["generationFingerprint"]
+    assert (
+        refreshed.json()[0]["currentGenerationFingerprint"]
+        != created.json()["generationFingerprint"]
+    )
     assert foreign_update.status_code == 409
     assert foreign_update.json()["detail"] == (
         "Existing document is not attached to the application"

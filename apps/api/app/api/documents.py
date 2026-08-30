@@ -4,18 +4,18 @@ import json
 import re
 import unicodedata
 from collections import defaultdict
+from collections.abc import Mapping
 from dataclasses import dataclass, replace
 from datetime import datetime
-from typing import Mapping
 from urllib.parse import quote
 from uuid import uuid4
 
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, load_only, selectinload
 
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
-
+from app.api.resume_templates import list_resume_template_payloads
 from app.core.database import get_db
 from app.core.identity import bind_request_identity
 from app.core.settings import Settings, get_settings
@@ -28,16 +28,16 @@ from app.models.assistant import (
 )
 from app.models.documents import (
     DocumentArtifactPayload,
-    DocumentAttachRequest,
     DocumentAttachmentRecord,
+    DocumentAttachRequest,
     DocumentCreateRequest,
     DocumentFileRecord,
     DocumentGenerationArtifactRecord,
     DocumentGenerationProvenanceRecord,
     DocumentPackPayload,
     DocumentPackRequest,
-    DocumentPackValidationRequest,
     DocumentPackValidationPayload,
+    DocumentPackValidationRequest,
     DocumentPayload,
     DocumentRecord,
     DocumentRestoreRequest,
@@ -52,19 +52,34 @@ from app.models.documents import (
     DocumentVersionPayload,
     DocumentVersionRecord,
     DocumentVersionValidationRecord,
-    WorkspaceSourceDocumentCreateRequest,
+    WorkspaceSourceCategory,
     WorkspaceSourceDocumentPayload,
     WorkspaceSourceDocumentRecord,
     utc_now,
 )
-from app.models.resume_templates import ResumeTemplatePayload
 from app.models.profile import ProfilePayload
+from app.models.resume_templates import ResumeTemplatePayload
 from app.services.assistant import (
     analyze_openclaw_assistant_context,
     build_source_document_context,
 )
+from app.services.cover_letter_template_preview import (
+    CoverLetterTemplatePreviewError,
+    render_cover_letter_template_thumbnail,
+)
+from app.services.cover_letter_template_registry import (
+    ensure_bundled_cover_letter_template,
+    is_bundled_cover_letter_template_id,
+)
 from app.services.document_analysis import analyze_docx_source
 from app.services.document_export import build_document_from_template
+from app.services.document_preflight import analyze_document_template
+from app.services.document_security import DocumentSecurityError
+from app.services.document_validation import (
+    DocumentValidationError,
+    render_docx_to_pdf,
+    validate_generated_document,
+)
 from app.services.generation_context import (
     AuthoritativeApplicationGenerationContext,
     AuthoritativeGenerationContext,
@@ -72,32 +87,38 @@ from app.services.generation_context import (
     load_authoritative_application_generation_context,
     load_authoritative_generation_context,
 )
-from app.services.document_security import DocumentSecurityError
-from app.services.document_validation import (
-    DocumentValidationError,
-    render_docx_to_pdf,
-    validate_generated_document,
-)
-from app.services.document_preflight import analyze_document_template
-from app.services.cover_letter_template_registry import (
-    ensure_bundled_cover_letter_template,
-    is_bundled_cover_letter_template_id,
-)
-from app.services.cover_letter_template_preview import (
-    CoverLetterTemplatePreviewError,
-    render_cover_letter_template_thumbnail,
+from app.services.profile_files import (
+    ProfileFileValidationError,
+    validate_profile_file_upload,
 )
 from app.services.resume_template_registry import (
     is_bundled_resume_template_id,
 )
-from app.api.resume_templates import list_resume_template_payloads
 
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
 
 DOCX_CONTENT_TYPE = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 PDF_CONTENT_TYPE = "application/pdf"
 MAX_TEMPLATE_BYTES = 10_000_000
+MAX_APPLICATION_ATTACHMENT_BYTES = 5_000_000
 DOCUMENT_VERSION_PAGE_SIZE = 20
+APPLICATION_ATTACHMENT_EXTENSIONS = {
+    "application/pdf": (".pdf",),
+    "application/msword": (".doc",),
+    DOCX_CONTENT_TYPE: (".docx",),
+    "image/png": (".png",),
+    "image/jpeg": (".jpg", ".jpeg"),
+    "image/webp": (".webp",),
+}
+
+
+def private_workspace_file_headers() -> dict[str, str]:
+    return {
+        "Cache-Control": "private, no-store",
+        "Cross-Origin-Resource-Policy": "same-site",
+        "Vary": "X-Rufina-Owner-Id, X-Tasko-Owner-Id",
+        "X-Content-Type-Options": "nosniff",
+    }
 
 
 @router.get("", response_model=list[DocumentPayload])
@@ -107,10 +128,7 @@ def list_documents(
     db: Session = Depends(get_db),
 ) -> list[DocumentPayload]:
     try:
-        statement = (
-            select(DocumentRecord)
-            .order_by(DocumentRecord.updated_at.desc())
-        )
+        statement = select(DocumentRecord).order_by(DocumentRecord.updated_at.desc())
         if job_id is not None:
             statement = statement.where(DocumentRecord.job_id == job_id)
         if application_id is not None:
@@ -167,7 +185,9 @@ def create_document(
             generation_artifact.application_id if generation_artifact else request.application_id
         )
         job_id = generation_artifact.job_id if generation_artifact else request.job_id
-        template_id = generation_artifact.template_id if generation_artifact else request.template_id
+        template_id = (
+            generation_artifact.template_id if generation_artifact else request.template_id
+        )
         now = utc_now()
         document_id = str(uuid4())
         record = DocumentRecord(
@@ -256,9 +276,7 @@ def create_document(
         return document_payload(
             require_document(db, document_id),
             current_generation_fingerprint=(
-                generation_artifact.generation_fingerprint
-                if generation_artifact
-                else None
+                generation_artifact.generation_fingerprint if generation_artifact else None
             ),
         )
     except HTTPException:
@@ -361,11 +379,14 @@ def list_document_versions(
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail="Document not found",
             )
-        total = db.scalar(
-            select(func.count()).select_from(DocumentVersionRecord).where(
-                DocumentVersionRecord.document_id == document_id
+        total = (
+            db.scalar(
+                select(func.count())
+                .select_from(DocumentVersionRecord)
+                .where(DocumentVersionRecord.document_id == document_id)
             )
-        ) or 0
+            or 0
+        )
         versions = list(
             reversed(
                 db.scalars(
@@ -404,9 +425,7 @@ def list_document_versions(
             if version_numbers
             else []
         )
-        artifacts_by_version = {
-            artifact.version: artifact for artifact in artifacts
-        }
+        artifacts_by_version = {artifact.version: artifact for artifact in artifacts}
         validations = (
             db.scalars(
                 select(DocumentVersionValidationRecord).where(
@@ -479,9 +498,7 @@ def update_document(
             )
         if request.application_id:
             require_document_application_ownership(record, request.application_id)
-        if "template_id" in fields and (
-            "content" not in fields or request.content is None
-        ):
+        if "template_id" in fields and ("content" not in fields or request.content is None):
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail="Document template requires document content",
@@ -677,16 +694,10 @@ def restore_document_version(
                     file_name=source_file.file_name,
                     content_type=source_file.content_type,
                     renderer_template_id=source_file.renderer_template_id,
-                    renderer_template_version=(
-                        source_file.renderer_template_version
-                    ),
+                    renderer_template_version=(source_file.renderer_template_version),
                     renderer_design_sha256=source_file.renderer_design_sha256,
-                    source_ats_final_review_id=(
-                        source_file.source_ats_final_review_id
-                    ),
-                    source_imaginator_resume_id=(
-                        source_file.source_imaginator_resume_id
-                    ),
+                    source_ats_final_review_id=(source_file.source_ats_final_review_id),
+                    source_imaginator_resume_id=(source_file.source_imaginator_resume_id),
                     final_resume_json=source_file.final_resume_json,
                     stage_results=source_file.stage_results,
                     provenance=source_file.provenance,
@@ -798,11 +809,7 @@ def detach_document(
     try:
         record = require_document(db, document_id)
         attachment = next(
-            (
-                item
-                for item in record.attachments
-                if item.application_id == application_id
-            ),
+            (item for item in record.attachments if item.application_id == application_id),
             None,
         )
         if not attachment:
@@ -966,9 +973,7 @@ def download_document_template_thumbnail(
             media_type="image/png",
             headers={
                 "Cache-Control": "private, max-age=300",
-                "Content-Disposition": (
-                    'inline; filename="cover-letter-template-thumbnail.png"'
-                ),
+                "Content-Disposition": ('inline; filename="cover-letter-template-thumbnail.png"'),
                 "Vary": "X-Rufina-Owner-Id, X-Tasko-Owner-Id",
                 "X-Rufina-Template-Id": template.id,
             },
@@ -1051,8 +1056,8 @@ def preflight_document_template(
                 document_type=request.type,
                 template_override=transient_template,
             )
-            profile, job, application, source, confirmations = (
-                assistant_preflight_inputs(generation_context)
+            profile, job, application, source, confirmations = assistant_preflight_inputs(
+                generation_context
             )
             ai_context = analyze_openclaw_assistant_context(
                 message_characters=request.prompt_characters,
@@ -1088,14 +1093,11 @@ def preflight_document_template(
             source_context["truncated"] = source_context["omittedElements"] > 0
             omitted_source_characters = max(
                 0,
-                source_context["estimatedCharacters"]
-                - source_context["includedCharacters"],
+                source_context["estimatedCharacters"] - source_context["includedCharacters"],
             )
             ai_context["estimatedCharacters"] += omitted_source_characters
             ai_context["source"] = source_context
-            ai_context["truncated"] = bool(
-                ai_context["truncated"] or source_context["truncated"]
-            )
+            ai_context["truncated"] = bool(ai_context["truncated"] or source_context["truncated"])
         except GenerationContextError as exc:
             warnings.append(f"AI context could not be estimated: {exc}")
 
@@ -1116,6 +1118,7 @@ def preflight_document_template(
     response_model=list[WorkspaceSourceDocumentPayload],
 )
 def list_workspace_source_documents(
+    response: Response,
     application_id: str = Query(min_length=1, max_length=160, alias="applicationId"),
     db: Session = Depends(get_db),
 ) -> list[WorkspaceSourceDocumentPayload]:
@@ -1123,9 +1126,25 @@ def list_workspace_source_documents(
         require_stored_application(db, application_id)
         records = db.scalars(
             select(WorkspaceSourceDocumentRecord)
+            .options(
+                load_only(
+                    WorkspaceSourceDocumentRecord.id,
+                    WorkspaceSourceDocumentRecord.application_id,
+                    WorkspaceSourceDocumentRecord.category,
+                    WorkspaceSourceDocumentRecord.title,
+                    WorkspaceSourceDocumentRecord.language,
+                    WorkspaceSourceDocumentRecord.file_name,
+                    WorkspaceSourceDocumentRecord.content_type,
+                    WorkspaceSourceDocumentRecord.size_bytes,
+                    WorkspaceSourceDocumentRecord.content_sha256,
+                    WorkspaceSourceDocumentRecord.legacy_document_id,
+                    WorkspaceSourceDocumentRecord.updated_at,
+                )
+            )
             .where(WorkspaceSourceDocumentRecord.application_id == application_id)
             .order_by(WorkspaceSourceDocumentRecord.updated_at.desc())
         ).all()
+        response.headers.update(private_workspace_file_headers())
         return [workspace_source_document_payload(record) for record in records]
     except HTTPException:
         raise
@@ -1134,15 +1153,28 @@ def list_workspace_source_documents(
 
 
 @router.post(
-    "/workspace-sources",
+    "/workspace-sources/upload",
     response_model=WorkspaceSourceDocumentPayload,
     status_code=status.HTTP_201_CREATED,
 )
-def create_workspace_source_document(
-    request: WorkspaceSourceDocumentCreateRequest,
+async def upload_workspace_source_document(
+    request: Request,
+    response: Response,
+    application_id: str = Query(min_length=1, max_length=160, alias="applicationId"),
+    category: WorkspaceSourceCategory = Query(),
+    title: str = Query(min_length=1, max_length=240),
+    file_name: str = Query(min_length=1, max_length=240, alias="fileName"),
+    language: str = Query(default="", max_length=40),
+    legacy_document_id: str | None = Query(
+        default=None,
+        min_length=1,
+        max_length=160,
+        alias="legacyDocumentId",
+    ),
+    content_type_header: str | None = Header(default=None, alias="Content-Type"),
     db: Session = Depends(get_db),
 ) -> WorkspaceSourceDocumentPayload:
-    if request.category == "CV / Resume":
+    if category == "CV / Resume":
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
             detail=(
@@ -1150,53 +1182,164 @@ def create_workspace_source_document(
                 "one canonical Master Resume in My Profile"
             ),
         )
-    if not request.file_name.lower().endswith(".docx"):
+    normalized_title = title.strip()
+    if not normalized_title:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Workspace source must be a .docx file",
+            detail="Workspace source title must not be blank",
         )
-    _, content = decode_data_url(request.data_url)
-    if not content or len(content) > MAX_TEMPLATE_BYTES:
-        raise HTTPException(
-            status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-            detail="Workspace source must be a non-empty DOCX file under 10 MB",
-        )
-    try:
-        analyze_docx_source(content, "cover_letter")
-    except DocumentSecurityError as exc:
-        raise HTTPException(
-            status_code=(
-                status.HTTP_413_CONTENT_TOO_LARGE
-                if exc.limit_exceeded
-                else status.HTTP_422_UNPROCESSABLE_ENTITY
-            ),
-            detail=str(exc),
-        ) from exc
+    declared_length = request.headers.get("content-length")
+    if declared_length is not None:
+        try:
+            parsed_length = int(declared_length)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Content-Length must be an integer",
+            ) from exc
+        if parsed_length < 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Content-Length must not be negative",
+            )
+        if parsed_length > MAX_APPLICATION_ATTACHMENT_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail="Application file must be no larger than 5 MB",
+            )
 
-    now = utc_now()
-    record = WorkspaceSourceDocumentRecord(
-        id=str(uuid4()),
-        application_id=request.application_id,
-        category=request.category,
-        title=request.title.strip(),
-        language=request.language.strip(),
-        file_name=safe_upload_filename(request.file_name),
-        content_type=DOCX_CONTENT_TYPE,
-        content=content,
-        created_at=now,
-        updated_at=now,
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > MAX_APPLICATION_ATTACHMENT_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail="Application file must be no larger than 5 MB",
+            )
+        body.extend(chunk)
+    content = bytes(body)
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Application file must not be empty",
+        )
+
+    content_type = workspace_source_content_type(
+        category=category,
+        file_name=file_name,
+        content_type_header=content_type_header,
     )
+    safe_file_name = safe_upload_filename(file_name)
+    if category == "Application Attachment":
+        try:
+            safe_file_name, content_type = validate_profile_file_upload(
+                kind="supporting_document",
+                file_name=file_name,
+                content_type=content_type,
+                content=content,
+            )
+        except ProfileFileValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+    if category == "Cover Letter":
+        try:
+            analyze_docx_source(content, "cover_letter")
+        except DocumentSecurityError as exc:
+            raise HTTPException(
+                status_code=(
+                    status.HTTP_413_CONTENT_TOO_LARGE
+                    if exc.limit_exceeded
+                    else status.HTTP_422_UNPROCESSABLE_ENTITY
+                ),
+                detail=str(exc),
+            ) from exc
+
+    content_sha256 = hashlib.sha256(content).hexdigest()
     try:
-        require_stored_application(db, request.application_id)
+        require_stored_application(db, application_id)
+        if legacy_document_id is not None:
+            existing = db.scalar(
+                select(WorkspaceSourceDocumentRecord).where(
+                    WorkspaceSourceDocumentRecord.application_id == application_id,
+                    WorkspaceSourceDocumentRecord.legacy_document_id == legacy_document_id,
+                )
+            )
+            if existing is not None:
+                if existing.content_sha256 != content_sha256:
+                    raise HTTPException(
+                        status_code=status.HTTP_409_CONFLICT,
+                        detail=("legacyDocumentId already identifies a different application file"),
+                    )
+                response.status_code = status.HTTP_200_OK
+                response.headers.update(private_workspace_file_headers())
+                return workspace_source_document_payload(existing)
+
+        now = utc_now()
+        record = WorkspaceSourceDocumentRecord(
+            id=str(uuid4()),
+            application_id=application_id,
+            category=category,
+            title=normalized_title,
+            language=language.strip(),
+            file_name=safe_file_name,
+            content_type=content_type,
+            size_bytes=len(content),
+            content_sha256=content_sha256,
+            legacy_document_id=legacy_document_id,
+            content=content,
+            created_at=now,
+            updated_at=now,
+        )
         db.add(record)
         db.commit()
         db.refresh(record)
+        response.headers.update(private_workspace_file_headers())
         return workspace_source_document_payload(record)
     except HTTPException:
         db.rollback()
         raise
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Application file already exists",
+        ) from exc
     except SQLAlchemyError as exc:
         db.rollback()
+        raise database_unavailable(exc) from exc
+
+
+@router.get("/workspace-sources/{source_id}/download")
+def download_workspace_source_document(
+    source_id: str,
+    application_id: str = Query(min_length=1, max_length=160, alias="applicationId"),
+    db: Session = Depends(get_db),
+) -> Response:
+    try:
+        record = db.scalar(
+            select(WorkspaceSourceDocumentRecord).where(
+                WorkspaceSourceDocumentRecord.id == source_id,
+                WorkspaceSourceDocumentRecord.application_id == application_id,
+            )
+        )
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workspace source not found",
+            )
+        return Response(
+            content=record.content,
+            media_type=record.content_type,
+            headers={
+                **private_workspace_file_headers(),
+                "Content-Disposition": content_disposition(record.file_name),
+                "Content-Length": str(record.size_bytes),
+            },
+        )
+    except HTTPException:
+        raise
+    except SQLAlchemyError as exc:
         raise database_unavailable(exc) from exc
 
 
@@ -1322,9 +1465,8 @@ def create_document_template(
 
 @router.delete("/templates/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_document_template(template_id: str, db: Session = Depends(get_db)) -> None:
-    if (
-        is_bundled_resume_template_id(template_id)
-        or is_bundled_cover_letter_template_id(template_id)
+    if is_bundled_resume_template_id(template_id) or is_bundled_cover_letter_template_id(
+        template_id
     ):
         raise HTTPException(
             status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
@@ -1483,7 +1625,11 @@ def require_generation_artifact(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Generation artifact was not found",
         )
-    if artifact.status != "completed" or not artifact.result_content or not artifact.generation_model:
+    if (
+        artifact.status != "completed"
+        or not artifact.result_content
+        or not artifact.generation_model
+    ):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Generation artifact is not complete",
@@ -1586,9 +1732,7 @@ def require_document_application_ownership(
     record: DocumentRecord,
     application_id: str,
 ) -> None:
-    if any(
-        attachment.application_id == application_id for attachment in record.attachments
-    ):
+    if any(attachment.application_id == application_id for attachment in record.attachments):
         return
     raise HTTPException(
         status_code=status.HTTP_409_CONFLICT,
@@ -1762,29 +1906,17 @@ def load_initial_document_relations(
             )
             .join(
                 ranked_version_ids,
-                (
-                    ranked_version_ids.c.document_id
-                    == DocumentFileRecord.document_id
-                )
+                (ranked_version_ids.c.document_id == DocumentFileRecord.document_id)
                 & (ranked_version_ids.c.version == DocumentFileRecord.version),
             )
             .where(ranked_version_ids.c.page_row <= DOCUMENT_VERSION_PAGE_SIZE)
         ).all()
         current_versions = {record.id: record.current_version for record in records}
         for artifact in file_rows:
-            rendered_versions_by_document[artifact.document_id].add(
-                artifact.version
-            )
-            artifacts_by_document[artifact.document_id][
-                artifact.version
-            ] = artifact
-            if (
-                artifact.version == current_versions[artifact.document_id]
-                and artifact.template_id
-            ):
-                current_template_by_document[
-                    artifact.document_id
-                ] = artifact.template_id
+            rendered_versions_by_document[artifact.document_id].add(artifact.version)
+            artifacts_by_document[artifact.document_id][artifact.version] = artifact
+            if artifact.version == current_versions[artifact.document_id] and artifact.template_id:
+                current_template_by_document[artifact.document_id] = artifact.template_id
 
     validations_by_document: dict[
         str,
@@ -1795,14 +1927,8 @@ def load_initial_document_relations(
             select(DocumentVersionValidationRecord)
             .join(
                 ranked_version_ids,
-                (
-                    ranked_version_ids.c.document_id
-                    == DocumentVersionValidationRecord.document_id
-                )
-                & (
-                    ranked_version_ids.c.version
-                    == DocumentVersionValidationRecord.version
-                ),
+                (ranked_version_ids.c.document_id == DocumentVersionValidationRecord.document_id)
+                & (ranked_version_ids.c.version == DocumentVersionValidationRecord.version),
             )
             .where(ranked_version_ids.c.page_row <= DOCUMENT_VERSION_PAGE_SIZE)
         ).all()
@@ -1856,17 +1982,13 @@ def batch_current_generation_fingerprints(
         relations = relations_by_document[record.id]
         if relations.provenance is None:
             continue
-        current_artifact = relations.artifacts_by_version.get(
-            record.current_version
-        )
+        current_artifact = relations.artifacts_by_version.get(record.current_version)
         if (
             current_artifact is not None
             and current_artifact.content_type == PDF_CONTENT_TYPE
             and current_artifact.renderer_template_id
         ):
-            fingerprints[record.id] = (
-                relations.provenance.generation_fingerprint
-            )
+            fingerprints[record.id] = relations.provenance.generation_fingerprint
             continue
         if not relations.current_template_id:
             continue
@@ -1878,28 +2000,32 @@ def batch_current_generation_fingerprints(
         candidate_application_by_document[record.id] = resolved_application_id
         template_ids.add(relations.current_template_id)
 
-    template_metadata = {
-        row.id: {
-            "id": row.id,
-            "type": row.type,
-            "name": row.name,
-            "fileName": row.file_name,
-            "contentType": row.content_type,
-            "updatedAt": row.updated_at,
-            "contentSha256": row.content_sha256,
+    template_metadata = (
+        {
+            row.id: {
+                "id": row.id,
+                "type": row.type,
+                "name": row.name,
+                "fileName": row.file_name,
+                "contentType": row.content_type,
+                "updatedAt": row.updated_at,
+                "contentSha256": row.content_sha256,
+            }
+            for row in db.execute(
+                select(
+                    DocumentTemplateRecord.id,
+                    DocumentTemplateRecord.type,
+                    DocumentTemplateRecord.name,
+                    DocumentTemplateRecord.file_name,
+                    DocumentTemplateRecord.content_type,
+                    DocumentTemplateRecord.updated_at,
+                    DocumentTemplateRecord.content_sha256,
+                ).where(DocumentTemplateRecord.id.in_(template_ids))
+            ).all()
         }
-        for row in db.execute(
-            select(
-                DocumentTemplateRecord.id,
-                DocumentTemplateRecord.type,
-                DocumentTemplateRecord.name,
-                DocumentTemplateRecord.file_name,
-                DocumentTemplateRecord.content_type,
-                DocumentTemplateRecord.updated_at,
-                DocumentTemplateRecord.content_sha256,
-            ).where(DocumentTemplateRecord.id.in_(template_ids))
-        ).all()
-    } if template_ids else {}
+        if template_ids
+        else {}
+    )
 
     application_contexts: dict[
         str,
@@ -1931,9 +2057,7 @@ def batch_current_generation_fingerprints(
         ):
             continue
         document_language = (
-            relations_by_document[record.id].provenance.input_versions.get(
-                "documentLanguage"
-            )
+            relations_by_document[record.id].provenance.input_versions.get("documentLanguage")
             if relations_by_document[record.id].provenance is not None
             else None
         )
@@ -1959,10 +2083,7 @@ def authoritative_current_generation_fingerprint(
     current_file = document_file_record(db, record.id, record.current_version)
     if current_file is None:
         return None
-    if (
-        current_file.content_type == PDF_CONTENT_TYPE
-        and current_file.renderer_template_id
-    ):
+    if current_file.content_type == PDF_CONTENT_TYPE and current_file.renderer_template_id:
         return record.generation_provenance.generation_fingerprint
     if not current_file.template_id:
         return None
@@ -1979,9 +2100,7 @@ def authoritative_current_generation_fingerprint(
         )
     except GenerationContextError:
         return None
-    document_language = record.generation_provenance.input_versions.get(
-        "documentLanguage"
-    )
+    document_language = record.generation_provenance.input_versions.get("documentLanguage")
     document_context = (
         replace(context, language=document_language)
         if document_language in {"English", "German"}
@@ -2073,8 +2192,7 @@ def document_version_payloads(
                 version.version in artifacts_by_version
                 and (
                     not artifacts_by_version[version.version].content_type
-                    or artifacts_by_version[version.version].content_type
-                    == DOCX_CONTENT_TYPE
+                    or artifacts_by_version[version.version].content_type == DOCX_CONTENT_TYPE
                 )
             ),
             has_rendered_artifact=version.version in rendered_versions,
@@ -2117,25 +2235,16 @@ def document_artifact_payload(
     extension = ".pdf" if content_type == PDF_CONTENT_TYPE else ".docx"
     return DocumentArtifactPayload(
         file_name=artifact.file_name.strip()
-        or (
-            f"{safe_filename(artifact_title)}-v"
-            f"{artifact.version}{extension}"
-        ),
+        or (f"{safe_filename(artifact_title)}-v{artifact.version}{extension}"),
         content_type=content_type,
         template_id=artifact.renderer_template_id or artifact.template_id,
         template_version=artifact.renderer_template_version,
         design_sha256=artifact.renderer_design_sha256,
         source_ats_final_review_id=artifact.source_ats_final_review_id,
         source_imaginator_resume_id=artifact.source_imaginator_resume_id,
-        final_resume_json=(
-            artifact.final_resume_json if include_details else None
-        ),
-        stage_results=(
-            artifact.stage_results if include_details else None
-        ),
-        provenance=(
-            artifact.provenance if include_details else None
-        ),
+        final_resume_json=(artifact.final_resume_json if include_details else None),
+        stage_results=(artifact.stage_results if include_details else None),
+        provenance=(artifact.provenance if include_details else None),
     )
 
 
@@ -2151,14 +2260,63 @@ def safe_upload_filename(value: str) -> str:
     return normalized[:240].rstrip(" .") or "template.docx"
 
 
+def workspace_source_content_type(
+    *,
+    category: WorkspaceSourceCategory,
+    file_name: str,
+    content_type_header: str | None,
+) -> str:
+    normalized_file_name = file_name.strip().casefold()
+    normalized_content_type = (content_type_header or "").partition(";")[0].strip().lower()
+    unspecified_content_types = {"", "application/octet-stream"}
+
+    if category == "Cover Letter":
+        if not normalized_file_name.endswith(".docx"):
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Cover Letter source must be a .docx file",
+            )
+        if normalized_content_type not in unspecified_content_types | {DOCX_CONTENT_TYPE}:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail="Cover Letter Content-Type must identify a DOCX file",
+            )
+        return DOCX_CONTENT_TYPE
+
+    if category != "Application Attachment":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Unsupported workspace source category",
+        )
+
+    if normalized_content_type in unspecified_content_types:
+        for candidate, extensions in APPLICATION_ATTACHMENT_EXTENSIONS.items():
+            if normalized_file_name.endswith(extensions):
+                return candidate
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=("Application Attachment must be PDF, DOC, DOCX, PNG, JPEG, or WebP"),
+        )
+
+    expected_extensions = APPLICATION_ATTACHMENT_EXTENSIONS.get(normalized_content_type)
+    if expected_extensions is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=("Application Attachment must be PDF, DOC, DOCX, PNG, JPEG, or WebP"),
+        )
+    if not normalized_file_name.endswith(expected_extensions):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Application Attachment file extension does not match Content-Type",
+        )
+    return normalized_content_type
+
+
 def content_disposition(filename: str) -> str:
     ascii_filename = re.sub(r"[^A-Za-z0-9._-]+", "-", filename).strip("-._")
     ascii_filename = re.sub(r"-+", "-", ascii_filename)
     ascii_filename = ascii_filename or "rufina-document.docx"
-    return (
-        f'attachment; filename="{ascii_filename}"; '
-        f"filename*=UTF-8''{quote(filename, safe='')}"
-    )
+    return f"attachment; filename=\"{ascii_filename}\"; filename*=UTF-8''{quote(filename, safe='')}"
 
 
 def decode_data_url(value: str) -> tuple[str, bytes]:
@@ -2189,7 +2347,6 @@ def document_template_payload(record: DocumentTemplateRecord) -> DocumentTemplat
 def workspace_source_document_payload(
     record: WorkspaceSourceDocumentRecord,
 ) -> WorkspaceSourceDocumentPayload:
-    encoded_content = base64.b64encode(record.content).decode()
     return WorkspaceSourceDocumentPayload(
         id=record.id,
         application_id=record.application_id,
@@ -2197,10 +2354,16 @@ def workspace_source_document_payload(
         title=record.title,
         language=record.language,
         file_name=record.file_name,
-        file_size=f"{max(1, round(len(record.content) / 1024))} KB",
+        file_size=f"{max(1, round(record.size_bytes / 1024))} KB",
+        size_bytes=record.size_bytes,
         file_type=record.content_type,
+        content_sha256=record.content_sha256,
+        legacy_document_id=record.legacy_document_id,
         uploaded_at=record.updated_at,
-        data_url=f"data:{record.content_type};base64,{encoded_content}",
+        download_url=(
+            f"/documents/workspace-sources/{quote(record.id, safe='')}/download"
+            f"?applicationId={quote(record.application_id, safe='')}"
+        ),
     )
 
 
@@ -2229,11 +2392,7 @@ def assistant_preflight_inputs(
             claimIfConfirmed=confirmation.claim_if_confirmed,
             answer=(
                 confirmation.response.upper()
-                + (
-                    f": {confirmation.example_text}"
-                    if confirmation.example_text
-                    else ""
-                )
+                + (f": {confirmation.example_text}" if confirmation.example_text else "")
             ),
         )
         for confirmation in context.confirmations
@@ -2244,9 +2403,7 @@ def assistant_preflight_inputs(
         title=context.template.name,
         category="Cover Letter",
         fileName=context.template.file_name,
-        dataUrl=(
-            f"data:{context.template.content_type};base64,{encoded_template}"
-        ),
+        dataUrl=(f"data:{context.template.content_type};base64,{encoded_template}"),
     )
     return profile, job, application, source, confirmations
 
