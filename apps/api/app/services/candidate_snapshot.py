@@ -23,14 +23,15 @@ from app.services.ai_match import (
     MATCHER_VERSION,
     build_candidate_snapshot,
     build_candidate_snapshot_hash,
+    build_profile_files_fingerprint,
     normalize_list,
     parse_number,
 )
+from app.services.profile_files import enrich_profile_with_files
 from app.services.resume_import import (
     extract_json_object,
     extract_json_objects,
     extract_openclaw_text_payloads,
-    extract_resume_text,
     summarize_openclaw_error,
 )
 
@@ -87,6 +88,7 @@ def get_candidate_match_snapshot(
     allow_ai: bool | None = None,
     strict_ai: bool | None = None,
 ) -> CandidateMatchSnapshot:
+    profile = enrich_profile_with_files(db, profile)
     ai_enabled = allow_openclaw if allow_ai is None else allow_ai
     ai_required = strict_openclaw if strict_ai is None else strict_ai
     profile_input_hash = build_profile_input_hash(profile)
@@ -176,6 +178,7 @@ def empty_candidate_snapshot() -> dict[str, Any]:
             "github": False,
             "portfolio": False,
             "documents": 0,
+            "profile_files_hash": "",
         },
     }
 
@@ -229,7 +232,11 @@ def record_to_snapshot(record: CandidateMatchSnapshotRecord) -> CandidateMatchSn
 
 def build_profile_input_hash(profile: ProfilePayload) -> str:
     payload = json.dumps(
-        {"version": MATCHER_VERSION, "profile": profile.model_dump()},
+        {
+            "version": MATCHER_VERSION,
+            "profile": profile.model_dump(),
+            "profile_files_hash": build_profile_files_fingerprint(profile),
+        },
         sort_keys=True,
         separators=(",", ":"),
     )
@@ -375,20 +382,33 @@ def build_openclaw_candidate_snapshot_prompt(
     profile: ProfilePayload,
     fallback_snapshot: dict[str, Any],
 ) -> str:
-    resume_text = ""
-    if profile.resume_file_name and profile.resume_data_url:
-        try:
-            resume_text = extract_resume_text(profile.resume_file_name, profile.resume_data_url)[:50000]
-        except Exception:
-            resume_text = ""
-
-    profile_payload = profile.model_dump()
+    primary_resume = profile.runtime_primary_resume
+    resume_text = (
+        str(primary_resume.get("extracted_text") or "")[:50_000]
+        if isinstance(primary_resume, dict)
+        else ""
+    )
+    profile_payload = profile.model_dump(
+        exclude={
+            "documents",
+            "resume_data_url",
+            "resume_file_name",
+            "resume_file_size",
+            "resume_updated_at",
+        }
+    )
     profile_payload["avatar_url"] = "[attached]" if profile.avatar_url.startswith("data:") else profile.avatar_url
-    profile_payload["documents"] = summarize_profile_documents(profile.documents)
-    profile_payload["resume_data_url"] = "[attached]" if profile.resume_data_url else ""
     payload = json.dumps(
         {
             "profile": profile_payload,
+            "profile_files": {
+                "primary_resume": runtime_profile_file_prompt_metadata(primary_resume),
+                "supporting_documents": [
+                    runtime_profile_file_prompt_metadata(document)
+                    for document in profile.runtime_supporting_documents
+                    if isinstance(document, dict)
+                ],
+            },
             "resume_text": resume_text,
             "fallback_snapshot": fallback_snapshot,
         },
@@ -407,35 +427,28 @@ def build_openclaw_candidate_snapshot_prompt(
     )
 
 
-def summarize_profile_documents(value: str) -> list[dict[str, Any]] | str:
-    if not value:
-        return ""
-    try:
-        parsed = json.loads(value)
-    except (TypeError, ValueError):
-        return "[attached documents omitted]"
-    if not isinstance(parsed, list):
-        return "[attached documents omitted]"
-
-    metadata_fields = (
+def runtime_profile_file_prompt_metadata(value: object) -> dict[str, object] | None:
+    if not isinstance(value, dict):
+        return None
+    metadata_fields = {
         "id",
+        "kind",
         "title",
         "category",
         "language",
+        "issuer",
+        "notes",
         "file_name",
-        "file_size",
-        "file_type",
-        "uploaded_at",
-    )
-    return [
-        {
-            field: document[field]
-            for field in metadata_fields
-            if field in document and isinstance(document[field], (str, int, float, bool))
-        }
-        for document in parsed
-        if isinstance(document, dict)
-    ]
+        "size_bytes",
+        "content_type",
+        "content_sha256",
+    }
+    return {
+        field: field_value
+        for field, field_value in value.items()
+        if field in metadata_fields
+        and isinstance(field_value, (str, int, float, bool))
+    }
 
 
 def extract_openclaw_candidate_snapshot_payload(value: str) -> dict[str, Any]:

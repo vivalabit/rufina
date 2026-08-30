@@ -32,7 +32,7 @@ from app.models.assistant import (
 from app.models.conversations import ConversationRecord, MessageRecord
 from app.models.documents import DocumentGenerationArtifactRecord, DocumentTemplateRecord
 from app.models.jobs import JobMatchRecord, StoredJobRecord
-from app.models.profile import ProfilePayload, ProfileRecord
+from app.models.profile import ProfileFileRecord, ProfilePayload, ProfileRecord
 from app.services.ai_backend import AIBackendError, AIResult, AIUsage
 from app.services.ai_match import (
     DEFAULT_AI_MATCH_MODEL,
@@ -271,8 +271,16 @@ def test_build_openclaw_assistant_prompt_omits_empty_fields_and_duplicate_resume
         profile=ProfilePayload(
             name="Eduard",
             experience="Senior Product Designer at Example",
-            resume_file_name="resume.pdf",
-            resume_data_url="data:application/pdf;base64,ignored",
+            runtime_primary_resume={
+                "id": "primary-resume-1",
+                "kind": "primary_resume",
+                "title": "Main resume",
+                "file_name": "resume.pdf",
+                "content_type": "application/pdf",
+                "content_sha256": "a" * 64,
+                "size_bytes": 1234,
+                "extracted_text": "This duplicate text must not be included.",
+            },
         ),
         job=None,
         application=None,
@@ -280,6 +288,8 @@ def test_build_openclaw_assistant_prompt_omits_empty_fields_and_duplicate_resume
 
     assert '"name":"Eduard"' in prompt
     assert '"resume_attached":true' in prompt
+    assert '"primary_resume"' in prompt
+    assert '"evidence_id":"profile-file:primary-resume-1"' in prompt
     assert '"resume_text"' not in prompt
     assert '"current_role"' not in prompt
     assert '"experience_claims"' in prompt
@@ -288,6 +298,79 @@ def test_build_openclaw_assistant_prompt_omits_empty_fields_and_duplicate_resume
     assert '"experience":"Senior Product Designer at Example"' not in prompt
     assert '"evidence_ids":{"experience"' not in prompt
     assert '"experience":"profile:experience"' not in prompt
+
+
+def test_assistant_load_profile_hydrates_runtime_resume_and_supporting_metadata() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(bind=engine)
+    resume_content = b"%PDF-1.4 binary resume content"
+    certificate_content = b"%PDF-1.4 binary certificate content"
+
+    with Session(engine) as db:
+        db.add_all(
+            [
+                ProfileRecord(
+                    id="default",
+                    data=ProfilePayload(name="Eduard").model_dump(),
+                ),
+                ProfileFileRecord(
+                    id="assistant-primary-resume",
+                    kind="primary_resume",
+                    singleton_key="primary_resume",
+                    title="Main resume",
+                    category="Resume",
+                    language="English",
+                    issuer="",
+                    notes="",
+                    file_name="resume.pdf",
+                    content_type="application/pdf",
+                    content_sha256=hashlib.sha256(resume_content).hexdigest(),
+                    size_bytes=len(resume_content),
+                    content=resume_content,
+                    extracted_text="Authoritative resume evidence from server storage.",
+                ),
+                ProfileFileRecord(
+                    id="assistant-supporting-document",
+                    kind="supporting_document",
+                    singleton_key=None,
+                    title="Security certificate",
+                    category="Certificate",
+                    language="English",
+                    issuer="Security Academy",
+                    notes="Current qualification",
+                    file_name="certificate.pdf",
+                    content_type="application/pdf",
+                    content_sha256=hashlib.sha256(certificate_content).hexdigest(),
+                    size_bytes=len(certificate_content),
+                    content=certificate_content,
+                    extracted_text="Supporting binary text must not be hydrated.",
+                ),
+            ]
+        )
+        db.commit()
+        profile = assistant_api.load_profile(db)
+
+    assert profile.runtime_primary_resume is not None
+    assert profile.runtime_primary_resume["extracted_text"].startswith(
+        "Authoritative resume evidence"
+    )
+    assert "content" not in profile.runtime_primary_resume
+    assert "extracted_text" not in profile.runtime_supporting_documents[0]
+
+    prompt = build_openclaw_assistant_prompt(
+        message="Review my profile",
+        context_kind="profile",
+        profile=profile,
+        job=None,
+        application=None,
+    )
+    assert '"resume_attached":true' in prompt
+    assert "Authoritative resume evidence from server storage" in prompt
+    assert "Security certificate" in prompt
+    assert resume_content.decode() not in prompt
+    assert certificate_content.decode() not in prompt
+    assert "resume_data_url" not in prompt
+    engine.dispose()
 
 
 def test_assistant_prompt_uses_only_selected_profile_source_documents() -> None:

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import subprocess
 import time
@@ -15,15 +16,23 @@ from app.core.database import Base, get_db
 from app.core.settings import Settings, get_settings
 from app.main import app
 from app.models.jobs import JobMatchRecord, StoredJobRecord
-from app.models.profile import CandidateMatchSnapshotRecord, ProfilePayload, ProfileRecord
+from app.models.profile import (
+    CandidateMatchSnapshotRecord,
+    ProfileFileRecord,
+    ProfilePayload,
+    ProfileRecord,
+)
 from app.services import ai_match as ai_match_service
 from app.services.ai_backend import AIRequest, AIResult, AIUsage, OpenAIAPIBackend
 from app.services.ai_match import (
     OpenClawAiMatchError,
     OpenClawAiMatchPayload,
+    build_ai_match_evidence_catalog,
     build_cache_key,
+    build_candidate_snapshot,
     build_job_snapshot,
     build_openclaw_ai_match_prompt,
+    build_profile_files_fingerprint,
     calculate_ai_matches,
     create_vacancy_matching_ai_facade,
     extract_openclaw_ai_match_payload,
@@ -300,8 +309,6 @@ def test_openclaw_ai_match_scores_relevant_job_higher(monkeypatch: pytest.Monkey
                 "salary_currency": "CHF",
             }
         ),
-        resume_file_name="resume.pdf",
-        resume_data_url="data:application/pdf;base64,JVBERi0x",
     )
     relevant_job = {
         "id": "linkedin-audio-ml",
@@ -900,27 +907,134 @@ def test_openclaw_candidate_snapshot_reads_top_level_payloads_text() -> None:
 def test_candidate_snapshot_prompt_omits_embedded_document_data() -> None:
     embedded_data = "data:application/octet-stream;base64," + ("A" * 200_000)
     profile = ProfilePayload(
-        avatar_url="data:image/png;base64," + ("B" * 20_000),
         current_role="Backend Developer",
-        documents=json.dumps(
-            [
-                {
-                    "id": "resume-1",
-                    "title": "Main CV",
-                    "category": "CV / Resume",
-                    "file_name": "resume.docx",
-                    "data_url": embedded_data,
-                }
-            ]
-        ),
+        runtime_primary_resume={
+            "id": "resume-1",
+            "kind": "primary_resume",
+            "title": "Main CV",
+            "file_name": "resume.docx",
+            "content_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            "content_sha256": "a" * 64,
+            "size_bytes": 1234,
+            "extracted_text": "Resume evidence: built reliable FastAPI services.",
+            "content": embedded_data,
+        },
+        runtime_supporting_documents=[
+            {
+                "id": "certificate-1",
+                "kind": "supporting_document",
+                "title": "Cloud Certificate",
+                "category": "Certificate",
+                "file_name": "certificate.pdf",
+                "content_sha256": "b" * 64,
+                "size_bytes": 456,
+                "content": embedded_data,
+            }
+        ],
     )
 
     prompt = build_openclaw_candidate_snapshot_prompt(profile, {"roles": []})
 
     assert embedded_data not in prompt
     assert "resume.docx" in prompt
-    assert "[attached]" in prompt
+    assert "built reliable FastAPI services" in prompt
+    assert "Cloud Certificate" in prompt
+    assert '"content":' not in prompt
+    assert "resume_data_url" not in prompt
     assert len(prompt) < 20_000
+
+
+def test_candidate_snapshot_hydrates_profile_file_evidence_and_hashes() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(bind=engine)
+    primary_content = b"%PDF-1.4 primary resume"
+    supporting_content = b"%PDF-1.4 supporting certificate"
+    primary_sha = hashlib.sha256(primary_content).hexdigest()
+    supporting_sha = hashlib.sha256(supporting_content).hexdigest()
+
+    with Session(engine) as db:
+        db.add_all(
+            [
+                ProfileFileRecord(
+                    id="primary-runtime-file",
+                    kind="primary_resume",
+                    singleton_key="primary_resume",
+                    title="Primary resume",
+                    category="Resume",
+                    language="English",
+                    issuer="",
+                    notes="",
+                    file_name="resume.pdf",
+                    content_type="application/pdf",
+                    content_sha256=primary_sha,
+                    size_bytes=len(primary_content),
+                    content=primary_content,
+                    extracted_text="Built FastAPI services for financial workflows.",
+                ),
+                ProfileFileRecord(
+                    id="supporting-runtime-file",
+                    kind="supporting_document",
+                    singleton_key=None,
+                    title="Cloud certificate",
+                    category="Certificate",
+                    language="English",
+                    issuer="Cloud Academy",
+                    notes="Advanced cloud qualification",
+                    file_name="certificate.pdf",
+                    content_type="application/pdf",
+                    content_sha256=supporting_sha,
+                    size_bytes=len(supporting_content),
+                    content=supporting_content,
+                    extracted_text="This text is intentionally not hydrated.",
+                ),
+            ]
+        )
+        db.commit()
+
+        profile = ProfilePayload(current_role="Backend Engineer")
+        first = get_candidate_match_snapshot(db, profile=profile)
+
+        assert profile.runtime_primary_resume is not None
+        assert profile.runtime_primary_resume["content_sha256"] == primary_sha
+        assert profile.runtime_primary_resume["extracted_text"].startswith("Built FastAPI")
+        assert "content" not in profile.runtime_primary_resume
+        assert len(profile.runtime_supporting_documents) == 1
+        assert "content" not in profile.runtime_supporting_documents[0]
+        assert "extracted_text" not in profile.runtime_supporting_documents[0]
+        assert "runtime_primary_resume" not in profile.model_dump()
+        assert "runtime_supporting_documents" not in profile.model_dump()
+
+        fallback = build_candidate_snapshot(profile)
+        assert fallback["evidence"]["resume"] is True
+        assert fallback["evidence"]["documents"] == 1
+        assert fallback["evidence"]["profile_files_hash"] == (
+            build_profile_files_fingerprint(profile)
+        )
+        evidence = build_ai_match_evidence_catalog(profile)
+        assert evidence["profile-file:primary-runtime-file"]["excerpt"].startswith(
+            "Built FastAPI"
+        )
+        assert "Cloud certificate" in evidence[
+            "profile-file:supporting-runtime-file"
+        ]["excerpt"]
+
+        primary = db.get(ProfileFileRecord, "primary-runtime-file")
+        assert primary is not None
+        changed_content = b"%PDF-1.4 changed resume"
+        primary.content = changed_content
+        primary.content_sha256 = hashlib.sha256(changed_content).hexdigest()
+        primary.size_bytes = len(changed_content)
+        primary.extracted_text = "Led Kubernetes platform delivery."
+        db.commit()
+
+        second = get_candidate_match_snapshot(db, profile=profile)
+
+    assert first.profile_input_hash != second.profile_input_hash
+    assert primary_content.decode() not in build_openclaw_candidate_snapshot_prompt(
+        profile,
+        {"roles": []},
+    )
+    engine.dispose()
 
 
 def test_candidate_snapshot_uses_message_file(monkeypatch: pytest.MonkeyPatch) -> None:

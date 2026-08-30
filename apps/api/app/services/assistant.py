@@ -36,15 +36,14 @@ from app.services.ai_backend import (
 )
 from app.services.cover_letter_blocks import UnsupportedCoverLetterStructureError
 from app.services.document_analysis import (
-    DocumentAnalysisResult,
     SOURCE_CONTEXT_MAX_CHARS,
+    DocumentAnalysisResult,
     analyze_docx_source,
     serialized_length,
 )
 from app.services.document_security import DocumentSecurityError
 from app.services.experience_evidence import build_atomic_experience_evidence
-from app.services.generation_context import DIRECT_PROFILE_EVIDENCE_FIELDS
-from app.services.generation_context import VACANCY_EVIDENCE_FIELDS
+from app.services.generation_context import DIRECT_PROFILE_EVIDENCE_FIELDS, VACANCY_EVIDENCE_FIELDS
 from app.services.resume_import import (
     decode_resume_data_url,
     extract_json_objects,
@@ -52,7 +51,6 @@ from app.services.resume_import import (
     extract_resume_text,
     summarize_openclaw_error,
 )
-
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -657,10 +655,29 @@ def openclaw_context_budget(*, user_message: str, max_prompt_chars: int) -> int:
 
 def build_profile_context(profile: ProfilePayload) -> dict[str, Any]:
     profile_context = profile.model_dump(
-        exclude={"avatar_url", "resume_data_url", "documents"},
+        exclude={
+            "avatar_url",
+            "documents",
+            "resume_data_url",
+            "resume_file_name",
+            "resume_file_size",
+            "resume_updated_at",
+        },
         exclude_defaults=True,
     )
-    profile_context["resume_attached"] = bool(profile.resume_file_name and profile.resume_data_url)
+    primary_resume = profile.runtime_primary_resume
+    profile_context["resume_attached"] = isinstance(primary_resume, dict)
+    if isinstance(primary_resume, dict):
+        profile_context["primary_resume"] = runtime_profile_file_context(
+            primary_resume
+        )
+    supporting_documents = [
+        runtime_profile_file_context(document)
+        for document in profile.runtime_supporting_documents
+        if isinstance(document, dict)
+    ]
+    if supporting_documents:
+        profile_context["supporting_documents"] = supporting_documents
     experience_claims = build_atomic_experience_evidence(profile.experience)
     profile_context["evidence_ids"] = {
         field: f"profile:{field}"
@@ -678,18 +695,38 @@ def build_profile_context(profile: ProfilePayload) -> dict[str, Any]:
             }
             for claim in experience_claims
         ]
-    structured_profile = "".join((profile.experience, profile.skills, profile.education)).strip()
+    structured_profile = f"{profile.experience}{profile.skills}{profile.education}".strip()
 
-    if profile.resume_file_name and profile.resume_data_url and not structured_profile:
-        try:
-            profile_context["resume_text"] = extract_resume_text(
-                profile.resume_file_name,
-                profile.resume_data_url,
-            )[:12_000]
-        except Exception:
-            pass
+    if isinstance(primary_resume, dict) and not structured_profile:
+        resume_text = str(primary_resume.get("extracted_text") or "").strip()
+        if resume_text:
+            profile_context["resume_text"] = resume_text[:12_000]
 
     return profile_context
+
+
+def runtime_profile_file_context(document: dict[str, Any]) -> dict[str, Any]:
+    fields = (
+        "id",
+        "kind",
+        "title",
+        "category",
+        "language",
+        "issuer",
+        "notes",
+        "file_name",
+        "size_bytes",
+        "content_type",
+    )
+    context = {
+        field: document[field]
+        for field in fields
+        if field in document and isinstance(document[field], (str, int, float, bool))
+    }
+    file_id = str(document.get("id") or "").strip()
+    if file_id:
+        context["evidence_id"] = f"profile-file:{file_id}"
+    return context
 
 
 def build_source_document_context(

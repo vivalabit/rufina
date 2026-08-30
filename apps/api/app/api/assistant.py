@@ -80,6 +80,7 @@ from app.services.job_match_store import (
     latest_job_match_record,
     match_record_to_ai_match,
 )
+from app.services.profile_files import enrich_profile_with_files
 from app.services.profile_versions import (
     StaleProfileRevisionError,
     create_profile_record,
@@ -1058,7 +1059,12 @@ def unpack_assistant_run(
 def load_profile(db: Session) -> ProfilePayload:
     try:
         record = get_profile_record(db)
-        return ProfilePayload.model_validate(record.data) if record else ProfilePayload()
+        profile = (
+            ProfilePayload.model_validate(record.data)
+            if record
+            else ProfilePayload()
+        )
+        return enrich_profile_with_files(db, profile)
     except (SQLAlchemyError, ValidationError):
         return ProfilePayload()
 
@@ -1309,10 +1315,13 @@ def execute_assistant_action(db: Session, action) -> AssistantActionApplyRespons
                 detail="The application context changed; request a new preview",
             )
         application = require_stored_application(db, application_id)
+        application_data = dict(application.data)
+        application_data.pop("documents", None)
+        if application_data != application.data:
+            application.data = application_data
 
         if action.type == "add_application_note":
             note = payload_string(payload, "note", max_length=4_000)
-            application_data = dict(application.data)
             current_notes = str(application_data.get("notes", "")).strip()
             application_data["notes"] = "\n".join(value for value in (current_notes, note) if value)
             application.data = application_data
@@ -1331,7 +1340,6 @@ def execute_assistant_action(db: Session, action) -> AssistantActionApplyRespons
                 max_length=500,
                 allow_empty=True,
             )
-            application_data = dict(application.data)
             current = str(application_data.get("nextStep", ""))
             require_unchanged(current, expected)
             application_data["nextStep"] = next_step

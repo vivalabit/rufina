@@ -46,6 +46,19 @@ MAX_GAP_COUNT = 3
 MAX_EVIDENCE_MATRIX_COUNT = 8
 MAX_CLARIFICATION_QUESTION_COUNT = 3
 JOB_ADDED_AT_FIELDS = ("addedAt", "importedAt", "createdAt", "created_at")
+RUNTIME_PROFILE_FILE_FINGERPRINT_FIELDS = (
+    "id",
+    "kind",
+    "title",
+    "category",
+    "language",
+    "issuer",
+    "notes",
+    "file_name",
+    "size_bytes",
+    "content_type",
+    "content_sha256",
+)
 
 WEIGHTS = {
     "role_fit": 20,
@@ -166,7 +179,7 @@ class AiMatchEvidence(StrictAiMatchModel):
     source_ids: list[StrictText] = Field(alias="sourceIds", max_length=8)
 
     @model_validator(mode="after")
-    def require_evidence_for_supported_status(self) -> "AiMatchEvidence":
+    def require_evidence_for_supported_status(self) -> AiMatchEvidence:
         if self.status in {"verified", "transferable"} and not self.evidence:
             raise ValueError(f"evidence is required when status is {self.status}")
         if self.status in {"verified", "transferable"} and not self.source_ids:
@@ -233,7 +246,7 @@ class AiMatchApplicationGuide(StrictAiMatchModel):
     final_checklist: list[StrictText] = Field(alias="finalChecklist", min_length=1, max_length=4)
 
     @model_validator(mode="after")
-    def validate_readiness_consistency(self) -> "AiMatchApplicationGuide":
+    def validate_readiness_consistency(self) -> AiMatchApplicationGuide:
         question_ids = [question.id for question in self.clarification_questions]
         if len(question_ids) != len(set(question_ids)):
             raise ValueError("clarification question IDs must be unique")
@@ -263,7 +276,7 @@ class AiMatchResult(StrictAiMatchModel):
     application_guide: AiMatchApplicationGuide = Field(alias="applicationGuide")
 
     @model_validator(mode="after")
-    def validate_score_consistency(self) -> "AiMatchResult":
+    def validate_score_consistency(self) -> AiMatchResult:
         breakdown_total = sum(self.breakdown.model_dump().values())
         if abs(self.score - breakdown_total) > 20:
             raise ValueError("score differs from the breakdown total by more than 20 points")
@@ -463,11 +476,67 @@ def calculate_ai_matches(
     ]
 
 
+def build_profile_files_fingerprint(profile: ProfilePayload) -> str:
+    primary_resume = profile.runtime_primary_resume
+    supporting_documents = profile.runtime_supporting_documents
+    if not isinstance(primary_resume, dict) and not supporting_documents:
+        return ""
+
+    def fingerprint_metadata(
+        value: dict[str, Any],
+        *,
+        include_extracted_text: bool,
+    ) -> dict[str, Any]:
+        metadata: dict[str, Any] = {}
+        for field in RUNTIME_PROFILE_FILE_FINGERPRINT_FIELDS:
+            field_value = value.get(field)
+            if isinstance(field_value, (str, int, float, bool)) and field_value != "":
+                metadata[field] = field_value
+        if include_extracted_text:
+            extracted_text = str(value.get("extracted_text") or "")
+            metadata["extracted_text_sha256"] = hashlib.sha256(
+                extracted_text.encode("utf-8")
+            ).hexdigest()
+        return metadata
+
+    material = {
+        "primary_resume": (
+            fingerprint_metadata(primary_resume, include_extracted_text=True)
+            if isinstance(primary_resume, dict)
+            else None
+        ),
+        "supporting_documents": sorted(
+            (
+                fingerprint_metadata(document, include_extracted_text=False)
+                for document in supporting_documents
+                if isinstance(document, dict)
+            ),
+            key=lambda item: (
+                str(item.get("id") or ""),
+                str(item.get("content_sha256") or ""),
+            ),
+        ),
+    }
+    serialized = json.dumps(
+        material,
+        ensure_ascii=False,
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
 def build_candidate_snapshot(profile: ProfilePayload) -> dict[str, Any]:
     preferences = parse_json_object(profile.job_preferences)
     experience_entries = parse_json_list(profile.experience)
     education_entries = parse_json_list(profile.education)
-    documents = parse_json_list(profile.documents)
+    primary_resume = profile.runtime_primary_resume
+    supporting_documents = profile.runtime_supporting_documents
+    resume_text = (
+        str(primary_resume.get("extracted_text") or "")[:50_000]
+        if isinstance(primary_resume, dict)
+        else ""
+    )
     skills = normalize_list(parse_lines(profile.skills))
     roles = normalize_list(
         [
@@ -482,6 +551,7 @@ def build_candidate_snapshot(profile: ProfilePayload) -> dict[str, Any]:
             [
                 profile.headline,
                 profile.additional_notes,
+                resume_text,
                 *skills,
                 *[
                     str(entry.get("description", ""))
@@ -517,12 +587,17 @@ def build_candidate_snapshot(profile: ProfilePayload) -> dict[str, Any]:
         "dealbreakers": normalize_list(parse_lines(profile.dealbreakers)),
         "additional_notes": profile.additional_notes.strip()[:500],
         "evidence": {
-            "resume": bool(profile.resume_file_name and profile.resume_data_url),
-            "resume_file_name": profile.resume_file_name,
+            "resume": isinstance(primary_resume, dict),
+            "resume_file_name": (
+                str(primary_resume.get("file_name") or "")
+                if isinstance(primary_resume, dict)
+                else ""
+            ),
             "linkedin": bool(profile.linkedin),
             "github": bool(profile.github),
             "portfolio": bool(profile.portfolio or profile.personal_site),
-            "documents": len(documents),
+            "documents": len(supporting_documents),
+            "profile_files_hash": build_profile_files_fingerprint(profile),
         },
     }
 
@@ -557,7 +632,53 @@ def build_ai_match_evidence_catalog(profile: ProfilePayload) -> dict[str, dict[s
             "label": f"Experience · {claim_type}",
             "excerpt": claim["text"][:2_000],
         }
+
+    primary_resume = profile.runtime_primary_resume
+    if isinstance(primary_resume, dict):
+        primary_id = str(primary_resume.get("id") or "primary-resume")
+        source_id = f"profile-file:{primary_id}"
+        excerpt = str(primary_resume.get("extracted_text") or "").strip()[:2_000]
+        if not excerpt:
+            excerpt = profile_file_metadata_excerpt(primary_resume)
+        if excerpt:
+            primary_file_name = str(primary_resume.get("file_name") or "resume")
+            catalog[source_id] = {
+                "id": source_id,
+                "label": f"Primary resume · {primary_file_name}",
+                "excerpt": excerpt,
+            }
+    for document in profile.runtime_supporting_documents:
+        if not isinstance(document, dict):
+            continue
+        excerpt = profile_file_metadata_excerpt(document)
+        if not excerpt:
+            continue
+        document_id = str(document.get("id") or "supporting-document")
+        source_id = f"profile-file:{document_id}"
+        document_label = str(
+            document.get("title") or document.get("file_name") or "document"
+        )
+        catalog[source_id] = {
+            "id": source_id,
+            "label": f"Supporting document · {document_label}",
+            "excerpt": excerpt,
+        }
     return catalog
+
+
+def profile_file_metadata_excerpt(document: dict[str, Any]) -> str:
+    values = [
+        str(document.get(field) or "").strip()
+        for field in (
+            "title",
+            "category",
+            "issuer",
+            "language",
+            "file_name",
+            "notes",
+        )
+    ]
+    return " · ".join(dict.fromkeys(value for value in values if value))[:2_000]
 
 
 def build_job_snapshot(job: dict[str, Any]) -> dict[str, Any]:

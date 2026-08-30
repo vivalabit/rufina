@@ -148,6 +148,8 @@ def test_openclaw_action_previews_require_apply_and_are_idempotent() -> None:
     assert repeated_note.status_code == 200
     assert repeated_note.json() == responses[0].json()
     assert stored_application is not None
+    assert "documents" not in stored_application.data
+    assert "documents" not in responses[0].json()["resource"]
     assert stored_application.data["notes"].count("Hiring manager round confirmed.") == 1
     assert stored_application.data["nextStep"] == "Prepare portfolio walkthrough"
     assert stored_profile is not None
