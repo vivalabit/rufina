@@ -1,9 +1,13 @@
 import asyncio
+import base64
+import hashlib
 import json
 from datetime import UTC, datetime, timedelta
+from io import BytesIO
 
 import pytest
 from alembic import command
+from docx import Document
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import SQLAlchemyError
 
@@ -212,6 +216,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "critical_notifications",
             "profiles",
             "profile_versions",
+            "profile_files",
         }
         for table_name in owner_tables:
             owner_column = next(
@@ -229,7 +234,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260830_0046"
+            assert revision == "20260830_0047"
             entry_it = connection.execute(
                 text(
                     "SELECT id, owner_id, name, filters "
@@ -760,6 +765,510 @@ def test_state_ownership_migration_backfills_legacy_profile_revisions(tmp_path) 
         engine.dispose()
 
 
+def test_inline_file_migration_extracts_deduplicates_and_scrubs_legacy_data(
+    tmp_path,
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'inline-files.sqlite'}"
+    config = get_alembic_config(database_url)
+    command.upgrade(config, "20260830_0046")
+
+    def data_url(content_type: str, content: bytes) -> str:
+        encoded = base64.b64encode(content).decode("ascii")
+        return f"data:{content_type};base64,{encoded}"
+
+    resume_document = Document()
+    resume_document.add_paragraph("Legacy resume evidence")
+    resume_output = BytesIO()
+    resume_document.save(resume_output)
+    resume_content = resume_output.getvalue()
+    avatar_content = b"\x89PNG\r\n\x1a\nlegacy avatar"
+    supporting_content = b"%PDF-1.7\nlegacy certificate"
+    application_content = b"%PDF-1.7\napplication attachment"
+    existing_content = b"%PDF-1.7\nexisting attachment"
+    now = datetime(2026, 8, 30, 10, tzinfo=UTC).isoformat()
+
+    profile_data = {
+        "name": "Legacy Candidate",
+        "resume_file_name": "candidate-resume.docx",
+        "resume_data_url": data_url("", resume_content),
+        "avatar_url": data_url("image/png", avatar_content),
+        "documents": json.dumps(
+            [
+                {
+                    "id": "certificate-1",
+                    "title": "Certificate",
+                    "category": "Certificate",
+                    "language": "English",
+                    "issuer": "Example Institute",
+                    "notes": "Verified",
+                    "file_name": "certificate.pdf",
+                    "data_url": data_url("application/pdf", supporting_content),
+                },
+                {
+                    "id": "certificate-1",
+                    "file_name": "duplicate.pdf",
+                    "data_url": data_url("application/pdf", supporting_content),
+                },
+                {
+                    "id": "broken-certificate",
+                    "file_name": "broken.pdf",
+                    "data_url": "data:application/pdf;base64,not-valid-base64!",
+                },
+            ]
+        ),
+    }
+    version_data = {
+        "name": "Historical Candidate",
+        "resume_data_url": "data:application/pdf;base64,also-broken!",
+        "avatar_url": data_url("image/png", avatar_content),
+        "documents": "not-json",
+    }
+    application_data = {
+        "id": "application-inline-files",
+        "status": "draft",
+        "metadata": {"preview": data_url("image/png", avatar_content)},
+        "documents": [
+            {
+                "id": "legacy-attachment",
+                "title": "Application attachment",
+                "fileName": "attachment.pdf",
+                "dataUrl": data_url("application/pdf", application_content),
+            },
+            {
+                "id": "same-content-different-id",
+                "title": "Duplicate by hash",
+                "fileName": "duplicate.pdf",
+                "dataUrl": data_url("application/pdf", application_content),
+            },
+            {
+                "id": "legacy-attachment",
+                "title": "Duplicate legacy id",
+                "fileName": "other.pdf",
+                "dataUrl": data_url("application/pdf", b"%PDF-1.7\ndifferent content"),
+            },
+            {
+                "id": "already-stored-content",
+                "title": "Duplicate existing attachment",
+                "fileName": "existing.pdf",
+                "dataUrl": data_url("application/pdf", existing_content),
+            },
+            {
+                "title": "Attachment without a legacy id",
+                "fileName": "without-id.pdf",
+                "dataUrl": data_url("application/pdf", b"%PDF-1.7\nwithout id"),
+            },
+            {
+                "id": "broken-attachment",
+                "fileName": "broken.pdf",
+                "dataUrl": "data:application/pdf;base64,%%%",
+            },
+        ],
+    }
+
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO profiles "
+                    "(id, owner_id, data, revision, updated_at) "
+                    "VALUES ('profile-inline-files', 'owner-inline-files', :data, 2, :now)"
+                ),
+                {"data": json.dumps(profile_data), "now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO profile_versions "
+                    "(id, profile_id, owner_id, revision, data, reason, created_at) "
+                    "VALUES ('profile-version-inline-files', 'profile-inline-files', "
+                    "'owner-inline-files', 1, :data, 'api_update', :now)"
+                ),
+                {"data": json.dumps(version_data), "now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO profiles "
+                    "(id, owner_id, data, revision, updated_at) "
+                    "VALUES ('profile-malformed-files', 'owner-malformed-files', "
+                    ":data, 1, :now)"
+                ),
+                {"data": json.dumps("data:image/png;base64,inline"), "now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO profile_versions "
+                    "(id, profile_id, owner_id, revision, data, reason, created_at) "
+                    "VALUES ('profile-version-scalar-files', 'profile-malformed-files', "
+                    "'owner-malformed-files', 1, :data, 'api_update', :now)"
+                ),
+                {"data": json.dumps(["data:application/pdf;base64,inline"]), "now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO stored_applications "
+                    "(id, owner_id, data, created_at, updated_at, revision) "
+                    "VALUES ('application-inline-files', 'owner-inline-files', "
+                    ":data, :now, :now, 1)"
+                ),
+                {"data": json.dumps(application_data), "now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO stored_application_events "
+                    "(id, application_id, owner_id, data, created_at, updated_at, revision) "
+                    "VALUES ('event-inline-files', 'application-inline-files', "
+                    "'owner-inline-files', :data, :now, :now, 1)"
+                ),
+                {
+                    "data": json.dumps(
+                        {
+                            "notes": "Keep event notes",
+                            "nested": {
+                                "dataUrl": data_url("image/png", avatar_content)
+                            },
+                        }
+                    ),
+                    "now": now,
+                },
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO stored_applications "
+                    "(id, owner_id, data, created_at, updated_at, revision) "
+                    "VALUES ('application-scalar-files', 'owner-malformed-files', "
+                    ":data, :now, :now, 1)"
+                ),
+                {"data": json.dumps("data:application/pdf;base64,inline"), "now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO workspace_source_documents ("
+                    "id, application_id, category, title, language, file_name, "
+                    "content_type, content, created_at, updated_at, owner_id"
+                    ") VALUES ("
+                    "'existing-inline-file', 'application-inline-files', "
+                    "'Application Attachment', 'Existing', '', 'existing.pdf', "
+                    "'application/pdf', :content, :now, :now, 'owner-inline-files'"
+                    ")"
+                ),
+                {"content": existing_content, "now": now},
+            )
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+
+    engine = create_engine(database_url)
+    try:
+        inspector = inspect(engine)
+        profile_file_columns = {
+            column["name"] for column in inspector.get_columns("profile_files")
+        }
+        assert profile_file_columns == {
+            "id",
+            "owner_id",
+            "kind",
+            "singleton_key",
+            "title",
+            "category",
+            "language",
+            "issuer",
+            "notes",
+            "file_name",
+            "content_type",
+            "content_sha256",
+            "legacy_document_id",
+            "size_bytes",
+            "content",
+            "extracted_text",
+            "created_at",
+            "updated_at",
+        }
+        assert {
+            index["name"] for index in inspector.get_indexes("profile_files")
+        } >= {
+            "ix_profile_files_kind",
+            "ix_profile_files_owner_id",
+            "ix_profile_files_updated_at",
+            "ix_profile_files_content_sha256",
+        }
+        assert {
+            constraint["name"]
+            for constraint in inspector.get_unique_constraints("profile_files")
+        } == {
+            "uq_profile_files_owner_kind_legacy",
+            "uq_profile_files_owner_singleton",
+        }
+        assert {
+            column["name"]
+            for column in inspector.get_columns("workspace_source_documents")
+        } >= {"size_bytes", "content_sha256", "legacy_document_id"}
+        assert {
+            constraint["name"]
+            for constraint in inspector.get_unique_constraints(
+                "workspace_source_documents"
+            )
+        } >= {"uq_workspace_source_documents_owner_application_legacy"}
+
+        with engine.connect() as connection:
+            profile_files = connection.execute(
+                text(
+                    "SELECT kind, singleton_key, title, category, issuer, file_name, "
+                    "content_sha256, legacy_document_id, size_bytes, content, extracted_text "
+                    "FROM profile_files ORDER BY kind, legacy_document_id"
+                )
+            ).mappings().all()
+            profile_value = connection.execute(
+                text(
+                    "SELECT data FROM profiles WHERE id = 'profile-inline-files'"
+                )
+            ).scalar_one()
+            version_value = connection.execute(
+                text(
+                    "SELECT data FROM profile_versions "
+                    "WHERE id = 'profile-version-inline-files'"
+                )
+            ).scalar_one()
+            application_value = connection.execute(
+                text(
+                    "SELECT data FROM stored_applications "
+                    "WHERE id = 'application-inline-files'"
+                )
+            ).scalar_one()
+            event_value = connection.execute(
+                text(
+                    "SELECT data FROM stored_application_events "
+                    "WHERE id = 'event-inline-files'"
+                )
+            ).scalar_one()
+            malformed_values = connection.execute(
+                text(
+                    "SELECT data FROM profiles WHERE id = 'profile-malformed-files' "
+                    "UNION ALL "
+                    "SELECT data FROM profile_versions "
+                    "WHERE id = 'profile-version-scalar-files' "
+                    "UNION ALL "
+                    "SELECT data FROM stored_applications "
+                    "WHERE id = 'application-scalar-files'"
+                )
+            ).scalars().all()
+            workspace_files = connection.execute(
+                text(
+                    "SELECT id, category, legacy_document_id, content_sha256, "
+                    "size_bytes, content FROM workspace_source_documents "
+                    "WHERE application_id = 'application-inline-files' ORDER BY id"
+                )
+            ).mappings().all()
+
+        assert len(profile_files) == 4
+        assert {row["kind"] for row in profile_files} == {
+            "avatar",
+            "primary_resume",
+            "supporting_document",
+        }
+        expected_profile_content = {
+            "avatar": avatar_content,
+            "primary_resume": resume_content,
+            "supporting_document": supporting_content,
+        }
+        for row in profile_files:
+            content = expected_profile_content[row["kind"]]
+            assert row["content"] == content
+            assert row["size_bytes"] == len(content)
+            assert row["content_sha256"] == hashlib.sha256(content).hexdigest()
+        assert next(
+            row for row in profile_files if row["kind"] == "primary_resume"
+        )["singleton_key"] == "primary_resume"
+        assert "Legacy resume evidence" in next(
+            row for row in profile_files if row["kind"] == "primary_resume"
+        )["extracted_text"]
+        supporting_files = [
+            row for row in profile_files if row["kind"] == "supporting_document"
+        ]
+        assert {row["legacy_document_id"] for row in supporting_files} == {
+            "certificate-1",
+            "certificate-1~2",
+        }
+        assert {row["title"] for row in supporting_files} == {
+            "Certificate",
+            "duplicate.pdf",
+        }
+
+        migrated_profile = json.loads(profile_value)
+        migrated_version = json.loads(version_value)
+        migrated_application = json.loads(application_value)
+        migrated_event = json.loads(event_value)
+        assert migrated_profile == {
+            "name": "Legacy Candidate",
+            "resume_file_name": "candidate-resume.docx",
+            "avatar_url": "/avatars/default-pug.png",
+        }
+        assert migrated_version == {
+            "name": "Historical Candidate",
+            "avatar_url": "/avatars/default-pug.png",
+        }
+        assert migrated_application == {
+            "id": "application-inline-files",
+            "status": "draft",
+            "metadata": {"preview": ""},
+        }
+        assert migrated_event == {"notes": "Keep event notes", "nested": {}}
+        assert [json.loads(value) for value in malformed_values] == [{}, {}, {}]
+
+        assert len(workspace_files) == 6
+        existing = next(
+            row for row in workspace_files if row["id"] == "existing-inline-file"
+        )
+        assert existing["size_bytes"] == len(existing_content)
+        assert existing["content_sha256"] == hashlib.sha256(existing_content).hexdigest()
+        migrated_by_legacy_id = {
+            row["legacy_document_id"]: row
+            for row in workspace_files
+            if row["legacy_document_id"] is not None
+        }
+        assert set(migrated_by_legacy_id) == {
+            "legacy-attachment",
+            "legacy-attachment~2",
+            "same-content-different-id",
+            "already-stored-content",
+            "legacy-application-document-5",
+        }
+        for legacy_id in ("legacy-attachment", "same-content-different-id"):
+            migrated = migrated_by_legacy_id[legacy_id]
+            assert migrated["category"] == "Application Attachment"
+            assert migrated["content"] == application_content
+            assert migrated["size_bytes"] == len(application_content)
+            assert migrated["content_sha256"] == hashlib.sha256(
+                application_content
+            ).hexdigest()
+        assert migrated_by_legacy_id["already-stored-content"]["content"] == existing_content
+        assert migrated_by_legacy_id["legacy-attachment~2"]["content"] == (
+            b"%PDF-1.7\ndifferent content"
+        )
+        assert migrated_by_legacy_id["legacy-application-document-5"]["content"] == (
+            b"%PDF-1.7\nwithout id"
+        )
+    finally:
+        engine.dispose()
+
+    command.check(get_alembic_config(database_url))
+    with pytest.raises(RuntimeError, match="migrated files remain"):
+        command.downgrade(config, "20260830_0046")
+
+    engine = create_engine(database_url)
+    try:
+        assert "profile_files" in inspect(engine).get_table_names()
+        with engine.begin() as connection:
+            connection.execute(text("DELETE FROM profile_files"))
+            connection.execute(
+                text(
+                    "DELETE FROM workspace_source_documents "
+                    "WHERE category = 'Application Attachment' "
+                    "AND legacy_document_id IS NOT NULL"
+                )
+            )
+    finally:
+        engine.dispose()
+
+    command.downgrade(config, "20260830_0046")
+
+    engine = create_engine(database_url)
+    try:
+        inspector = inspect(engine)
+        assert "profile_files" not in inspector.get_table_names()
+        workspace_columns = {
+            column["name"]
+            for column in inspector.get_columns("workspace_source_documents")
+        }
+        assert {
+            "size_bytes",
+            "content_sha256",
+            "legacy_document_id",
+        }.isdisjoint(workspace_columns)
+        with engine.connect() as connection:
+            retained_profile = json.loads(
+                connection.execute(
+                    text(
+                        "SELECT data FROM profiles "
+                        "WHERE id = 'profile-inline-files'"
+                    )
+                ).scalar_one()
+            )
+        assert "resume_data_url" not in retained_profile
+        assert "documents" not in retained_profile
+        assert retained_profile["avatar_url"] == "/avatars/default-pug.png"
+    finally:
+        engine.dispose()
+
+
+def test_file_extraction_preflight_keeps_failed_sqlite_upgrade_restartable(
+    tmp_path,
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'file-extraction-preflight.sqlite'}"
+    config = get_alembic_config(database_url)
+    command.upgrade(config, "20260830_0046")
+    now = datetime(2026, 8, 30, 10, tzinfo=UTC).isoformat()
+
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO stored_applications "
+                    "(id, owner_id, data, created_at, updated_at, revision) "
+                    "VALUES ('preflight-application', 'preflight-owner', '{}', "
+                    ":now, :now, 1)"
+                ),
+                {"now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO workspace_source_documents ("
+                    "id, application_id, category, title, language, file_name, "
+                    "content_type, content, created_at, updated_at, owner_id"
+                    ") VALUES ("
+                    "'empty-legacy-file', 'preflight-application', 'Cover Letter', "
+                    "'Empty', '', 'empty.docx', :content_type, :content, :now, :now, "
+                    "'preflight-owner')"
+                ),
+                {
+                    "content_type": (
+                        "application/vnd.openxmlformats-officedocument."
+                        "wordprocessingml.document"
+                    ),
+                    "content": b"",
+                    "now": now,
+                },
+            )
+    finally:
+        engine.dispose()
+
+    with pytest.raises(RuntimeError, match="empty legacy file"):
+        command.upgrade(config, "head")
+
+    engine = create_engine(database_url)
+    try:
+        inspector = inspect(engine)
+        assert "profile_files" not in inspector.get_table_names()
+        assert "size_bytes" not in {
+            column["name"]
+            for column in inspector.get_columns("workspace_source_documents")
+        }
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "UPDATE workspace_source_documents SET content = :content "
+                    "WHERE id = 'empty-legacy-file'"
+                ),
+                {"content": b"legacy-docx"},
+            )
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+    command.check(get_alembic_config(database_url))
+
+
 def test_entry_it_role_fix_repairs_already_migrated_config(tmp_path) -> None:
     database_url = f"sqlite:///{tmp_path / 'entry-it-role-fix.sqlite'}"
     config = get_alembic_config(database_url)
@@ -1279,7 +1788,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260830_0046"
+            assert revision == "20260830_0047"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
@@ -1319,7 +1828,7 @@ def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> Non
                     "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
                 )
             ).scalar_one()
-        assert revision == "20260830_0046"
+        assert revision == "20260830_0047"
         assert entry_it_count == 1
         assert LEGACY_RECOVERABLE_MISSING_TABLES <= set(
             inspect(engine).get_table_names()
