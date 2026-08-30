@@ -1,7 +1,8 @@
+import re
 from datetime import UTC, datetime
 from typing import Any, ClassVar, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import JSON, Boolean, CheckConstraint, DateTime, ForeignKey, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -10,6 +11,44 @@ from app.core.database import Base, OwnerScoped
 
 def utc_now() -> datetime:
     return datetime.now(UTC)
+
+
+INLINE_FILE_FIELD_NAMES = {
+    "dataurl",
+    "documents",
+    "filedata",
+    "legacydataurl",
+    "resumedataurl",
+}
+SERIALIZED_DATA_URL_PATTERN = re.compile(
+    r"""["']\s*data:[^,\r\n]{0,200},""",
+    flags=re.IGNORECASE,
+)
+
+
+def sanitize_file_free_json(value: dict[str, Any]) -> dict[str, Any]:
+    """Reject inline bytes anywhere in application/event JSON and drop empty legacy keys."""
+
+    def sanitize(candidate: Any) -> Any:
+        if isinstance(candidate, dict):
+            sanitized: dict[str, Any] = {}
+            for key, nested in candidate.items():
+                normalized_key = re.sub(r"[_-]+", "", str(key)).casefold()
+                if normalized_key in INLINE_FILE_FIELD_NAMES:
+                    if nested not in (None, "", [], {}):
+                        raise ValueError("Files must be uploaded through the binary document API")
+                    continue
+                sanitized[str(key)] = sanitize(nested)
+            return sanitized
+        if isinstance(candidate, list):
+            return [sanitize(item) for item in candidate]
+        if isinstance(candidate, str):
+            normalized = candidate.strip().casefold()
+            if normalized.startswith("data:") or SERIALIZED_DATA_URL_PATTERN.search(candidate):
+                raise ValueError("Files must be uploaded through the binary document API")
+        return candidate
+
+    return sanitize(value)
 
 
 class StoredApplicationRecord(OwnerScoped, Base):
@@ -108,6 +147,11 @@ class StoredApplicationInput(BaseModel):
     id: str = Field(min_length=1, max_length=160)
     data: dict[str, Any]
 
+    @field_validator("data")
+    @classmethod
+    def reject_inline_documents(cls, value: dict[str, Any]) -> dict[str, Any]:
+        return sanitize_file_free_json(value)
+
 
 class StoredApplicationsRequest(BaseModel):
     applications: list[StoredApplicationInput] = Field(default_factory=list)
@@ -123,6 +167,11 @@ class StoredApplicationPatchRequest(BaseModel):
     data: dict[str, Any]
     revision: int | None = Field(default=None, ge=1)
 
+    @field_validator("data")
+    @classmethod
+    def reject_inline_documents(cls, value: dict[str, Any]) -> dict[str, Any]:
+        return sanitize_file_free_json(value)
+
     model_config = {"extra": "forbid"}
 
 
@@ -130,6 +179,11 @@ class StoredApplicationEventInput(BaseModel):
     id: str = Field(min_length=1, max_length=160)
     application_id: str = Field(min_length=1, max_length=160)
     data: dict[str, Any]
+
+    @field_validator("data")
+    @classmethod
+    def reject_inline_files(cls, value: dict[str, Any]) -> dict[str, Any]:
+        return sanitize_file_free_json(value)
 
 
 class StoredApplicationEventsRequest(BaseModel):
@@ -147,6 +201,14 @@ class StoredApplicationEventPatchRequest(BaseModel):
     application_id: str | None = Field(default=None, min_length=1, max_length=160)
     data: dict[str, Any] | None = None
     revision: int | None = Field(default=None, ge=1)
+
+    @field_validator("data")
+    @classmethod
+    def reject_inline_files(
+        cls,
+        value: dict[str, Any] | None,
+    ) -> dict[str, Any] | None:
+        return sanitize_file_free_json(value) if value is not None else None
 
     model_config = {"extra": "forbid"}
 

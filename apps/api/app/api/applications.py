@@ -109,6 +109,7 @@ def application_payload(
     record: StoredApplicationRecord,
 ) -> StoredApplicationPayload:
     data = dict(record.data) if isinstance(record.data, dict) else {}
+    data.pop("documents", None)
     raw_job = data.get("job")
     job_id = str(raw_job.get("id") or "").strip() if isinstance(raw_job, dict) else ""
     stored_job = db.get(StoredJobRecord, (get_bound_owner_id(), job_id)) if job_id else None
@@ -172,6 +173,7 @@ def application_preference_payload(
 
 def strip_client_application_analysis(data: dict[str, object]) -> dict[str, object]:
     sanitized = dict(data)
+    sanitized.pop("documents", None)
     raw_job = sanitized.get("job")
     if isinstance(raw_job, dict):
         job = dict(raw_job)

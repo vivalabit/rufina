@@ -7,6 +7,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
 from app.main import app
+from app.models.applications import StoredApplicationRecord
 
 
 def state_api_client() -> tuple[TestClient, sessionmaker[Session]]:
@@ -34,8 +35,39 @@ def state_api_client() -> tuple[TestClient, sessionmaker[Session]]:
 
 
 def test_point_application_and_event_writes_use_revisions() -> None:
-    client, _ = state_api_client()
+    client, testing_session_local = state_api_client()
     try:
+        rejected_created = client.post(
+            "/applications",
+            json={
+                "id": "application-point-api",
+                "data": {
+                    "id": "application-point-api",
+                    "status": "draft",
+                    "notes": "Keep this field",
+                    "documents": [
+                        {
+                            "id": "legacy-inline-document",
+                            "dataUrl": "data:application/pdf;base64,JVBERi0=",
+                        }
+                    ],
+                },
+            },
+        )
+        assert rejected_created.status_code == 422
+
+        rejected_nested_file = client.post(
+            "/applications",
+            json={
+                "id": "application-point-api",
+                "data": {
+                    "id": "application-point-api",
+                    "metadata": {"payload": {"data_url": "data:application/pdf;base64,JVBERi0="}},
+                },
+            },
+        )
+        assert rejected_nested_file.status_code == 422
+
         created = client.post(
             "/applications",
             json={
@@ -44,6 +76,7 @@ def test_point_application_and_event_writes_use_revisions() -> None:
                     "id": "application-point-api",
                     "status": "draft",
                     "notes": "Keep this field",
+                    "documents": [],
                 },
             },
         )
@@ -52,6 +85,19 @@ def test_point_application_and_event_writes_use_revisions() -> None:
         assert created.json()["revision"] == 1
         assert created.json()["created_at"]
         assert created.json()["updated_at"]
+        assert "documents" not in created.json()["data"]
+
+        rejected_patch = client.patch(
+            "/applications/application-point-api",
+            headers={"If-Match": '"1"'},
+            json={
+                "data": {
+                    "status": "applied",
+                    "documents": [{"id": "patch-inline-document"}],
+                }
+            },
+        )
+        assert rejected_patch.status_code == 422
 
         patched = client.patch(
             "/applications/application-point-api",
@@ -63,6 +109,7 @@ def test_point_application_and_event_writes_use_revisions() -> None:
         assert patched.json()["revision"] == 2
         assert patched.json()["data"]["status"] == "applied"
         assert patched.json()["data"]["notes"] == "Keep this field"
+        assert "documents" not in patched.json()["data"]
 
         stale_patch = client.patch(
             "/applications/application-point-api",
@@ -71,6 +118,50 @@ def test_point_application_and_event_writes_use_revisions() -> None:
         )
         assert stale_patch.status_code == 412
         assert stale_patch.json()["detail"]["current_revision"] == 2
+
+        rejected_put = client.put(
+            "/applications",
+            json={
+                "applications": [
+                    {
+                        "id": "application-point-api",
+                        "data": {
+                            "id": "application-point-api",
+                            "status": "interview",
+                            "documents": [{"id": "put-inline-document"}],
+                        },
+                    }
+                ]
+            },
+        )
+        assert rejected_put.status_code == 422
+
+        legacy_put = client.put(
+            "/applications",
+            json={
+                "applications": [
+                    {
+                        "id": "application-point-api",
+                        "data": {
+                            "id": "application-point-api",
+                            "status": "interview",
+                        },
+                    }
+                ]
+            },
+        )
+        assert legacy_put.status_code == 200
+        legacy_payload = next(
+            item for item in legacy_put.json() if item["id"] == "application-point-api"
+        )
+        assert "documents" not in legacy_payload["data"]
+        fetched = client.get("/applications/application-point-api")
+        assert fetched.status_code == 200
+        assert "documents" not in fetched.json()["data"]
+        with testing_session_local() as db:
+            stored = db.get(StoredApplicationRecord, "application-point-api")
+            assert stored is not None
+            assert "documents" not in stored.data
 
         event_created = client.post(
             "/applications/events",
@@ -82,6 +173,16 @@ def test_point_application_and_event_writes_use_revisions() -> None:
         )
         assert event_created.status_code == 201
         assert event_created.json()["revision"] == 1
+
+        rejected_event_file = client.post(
+            "/applications/events",
+            json={
+                "id": "event-with-file",
+                "application_id": "application-point-api",
+                "data": {"notes": '{"dataUrl":"data:image/png;base64,aW1hZ2U="}'},
+            },
+        )
+        assert rejected_event_file.status_code == 422
 
         event_patched = client.patch(
             "/applications/events/event-point-api",
