@@ -21,6 +21,7 @@ from app.api.resume_tailoring import router as resume_tailoring_router
 from app.api.resume_templates import router as resume_templates_router
 from app.api.settings import router as settings_router
 from app.core.migrations import upgrade_database
+from app.core.request_body_limit import RequestBodyLimitMiddleware
 from app.core.settings import get_settings
 from app.services.job_search_worker import run_job_search_worker
 from app.services.storage_cleanup import run_expiration_cleanup
@@ -61,6 +62,8 @@ app = FastAPI(
     description="Backend skeleton for the personal AI job search assistant.",
     lifespan=lifespan,
 )
+
+app.add_middleware(RequestBodyLimitMiddleware)
 
 app.add_middleware(
     CORSMiddleware,
