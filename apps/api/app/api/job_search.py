@@ -1,3 +1,4 @@
+import logging
 from datetime import UTC, datetime, time
 from typing import Any
 
@@ -65,6 +66,7 @@ from app.services.job_search_worker import (
 from app.services.vacancy_search import create_vacancy_search_runner
 
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
+logger = logging.getLogger("uvicorn.error")
 
 SCHEDULE_FIELDS = {
     "frequency",
@@ -1119,6 +1121,7 @@ def invalid_schedule(exc: JobSearchScheduleValidationError) -> HTTPException:
 
 
 def database_unavailable(exc: SQLAlchemyError) -> HTTPException:
+    logger.exception("Job search database operation failed")
     return HTTPException(
         status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
         detail="Job search database is unavailable",

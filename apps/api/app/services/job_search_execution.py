@@ -29,9 +29,12 @@ from app.models.job_search import (
     SearchFilters,
     normalize_job_search_config,
 )
-from app.models.jobs import StoredJobRecord
+from app.models.jobs import (
+    StoredJobRecord,
+    is_replaceable_job_state_placeholder,
+)
 from app.models.parsers import LinkedInSearchRequest, ParsedJob
-from app.models.profile import ProfilePayload, ProfileRecord
+from app.models.profile import ProfilePayload
 from app.services.ai_match import AiMatchError, create_vacancy_matching_ai_facade
 from app.services.ai_privacy import (
     ensure_ai_privacy_settings,
@@ -72,6 +75,7 @@ from app.services.job_screening_store import (
     persist_screening_decision,
 )
 from app.services.job_search_schedule import calculate_next_run_at
+from app.services.profile_versions import get_profile_record
 from app.services.vacancy_search import (
     VacancySearchRunner,
     VacancySearchRunResult,
@@ -893,14 +897,21 @@ def prepare_new_job_candidates(
     if resolved_job_ids is not None and len(resolved_job_ids) != len(jobs):
         raise ValueError("resolved_job_ids must match jobs")
     records = db.scalars(select(StoredJobRecord)).all()
-    existing_ids = {record.id for record in records}
+    blocking_records = [
+        record
+        for record in records
+        if not is_replaceable_job_state_placeholder(record)
+    ]
+    existing_ids = {record.id for record in blocking_records}
     existing_urls = {
         canonical_job_url(stored_job_url(record.data))
-        for record in records
+        for record in blocking_records
         if canonical_job_url(stored_job_url(record.data))
     }
     existing_identities = {
-        stored_job_identity(record.data) for record in records if stored_job_identity(record.data)
+        stored_job_identity(record.data)
+        for record in blocking_records
+        if stored_job_identity(record.data)
     }
     candidates: list[NewJobCandidate] = []
 
@@ -1209,15 +1220,21 @@ def persist_new_jobs(
         ]
 
     records = db.scalars(select(StoredJobRecord)).all()
-    existing_ids = {record.id for record in records}
+    records_by_id = {record.id: record for record in records}
+    blocking_records = [
+        record
+        for record in records
+        if not is_replaceable_job_state_placeholder(record)
+    ]
+    existing_ids = {record.id for record in blocking_records}
     existing_urls = {
         canonical_job_url(stored_job_url(record.data))
-        for record in records
+        for record in blocking_records
         if canonical_job_url(stored_job_url(record.data))
     }
     existing_identities = {
         stored_job_identity(record.data)
-        for record in records
+        for record in blocking_records
         if stored_job_identity(record.data)
     }
     added: list[dict[str, Any]] = []
@@ -1238,10 +1255,17 @@ def persist_new_jobs(
             job_id=job_id,
             added_at=added_at,
         )
-        record = StoredJobRecord(id=job_id, data=data, status="active")
+        record = records_by_id.get(job_id)
+        if record is not None and is_replaceable_job_state_placeholder(record):
+            record.data = data
+            record.status = "active"
+            record.dismissed_at = None
+        else:
+            record = StoredJobRecord(id=job_id, data=data, status="active")
+            db.add(record)
         if provenance is not None:
             apply_job_import_provenance(record, provenance)
-        db.add(record)
+        records_by_id[job_id] = record
         existing_ids.add(job_id)
         if url_key:
             existing_urls.add(url_key)
@@ -1296,7 +1320,7 @@ def match_new_jobs_if_allowed(
     privacy = ensure_ai_privacy_settings(db, owner_id)
 
     try:
-        profile_record = db.get(ProfileRecord, "default")
+        profile_record = get_profile_record(db, owner_id=owner_id)
         profile = (
             ProfilePayload.model_validate(profile_record.data)
             if profile_record

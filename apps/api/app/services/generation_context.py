@@ -12,23 +12,20 @@ from app.core.identity import get_bound_owner_id
 from app.core.settings import get_settings
 from app.models.applications import CandidateConfirmationRecord, StoredApplicationRecord
 from app.models.documents import DocumentTemplateRecord
-from app.services.cover_letter_template_registry import (
-    ensure_bundled_cover_letter_template,
-    is_bundled_cover_letter_template_id,
-)
-from app.services.resume_template_registry import (
-    is_bundled_resume_template_id,
-)
 from app.models.jobs import JobMatchRecord, StoredJobRecord
-from app.models.profile import ProfilePayload, ProfileRecord
+from app.models.profile import ProfilePayload
 from app.services.ai_match import (
-    MATCHER_VERSION,
     MATCH_PROMPT_VERSION,
+    MATCHER_VERSION,
     build_job_snapshot,
     build_job_snapshot_hash,
     detect_job_language,
 )
 from app.services.candidate_snapshot import get_candidate_match_snapshot
+from app.services.cover_letter_template_registry import (
+    ensure_bundled_cover_letter_template,
+    is_bundled_cover_letter_template_id,
+)
 from app.services.experience_evidence import build_atomic_experience_evidence
 from app.services.job_match_store import (
     authoritative_match_record,
@@ -36,6 +33,10 @@ from app.services.job_match_store import (
     has_job_match_record,
     latest_job_match_record,
     match_record_to_ai_match,
+)
+from app.services.profile_versions import get_profile_record
+from app.services.resume_template_registry import (
+    is_bundled_resume_template_id,
 )
 
 GENERATION_FINGERPRINT_VERSION = "generation-fingerprint-v4"
@@ -357,7 +358,7 @@ def load_authoritative_application_generation_context(
     vacancy = dict(job_record.data)
     vacancy["id"] = job_id
 
-    profile_record = db.get(ProfileRecord, "default")
+    profile_record = get_profile_record(db)
     if not profile_record:
         raise GenerationContextError("Candidate profile is unavailable")
     try:

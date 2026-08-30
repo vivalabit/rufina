@@ -780,7 +780,7 @@ const assistantPrompts = {
 } as const;
 
 const defaultParserSearchForm: ParserSearchForm = {
-  parsers: ["linkedin"],
+  parsers: [],
   directCompaniesEnabled: false,
   directCompanyIds: [],
   directCompanyDirection: "information_technology",
@@ -2595,7 +2595,7 @@ function getDefaultLinkedInSearchSelection(
       ...defaultParserSearchForm,
       ...fallback,
       ...draft,
-      parsers: ["linkedin"] as ParserId[],
+      parsers: [],
       directCompaniesEnabled: false,
       directCompanyIds: [],
       searchName:

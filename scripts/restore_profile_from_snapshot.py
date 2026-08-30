@@ -18,9 +18,12 @@ from app.core.database import SessionLocal, init_db  # noqa: E402
 from app.models.profile import (  # noqa: E402
     CandidateMatchSnapshotRecord,
     ProfilePayload,
-    ProfileRecord,
 )
-from app.services.profile_versions import record_profile_version  # noqa: E402
+from app.services.profile_versions import (  # noqa: E402
+    create_profile_record,
+    get_profile_record,
+    update_profile_data,
+)
 
 
 def list_value(data: dict[str, Any], field: str) -> list[str]:
@@ -145,7 +148,7 @@ def main() -> int:
         if not snapshots:
             raise SystemExit("No candidate snapshots are available")
         snapshot = max(snapshots, key=snapshot_richness)
-        profile_record = db.get(ProfileRecord, "default")
+        profile_record = get_profile_record(db)
         current = ProfilePayload.model_validate(profile_record.data) if profile_record else ProfilePayload()
         restored = restore_payload(current, snapshot)
 
@@ -166,10 +169,14 @@ def main() -> int:
             return 0
 
         if profile_record:
-            record_profile_version(db, profile_record, reason="snapshot_restore")
-            profile_record.data = restored.model_dump()
+            update_profile_data(
+                db,
+                profile_record,
+                data=restored.model_dump(),
+                reason="snapshot_restore",
+            )
         else:
-            db.add(ProfileRecord(id="default", data=restored.model_dump()))
+            db.add(create_profile_record(restored.model_dump()))
         db.commit()
     return 0
 

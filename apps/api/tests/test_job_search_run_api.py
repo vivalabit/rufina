@@ -17,7 +17,11 @@ from app.core.database import Base, get_db
 from app.core.settings import Settings, get_settings
 from app.main import app
 from app.models.job_screening import JobScreeningDecisionRecord
-from app.models.jobs import DiscoveredVacancyRecord, StoredJobRecord
+from app.models.jobs import (
+    JOB_STATE_PLACEHOLDER_KEY,
+    DiscoveredVacancyRecord,
+    StoredJobRecord,
+)
 from app.models.parsers import ParsedJob, ParserSearchResponse
 from app.models.privacy import AiPrivacySettingsRecord
 from app.services import job_search_execution
@@ -2277,6 +2281,123 @@ def test_run_now_does_not_restore_existing_or_dismissed_jobs_and_matches_only_ne
     dismissed_record = next(record for record in records if record.id == dismissed_id)
     assert dismissed_record.status == "dismissed"
     assert dismissed_record.data == {"id": dismissed_id}
+
+
+def test_run_now_replaces_state_placeholders_except_dismissed(
+    api_context: ApiContext,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    headers = {"X-Rufina-Owner-Id": "placeholder-owner"}
+    saved = parsed_job(
+        title="Saved Placeholder Engineer",
+        url="https://www.linkedin.com/jobs/view/saved-placeholder",
+    )
+    archived = parsed_job(
+        title="Archived Placeholder Engineer",
+        url="https://www.linkedin.com/jobs/view/archived-placeholder",
+    )
+    dismissed = parsed_job(
+        title="Dismissed Placeholder Engineer",
+        url="https://www.linkedin.com/jobs/view/dismissed-placeholder",
+    )
+    saved_id = parsed_job_id(saved, index=0)
+    archived_id = parsed_job_id(archived, index=1)
+    dismissed_id = parsed_job_id(dismissed, index=2)
+    saved_at = datetime(2026, 1, 2, 3, 4, 5, tzinfo=UTC)
+    archived_at = datetime(2026, 2, 3, 4, 5, 6, tzinfo=UTC)
+    dismissed_at = datetime(2026, 3, 4, 5, 6, 7, tzinfo=UTC)
+
+    with api_context.sessions() as db:
+        db.add_all(
+            [
+                StoredJobRecord(
+                    owner_id="placeholder-owner",
+                    id=saved_id,
+                    data={"id": saved_id, JOB_STATE_PLACEHOLDER_KEY: True},
+                    saved_at=saved_at,
+                    status="active",
+                ),
+                StoredJobRecord(
+                    owner_id="placeholder-owner",
+                    id=archived_id,
+                    data={"id": archived_id, JOB_STATE_PLACEHOLDER_KEY: True},
+                    archived_at=archived_at,
+                    status="active",
+                ),
+                StoredJobRecord(
+                    owner_id="placeholder-owner",
+                    id=dismissed_id,
+                    data={"id": dismissed_id, JOB_STATE_PLACEHOLDER_KEY: True},
+                    dismissed_at=dismissed_at,
+                    status="dismissed",
+                ),
+            ]
+        )
+        db.commit()
+
+    runner = FakeRunner(
+        VacancySearchRunResult(
+            jobs=[saved, archived, dismissed],
+            source_results={
+                "linkedin": completed_response("linkedin", [saved, archived, dismissed])
+            },
+            source_errors={},
+        )
+    )
+    monkeypatch.setattr(
+        job_search_api,
+        "create_vacancy_search_runner",
+        lambda _settings: runner,
+    )
+    matched_batches: list[list[dict[str, object]]] = []
+
+    def capture_new_jobs(_db, *, jobs, **_kwargs):
+        matched_batches.append(jobs)
+
+    monkeypatch.setattr(
+        job_search_execution,
+        "match_new_jobs_if_allowed",
+        capture_new_jobs,
+    )
+    _, schedule_id = create_search(api_context.client, headers)
+
+    response = api_context.client.post(
+        f"/job-search/schedules/{schedule_id}/run",
+        headers=headers,
+    )
+
+    assert response.status_code == 200
+    assert response.json()["jobsAlreadyKnown"] == 1
+    assert response.json()["jobsAdded"] == 2
+    assert {job["title"] for job in matched_batches[0]} == {
+        saved.title,
+        archived.title,
+    }
+
+    records = {
+        record.id: record
+        for record in stored_jobs(api_context.sessions, owner_id="placeholder-owner")
+    }
+    saved_record = records[saved_id]
+    assert saved_record.data["title"] == saved.title
+    assert JOB_STATE_PLACEHOLDER_KEY not in saved_record.data
+    assert saved_record.saved_at is not None
+    assert saved_record.saved_at.replace(tzinfo=UTC) == saved_at
+
+    archived_record = records[archived_id]
+    assert archived_record.data["title"] == archived.title
+    assert JOB_STATE_PLACEHOLDER_KEY not in archived_record.data
+    assert archived_record.archived_at is not None
+    assert archived_record.archived_at.replace(tzinfo=UTC) == archived_at
+
+    dismissed_record = records[dismissed_id]
+    assert dismissed_record.status == "dismissed"
+    assert dismissed_record.data == {
+        "id": dismissed_id,
+        JOB_STATE_PLACEHOLDER_KEY: True,
+    }
+    assert dismissed_record.dismissed_at is not None
+    assert dismissed_record.dismissed_at.replace(tzinfo=UTC) == dismissed_at
 
 
 def test_run_now_persists_partial_source_failure(

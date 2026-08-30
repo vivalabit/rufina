@@ -33,10 +33,15 @@ from app.models.jobs import (
     StoredJobRecord,
 )
 from app.models.privacy import AiPrivacySettingsRecord
-from app.models.profile import ProfilePayload, ProfileRecord
+from app.models.profile import ProfilePayload
 from app.services.ai_match import MATCH_PROMPT_VERSION, MATCHER_VERSION, WEIGHTS
 from app.services.candidate_snapshot import get_candidate_match_snapshot
 from app.services.job_match_store import build_match_record
+from app.services.profile_versions import (
+    create_profile_record,
+    get_profile_record,
+    update_profile_data,
+)
 
 DEMO_JOB_PREFIX = "manual-job-demo-"
 DEMO_APPLICATION_PREFIX = "application-manual-job-demo-"
@@ -610,11 +615,17 @@ def seed_database(
     try:
         delete_existing_demo_records(db)
 
-        profile_record = db.get(ProfileRecord, "default")
+        profile_record = get_profile_record(db)
         if profile_record:
-            profile_record.data = profile_payload.model_dump()
+            if profile_record.data != profile_payload.model_dump():
+                update_profile_data(
+                    db,
+                    profile_record,
+                    data=profile_payload.model_dump(),
+                    reason="screenshot_seed",
+                )
         else:
-            db.add(ProfileRecord(id="default", data=profile_payload.model_dump()))
+            db.add(create_profile_record(profile_payload.model_dump()))
 
         snapshot = get_candidate_match_snapshot(db, profile=profile_payload)
         for job in fixture.jobs:

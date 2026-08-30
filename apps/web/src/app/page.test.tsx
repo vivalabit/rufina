@@ -1821,10 +1821,11 @@ it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selecte
   const jobsChSource = screen.getByRole("button", {
     name: "Include jobs.ch in search",
   });
-  expect(linkedinSource).toHaveAttribute("aria-pressed", "true");
+  expect(linkedinSource).toHaveAttribute("aria-pressed", "false");
   expect(indeedSource).toHaveAttribute("aria-pressed", "false");
   expect(jobsChSource).toHaveAttribute("aria-pressed", "false");
 
+  fireEvent.click(linkedinSource);
   fireEvent.click(screen.getByRole("button", { name: "Configure Indeed" }));
   expect(screen.getByText("2. Configure Indeed")).toBeInTheDocument();
   expect(indeedSource).toHaveAttribute("aria-pressed", "false");
@@ -2033,6 +2034,9 @@ it("does not re-add a vacancy whose deleted id was synchronized with the server"
   fireEvent.click(
     await screen.findByRole("button", { name: "Search vacancies" }),
   );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Include LinkedIn in search" }),
+  );
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
 
   expect(
@@ -2167,6 +2171,9 @@ it("loads a server config and refreshes backend-persisted search results", async
   expect(
     within(linkedInConfig).getByRole("option", { name: "Entry IT" }),
   ).toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole("button", { name: "Include LinkedIn in search" }),
+  );
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
 
   expect(
@@ -2294,6 +2301,9 @@ it("reports an unfinished provider snapshot without claiming zero results", asyn
       "entry-it-linkedin",
     );
   });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Include LinkedIn in search" }),
+  );
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
 
   await waitFor(() => {
@@ -2419,6 +2429,9 @@ it("selects a separate query config inside each source's settings", async () => 
       "e.g. Product Designer, UX Designer, Design System",
     ),
   ).toHaveValue("linkedin query");
+  fireEvent.click(
+    screen.getByRole("button", { name: "Include LinkedIn in search" }),
+  );
   fireEvent.click(
     screen.getByRole("button", { name: "Include Indeed in search" }),
   );
@@ -2596,6 +2609,9 @@ it("keeps each source config selected when profiles differ", async () => {
       "entry-it-linkedin",
     );
   });
+  fireEvent.click(
+    screen.getByRole("button", { name: "Include LinkedIn in search" }),
+  );
   fireEvent.click(
     screen.getByRole("button", { name: "Include jobs.ch in search" }),
   );
@@ -3078,9 +3094,6 @@ it("uses a broad direction and full-catalog filters for a direct-company-only se
     screen.getByRole("button", { name: "Include Direct Companies in search" }),
   );
   fireEvent.click(screen.getByRole("checkbox", { name: /SBB CFF FFS/ }));
-  fireEvent.click(
-    screen.getByRole("button", { name: "Include LinkedIn in search" }),
-  );
   expect(screen.queryByText("Job title or keywords")).not.toBeInTheDocument();
   expect(screen.queryByText("Experience level")).not.toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Direct company direction"), {
@@ -4059,9 +4072,6 @@ it("shows direct-company vacancies with their company logos", async () => {
   );
   fireEvent.click(
     screen.getByRole("button", { name: "Include Direct Companies in search" }),
-  );
-  fireEvent.click(
-    screen.getByRole("button", { name: "Include LinkedIn in search" }),
   );
 
   expect(screen.getByText("Direct company pages")).toBeInTheDocument();

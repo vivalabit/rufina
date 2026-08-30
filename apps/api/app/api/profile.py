@@ -1,9 +1,10 @@
 from binascii import Error as BinasciiError
+from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
 from sqlalchemy import select
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -31,8 +32,12 @@ from app.models.resume import (
 )
 from app.services.ai_privacy import record_ai_activity
 from app.services.profile_versions import (
+    StaleProfileRevisionError,
+    create_profile_record,
+    get_profile_record,
     is_suspicious_profile_replacement,
-    record_profile_version,
+    profile_etag,
+    update_profile_data,
 )
 from app.services.resume_import import (
     ResumeImportError,
@@ -118,31 +123,88 @@ def normalize_profile_record(profile: ProfileRecord, db: Session) -> ProfilePayl
             normalized_data[field] = ""
 
     if normalized_data != profile.data:
-        record_profile_version(db, profile, reason="legacy_normalization")
-        profile.data = normalized_data
-        db.commit()
-        db.refresh(profile)
+        try:
+            update_profile_data(
+                db,
+                profile,
+                data=normalized_data,
+                reason="legacy_normalization",
+            )
+            db.commit()
+            db.refresh(profile)
+        except StaleProfileRevisionError:
+            db.rollback()
+            current_profile = get_profile_record(db)
+            if current_profile is None:
+                raise
+            return normalize_profile_record(current_profile, db)
 
     return ProfilePayload.model_validate(profile.data)
 
 
 def get_or_create_profile(db: Session) -> ProfileRecord:
-    profile = db.get(ProfileRecord, "default")
+    profile = get_profile_record(db)
     if profile:
         return profile
 
-    profile = ProfileRecord(id="default", data=default_profile.model_dump())
+    profile = create_profile_record(default_profile.model_dump())
     db.add(profile)
-    db.commit()
-    db.refresh(profile)
-    return profile
+    try:
+        db.commit()
+        db.refresh(profile)
+        return profile
+    except IntegrityError:
+        db.rollback()
+        concurrent_profile = get_profile_record(db)
+        if concurrent_profile is None:
+            raise
+        return concurrent_profile
+
+
+def require_matching_profile_revision(if_match: str | None, revision: int) -> None:
+    if if_match is None:
+        return
+    tags = [tag.strip() for tag in if_match.split(",") if tag.strip()]
+    if not tags:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="If-Match must contain a profile revision",
+        )
+    if "*" in tags:
+        return
+
+    revisions: set[int] = set()
+    for tag in tags:
+        if tag.startswith("W/"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="If-Match requires a strong profile ETag",
+            )
+        normalized = tag[1:-1] if tag.startswith('"') and tag.endswith('"') else tag
+        if not normalized.isdigit() or int(normalized) < 1:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="If-Match contains an invalid profile revision",
+            )
+        revisions.add(int(normalized))
+    if revision not in revisions:
+        raise HTTPException(
+            status_code=status.HTTP_412_PRECONDITION_FAILED,
+            detail="Profile has changed; reload it before saving",
+            headers={"ETag": profile_etag(revision)},
+        )
 
 
 @router.get("", response_model=ProfilePayload)
-def get_profile(db: Session = Depends(get_db)) -> ProfilePayload:
+def get_profile(
+    response: Response,
+    db: Session = Depends(get_db),
+) -> ProfilePayload:
     try:
         profile = get_or_create_profile(db)
-        return normalize_profile_record(profile, db)
+        payload = normalize_profile_record(profile, db)
+        response.headers["ETag"] = profile_etag(profile.revision)
+        return payload
     except SQLAlchemyError as exc:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
@@ -153,12 +215,15 @@ def get_profile(db: Session = Depends(get_db)) -> ProfilePayload:
 @router.put("", response_model=ProfilePayload)
 def update_profile(
     payload: ProfilePayload,
+    response: Response,
     allow_destructive: bool = False,
+    if_match: Annotated[str | None, Header(alias="If-Match")] = None,
     db: Session = Depends(get_db),
 ) -> ProfilePayload:
     try:
-        profile = db.get(ProfileRecord, "default")
+        profile = get_profile_record(db)
         if profile:
+            require_matching_profile_revision(if_match, profile.revision)
             current_profile = ProfilePayload.model_validate(profile.data)
             if (
                 not allow_destructive
@@ -170,20 +235,57 @@ def update_profile(
                         "Profile update would remove most existing data. "
                         "Reload the profile or explicitly allow a destructive replacement."
                     ),
+                    headers={"ETag": profile_etag(profile.revision)},
                 )
             if current_profile != payload:
-                record_profile_version(db, profile, reason="api_update")
-            profile.data = payload.model_dump()
+                update_profile_data(
+                    db,
+                    profile,
+                    data=payload.model_dump(),
+                    reason="api_update",
+                )
         else:
-            profile = ProfileRecord(id="default", data=payload.model_dump())
+            if if_match is not None:
+                raise HTTPException(
+                    status_code=status.HTTP_412_PRECONDITION_FAILED,
+                    detail="Profile does not exist for the requested If-Match condition",
+                )
+            profile = create_profile_record(payload.model_dump())
             db.add(profile)
 
         db.commit()
         db.refresh(profile)
+        response.headers["ETag"] = profile_etag(profile.revision)
         return ProfilePayload.model_validate(profile.data)
     except HTTPException:
         db.rollback()
         raise
+    except StaleProfileRevisionError as exc:
+        db.rollback()
+        current_profile = get_profile_record(db)
+        headers = (
+            {"ETag": profile_etag(current_profile.revision)}
+            if current_profile is not None
+            else None
+        )
+        raise HTTPException(
+            status_code=status.HTTP_412_PRECONDITION_FAILED,
+            detail="Profile has changed; reload it before saving",
+            headers=headers,
+        ) from exc
+    except IntegrityError as exc:
+        db.rollback()
+        current_profile = get_profile_record(db)
+        if current_profile is not None:
+            raise HTTPException(
+                status_code=status.HTTP_412_PRECONDITION_FAILED,
+                detail="Profile was created concurrently; reload it before saving",
+                headers={"ETag": profile_etag(current_profile.revision)},
+            ) from exc
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Profile database is unavailable",
+        ) from exc
     except SQLAlchemyError as exc:
         db.rollback()
         raise HTTPException(

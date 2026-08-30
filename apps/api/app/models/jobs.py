@@ -1,12 +1,14 @@
 from datetime import UTC, datetime
-from typing import Any, Literal
+from typing import Any, ClassVar, Literal
 
-from pydantic import BaseModel, Field
-from sqlalchemy import JSON, CheckConstraint, DateTime, Index, Integer, String, Text
+from pydantic import BaseModel, Field, model_validator
+from sqlalchemy import JSON, CheckConstraint, DateTime, Index, Integer, String, Text, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base, OwnerScoped
 from app.core.identity import DEFAULT_OWNER_ID
+
+JOB_STATE_PLACEHOLDER_KEY = "_jobStatePlaceholder"
 
 
 class StoredJobRecord(OwnerScoped, Base):
@@ -46,6 +48,34 @@ class StoredJobRecord(OwnerScoped, Base):
         index=True,
     )
     dismissed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    saved_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    archived_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+        server_default=func.now(),
+    )
+    revision: Mapped[int] = mapped_column(
+        Integer,
+        nullable=False,
+        default=1,
+        server_default=text("1"),
+    )
+
+    __mapper_args__: ClassVar[dict[str, Any]] = {"version_id_col": revision}
+
+
+def is_job_state_placeholder(record: StoredJobRecord) -> bool:
+    return (
+        isinstance(record.data, dict)
+        and record.data.get(JOB_STATE_PLACEHOLDER_KEY) is True
+    )
+
+
+def is_replaceable_job_state_placeholder(record: StoredJobRecord) -> bool:
+    return is_job_state_placeholder(record) and record.status != "dismissed"
 
 
 class DiscoveredVacancyRecord(OwnerScoped, Base):
@@ -80,7 +110,7 @@ class DiscoveredVacancyRecord(OwnerScoped, Base):
         index=True,
     )
     id: Mapped[str] = mapped_column(String(160), primary_key=True)
-    source: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    source: Mapped[str] = mapped_column(String(160), nullable=False, index=True)
     canonical_url: Mapped[str] = mapped_column(Text, nullable=False, default="")
     url_hash: Mapped[str] = mapped_column(String(64), nullable=False, default="")
     identity_hash: Mapped[str] = mapped_column(String(64), nullable=False, default="")
@@ -170,6 +200,53 @@ class StoredJobsRequest(BaseModel):
 
 class DismissedJobIdsRequest(BaseModel):
     job_ids: list[str] = Field(default_factory=list, max_length=10_000)
+
+
+class JobStatePayload(BaseModel):
+    job_id: str = Field(alias="jobId")
+    saved: bool
+    archived: bool
+    dismissed: bool
+    saved_at: datetime | None = Field(alias="savedAt")
+    archived_at: datetime | None = Field(alias="archivedAt")
+    dismissed_at: datetime | None = Field(alias="dismissedAt")
+    updated_at: datetime = Field(alias="updatedAt")
+    revision: int = Field(ge=1)
+
+    model_config = {"populate_by_name": True}
+
+
+class JobStatePatchRequest(BaseModel):
+    saved: bool | None = None
+    archived: bool | None = None
+    dismissed: bool | None = None
+    revision: int | None = Field(default=None, ge=1)
+
+    model_config = {"extra": "forbid"}
+
+    @model_validator(mode="after")
+    def require_state_change(self) -> "JobStatePatchRequest":
+        if self.saved is None and self.archived is None and self.dismissed is None:
+            raise ValueError("At least one job state field must be provided")
+        return self
+
+
+class LegacyJobStateImportItem(BaseModel):
+    job_id: str = Field(min_length=1, max_length=160, alias="jobId")
+    saved: bool | None = None
+    archived: bool | None = None
+    dismissed: bool | None = None
+    saved_at: datetime | None = Field(default=None, alias="savedAt")
+    archived_at: datetime | None = Field(default=None, alias="archivedAt")
+    dismissed_at: datetime | None = Field(default=None, alias="dismissedAt")
+
+    model_config = {"populate_by_name": True, "extra": "forbid"}
+
+
+class LegacyJobStateImportRequest(BaseModel):
+    jobs: list[LegacyJobStateImportItem] = Field(default_factory=list, max_length=10_000)
+
+    model_config = {"extra": "forbid"}
 
 
 class AiMatchJobFailure(BaseModel):

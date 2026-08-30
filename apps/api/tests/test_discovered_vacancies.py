@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.core.database import Base
 from app.core.identity import current_owner_id
+from app.core.vacancy_sources import SUPPORTED_VACANCY_SOURCE_IDS
 from app.models.jobs import DiscoveredVacancyRecord
 from app.models.parsers import ParsedJob, ParserSearchResponse
 from app.services.discovered_vacancies import (
@@ -15,6 +16,13 @@ from app.services.discovered_vacancies import (
 )
 from app.services.job_search_execution import reconcile_full_catalog_inventory
 from app.services.vacancy_search import VacancySearchRunResult
+
+
+def test_inventory_source_column_accepts_every_supported_source_id() -> None:
+    source_column = DiscoveredVacancyRecord.__table__.c.source
+
+    assert source_column.type.length == 160
+    assert max(map(len, SUPPORTED_VACANCY_SOURCE_IDS)) <= source_column.type.length
 
 
 def test_inventory_upsert_is_owner_scoped_idempotent_and_ignores_tracking_query() -> None:

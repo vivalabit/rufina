@@ -76,6 +76,7 @@ app.add_middleware(
         "X-Rufina-Template-Id",
         "X-Rufina-Template-Version",
         "X-Rufina-Design-Sha256",
+        "ETag",
     ],
 )
 

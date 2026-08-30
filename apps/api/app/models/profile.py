@@ -3,29 +3,51 @@ from typing import Any
 from uuid import uuid4
 
 from pydantic import BaseModel, Field
-from sqlalchemy import JSON, DateTime, Index, String
+from sqlalchemy import JSON, DateTime, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base, OwnerScoped
 
 
-class ProfileRecord(Base):
+def utc_now() -> datetime:
+    return datetime.now(UTC)
+
+
+class ProfileRecord(OwnerScoped, Base):
     __tablename__ = "profiles"
+    __table_args__ = (UniqueConstraint("owner_id", name="uq_profiles_owner_id"),)
 
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+        onupdate=utc_now,
+        index=True,
+    )
 
 
-class ProfileVersionRecord(Base):
+class ProfileVersionRecord(OwnerScoped, Base):
     __tablename__ = "profile_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "owner_id",
+            "profile_id",
+            "revision",
+            name="uq_profile_versions_owner_profile_revision",
+        ),
+    )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=lambda: uuid4().hex)
     profile_id: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False)
     data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
     reason: Mapped[str] = mapped_column(String(80), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
-        default=lambda: datetime.now(UTC),
+        default=utc_now,
         nullable=False,
     )
 

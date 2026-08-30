@@ -50,7 +50,7 @@ from app.models.documents import (
     DocumentVersionRecord,
 )
 from app.models.jobs import StoredJobRecord
-from app.models.profile import ProfilePayload, ProfileRecord
+from app.models.profile import ProfilePayload
 from app.services.ai_backend import ai_backend_provider_name
 from app.services.ai_privacy import record_ai_activity
 from app.services.assistant import (
@@ -80,7 +80,12 @@ from app.services.job_match_store import (
     latest_job_match_record,
     match_record_to_ai_match,
 )
-from app.services.profile_versions import record_profile_version
+from app.services.profile_versions import (
+    StaleProfileRevisionError,
+    create_profile_record,
+    get_profile_record,
+    update_profile_data,
+)
 
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
 
@@ -1052,7 +1057,7 @@ def unpack_assistant_run(
 
 def load_profile(db: Session) -> ProfilePayload:
     try:
-        record = db.get(ProfileRecord, "default")
+        record = get_profile_record(db)
         return ProfilePayload.model_validate(record.data) if record else ProfilePayload()
     except (SQLAlchemyError, ValidationError):
         return ProfilePayload()
@@ -1498,7 +1503,7 @@ def execute_assistant_action(db: Session, action) -> AssistantActionApplyRespons
             max_length=12_000,
             allow_empty=True,
         )
-        profile_record = db.get(ProfileRecord, "default")
+        profile_record = get_profile_record(db)
         profile = (
             ProfilePayload.model_validate(profile_record.data)
             if profile_record
@@ -1516,10 +1521,20 @@ def execute_assistant_action(db: Session, action) -> AssistantActionApplyRespons
                 detail="Profile field value is invalid",
             ) from exc
         if profile_record:
-            record_profile_version(db, profile_record, reason="assistant_action")
-            profile_record.data = updated_profile.model_dump()
+            try:
+                update_profile_data(
+                    db,
+                    profile_record,
+                    data=updated_profile.model_dump(),
+                    reason="assistant_action",
+                )
+            except StaleProfileRevisionError as exc:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="Profile changed before the assistant action was applied",
+                ) from exc
         else:
-            db.add(ProfileRecord(id="default", data=updated_profile.model_dump()))
+            db.add(create_profile_record(updated_profile.model_dump()))
         return action_response(
             action,
             message=f"Profile field {field_name.replace('_', ' ')} updated",

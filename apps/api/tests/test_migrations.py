@@ -148,6 +148,12 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "run_id",
             "created_at",
         }
+        discovered_source_column = next(
+            column
+            for column in inspect(engine).get_columns("discovered_vacancies")
+            if column["name"] == "source"
+        )
+        assert discovered_source_column["type"].length == 160
         resume_template_columns = {
             column["name"]
             for column in inspect(engine).get_columns(
@@ -173,6 +179,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
         owner_tables = {
             "stored_applications",
             "stored_application_events",
+            "application_preferences",
             "candidate_confirmations",
             "documents",
             "document_pack_jobs",
@@ -203,6 +210,8 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "resume_tailoring_stages",
             "resume_template_definitions",
             "critical_notifications",
+            "profiles",
+            "profile_versions",
         }
         for table_name in owner_tables:
             owner_column = next(
@@ -220,7 +229,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260828_0044"
+            assert revision == "20260830_0046"
             entry_it = connection.execute(
                 text(
                     "SELECT id, owner_id, name, filters "
@@ -302,6 +311,32 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "search_config_version",
             "screening_config_hash",
             "screening_config_snapshot",
+            "saved_at",
+            "archived_at",
+            "updated_at",
+            "revision",
+        }
+        assert {
+            column["name"]
+            for column in inspect(engine).get_columns("stored_applications")
+        } >= {"created_at", "updated_at", "revision"}
+        assert {
+            column["name"]
+            for column in inspect(engine).get_columns("stored_application_events")
+        } >= {"created_at", "updated_at", "revision"}
+        assert {
+            column["name"] for column in inspect(engine).get_columns("profiles")
+        } >= {"owner_id", "updated_at", "revision"}
+        assert {
+            column["name"]
+            for column in inspect(engine).get_columns("application_preferences")
+        } == {
+            "owner_id",
+            "application_id",
+            "resume_template_id",
+            "resume_generation_mode",
+            "updated_at",
+            "revision",
         }
         automatic_run_indexes = {
             index["name"]: index
@@ -638,6 +673,89 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "jobs_already_observed",
             "jobs_screening_ai_calls",
         }
+    finally:
+        engine.dispose()
+
+
+def test_state_ownership_migration_backfills_legacy_profile_revisions(tmp_path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'state-ownership.sqlite'}"
+    config = get_alembic_config(database_url)
+    command.upgrade(config, "20260829_0045")
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO profiles (id, data) "
+                    "VALUES ('default', '{\"name\":\"Current profile\"}')"
+                )
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO profile_versions "
+                    "(id, profile_id, data, reason, created_at) VALUES "
+                    "('version-1', 'default', '{\"name\":\"First\"}', "
+                    "'api_update', '2026-08-01 10:00:00'), "
+                    "('version-2', 'default', '{\"name\":\"Second\"}', "
+                    "'api_update', '2026-08-02 10:00:00')"
+                )
+            )
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            profile = connection.execute(
+                text(
+                    "SELECT owner_id, revision, updated_at FROM profiles "
+                    "WHERE id = 'default'"
+                )
+            ).mappings().one()
+            versions = connection.execute(
+                text(
+                    "SELECT owner_id, revision FROM profile_versions "
+                    "WHERE profile_id = 'default' ORDER BY revision"
+                )
+            ).mappings().all()
+
+        assert profile["owner_id"] == "local-owner"
+        assert profile["revision"] == 3
+        assert profile["updated_at"] is not None
+        assert [(row["owner_id"], row["revision"]) for row in versions] == [
+            ("local-owner", 1),
+            ("local-owner", 2),
+        ]
+    finally:
+        engine.dispose()
+
+    command.check(get_alembic_config(database_url))
+    command.downgrade(config, "20260829_0045")
+
+    engine = create_engine(database_url)
+    try:
+        inspector = inspect(engine)
+        assert "application_preferences" not in inspector.get_table_names()
+        assert "owner_id" not in {
+            column["name"] for column in inspector.get_columns("profiles")
+        }
+        assert "revision" not in {
+            column["name"] for column in inspector.get_columns("profile_versions")
+        }
+        with engine.connect() as connection:
+            retained_profile = connection.execute(
+                text("SELECT data FROM profiles WHERE id = 'default'")
+            ).scalar_one()
+            retained_versions = connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM profile_versions "
+                    "WHERE profile_id = 'default'"
+                )
+            ).scalar_one()
+        assert retained_profile == '{"name":"Current profile"}'
+        assert retained_versions == 2
     finally:
         engine.dispose()
 
@@ -1161,7 +1279,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260828_0044"
+            assert revision == "20260830_0046"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
@@ -1201,7 +1319,7 @@ def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> Non
                     "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
                 )
             ).scalar_one()
-        assert revision == "20260828_0044"
+        assert revision == "20260830_0046"
         assert entry_it_count == 1
         assert LEGACY_RECOVERABLE_MISSING_TABLES <= set(
             inspect(engine).get_table_names()
