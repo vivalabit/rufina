@@ -3,8 +3,8 @@ import json
 from collections.abc import Generator
 from copy import deepcopy
 
-from fastapi.testclient import TestClient
 import pytest
+from fastapi.testclient import TestClient
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -12,13 +12,14 @@ from sqlalchemy.pool import StaticPool
 from app.core.database import Base, get_db
 from app.core.settings import Settings, get_settings
 from app.main import app
+from app.models.profile import ProfileFileRecord
 from app.models.resume import (
     MasterResume,
     ResumeMasterRecord,
     ResumeMasterVersionRecord,
     ResumeSourceExtraction,
-    ResumeSourceFragment,
     ResumeSourceFileRecord,
+    ResumeSourceFragment,
 )
 from app.services.ai_backend import AIRequest, AIResult, AIUsage
 from app.services.ai_privacy import record_ai_activity
@@ -352,6 +353,76 @@ def test_master_resume_import_endpoint_returns_typed_draft(
         assert source_file.extraction["fragments"][0]["text"] == "Ada Lovelace"
         assert db.scalars(select(ResumeMasterRecord)).all() == []
         assert db.scalars(select(ResumeMasterVersionRecord)).all() == []
+
+
+def test_master_resume_import_reads_profile_file_and_copies_provenance(
+    monkeypatch: pytest.MonkeyPatch,
+    api_sessions: sessionmaker[Session],
+) -> None:
+    source = source_extraction()
+    content = b"stored-profile-resume"
+    with api_sessions() as db:
+        db.add(
+            ProfileFileRecord(
+                id="profile-resume-source",
+                kind="primary_resume",
+                singleton_key="primary_resume",
+                title="Resume",
+                category="",
+                language="English",
+                issuer="",
+                notes="",
+                file_name="profile-resume.docx",
+                content_type=(
+                    "application/vnd.openxmlformats-officedocument."
+                    "wordprocessingml.document"
+                ),
+                content_sha256="b" * 64,
+                size_bytes=len(content),
+                content=content,
+                extracted_text="Ada Lovelace",
+            )
+        )
+        db.commit()
+
+    master_resume = MasterResume.model_validate(
+        master_resume_payload("master-from-profile-file")
+    )
+    monkeypatch.setattr(
+        "app.api.profile.extract_profile_resume_source",
+        lambda record: source if record.content == content else None,
+    )
+    monkeypatch.setattr(
+        "app.api.profile.parse_master_resume_with_selected_backend",
+        lambda *_args: MasterResumeImportOutcome(
+            master_resume=master_resume,
+            model="gpt-5.6-terra",
+            backend="openai_api",
+        ),
+    )
+    app.dependency_overrides[get_settings] = lambda: Settings(
+        openclaw_resume_import_enabled=True
+    )
+    try:
+        response = TestClient(app).post(
+            "/profile/import-master-resume",
+            json={"profile_file_id": "profile-resume-source"},
+        )
+    finally:
+        app.dependency_overrides.pop(get_settings, None)
+
+    assert response.status_code == 200
+    assert response.json()["masterResume"]["id"] == "master-from-profile-file"
+    with api_sessions() as db:
+        source_file = db.get(
+            ResumeSourceFileRecord,
+            response.json()["sourceFileId"],
+        )
+        assert source_file is not None
+        assert source_file.id != "profile-resume-source"
+        assert source_file.file_name == "profile-resume.docx"
+        assert source_file.content == content
+        assert source_file.extraction["fragments"][0]["text"] == "Ada Lovelace"
 
 
 def test_confirm_master_resume_creates_one_immutable_version_idempotently(

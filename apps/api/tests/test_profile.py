@@ -57,23 +57,25 @@ def test_profile_can_be_updated_and_read() -> None:
             "resume_file_name": "Eduard_Ishchenko_Resume.pdf",
             "resume_file_size": "128 KB",
             "resume_updated_at": "2026-07-04T10:00:00.000Z",
-            "resume_data_url": "data:application/pdf;base64,JVBERi0x",
         }
 
         update_response = client.put("/profile", json=payload)
         read_response = client.get("/profile")
+        expected_payload = {key: value for key, value in payload.items() if key != "documents"}
 
         assert update_response.status_code == 200
         assert update_response.headers["etag"] == '"1"'
-        assert update_response.json() == payload
+        assert update_response.json() == expected_payload
         assert read_response.status_code == 200
         assert read_response.headers["etag"] == '"1"'
-        assert read_response.json() == payload
+        assert read_response.json() == expected_payload
 
         with testing_session_local() as db:
             stored_profile = db.get(ProfileRecord, "default")
             assert stored_profile is not None
             assert stored_profile.data["name"] == "Eduard Ishchenko"
+            assert "documents" not in stored_profile.data
+            assert "resume_data_url" not in stored_profile.data
             assert stored_profile.revision == 1
     finally:
         app.dependency_overrides.clear()

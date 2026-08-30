@@ -1,8 +1,9 @@
+import asyncio
 from binascii import Error as BinasciiError
 from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
@@ -13,10 +14,14 @@ from app.core.settings import Settings, get_settings
 from app.models.profile import (
     ImportedEducationEntry,
     ImportedExperienceEntry,
+    ProfileFileImportRequest,
+    ProfileFileKind,
+    ProfileFileMetadataUpdateRequest,
+    ProfileFilePayload,
+    ProfileFileRecord,
     ProfilePayload,
     ProfileRecord,
     ResumeEducationImportResponse,
-    ResumeExperienceImportRequest,
     ResumeExperienceImportResponse,
     ResumeSkillsImportResponse,
 )
@@ -24,13 +29,28 @@ from app.models.resume import (
     CurrentMasterResumeResponse,
     MasterResumeConfirmationRequest,
     MasterResumeConfirmationResponse,
-    MasterResumeImportRequest,
     MasterResumeImportResponse,
     ResumeMasterRecord,
     ResumeMasterVersionRecord,
     ResumeSourceExtraction,
 )
 from app.services.ai_privacy import record_ai_activity
+from app.services.profile_files import (
+    ProfileFileAlreadyExistsError,
+    ProfileFileIdentityConflictError,
+    ProfileFileValidationError,
+    best_effort_extracted_text,
+    extract_profile_resume_source,
+    get_profile_file,
+    list_profile_files,
+    normalize_content_type,
+    profile_file_content_disposition,
+    profile_file_payload,
+    profile_file_size_limit,
+    store_profile_file,
+    update_profile_file_metadata,
+    validate_profile_file_upload,
+)
 from app.services.profile_versions import (
     StaleProfileRevisionError,
     create_profile_record,
@@ -195,6 +215,69 @@ def require_matching_profile_revision(if_match: str | None, revision: int) -> No
         )
 
 
+def private_file_headers() -> dict[str, str]:
+    return {
+        "Cache-Control": "private, no-store",
+        "Cross-Origin-Resource-Policy": "same-site",
+        "Vary": "X-Rufina-Owner-Id, X-Tasko-Owner-Id",
+        "X-Content-Type-Options": "nosniff",
+    }
+
+
+def require_profile_file(db: Session, file_id: str) -> ProfileFileRecord:
+    record = get_profile_file(db, file_id)
+    if record is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Profile file not found",
+        )
+    return record
+
+
+def require_import_profile_resume(
+    db: Session,
+    payload: ProfileFileImportRequest,
+) -> ProfileFileRecord | None:
+    if payload.profile_file_id is None:
+        return None
+    record = require_profile_file(db, payload.profile_file_id)
+    if record.kind != "primary_resume":
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Selected profile file is not the primary resume",
+        )
+    return record
+
+
+def extract_resume_import_text(
+    db: Session,
+    payload: ProfileFileImportRequest,
+) -> str:
+    record = require_import_profile_resume(db, payload)
+    if record is None:
+        return extract_resume_text(payload.resume_file_name, payload.resume_data_url)
+    if record.extracted_text.strip():
+        return record.extracted_text
+    try:
+        source = extract_profile_resume_source(record)
+    except (ProfileFileValidationError, ResumeSourceExtractionError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Could not read text from the stored resume",
+        ) from exc
+    record.extracted_text = source.text[:200_000]
+    try:
+        db.commit()
+        db.refresh(record)
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Extracted resume text could not be saved",
+        ) from exc
+    return record.extracted_text
+
+
 @router.get("", response_model=ProfilePayload)
 def get_profile(
     response: Response,
@@ -225,9 +308,8 @@ def update_profile(
         if profile:
             require_matching_profile_revision(if_match, profile.revision)
             current_profile = ProfilePayload.model_validate(profile.data)
-            if (
-                not allow_destructive
-                and is_suspicious_profile_replacement(current_profile, payload)
+            if not allow_destructive and is_suspicious_profile_replacement(
+                current_profile, payload
             ):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
@@ -294,6 +376,231 @@ def update_profile(
         ) from exc
 
 
+@router.post(
+    "/files",
+    response_model=ProfileFilePayload,
+    status_code=status.HTTP_201_CREATED,
+)
+async def upload_profile_file(
+    request: Request,
+    response: Response,
+    kind: ProfileFileKind = Query(),
+    file_name: str = Query(min_length=1, max_length=500),
+    title: str = Query(default="", max_length=240),
+    category: str = Query(default="", max_length=80),
+    language: str = Query(default="", max_length=40),
+    issuer: str = Query(default="", max_length=240),
+    notes: str = Query(default="", max_length=2_000),
+    replace_existing: bool = Query(default=True, alias="replaceExisting"),
+    legacy_document_id: str | None = Query(
+        default=None,
+        min_length=1,
+        max_length=160,
+        alias="legacyDocumentId",
+    ),
+    db: Session = Depends(get_db),
+) -> ProfileFilePayload:
+    limit = profile_file_size_limit(kind)
+    declared_length = request.headers.get("content-length")
+    if declared_length is not None:
+        try:
+            parsed_length = int(declared_length)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Content-Length must be an integer",
+            ) from exc
+        if parsed_length < 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Content-Length must not be negative",
+            )
+        if parsed_length > limit:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"Profile file exceeds the {limit}-byte limit",
+            )
+
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > limit:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail=f"Profile file exceeds the {limit}-byte limit",
+            )
+        body.extend(chunk)
+    content = bytes(body)
+    content_type = normalize_content_type(request.headers.get("content-type", ""))
+    try:
+        safe_name, safe_content_type = validate_profile_file_upload(
+            kind=kind,
+            file_name=file_name,
+            content_type=content_type,
+            content=content,
+        )
+        extracted_text = await asyncio.to_thread(
+            best_effort_extracted_text,
+            file_name=safe_name,
+            content_type=safe_content_type,
+            content=content,
+        )
+        record = store_profile_file(
+            db,
+            kind=kind,
+            file_name=safe_name,
+            content_type=safe_content_type,
+            content=content,
+            extracted_text=extracted_text,
+            title=title,
+            category=category,
+            language=language,
+            issuer=issuer,
+            notes=notes,
+            replace_singleton=replace_existing,
+            legacy_document_id=legacy_document_id,
+        )
+        db.commit()
+        db.refresh(record)
+    except ProfileFileAlreadyExistsError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_412_PRECONDITION_FAILED,
+            detail=str(exc),
+        ) from exc
+    except ProfileFileIdentityConflictError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=str(exc),
+        ) from exc
+    except ProfileFileValidationError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Profile file changed concurrently; retry the upload",
+        ) from exc
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Profile file storage is temporarily unavailable",
+        ) from exc
+
+    response.headers.update(private_file_headers())
+    response.headers["Location"] = f"/profile/files/{record.id}"
+    return profile_file_payload(record)
+
+
+@router.get("/files", response_model=list[ProfileFilePayload])
+def get_profile_files(
+    response: Response,
+    kind: ProfileFileKind | None = Query(default=None),
+    db: Session = Depends(get_db),
+) -> list[ProfileFilePayload]:
+    try:
+        records = list_profile_files(db, kind=kind)
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Profile file storage is temporarily unavailable",
+        ) from exc
+    response.headers.update(private_file_headers())
+    return [
+        profile_file_payload(record, extracted_text_available=has_extracted_text)
+        for record, has_extracted_text in records
+    ]
+
+
+@router.get("/files/{file_id}")
+def download_profile_file(
+    file_id: str,
+    db: Session = Depends(get_db),
+) -> Response:
+    try:
+        record = require_profile_file(db, file_id)
+        return Response(
+            content=record.content,
+            media_type=record.content_type,
+            headers={
+                **private_file_headers(),
+                "Content-Disposition": profile_file_content_disposition(
+                    record.file_name,
+                    inline=record.kind == "avatar",
+                ),
+            },
+        )
+    except HTTPException:
+        raise
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Profile file storage is temporarily unavailable",
+        ) from exc
+
+
+@router.patch("/files/{file_id}", response_model=ProfileFilePayload)
+def patch_profile_file_metadata(
+    file_id: str,
+    payload: ProfileFileMetadataUpdateRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> ProfileFilePayload:
+    changes = payload.model_dump(exclude_unset=True)
+    if not changes:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Provide at least one metadata field",
+        )
+    try:
+        record = require_profile_file(db, file_id)
+        update_profile_file_metadata(record, changes)
+        db.commit()
+        db.refresh(record)
+    except ProfileFileValidationError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=str(exc),
+        ) from exc
+    except HTTPException:
+        db.rollback()
+        raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Profile file storage is temporarily unavailable",
+        ) from exc
+    response.headers.update(private_file_headers())
+    return profile_file_payload(record)
+
+
+@router.delete("/files/{file_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_profile_file(
+    file_id: str,
+    db: Session = Depends(get_db),
+) -> None:
+    try:
+        record = require_profile_file(db, file_id)
+        db.delete(record)
+        db.commit()
+    except HTTPException:
+        db.rollback()
+        raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Profile file storage is temporarily unavailable",
+        ) from exc
+
+
 @router.get(
     "/master-resume",
     response_model=CurrentMasterResumeResponse,
@@ -344,16 +651,17 @@ def get_current_master_resume(
 
 @router.post("/import-experience-from-resume", response_model=ResumeExperienceImportResponse)
 def import_experience_from_resume(
-    payload: ResumeExperienceImportRequest,
+    payload: ProfileFileImportRequest,
     _activity=Depends(record_ai_activity),
     settings: Settings = Depends(get_settings),
+    db: Session = Depends(get_db),
 ) -> ResumeExperienceImportResponse:
-    text = extract_resume_text(payload.resume_file_name, payload.resume_data_url)
+    text = extract_resume_import_text(db, payload)
     if not text.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Could not read text from the attached resume",
-    )
+        )
 
     if not settings.openclaw_resume_import_enabled:
         raise HTTPException(
@@ -386,7 +694,7 @@ def import_experience_from_resume(
     response_model=MasterResumeImportResponse,
 )
 def import_master_resume(
-    payload: MasterResumeImportRequest,
+    payload: ProfileFileImportRequest,
     _activity=Depends(record_ai_activity),
     settings: Settings = Depends(get_settings),
     db: Session = Depends(get_db),
@@ -397,13 +705,20 @@ def import_master_resume(
             detail="AI resume analysis is disabled.",
         )
 
+    profile_file = require_import_profile_resume(db, payload)
     try:
-        content_type, content = decode_resume_data_url(payload.resume_data_url)
-        source = extract_resume_source(
-            file_name=payload.resume_file_name,
-            content_type=content_type,
-            content=content,
-        )
+        if profile_file is not None:
+            file_name = profile_file.file_name
+            content = profile_file.content
+            source = extract_profile_resume_source(profile_file)
+        else:
+            file_name = payload.resume_file_name
+            content_type, content = decode_resume_data_url(payload.resume_data_url)
+            source = extract_resume_source(
+                file_name=file_name,
+                content_type=content_type,
+                content=content,
+            )
     except (BinasciiError, ResumeSourceExtractionError, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -430,7 +745,7 @@ def import_master_resume(
     try:
         source_file = persist_master_resume_import_source(
             db,
-            file_name=payload.resume_file_name,
+            file_name=file_name,
             content=content,
             source=source,
             draft_resume_id=outcome.master_resume.id,
@@ -446,9 +761,7 @@ def import_master_resume(
         source_file_id=source_file.id,
         master_resume=outcome.master_resume,
         source=source,
-        review_sections=build_master_resume_review_sections(
-            outcome.master_resume
-        ),
+        review_sections=build_master_resume_review_sections(outcome.master_resume),
         model=outcome.model,
         backend=outcome.backend,
     )
@@ -490,16 +803,17 @@ def confirm_imported_master_resume(
 
 @router.post("/import-education-from-resume", response_model=ResumeEducationImportResponse)
 def import_education_from_resume(
-    payload: ResumeExperienceImportRequest,
+    payload: ProfileFileImportRequest,
     _activity=Depends(record_ai_activity),
     settings: Settings = Depends(get_settings),
+    db: Session = Depends(get_db),
 ) -> ResumeEducationImportResponse:
-    text = extract_resume_text(payload.resume_file_name, payload.resume_data_url)
+    text = extract_resume_import_text(db, payload)
     if not text.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Could not read text from the attached resume",
-    )
+        )
 
     if not settings.openclaw_resume_import_enabled:
         raise HTTPException(
@@ -529,16 +843,17 @@ def import_education_from_resume(
 
 @router.post("/import-skills-from-resume", response_model=ResumeSkillsImportResponse)
 def import_skills_from_resume(
-    payload: ResumeExperienceImportRequest,
+    payload: ProfileFileImportRequest,
     _activity=Depends(record_ai_activity),
     settings: Settings = Depends(get_settings),
+    db: Session = Depends(get_db),
 ) -> ResumeSkillsImportResponse:
-    text = extract_resume_text(payload.resume_file_name, payload.resume_data_url)
+    text = extract_resume_import_text(db, payload)
     if not text.strip():
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Could not read text from the attached resume",
-    )
+        )
 
     if not settings.openclaw_resume_import_enabled:
         raise HTTPException(

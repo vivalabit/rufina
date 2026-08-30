@@ -73,8 +73,6 @@ MEANINGFUL_PROFILE_FIELDS = (
     "job_preferences",
     "dealbreakers",
     "additional_notes",
-    "documents",
-    "resume_data_url",
 )
 
 
