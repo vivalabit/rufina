@@ -88,6 +88,44 @@ import { normalizeStoredLogs } from "@/features/activity/model/normalizers";
 import type { AppLogEntry } from "@/features/activity/model/types";
 import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
 import { navItems } from "@/features/app-shell/model/navigation";
+import {
+  formatCalendarLongDate,
+  formatCalendarMonthLabel,
+  formatInterviewPreparationPrompt,
+} from "@/features/calendar/formatting";
+import {
+  calendarEventTheme,
+  calendarWeekdays,
+} from "@/features/calendar/model/constants";
+import {
+  getCalendarDateKey,
+  getCalendarMonthDays,
+  getCalendarWeekDays,
+} from "@/features/calendar/model/date-grid";
+import { createCalendarDemoEvents } from "@/features/calendar/model/demo-events";
+import {
+  filterCalendarEventsByType,
+  findCalendarEventApplication,
+  getCalendarEventCompany,
+  selectCalendarDisplayEvents,
+  selectCalendarMonthEvents,
+  selectNextCalendarInterview,
+  selectUpcomingCalendarEvents,
+} from "@/features/calendar/model/selectors";
+import type {
+  CalendarEventFilter,
+  CalendarMode,
+} from "@/features/calendar/model/types";
+import {
+  buildDashboardApplicationStatusOverview,
+  buildDashboardCalendarModel,
+  countDashboardActiveApplications,
+  countDashboardStrongMatches,
+  countDashboardUpcomingInterviews,
+  findDashboardEventApplication,
+  selectRecommendedDashboardJobs,
+  selectUpcomingDashboardEvents,
+} from "@/features/dashboard/model/selectors";
 import type {
   GeneratedApplicationDocumentPayload,
   WorkspaceSourceFilePayload,
@@ -213,7 +251,6 @@ import {
   countArchivedJobs,
   countSavedJobs,
   getBulkAnalysisCandidates,
-  getJobPostedTime,
   hasActiveJobFilters,
   keepStoredUserJobs,
   mergeJobs,
@@ -6340,96 +6377,6 @@ export default function HomePage() {
   );
 }
 
-type CalendarMode = "month" | "week" | "agenda";
-
-const calendarWeekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-
-const calendarEventTheme: Record<ApplicationEventType, { border: string; dot: string; badge: string }> = {
-  screening: {
-    border: "border-[#fa5d00]/70 bg-[#fa5d00]/[0.055] hover:bg-[#fa5d00]/[0.10]",
-    dot: "bg-[#fa5d00]",
-    badge: "border-[#fa5d00]/55 bg-[#fa5d00]/10 text-accent",
-  },
-  interview: {
-    border: "border-accent/75 bg-accent/[0.045] hover:bg-accent/[0.09]",
-    dot: "bg-accent",
-    badge: "border-accent/60 bg-accent/10 text-[#e95300]",
-  },
-  assessment: {
-    border: "border-[#fa5d00]/75 bg-[#fa5d00]/[0.055] hover:bg-[#fa5d00]/[0.11]",
-    dot: "bg-[#fa5d00]",
-    badge: "border-[#fa5d00]/60 bg-[#fa5d00]/10 text-[#fa5d00]",
-  },
-  follow_up: {
-    border: "border-border bg-[#fff8f1] hover:bg-[#fff3e8]",
-    dot: "bg-[#4a4a47]",
-    badge: "border-border bg-[#fff8f1] text-[#4a4a47]",
-  },
-  offer_deadline: {
-    border: "border-success/65 bg-success/[0.045] hover:bg-success/[0.09]",
-    dot: "bg-success",
-    badge: "border-success/55 bg-success/10 text-success",
-  },
-};
-
-function getCalendarDateKey(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function getCalendarMonthDays(month: Date) {
-  const first = new Date(month.getFullYear(), month.getMonth(), 1);
-  const mondayOffset = (first.getDay() + 6) % 7;
-  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  const cellCount = Math.ceil((mondayOffset + daysInMonth) / 7) * 7;
-  const start = new Date(first);
-  start.setDate(first.getDate() - mondayOffset);
-
-  return Array.from({ length: cellCount }, (_, index) => {
-    const date = new Date(start);
-    date.setDate(start.getDate() + index);
-    return date;
-  });
-}
-
-function getDashboardCalendarDays(month: Date) {
-  const days = getCalendarMonthDays(month);
-  if (days.length === 42) return days;
-
-  const lastDay = days[days.length - 1];
-  return [
-    ...days,
-    ...Array.from({ length: 42 - days.length }, (_, index) => {
-      const date = new Date(lastDay);
-      date.setDate(lastDay.getDate() + index + 1);
-      return date;
-    }),
-  ];
-}
-
-function getCalendarWeekDays(date: Date) {
-  const start = new Date(date);
-  start.setDate(date.getDate() - ((date.getDay() + 6) % 7));
-  start.setHours(0, 0, 0, 0);
-
-  return Array.from({ length: 7 }, (_, index) => {
-    const day = new Date(start);
-    day.setDate(start.getDate() + index);
-    return day;
-  });
-}
-
-function createCalendarDemoEvents(month: Date): ApplicationEvent[] {
-  const at = (day: number, hour: number) => new Date(month.getFullYear(), month.getMonth(), day, hour, 0, 0, 0).toISOString();
-
-  return [
-    { id: "demo-assessment", applicationId: "", type: "assessment", status: "scheduled", title: "Technical Assessment", startsAt: at(8, 10), durationMinutes: 60, timezone: getLocalTimezone(), location: "Online", notes: "Assessment" },
-    { id: "demo-interview-wealth", applicationId: "", type: "interview", status: "scheduled", title: "Future Wealth Group", startsAt: at(15, 13), durationMinutes: 45, timezone: getLocalTimezone(), location: "Video call", notes: "Interview" },
-    { id: "demo-interview-belimo", applicationId: "", type: "interview", status: "scheduled", title: "Belimo", startsAt: at(17, 13), durationMinutes: 45, timezone: getLocalTimezone(), location: "Video call", notes: "Interview" },
-    { id: "demo-follow-up", applicationId: "", type: "follow_up", status: "scheduled", title: "Follow-up", startsAt: at(21, 10), durationMinutes: 15, timezone: getLocalTimezone(), location: "", notes: "Send thank you email" },
-    { id: "demo-offer", applicationId: "", type: "offer_deadline", status: "scheduled", title: "Offer", startsAt: at(23, 15), durationMinutes: 30, timezone: getLocalTimezone(), location: "", notes: "Company X" },
-  ];
-}
-
 function CalendarView({
   applications,
   events,
@@ -6449,60 +6396,48 @@ function CalendarView({
   const [visibleMonth, setVisibleMonth] = useState(() => new Date(today.getFullYear(), today.getMonth(), 1));
   const [selectedDate, setSelectedDate] = useState(today);
   const [mode, setMode] = useState<CalendarMode>("month");
-  const [activeType, setActiveType] = useState<ApplicationEventType | "all">("all");
+  const [activeType, setActiveType] = useState<CalendarEventFilter>("all");
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [eventDraft, setEventDraft] = useState<ApplicationEventDraft | null>(null);
   const [draftApplicationId, setDraftApplicationId] = useState("");
   const demoEvents = useMemo(
-    () => (demoMode ? createCalendarDemoEvents(visibleMonth) : []),
+    () =>
+      demoMode
+        ? createCalendarDemoEvents(visibleMonth, getLocalTimezone())
+        : [],
     [demoMode, visibleMonth],
   );
-  const displayEvents = events.length > 0 ? events : demoEvents;
-  const filteredEvents = activeType === "all" ? displayEvents : displayEvents.filter((event) => event.type === activeType);
+  const displayEvents = selectCalendarDisplayEvents(events, demoEvents);
+  const filteredEvents = filterCalendarEventsByType(displayEvents, activeType);
   const monthDays = getCalendarMonthDays(visibleMonth);
   const monthRowCount = monthDays.length / 7;
   const weekDays = getCalendarWeekDays(selectedDate);
   const todayKey = getCalendarDateKey(today);
-  const monthLabel = visibleMonth.toLocaleDateString("en-US", { month: "long", year: "numeric" });
-  const calendarEvents = filteredEvents.filter((event) => {
-    const date = new Date(event.startsAt);
-    return date.getFullYear() === visibleMonth.getFullYear() && date.getMonth() === visibleMonth.getMonth();
-  });
-  const upcomingEvents = sortApplicationEvents(
-    filteredEvents.filter((event) => event.status === "scheduled" && new Date(event.startsAt).getTime() >= today.getTime()),
-  ).slice(0, 3);
-  const nextInterview = sortApplicationEvents(
-    displayEvents.filter((event) => event.type === "interview" && event.status === "scheduled" && new Date(event.startsAt).getTime() >= today.getTime()),
-  )[0] ?? null;
-
-  function applicationForEvent(event: ApplicationEvent) {
-    return applications.find((application) => application.id === event.applicationId);
-  }
-
-  function eventCompany(event: ApplicationEvent) {
-    const application = applicationForEvent(event);
-    if (application) return application.job.company;
-    if (event.type === "assessment") return "Assessment";
-    if (event.type === "follow_up") return event.notes || "Reminder";
-    if (event.type === "offer_deadline") return event.notes || "Offer";
-    return event.title;
-  }
+  const monthLabel = formatCalendarMonthLabel(visibleMonth);
+  const calendarEvents = selectCalendarMonthEvents(
+    filteredEvents,
+    visibleMonth,
+  );
+  const upcomingEvents = selectUpcomingCalendarEvents(
+    filteredEvents,
+    today.getTime(),
+  );
+  const nextInterview = selectNextCalendarInterview(
+    displayEvents,
+    today.getTime(),
+  );
 
   function prepareForNextInterview() {
     if (!nextInterview) return;
-    const application = applicationForEvent(nextInterview);
-    const startsAt = new Date(nextInterview.startsAt).toLocaleString("en-US", {
-      dateStyle: "medium",
-      timeStyle: "short",
-    });
-    const prompt = [
+    const application = findCalendarEventApplication(
+      applications,
+      nextInterview,
+    );
+    const prompt = formatInterviewPreparationPrompt(
+      nextInterview,
+      application,
       assistantPrompts.prepareInterview,
-      `Interview: ${nextInterview.title}`,
-      application ? `Role: ${application.job.title} at ${application.job.company}` : "",
-      `When: ${startsAt} (${nextInterview.timezone})`,
-      nextInterview.location ? `Location: ${nextInterview.location}` : "",
-      nextInterview.notes ? `Notes: ${nextInterview.notes}` : "",
-    ].filter(Boolean).join("\n");
+    );
 
     onOpenAssistant(prompt, application?.id ?? "");
   }
@@ -6723,7 +6658,7 @@ function CalendarView({
                 return (
                   <button key={event.id} type="button" onClick={() => openEvent(event)} className="mb-2 grid w-full grid-cols-[58px_minmax(0,1fr)_auto] items-center gap-3 rounded-lg border border-border bg-[#fff8f1] p-3 text-left transition hover:bg-[#fff3e8]">
                     <div className="rounded-md border border-border bg-black/10 py-2 text-center"><p className="text-[9px] font-black uppercase text-muted">{date.toLocaleDateString("en-US", { month: "short" })}</p><p className="text-xl font-bold leading-none text-foreground">{date.getDate()}</p></div>
-                    <div className="min-w-0"><p className="truncate text-sm font-bold text-foreground">{event.title}</p><p className="mt-1 truncate text-xs text-muted">{formatApplicationEventTime(event.startsAt)} • {eventCompany(event)}</p></div>
+                    <div className="min-w-0"><p className="truncate text-sm font-bold text-foreground">{event.title}</p><p className="mt-1 truncate text-xs text-muted">{formatApplicationEventTime(event.startsAt)} • {getCalendarEventCompany(applications, event)}</p></div>
                     <span className={cn("rounded border px-2 py-1 text-[10px] font-bold", theme.badge)}>{getApplicationEventTypeLabel(event.type).replace(" deadline", "")}</span>
                   </button>
                 );
@@ -6742,7 +6677,7 @@ function CalendarView({
                 return (
                   <button key={event.id} type="button" onClick={() => openEvent(event)} className="grid w-full grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-2 rounded-md border border-border bg-[#fff8f1] p-2 text-left transition hover:bg-[#fff3e8] 2xl:grid-cols-[46px_minmax(0,1fr)_auto] 2xl:p-2.5">
                     <div className={cn("rounded-md border py-1 text-center", theme.badge)}><p className="text-[8px] font-black uppercase">{date.toLocaleDateString("en-US", { month: "short" })}</p><p className="text-lg font-bold leading-none text-foreground">{date.getDate()}</p></div>
-                    <div className="min-w-0"><p className="truncate text-[10px] font-semibold text-[#4a4a47] 2xl:text-[11px]">{formatApplicationEventTime(event.startsAt)} • {eventCompany(event)}</p><p className="mt-1 truncate text-[10px] text-muted 2xl:text-[11px]">{event.notes || getApplicationEventTypeLabel(event.type)}</p></div>
+                    <div className="min-w-0"><p className="truncate text-[10px] font-semibold text-[#4a4a47] 2xl:text-[11px]">{formatApplicationEventTime(event.startsAt)} • {getCalendarEventCompany(applications, event)}</p><p className="mt-1 truncate text-[10px] text-muted 2xl:text-[11px]">{event.notes || getApplicationEventTypeLabel(event.type)}</p></div>
                     <span className={cn("rounded border px-1.5 py-1 text-[8px] font-bold 2xl:text-[9px]", theme.badge)}>{getApplicationEventTypeLabel(event.type).replace(" deadline", "")}</span>
                   </button>
                 );
@@ -9173,63 +9108,34 @@ function DashboardView({
   const now = currentTime?.getTime() ?? Number.NEGATIVE_INFINITY;
   const jobSortNowMs = Date.now();
   const profileCompletion = getProfileCompletion(profile);
-  const scoredJobs = jobs.filter(hasDisplayableMatch);
-  const recommendedJobs = [...jobs]
-    .sort((left, right) => getDisplayMatch(right) - getDisplayMatch(left) || getJobPostedTime(right, jobSortNowMs) - getJobPostedTime(left, jobSortNowMs))
-    .slice(0, 3);
-  const upcomingEvents = sortApplicationEvents(events.filter((event) => (
-    event.status === "scheduled" && new Date(event.startsAt).getTime() >= now
-  )));
-  const nearestUpcomingEvents = upcomingEvents.slice(0, 2);
-  const upcomingInterviews = upcomingEvents.filter((event) => event.type === "interview" || event.type === "screening");
-  const nextEvent = upcomingEvents[0] ?? null;
-  const nextEventApplication = nextEvent
-    ? applications.find((application) => application.id === nextEvent.applicationId) ?? null
-    : null;
-  const strongMatches = scoredJobs.filter((job) => getDisplayMatch(job) >= 80).length;
-  const activeApplications = applications.filter((application) => (
-    application.status === "applied" || application.status === "interview" || application.status === "assessment"
-  )).length;
-  const statusColors: Record<ApplicationStatus, string> = {
-    draft: "#c0bbb6",
-    applied: "#2563eb",
-    interview: "#0891b2",
-    assessment: "#7c3aed",
-    offer: "#16a34a",
-    rejected: "#dc2626",
-  };
-  let statusArcOffset = 0;
-  const statusOverview = trackedApplicationStatuses.map((item) => {
-    const count = applications.filter((application) => application.status === item.status).length;
-    const arcPercentage = applications.length > 0 ? (count / applications.length) * 100 : 0;
-    const arcOffset = statusArcOffset;
-    statusArcOffset += arcPercentage;
-    return {
-      ...item,
-      count,
-      percentage: Math.round(arcPercentage),
-      arcPercentage,
-      arcOffset,
-      color: statusColors[item.status],
-    };
-  });
-  const visibleStatusCount = statusOverview.filter((item) => item.count > 0).length;
-  const calendarAnchor = currentTime
-    ?? (upcomingEvents[0] ? new Date(upcomingEvents[0].startsAt) : new Date(2026, 0, 1));
-  const dashboardCalendarMonth = new Date(
-    calendarAnchor.getFullYear(),
-    calendarAnchor.getMonth() + dashboardMonthOffset,
-    1,
+  const recommendedJobs = selectRecommendedDashboardJobs(
+    jobs,
+    jobSortNowMs,
   );
-  const dashboardCalendarDays = getDashboardCalendarDays(dashboardCalendarMonth);
-  const dashboardMonthLabel = dashboardCalendarMonth.toLocaleDateString("en-US", {
-    month: "long",
-    year: "numeric",
+  const upcomingEvents = selectUpcomingDashboardEvents(events, now);
+  const nearestUpcomingEvents = upcomingEvents.slice(0, 2);
+  const upcomingInterviewCount = countDashboardUpcomingInterviews(upcomingEvents);
+  const nextEvent = upcomingEvents[0] ?? null;
+  const nextEventApplication = findDashboardEventApplication(
+    applications,
+    nextEvent,
+  );
+  const strongMatches = countDashboardStrongMatches(jobs);
+  const activeApplications = countDashboardActiveApplications(applications);
+  const statusOverview = buildDashboardApplicationStatusOverview(applications);
+  const visibleStatusCount = statusOverview.filter((item) => item.count > 0).length;
+  const {
+    month: dashboardCalendarMonth,
+    days: dashboardCalendarDays,
+    monthLabel: dashboardMonthLabel,
+    todayKey,
+    eventDateKeys,
+  } = buildDashboardCalendarModel({
+    currentTime,
+    upcomingEvents,
+    events,
+    monthOffset: dashboardMonthOffset,
   });
-  const todayKey = currentTime ? getCalendarDateKey(currentTime) : "";
-  const eventDateKeys = new Set(events
-    .filter((event) => event.status === "scheduled")
-    .map((event) => getCalendarDateKey(new Date(event.startsAt))));
   const statCards: Array<{
     label: string;
     value: string;
@@ -9260,7 +9166,7 @@ function DashboardView({
     },
     {
       label: "Interviews",
-      value: upcomingInterviews.length.toString(),
+      value: upcomingInterviewCount.toString(),
       note: "Upcoming interviews",
       icon: "lucide:users-round",
       onClick: onOpenCalendar,
@@ -9354,7 +9260,7 @@ function DashboardView({
                   key={dateKey}
                   type="button"
                   onClick={onOpenCalendar}
-                  aria-label={`Open calendar for ${date.toLocaleDateString("en-US", { dateStyle: "long" })}`}
+                  aria-label={`Open calendar for ${formatCalendarLongDate(date)}`}
                   className={cn(
                     "mx-auto grid h-6 w-6 place-items-center rounded-full transition active:scale-90 2xl:h-7 2xl:w-7",
                     !isCurrentMonth && "text-muted/50",
