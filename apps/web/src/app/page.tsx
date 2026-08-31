@@ -114,6 +114,64 @@ import { readApiErrorMessage } from "@/shared/api/error";
 import { decodeDataUrl, isInlineDataUrl } from "@/shared/browser-storage/data-url";
 import { formatFileSize } from "@/shared/formatting/files";
 import { normalizeExternalUrl } from "@/shared/formatting/urls";
+import {
+  hydrateProfileFiles as hydrateProfileFilesModel,
+  mergeHydratedProfileMetadata,
+  profilePayloadForApi,
+} from "@/features/profile/api/mappers";
+import type {
+  ProfileFilePayload,
+  ResumeEducationImportResponse,
+  ResumeExperienceImportResponse,
+  ResumeSkillsImportResponse,
+} from "@/features/profile/api/dto";
+import {
+  defaultCandidateProfile,
+  defaultDocumentDraft,
+  defaultEducationDraft,
+  defaultExperienceDraft,
+  defaultJobPreferences,
+  defaultPreferenceInputs,
+  documentCategories,
+  preferenceListLabels,
+  preferenceOptions,
+  preferenceSuggestions,
+  suggestedDealbreakers,
+} from "@/features/profile/model/defaults";
+import {
+  inferDocumentLanguage as inferDocumentLanguageModel,
+  mergeEducationEntries,
+  mergeExperienceEntries,
+  mergeSkillLists as mergeSkillListsModel,
+  normalizeDocumentEntry as normalizeDocumentEntryModel,
+  normalizeEducationEntry as normalizeEducationEntryModel,
+  normalizeExperienceEntry as normalizeExperienceEntryModel,
+  parseDocumentEntries as parseDocumentEntriesModel,
+  parseEducationEntries as parseEducationEntriesModel,
+  parseExperienceEntries as parseExperienceEntriesModel,
+  parseProfileLines as parseProfileLinesModel,
+  serializeEducationEntries as serializeEducationEntriesModel,
+  serializeExperienceEntries as serializeExperienceEntriesModel,
+} from "@/features/profile/model/entries";
+import { normalizeCandidateProfile, hasProfileValue } from "@/features/profile/model/normalizers";
+import {
+  formatPreferenceSummary as formatPreferenceSummaryModel,
+  normalizeJobPreferences as normalizeJobPreferencesModel,
+  parseJobPreferences as parseJobPreferencesModel,
+  serializeJobPreferences as serializeJobPreferencesModel,
+} from "@/features/profile/model/preferences";
+import {
+  getAiMatchProfile as getAiMatchProfileModel,
+  getProfileCompletion as getProfileCompletionModel,
+  getProfileCompletionItems as getProfileCompletionItemsModel,
+  hasCandidateProfileData,
+} from "@/features/profile/model/selectors";
+import { suggestedSkills } from "@/features/profile/model/suggested-skills";
+import {
+  displayProfileFirstName as displayProfileFirstNameModel,
+  displayProfileValue as displayProfileValueModel,
+  formatProfileDate as formatProfileDateModel,
+} from "@/features/profile/formatting";
 import type {
   ApplicationDocument,
   ApplicationEvent,
@@ -296,23 +354,6 @@ type JobSearchRunPayload = {
   warning?: string | null;
 };
 
-type ProfileFilePayload = {
-  id: string;
-  kind: "primary_resume" | "supporting_document" | "avatar";
-  title: string;
-  category: string;
-  language: string;
-  issuer: string;
-  notes: string;
-  fileName: string;
-  sizeBytes: number;
-  contentType: string;
-  contentSha256: string;
-  createdAt: string;
-  updatedAt: string;
-  downloadUrl: string;
-};
-
 type WorkspaceSourceFilePayload = {
   id: string;
   applicationId: string;
@@ -325,24 +366,6 @@ type WorkspaceSourceFilePayload = {
   fileType: string;
   uploadedAt: string;
   downloadUrl: string;
-};
-
-type ResumeExperienceImportResponse = {
-  experience?: Array<Partial<ExperienceEntry>>;
-  message?: string;
-  detail?: string;
-};
-
-type ResumeEducationImportResponse = {
-  education?: Array<Partial<EducationEntry>>;
-  message?: string;
-  detail?: string;
-};
-
-type ResumeSkillsImportResponse = {
-  skills?: string[];
-  message?: string;
-  detail?: string;
 };
 
 const demoJobs: Job[] = [
@@ -756,90 +779,6 @@ function JobFilterDropdown({
   );
 }
 
-const defaultCandidateProfile: CandidateProfile = {
-  avatar_url: "/avatars/default-pug.png",
-  name: "",
-  current_role: "",
-  desired_role: "",
-  location: "",
-  work_format: "",
-  headline: "",
-  linkedin: "",
-  github: "",
-  portfolio: "",
-  personal_site: "",
-  experience: "",
-  skills: "",
-  education: "",
-  job_preferences: "",
-  dealbreakers: "",
-  additional_notes: "",
-  documents: "",
-  avatar_file_id: "",
-  resume_file_id: "",
-  resume_file_name: "",
-  resume_file_size: "",
-  resume_updated_at: "",
-  resume_download_url: "",
-};
-
-const candidateProfileDataFields: Array<keyof CandidateProfile> = [
-  "name",
-  "current_role",
-  "desired_role",
-  "location",
-  "work_format",
-  "headline",
-  "linkedin",
-  "github",
-  "portfolio",
-  "personal_site",
-  "experience",
-  "skills",
-  "education",
-  "job_preferences",
-  "dealbreakers",
-  "additional_notes",
-];
-
-const defaultExperienceDraft: ExperienceEntry = {
-  id: "",
-  title: "",
-  company: "",
-  employment_type: "Full-time",
-  location: "",
-  start_date: "",
-  end_date: "",
-  is_current: false,
-  description: "",
-};
-
-const defaultEducationDraft: EducationEntry = {
-  id: "",
-  institution: "",
-  credential: "",
-  field_of_study: "",
-  location: "",
-  start_date: "",
-  end_date: "",
-  is_current: false,
-  description: "",
-};
-
-const defaultDocumentDraft: DocumentEntry = {
-  id: "",
-  title: "",
-  category: "Other",
-  language: "",
-  issuer: "",
-  notes: "",
-  file_name: "",
-  file_size: "",
-  file_type: "",
-  uploaded_at: "",
-  download_url: "",
-};
-
 const defaultManualApplicationDraft: ManualApplicationDraft = {
   title: "",
   company: "",
@@ -857,375 +796,6 @@ const defaultManualJobDraft: ManualJobDraft = {
   applyUrl: "",
   overview: "",
 };
-
-const documentCategories = [
-  "CV / Resume",
-  "Diploma",
-  "Certificate",
-  "Recommendation",
-  "Work permit",
-  "Portfolio",
-  "Transcript",
-  "Other",
-];
-
-const defaultJobPreferences: JobPreferences = {
-  desired_roles: [],
-  seniority: [],
-  locations: [],
-  work_formats: [],
-  employment_types: [],
-  industries: [],
-  salary_min: "",
-  salary_currency: "CHF",
-  work_authorization: "",
-  swiss_permit_status: "",
-  languages: [],
-  company_sizes: [],
-  priorities: [],
-  notes: "",
-  no_preference: [],
-};
-
-const defaultPreferenceInputs: PreferenceInputs = {
-  desired_roles: "",
-  locations: "",
-  industries: "",
-  languages: "",
-};
-
-const preferenceOptions = {
-  seniority: ["Intern", "Entry-level", "Junior", "Mid-level", "Senior"],
-  work_formats: ["Remote", "Hybrid", "On-site", "Relocation"],
-  employment_types: ["Full-time", "Part-time", "Internship", "Contract", "Freelance"],
-  company_sizes: ["Startup", "Scale-up", "Mid-size", "Enterprise"],
-  priorities: ["Salary", "Learning", "Remote", "Relocation", "Tech stack", "Stability", "Fast hiring"],
-  work_authorization: ["Authorized to work", "Needs sponsorship", "EU/EFTA eligible", "Swiss permit", "Student permit", "Not sure"],
-  swiss_permit_status: ["B permit", "C permit", "L permit", "G permit", "Ci permit", "S permit", "Other / in progress"],
-};
-
-const preferenceSuggestions: Record<PreferenceListField, string[]> = {
-  desired_roles: [
-    "Python Developer",
-    "Backend Developer",
-    "AI Engineer",
-    "Full-stack Developer",
-    "Data Engineer",
-    "Machine Learning Engineer",
-  ],
-  locations: ["Switzerland", "Zurich", "Remote Europe", "Germany", "Austria", "Netherlands", "Remote worldwide"],
-  industries: ["AI", "SaaS", "FinTech", "HealthTech", "Developer tools", "EdTech", "E-commerce", "Cybersecurity"],
-  languages: ["English C1", "English B2", "German A2", "German B1", "French B1", "Russian native"],
-};
-
-const suggestedDealbreakers = [
-  "No onsite-only roles",
-  "Remote or hybrid only",
-  "Minimum salary CHF 100,000",
-  "No contract roles",
-  "Full-time only",
-  "No relocation outside Switzerland",
-  "No unpaid internships",
-  "No roles requiring fluent German",
-  "No crypto or gambling industry",
-  "Must support Swiss permit",
-];
-
-const preferenceListLabels: Record<PreferenceListField, { label: string; placeholder: string }> = {
-  desired_roles: { label: "Desired roles", placeholder: "Python Developer, AI Engineer..." },
-  locations: { label: "Locations", placeholder: "Zurich, Switzerland, Remote Europe..." },
-  industries: { label: "Industries", placeholder: "AI, SaaS, FinTech..." },
-  languages: { label: "Languages", placeholder: "English C1, German A2..." },
-};
-
-const preferenceSummaryLabels: Record<PreferenceAnyField, string> = {
-  desired_roles: "Roles",
-  seniority: "Seniority",
-  locations: "Locations",
-  work_formats: "Work format",
-  employment_types: "Employment",
-  industries: "Industries",
-  salary: "Salary floor",
-  work_authorization: "Authorization",
-  languages: "Languages",
-  company_sizes: "Company size",
-  priorities: "Priorities",
-};
-
-const suggestedSkills = [
-  "Agile Development",
-  "AI Agent Development",
-  "AI Application Development",
-  "AI Engineering",
-  "AI Integrations",
-  "AI Literacy",
-  "AI Model Evaluation",
-  "AI Safety",
-  "AI Strategy",
-  "AJAX",
-  "API Design",
-  "API Development",
-  "API Integration",
-  "ASP.NET",
-  "AWS",
-  "AWS Lambda",
-  "Accessibility",
-  "Algorithms",
-  "Angular",
-  "Ansible",
-  "Apache Kafka",
-  "Application Security",
-  "Architecture",
-  "AsyncIO",
-  "Authentication",
-  "Automation",
-  "Azure",
-  "Bash",
-  "Bootstrap",
-  "CI/CD",
-  "CSS",
-  "Celery",
-  "Chatbot Development",
-  "Clean Architecture",
-  "Clean Code",
-  "Cloud Applications",
-  "Cloud Computing",
-  "Cloud Functions",
-  "Cloud Security",
-  "Code Review",
-  "Computer Vision",
-  "Continuous Deployment",
-  "Continuous Integration",
-  "Critical Thinking",
-  "Cybersecurity",
-  "Django",
-  "Django REST Framework",
-  "Docker",
-  "Docker Compose",
-  "Domain-Driven Design",
-  "Elasticsearch",
-  "Express.js",
-  "FastAPI",
-  "Firebase",
-  "Flask",
-  "Frontend Development",
-  "Full-stack Development",
-  "GCP",
-  "Git",
-  "GitHub",
-  "GitHub Actions",
-  "GitLab CI",
-  "Go",
-  "GraphQL",
-  "HTML",
-  "Helm",
-  "Hugging Face",
-  "Java",
-  "JavaScript",
-  "Jenkins",
-  "Jest",
-  "Jira",
-  "Jupyter",
-  "JWT",
-  "Kubernetes",
-  "LangChain",
-  "LangGraph",
-  "Large Language Models",
-  "Linux",
-  "LLM Applications",
-  "LLM Evaluation",
-  "Machine Learning",
-  "Microservices",
-  "MongoDB",
-  "MySQL",
-  "Next.js",
-  "Nginx",
-  "Node.js",
-  "NoSQL",
-  "OAuth",
-  "Object-Oriented Programming",
-  "OpenAPI",
-  "PHP",
-  "Pandas",
-  "Performance Optimization",
-  "Playwright",
-  "PostgreSQL",
-  "Postman",
-  "Problem Solving",
-  "Prompt Engineering",
-  "PyTorch",
-  "Pytest",
-  "Python",
-  "QA Automation",
-  "RabbitMQ",
-  "React",
-  "React Native",
-  "Redis",
-  "Refactoring",
-  "Relational Databases",
-  "REST API",
-  "Ruby",
-  "Ruby on Rails",
-  "Rust",
-  "SaaS Development",
-  "Scikit-learn",
-  "Scrum",
-  "Security Best Practices",
-  "Serverless",
-  "Shell Scripting",
-  "Software Architecture",
-  "Software Design",
-  "Software Development",
-  "Software Engineering",
-  "Software Testing",
-  "Spring Boot",
-  "SQL",
-  "SQLite",
-  "System Design",
-  "Tailwind CSS",
-  "Team Collaboration",
-  "TensorFlow",
-  "Terraform",
-  "Test Automation",
-  "Test-Driven Development",
-  "TypeScript",
-  "UI Development",
-  "Unit Testing",
-  "Unix",
-  "UX Basics",
-  "Vector Databases",
-  "Vercel",
-  "Vue.js",
-  "Web APIs",
-  "Web Development",
-  "WebSockets",
-  "Webpack",
-  "WordPress",
-  "XML",
-  "YAML",
-  "Zod",
-  "NumPy",
-  "Data Analysis",
-  "Data Engineering",
-  "Data Structures",
-  "Data Visualization",
-  "ETL",
-  "MLOps",
-  "MLflow",
-  "RAG",
-  "Retrieval-Augmented Generation",
-  "Pinecone",
-  "ChromaDB",
-  "Qdrant",
-  "Supabase",
-  "Prisma",
-  "SQLAlchemy",
-  "ORM",
-  "Pydantic",
-  "Redux",
-  "Zustand",
-  "Svelte",
-  "Nuxt.js",
-  "Vite",
-  "ESLint",
-  "Prettier",
-  "Cypress",
-  "Mocha",
-  "Vitest",
-  "Storybook",
-  "Figma",
-  "Responsive Design",
-  "Mobile Development",
-  "Swift",
-  "Kotlin",
-  "Flutter",
-  "Dart",
-  "C",
-  "C++",
-  "C#",
-  ".NET",
-  "Graph Databases",
-  "Neo4j",
-  "Observability",
-  "Monitoring",
-  "Logging",
-  "Prometheus",
-  "Grafana",
-  "Sentry",
-  "Datadog",
-  "DevOps",
-  "Site Reliability Engineering",
-  "Backend Development",
-  "Infrastructure as Code",
-  "Networking",
-  "HTTP",
-  "DNS",
-  "TCP/IP",
-  "Web Security",
-  "OWASP",
-  "Encryption",
-  "OAuth 2.0",
-  "SAML",
-  "JSON",
-  "gRPC",
-  "Message Queues",
-  "Event-Driven Architecture",
-  "Distributed Systems",
-  "Concurrency",
-  "Multithreading",
-  "Design Patterns",
-  "Technical Documentation",
-  "Debugging",
-  "Troubleshooting",
-  "Production Support",
-  "Product Thinking",
-  "Cross-functional Collaboration",
-  "Communication",
-  "Adaptability",
-  "Agile Problem Solving",
-];
-
-const legacyCandidateProfileValues: Partial<CandidateProfile> = {
-  name: "Alex Johnson",
-  current_role: "Senior Product Designer",
-  desired_role: "Design Manager",
-  location: "San Francisco, CA, USA",
-  work_format: "Remote, open to hybrid",
-  headline:
-    "Product designer with 7+ years of experience crafting intuitive B2B and B2C digital experiences. Combines user empathy with data-driven design to ship impactful products.",
-  linkedin: "linkedin.com/in/alexjohnson",
-  github: "github.com/alexjohnson",
-  portfolio: "alexjohnson.design",
-  personal_site: "alexjohnson.com",
-};
-
-function normalizeCandidateProfile(profile: Partial<CandidateProfile>): CandidateProfile {
-  const normalizedProfile = { ...defaultCandidateProfile };
-  for (const field of Object.keys(defaultCandidateProfile) as Array<keyof CandidateProfile>) {
-    const value = profile[field];
-    if (typeof value === "string") normalizedProfile[field] = value;
-  }
-
-  if (!normalizedProfile.avatar_url || normalizedProfile.avatar_url === "/avatars/pug.svg") {
-    normalizedProfile.avatar_url = defaultCandidateProfile.avatar_url;
-  }
-
-  for (const [field, legacyValue] of Object.entries(legacyCandidateProfileValues) as Array<[keyof CandidateProfile, string]>) {
-    if (normalizedProfile[field] === legacyValue) {
-      normalizedProfile[field] = "";
-    }
-  }
-
-  return normalizedProfile;
-}
-
-function hasProfileValue(value: string | undefined) {
-  return Boolean(value?.trim());
-}
-
-function hasCandidateProfileData(profile: CandidateProfile) {
-  return candidateProfileDataFields.some((field) => hasProfileValue(profile[field]));
-}
 
 type LegacyStoredCandidateProfile = Partial<CandidateProfile> & {
   resume_data_url?: string;
@@ -1247,76 +817,11 @@ function readLegacyStoredCandidateProfile(): LegacyStoredCandidateProfile | null
   }
 }
 
-function profilePayloadForApi(profile: CandidateProfile) {
-  const payload: Partial<CandidateProfile> = { ...profile };
-  delete payload.documents;
-  delete payload.avatar_file_id;
-  delete payload.resume_file_id;
-  delete payload.resume_file_name;
-  delete payload.resume_file_size;
-  delete payload.resume_updated_at;
-  delete payload.resume_download_url;
-  if (isInlineDataUrl(payload.avatar_url) || payload.avatar_url?.includes("/profile/files/")) {
-    payload.avatar_url = defaultCandidateProfile.avatar_url;
-  }
-  return payload;
-}
-
-function profileFileToDocumentEntry(file: ProfileFilePayload): DocumentEntry {
-  return normalizeDocumentEntry({
-    id: file.id,
-    title: file.title,
-    category: file.category,
-    language: file.language,
-    issuer: file.issuer,
-    notes: file.notes,
-    file_name: file.fileName,
-    file_size: formatFileSize(file.sizeBytes),
-    file_type: file.contentType,
-    uploaded_at: file.updatedAt,
-    download_url: resolveApiUrl(file.downloadUrl),
-  });
-}
-
 function hydrateProfileFiles(
   profile: CandidateProfile,
   files: ProfileFilePayload[],
 ): CandidateProfile {
-  const resume = files.find((file) => file.kind === "primary_resume");
-  const avatar = files.find((file) => file.kind === "avatar");
-  const documents = files
-    .filter((file) => file.kind === "supporting_document")
-    .map(profileFileToDocumentEntry);
-  return normalizeCandidateProfile({
-    ...profile,
-    avatar_url: avatar ? resolveApiUrl(avatar.downloadUrl) : profile.avatar_url,
-    avatar_file_id: avatar?.id ?? "",
-    documents: serializeDocumentEntries(documents),
-    resume_file_id: resume?.id ?? "",
-    resume_file_name: resume?.fileName ?? "",
-    resume_file_size: resume ? formatFileSize(resume.sizeBytes) : "",
-    resume_updated_at: resume?.updatedAt ?? "",
-    resume_download_url: resume ? resolveApiUrl(resume.downloadUrl) : "",
-  });
-}
-
-function mergeHydratedProfileMetadata(
-  savedProfile: Partial<CandidateProfile>,
-  currentProfile: CandidateProfile,
-): CandidateProfile {
-  return normalizeCandidateProfile({
-    ...savedProfile,
-    avatar_url: currentProfile.avatar_url.includes("/profile/files/")
-      ? currentProfile.avatar_url
-      : savedProfile.avatar_url,
-    avatar_file_id: currentProfile.avatar_file_id,
-    documents: currentProfile.documents,
-    resume_file_id: currentProfile.resume_file_id,
-    resume_file_name: currentProfile.resume_file_name,
-    resume_file_size: currentProfile.resume_file_size,
-    resume_updated_at: currentProfile.resume_updated_at,
-    resume_download_url: currentProfile.resume_download_url,
-  });
+  return hydrateProfileFilesModel(profile, files, createClientId);
 }
 
 class FileUploadResponseError extends Error {
@@ -1697,495 +1202,86 @@ async function migrateLegacyApplicationDocuments(
 }
 
 function displayProfileValue(value: string, fallback: string) {
-  return hasProfileValue(value) ? value : fallback;
+  return displayProfileValueModel(value, fallback);
 }
 
 function displayProfileFirstName(value: string, fallback: string) {
-  return hasProfileValue(value) ? value.trim().split(/\s+/)[0] : fallback;
+  return displayProfileFirstNameModel(value, fallback);
 }
 
 function parseProfileLines(value: string) {
-  return value
-    .split(/\r?\n/)
-    .map((item) => item.trim())
-    .filter(Boolean);
+  return parseProfileLinesModel(value);
 }
 
 function normalizeExperienceEntry(entry: Partial<ExperienceEntry>): ExperienceEntry {
-  return {
-    ...defaultExperienceDraft,
-    ...entry,
-    id: entry.id || createClientId("experience"),
-    title: entry.title?.trim() ?? "",
-    company: entry.company?.trim() ?? "",
-    employment_type: entry.employment_type?.trim() || "Full-time",
-    location: entry.location?.trim() ?? "",
-    start_date: entry.start_date?.trim() ?? "",
-    end_date: entry.is_current ? "" : entry.end_date?.trim() ?? "",
-    is_current: Boolean(entry.is_current),
-    description: entry.description?.trim() ?? "",
-  };
+  return normalizeExperienceEntryModel(entry, createClientId);
 }
 
 function parseExperienceEntries(value: string): ExperienceEntry[] {
-  if (!value.trim()) return [];
-
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (Array.isArray(parsed)) {
-      return parsed
-        .filter((item): item is Partial<ExperienceEntry> => Boolean(item) && typeof item === "object")
-        .map((item) => normalizeExperienceEntry(item))
-        .filter((item) => item.title || item.company || item.description);
-    }
-  } catch {
-    // Fall back to the previous one-line-per-entry format.
-  }
-
-  return parseProfileLines(value).map((item, index) =>
-    normalizeExperienceEntry({
-      id: `legacy-experience-${index}`,
-      title: item,
-      description: item,
-    }),
-  );
+  return parseExperienceEntriesModel(value, createClientId);
 }
 
 function serializeExperienceEntries(entries: ExperienceEntry[]) {
-  return JSON.stringify(entries.map((entry) => normalizeExperienceEntry(entry)));
-}
-
-function getExperienceFingerprint(entry: ExperienceEntry) {
-  return [entry.title, entry.company, entry.start_date, entry.end_date]
-    .map((value) => value.trim().toLowerCase())
-    .join("|");
-}
-
-function mergeExperienceEntries(currentEntries: ExperienceEntry[], importedEntries: ExperienceEntry[]) {
-  const existingFingerprints = new Set(currentEntries.map(getExperienceFingerprint));
-  const nextEntries = [...currentEntries];
-
-  for (const entry of importedEntries) {
-    const fingerprint = getExperienceFingerprint(entry);
-    if (!entry.title || !entry.company || existingFingerprints.has(fingerprint)) {
-      continue;
-    }
-
-    existingFingerprints.add(fingerprint);
-    nextEntries.push(entry);
-  }
-
-  return nextEntries;
+  return serializeExperienceEntriesModel(entries, createClientId);
 }
 
 function normalizeEducationEntry(entry: Partial<EducationEntry>): EducationEntry {
-  return {
-    ...defaultEducationDraft,
-    ...entry,
-    id: entry.id || createClientId("education"),
-    institution: entry.institution?.trim() ?? "",
-    credential: entry.credential?.trim() ?? "",
-    field_of_study: entry.field_of_study?.trim() ?? "",
-    location: entry.location?.trim() ?? "",
-    start_date: entry.start_date?.trim() ?? "",
-    end_date: entry.is_current ? "" : entry.end_date?.trim() ?? "",
-    is_current: Boolean(entry.is_current),
-    description: entry.description?.trim() ?? "",
-  };
+  return normalizeEducationEntryModel(entry, createClientId);
 }
 
 function parseEducationEntries(value: string): EducationEntry[] {
-  if (!value.trim()) return [];
-
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (Array.isArray(parsed)) {
-      return parsed
-        .filter((item): item is Partial<EducationEntry> => Boolean(item) && typeof item === "object")
-        .map((item) => normalizeEducationEntry(item))
-        .filter((item) => item.institution || item.credential || item.field_of_study || item.description);
-    }
-  } catch {
-    // Fall back to the previous one-line-per-entry format.
-  }
-
-  return parseProfileLines(value).map((item, index) =>
-    normalizeEducationEntry({
-      id: `legacy-education-${index}`,
-      credential: item,
-      description: item,
-    }),
-  );
+  return parseEducationEntriesModel(value, createClientId);
 }
 
 function serializeEducationEntries(entries: EducationEntry[]) {
-  return JSON.stringify(entries.map((entry) => normalizeEducationEntry(entry)));
-}
-
-function getEducationFingerprint(entry: EducationEntry) {
-  return [entry.institution, entry.credential, entry.field_of_study, entry.start_date, entry.end_date]
-    .map((value) => value.trim().toLowerCase())
-    .join("|");
-}
-
-function mergeEducationEntries(currentEntries: EducationEntry[], importedEntries: EducationEntry[]) {
-  const existingFingerprints = new Set(currentEntries.map(getEducationFingerprint));
-  const nextEntries = [...currentEntries];
-
-  for (const entry of importedEntries) {
-    const fingerprint = getEducationFingerprint(entry);
-    if ((!entry.institution && !entry.credential) || existingFingerprints.has(fingerprint)) {
-      continue;
-    }
-
-    existingFingerprints.add(fingerprint);
-    nextEntries.push(entry);
-  }
-
-  return nextEntries;
+  return serializeEducationEntriesModel(entries, createClientId);
 }
 
 function normalizeDocumentEntry(
   entry: Partial<DocumentEntry>,
   fallbackId = "",
 ): DocumentEntry {
-  return {
-    ...defaultDocumentDraft,
-    ...entry,
-    id: entry.id || fallbackId || createClientId("document"),
-    title: entry.title?.trim() ?? "",
-    category: entry.category?.trim() || "Other",
-    language: entry.language?.trim() || inferDocumentLanguage(entry.file_name ?? "", entry.title ?? ""),
-    issuer: entry.issuer?.trim() ?? "",
-    notes: entry.notes?.trim() ?? "",
-    file_name: entry.file_name?.trim() ?? "",
-    file_size: entry.file_size?.trim() ?? "",
-    file_type: entry.file_type?.trim() ?? "",
-    uploaded_at: entry.uploaded_at?.trim() ?? "",
-    download_url: entry.download_url ?? "",
-    pending_file: entry.pending_file,
-  };
+  return normalizeDocumentEntryModel(entry, fallbackId, createClientId);
 }
 
 function inferDocumentLanguage(fileName: string, title = "") {
-  const value = `${fileName} ${title}`.toLowerCase();
-  if (/(?:^|[\s_.-])(de|deu|ger)(?:[\s_.-]|$)|deutsch|german/.test(value)) return "German";
-  if (/(?:^|[\s_.-])(en|eng)(?:[\s_.-]|$)|english/.test(value)) return "English";
-  return "";
+  return inferDocumentLanguageModel(fileName, title);
 }
 
 function parseDocumentEntries(value: string): DocumentEntry[] {
-  if (!value.trim()) return [];
-
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (Array.isArray(parsed)) {
-      return parsed
-        .filter((item): item is Partial<DocumentEntry> => Boolean(item) && typeof item === "object")
-        // Older profiles may contain documents without IDs. The fallback must
-        // be deterministic: parsing once for render and again for delete/edit
-        // must address the same item. The next successful save persists it.
-        .map((item, index) => normalizeDocumentEntry(item, `legacy-document-${index}`))
-        .filter((item) => item.title || item.file_name || item.download_url);
-    }
-  } catch {
-    return [];
-  }
-
-  return [];
-}
-
-function serializeDocumentEntries(entries: DocumentEntry[]) {
-  if (entries.length === 0) return "";
-
-  return JSON.stringify(entries.map((entry) => {
-    const metadata = normalizeDocumentEntry(entry);
-    delete metadata.pending_file;
-    return metadata;
-  }));
-}
-
-function normalizePreferenceList(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-
-  return Array.from(
-    new Map(
-      value
-        .filter((item): item is string => typeof item === "string")
-        .map((item) => item.trim())
-        .filter(Boolean)
-        .map((item) => [item.toLowerCase(), item]),
-    ).values(),
-  );
-}
-
-function normalizeNoPreferenceFields(value: unknown): PreferenceAnyField[] {
-  const allowedFields = new Set<PreferenceAnyField>([
-    "desired_roles",
-    "seniority",
-    "locations",
-    "work_formats",
-    "employment_types",
-    "industries",
-    "salary",
-    "work_authorization",
-    "languages",
-    "company_sizes",
-    "priorities",
-  ]);
-
-  return normalizePreferenceList(value).filter((item): item is PreferenceAnyField =>
-    allowedFields.has(item as PreferenceAnyField),
-  );
+  return parseDocumentEntriesModel(value, createClientId);
 }
 
 function normalizeJobPreferences(value: Partial<JobPreferences>): JobPreferences {
-  return {
-    ...defaultJobPreferences,
-    ...value,
-    desired_roles: normalizePreferenceList(value.desired_roles),
-    seniority: normalizePreferenceList(value.seniority),
-    locations: normalizePreferenceList(value.locations),
-    work_formats: normalizePreferenceList(value.work_formats),
-    employment_types: normalizePreferenceList(value.employment_types),
-    industries: normalizePreferenceList(value.industries),
-    salary_min: value.salary_min?.trim() ?? "",
-    salary_currency: value.salary_currency?.trim() || "CHF",
-    work_authorization: value.work_authorization?.trim() ?? "",
-    swiss_permit_status: value.work_authorization?.trim() === "Swiss permit"
-      ? value.swiss_permit_status?.trim() ?? ""
-      : "",
-    languages: normalizePreferenceList(value.languages),
-    company_sizes: normalizePreferenceList(value.company_sizes),
-    priorities: normalizePreferenceList(value.priorities),
-    notes: value.notes?.trim() ?? "",
-    no_preference: normalizeNoPreferenceFields(value.no_preference),
-  };
+  return normalizeJobPreferencesModel(value);
 }
 
 function parseJobPreferences(value: string): JobPreferences {
-  if (!value.trim()) return defaultJobPreferences;
-
-  try {
-    const parsed = JSON.parse(value) as unknown;
-    if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return normalizeJobPreferences(parsed as Partial<JobPreferences>);
-    }
-  } catch {
-    // Fall back to the previous one-line-per-preference format.
-  }
-
-  return normalizeJobPreferences({ notes: parseProfileLines(value).join("\n") });
+  return parseJobPreferencesModel(value);
 }
 
 function serializeJobPreferences(preferences: JobPreferences) {
-  const normalizedPreferences = normalizeJobPreferences(preferences);
-  const hasValues =
-    normalizedPreferences.desired_roles.length > 0 ||
-    normalizedPreferences.seniority.length > 0 ||
-    normalizedPreferences.locations.length > 0 ||
-    normalizedPreferences.work_formats.length > 0 ||
-    normalizedPreferences.employment_types.length > 0 ||
-    normalizedPreferences.industries.length > 0 ||
-    hasProfileValue(normalizedPreferences.salary_min) ||
-    hasProfileValue(normalizedPreferences.work_authorization) ||
-    hasProfileValue(normalizedPreferences.swiss_permit_status) ||
-    normalizedPreferences.languages.length > 0 ||
-    normalizedPreferences.company_sizes.length > 0 ||
-    normalizedPreferences.priorities.length > 0 ||
-    normalizedPreferences.no_preference.length > 0 ||
-    hasProfileValue(normalizedPreferences.notes);
-
-  return hasValues ? JSON.stringify(normalizedPreferences) : "";
+  return serializeJobPreferencesModel(preferences);
 }
 
 function formatPreferenceSummary(preferences: JobPreferences) {
-  const preferenceValue = (field: PreferenceAnyField, values: string[]) =>
-    preferences.no_preference.includes(field) ? ["No preference"] : values;
-
-  const items: Array<{ label: string; values: string[] }> = [
-    { label: "Roles", values: preferenceValue("desired_roles", preferences.desired_roles) },
-    { label: "Seniority", values: preferenceValue("seniority", preferences.seniority) },
-    { label: "Locations", values: preferenceValue("locations", preferences.locations) },
-    { label: "Work format", values: preferenceValue("work_formats", preferences.work_formats) },
-    { label: "Employment", values: preferenceValue("employment_types", preferences.employment_types) },
-    { label: "Industries", values: preferenceValue("industries", preferences.industries) },
-    { label: "Languages", values: preferenceValue("languages", preferences.languages) },
-    { label: "Company size", values: preferenceValue("company_sizes", preferences.company_sizes) },
-    { label: "Priorities", values: preferenceValue("priorities", preferences.priorities) },
-  ].filter((item) => item.values.length > 0);
-
-  if (preferences.no_preference.includes("salary")) {
-    items.splice(6, 0, { label: "Salary floor", values: ["No preference"] });
-  } else if (hasProfileValue(preferences.salary_min)) {
-    items.splice(6, 0, { label: "Salary floor", values: [`${preferences.salary_currency} ${preferences.salary_min}`] });
-  }
-
-  if (preferences.no_preference.includes("work_authorization")) {
-    items.splice(7, 0, { label: "Authorization", values: ["No preference"] });
-  } else if (hasProfileValue(preferences.work_authorization)) {
-    const authorizationValues = preferences.work_authorization === "Swiss permit" && hasProfileValue(preferences.swiss_permit_status)
-      ? [`${preferences.work_authorization} (${preferences.swiss_permit_status})`]
-      : [preferences.work_authorization];
-    items.splice(7, 0, { label: "Authorization", values: authorizationValues });
-  }
-
-  if (hasProfileValue(preferences.notes)) {
-    items.push({ label: "Notes", values: [preferences.notes] });
-  }
-
-  return items;
-}
-
-function hasQuantifiedAchievements(entries: ExperienceEntry[]) {
-  return entries.some((entry) => /\d|%|\bpercent\b|\busers?\b|\bclients?\b|\brevenue\b|\bcost\b|\bsaved\b|\breduced\b|\bincreased\b/i.test(entry.description));
-}
-
-function formatCompactList(values: string[], fallback: string) {
-  if (values.length === 0) return fallback;
-  if (values.length <= 3) return values.join(", ");
-  return `${values.slice(0, 3).join(", ")} +${values.length - 3} more`;
+  return formatPreferenceSummaryModel(preferences);
 }
 
 function getAiMatchProfile(profile: CandidateProfile) {
-  const skills = parseProfileLines(profile.skills);
-  const experienceEntries = parseExperienceEntries(profile.experience);
-  const educationEntries = parseEducationEntries(profile.education);
-  const preferences = parseJobPreferences(profile.job_preferences);
-  const hasResume = hasProfileValue(profile.resume_file_name) && hasProfileValue(profile.resume_file_id);
-  const hasSalaryPreference = preferences.no_preference.includes("salary") || hasProfileValue(preferences.salary_min);
-  const hasAuthorizationPreference = preferences.no_preference.includes("work_authorization") || hasProfileValue(preferences.work_authorization);
-  const hasLocationPreference = preferences.no_preference.includes("locations") || preferences.locations.length > 0;
-  const hasIndustryPreference = preferences.no_preference.includes("industries") || preferences.industries.length > 0;
-  const hasRolePreference = preferences.no_preference.includes("desired_roles") || preferences.desired_roles.length > 0 || hasProfileValue(profile.desired_role);
-
-  const signals = [
-    hasProfileValue(profile.current_role) ? `Current role: ${profile.current_role}` : "",
-    hasProfileValue(profile.desired_role) ? `Target: ${profile.desired_role}` : "",
-    skills.length > 0 ? `${skills.length} skills: ${formatCompactList(skills, "skills added")}` : "",
-    experienceEntries.length > 0 ? `${experienceEntries.length} experience entr${experienceEntries.length === 1 ? "y" : "ies"}` : "",
-    educationEntries.length > 0 ? `${educationEntries.length} education / certification entr${educationEntries.length === 1 ? "y" : "ies"}` : "",
-    hasLocationPreference ? `Locations: ${preferences.no_preference.includes("locations") ? "No preference" : formatCompactList(preferences.locations, "set")}` : "",
-    hasAuthorizationPreference ? `Work authorization: ${preferences.no_preference.includes("work_authorization") ? "No preference" : preferences.work_authorization}` : "",
-    hasResume ? `Resume attached: ${profile.resume_file_name}` : "",
-  ].filter(Boolean);
-
-  const gaps = [
-    !hasProfileValue(profile.current_role) ? "Add current role" : "",
-    !hasRolePreference ? "Add target role or desired roles" : "",
-    skills.length === 0 ? "Add skills" : "",
-    experienceEntries.length === 0 ? "Add or import work experience" : "",
-    experienceEntries.length > 0 && !hasQuantifiedAchievements(experienceEntries) ? "Add quantified achievements to experience" : "",
-    !hasLocationPreference ? "Add preferred locations or mark no preference" : "",
-    !hasIndustryPreference ? "Add preferred industries or mark no preference" : "",
-    !hasSalaryPreference ? "Add salary preference or mark no preference" : "",
-    !hasAuthorizationPreference ? "Add work authorization preference or mark no preference" : "",
-    !hasResume ? "Attach resume for imports and matching" : "",
-  ].filter(Boolean);
-
-  return {
-    signals,
-    gaps: gaps.slice(0, 5),
-  };
+  return getAiMatchProfileModel(profile, createClientId);
 }
 
 function formatProfileDate(value: string) {
-  if (!value) return "";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
+  return formatProfileDateModel(value);
 }
 
 function getProfileCompletionItems(profile: CandidateProfile) {
-  const skills = parseProfileLines(profile.skills);
-  const experienceEntries = parseExperienceEntries(profile.experience);
-  const educationEntries = parseEducationEntries(profile.education);
-  const preferences = parseJobPreferences(profile.job_preferences);
-  const hasRolePreference = preferences.no_preference.includes("desired_roles") || preferences.desired_roles.length > 0 || hasProfileValue(profile.desired_role);
-  const hasLocationPreference = preferences.no_preference.includes("locations") || preferences.locations.length > 0 || hasProfileValue(profile.location);
-  const hasAuthorizationPreference = preferences.no_preference.includes("work_authorization") || hasProfileValue(preferences.work_authorization);
-  const hasSalaryPreference = preferences.no_preference.includes("salary") || hasProfileValue(preferences.salary_min);
-
-  return [
-    {
-      label: "Name and current role",
-      complete: hasProfileValue(profile.name) && hasProfileValue(profile.current_role),
-      action: "Add name and current role",
-    },
-    {
-      label: "Target role",
-      complete: hasRolePreference,
-      action: "Add target role or desired roles",
-    },
-    {
-      label: "Location and work format",
-      complete: hasProfileValue(profile.location) && hasProfileValue(profile.work_format),
-      action: "Add location and work format",
-    },
-    {
-      label: "Summary",
-      complete: hasProfileValue(profile.headline),
-      action: "Add short professional summary",
-    },
-    {
-      label: "Contact link",
-      complete: getProfileLinks(profile).some((link) => hasProfileValue(link.value) && link.href),
-      action: "Add LinkedIn, GitHub, or portfolio",
-    },
-    {
-      label: "Resume",
-      complete: hasProfileValue(profile.resume_file_name) && hasProfileValue(profile.resume_file_id),
-      action: "Attach resume",
-    },
-    {
-      label: "Experience",
-      complete: experienceEntries.length > 0,
-      action: "Add or import experience",
-    },
-    {
-      label: "Quantified achievements",
-      complete: experienceEntries.length > 0 && hasQuantifiedAchievements(experienceEntries),
-      action: "Add metrics to experience",
-    },
-    {
-      label: "Skills",
-      complete: skills.length >= 6,
-      action: skills.length > 0 ? "Add a few more skills" : "Add skills",
-    },
-    {
-      label: "Education or certification",
-      complete: educationEntries.length > 0,
-      action: "Add education or certification",
-    },
-    {
-      label: "Preferred locations",
-      complete: hasLocationPreference,
-      action: "Add preferred locations or mark no preference",
-    },
-    {
-      label: "Work authorization",
-      complete: hasAuthorizationPreference,
-      action: "Add work authorization preference",
-    },
-    {
-      label: "Salary preference",
-      complete: hasSalaryPreference,
-      action: "Add salary floor or mark no preference",
-    },
-  ];
+  return getProfileCompletionItemsModel(profile, createClientId);
 }
 
 function getProfileCompletion(profile: CandidateProfile) {
-  const completionItems = getProfileCompletionItems(profile);
-  const completedFields = completionItems.filter((item) => item.complete);
-
-  return Math.round((completedFields.length / completionItems.length) * 100);
+  return getProfileCompletionModel(profile, createClientId);
 }
 
 function getParserLabel(parser: string | undefined) {
@@ -3606,14 +2702,7 @@ function matchesJobFilters(job: Job, filters: JobFilters) {
 }
 
 function mergeSkillLists(currentSkills: string[], importedSkills: string[]) {
-  return Array.from(
-    new Map(
-      [...currentSkills, ...importedSkills]
-        .map((skill) => skill.trim())
-        .filter(Boolean)
-        .map((skill) => [skill.toLowerCase(), skill]),
-    ).values(),
-  );
+  return mergeSkillListsModel(currentSkills, importedSkills);
 }
 
 export default function HomePage() {
