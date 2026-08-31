@@ -77,7 +77,7 @@ import { LogsView, type AppLogEntry, type AppLogLevel } from "@/components/logs-
 import { MasterResumeEditor } from "@/components/master-resume-editor";
 import { ResumeTemplateManager } from "@/components/resume-template-manager";
 import { getAiMatchAnalysisStatus, legacyAiMatchVersion } from "@/lib/ai-match";
-import { getAiSourceLabel, type AiBackend, type AiSource } from "@/lib/ai-source";
+import { getAiSourceLabel, type AiBackend } from "@/lib/ai-source";
 import { findWorkspaceApplication, getHashForView, getRouteFromHash, type View } from "@/lib/app-route";
 import {
   directCompanyCatalog,
@@ -91,108 +91,38 @@ import {
 import { parseJobDescription } from "@/lib/job-description";
 import { normalizeJobsChJobUrl } from "@/lib/job-url";
 import { cn } from "@/lib/utils";
-
-type AiMatchMetadata = {
-  version: string;
-  revision?: string;
-  fingerprint?: string;
-  cacheKey: string;
-  source: AiSource;
-  backend?: AiSource;
-  score: number;
-  confidence: "low" | "medium" | "high";
-  breakdown: Record<string, number>;
-  reasons: string[];
-  gaps: string[];
-  applicationGuide?: {
-    language: "English" | "German";
-    positioning: string;
-    readiness?: "ready" | "needs_confirmation" | "weak_fit";
-    roleMission?: string;
-    hiringPriorities?: string[];
-    mustHave?: string[];
-    niceToHave?: string[];
-    hardConstraints?: string[];
-    evidenceMatrix?: Array<{
-      requirement: string;
-      importance: "required" | "preferred";
-      status: "verified" | "transferable" | "needs_confirmation" | "missing";
-      evidence: string;
-      action: string;
-      sourceIds?: string[];
-      sources?: Array<{ id: string; label: string; excerpt: string }>;
-    }>;
-    clarificationQuestions?: Array<{
-      id: string;
-      requirement: string;
-      question: string;
-      why: string;
-      claimIfConfirmed: string;
-      blocking: boolean;
-    }>;
-    resumePlan?: {
-      targetHeadline: string;
-      summaryFocus: string;
-      evidenceToLead: string[];
-      bulletStrategy: string[];
-    };
-    coverLetterPlan?: {
-      openingAngle: string;
-      proofPoints: string[];
-      motivationAngle: string;
-    };
-    cvImprovements: string[];
-    coverLetterStrategy: string[];
-    risks: string[];
-    keywords: string[];
-    applicationQuestions: string[];
-    finalChecklist: string[];
-  };
-  explanation?: string;
-  rawExplanation?: string;
-  heuristicScore?: number;
-  updatedAt?: string;
-  providerError?: string;
-};
-
-type JobRecommendation = {
-  text: string;
-  gain: string;
-  why?: string;
-  impact?: string;
-  action?: string;
-};
-
-type Job = {
-  id: string;
-  company: string;
-  title: string;
-  location: string;
-  type: string;
-  salary: string;
-  posted: string;
-  experience: string;
-  department: string;
-  match: number;
-  logo: "stripe" | "figma" | "linkedin" | "indeed" | "jobs_ch" | "company" | "manual";
-  overview: string;
-  responsibilities: string[];
-  requirements: string[];
-  skills: string[];
-  salaryAverage: string;
-  salaryMin: string;
-  salaryMax: string;
-  recommendations: JobRecommendation[];
-  companyInfo: string;
-  reviews: string[];
-  similarJobs: string[];
-  applyUrl?: string;
-  sourceUrl?: string;
-  addedAt?: string;
-  archived?: boolean;
-  archivedAt?: string;
-  aiMatch?: AiMatchMetadata;
-};
+import type {
+  ApplicationDocument,
+  ApplicationEvent,
+  ApplicationEventDraft,
+  ApplicationEventOutcome,
+  ApplicationEventStatus,
+  ApplicationEventType,
+  ApplicationStatus,
+  ApplicationTimelineItem,
+  TrackedApplication,
+} from "@/shared/types/application";
+import type {
+  AiMatchMetadata,
+  Job,
+  JobRecommendation,
+} from "@/shared/types/job";
+import type {
+  CandidateProfile,
+  DocumentEntry,
+  EducationEntry,
+  ExperienceEntry,
+  JobPreferences,
+  PreferenceAnyField,
+  PreferenceInputs,
+  PreferenceListField,
+  PreferenceToggleField,
+} from "@/shared/types/profile";
+import type {
+  ApplicationSortBy,
+  ManualApplicationDraft,
+  ManualJobDraft,
+} from "@/features/applications/model/types";
 
 type AiMatchJobStatus = {
   runId: string;
@@ -202,86 +132,6 @@ type AiMatchJobStatus = {
   updatedJobs: Array<{ id: string; data: unknown }>;
   failedJobs?: Array<{ id: string; error: string }>;
   error?: string | null;
-};
-
-type ApplicationStatus = "draft" | "applied" | "interview" | "assessment" | "offer" | "rejected";
-type ApplicationSortBy = "Date applied" | "AI Match" | "Status";
-type ApplicationEventType = "screening" | "interview" | "assessment" | "follow_up" | "offer_deadline";
-type ApplicationEventStatus = "scheduled" | "completed" | "canceled";
-type ApplicationEventOutcome = "positive" | "negative" | "neutral";
-
-type ApplicationDocument = {
-  id: string;
-  artifactId?: string;
-  sourceId?: string;
-  kind: "generated" | "uploaded" | "profile";
-  title: string;
-  fileName: string;
-  fileSize: string;
-  fileType: string;
-  uploadedAt: string;
-  downloadUrl: string;
-  legacyDataUrl?: string;
-  pendingFile?: File;
-};
-
-type TrackedApplication = {
-  id: string;
-  job: Job;
-  status: ApplicationStatus;
-  appliedAt: string;
-  nextStep: string;
-  notes: string;
-  documents: ApplicationDocument[];
-};
-
-type ManualJobDraft = {
-  title: string;
-  company: string;
-  location: string;
-  applyUrl: string;
-  overview: string;
-};
-
-type ManualApplicationDraft = ManualJobDraft & {
-  id?: string;
-  jobId?: string;
-  status: ApplicationStatus;
-  documents: ApplicationDocument[];
-};
-
-type ApplicationEvent = {
-  id: string;
-  applicationId: string;
-  type: ApplicationEventType;
-  status: ApplicationEventStatus;
-  outcome?: ApplicationEventOutcome;
-  title: string;
-  startsAt: string;
-  durationMinutes: number;
-  timezone: string;
-  location: string;
-  notes: string;
-};
-
-type ApplicationEventDraft = {
-  type: ApplicationEventType;
-  id?: string;
-  status: ApplicationEventStatus;
-  outcome: ApplicationEventOutcome | "";
-  title: string;
-  startsAt: string;
-  durationMinutes: string;
-  timezone: string;
-  location: string;
-  notes: string;
-};
-
-type ApplicationTimelineItem = {
-  label: string;
-  date: string;
-  state: "done" | "current" | "future" | "canceled" | "rejected";
-  event?: ApplicationEvent;
 };
 
 type AIBackendName = AiBackend;
@@ -512,35 +362,6 @@ type JobSearchRunPayload = {
   warning?: string | null;
 };
 
-type CandidateProfile = {
-  avatar_url: string;
-  name: string;
-  current_role: string;
-  desired_role: string;
-  location: string;
-  work_format: string;
-  headline: string;
-  linkedin: string;
-  github: string;
-  portfolio: string;
-  personal_site: string;
-  experience: string;
-  skills: string;
-  education: string;
-  job_preferences: string;
-  dealbreakers: string;
-  additional_notes: string;
-  // File metadata is hydrated from /profile/files and lives only in React state.
-  // It is stripped before the profile JSON is sent to the API.
-  documents: string;
-  avatar_file_id: string;
-  resume_file_id: string;
-  resume_file_name: string;
-  resume_file_size: string;
-  resume_updated_at: string;
-  resume_download_url: string;
-};
-
 type ProfileFilePayload = {
   id: string;
   kind: "primary_resume" | "supporting_document" | "avatar";
@@ -571,72 +392,6 @@ type WorkspaceSourceFilePayload = {
   uploadedAt: string;
   downloadUrl: string;
 };
-
-type ExperienceEntry = {
-  id: string;
-  title: string;
-  company: string;
-  employment_type: string;
-  location: string;
-  start_date: string;
-  end_date: string;
-  is_current: boolean;
-  description: string;
-};
-
-type EducationEntry = {
-  id: string;
-  institution: string;
-  credential: string;
-  field_of_study: string;
-  location: string;
-  start_date: string;
-  end_date: string;
-  is_current: boolean;
-  description: string;
-};
-
-type DocumentEntry = {
-  id: string;
-  title: string;
-  category: string;
-  language: string;
-  issuer: string;
-  notes: string;
-  file_name: string;
-  file_size: string;
-  file_type: string;
-  uploaded_at: string;
-  download_url: string;
-  pending_file?: File;
-};
-
-type JobPreferences = {
-  desired_roles: string[];
-  seniority: string[];
-  locations: string[];
-  work_formats: string[];
-  employment_types: string[];
-  industries: string[];
-  salary_min: string;
-  salary_currency: string;
-  work_authorization: string;
-  swiss_permit_status: string;
-  languages: string[];
-  company_sizes: string[];
-  priorities: string[];
-  notes: string;
-  no_preference: PreferenceAnyField[];
-};
-
-type PreferenceListField = "desired_roles" | "locations" | "industries" | "languages";
-type PreferenceToggleField = "seniority" | "work_formats" | "employment_types" | "company_sizes" | "priorities";
-type PreferenceAnyField =
-  | PreferenceListField
-  | PreferenceToggleField
-  | "salary"
-  | "work_authorization";
-type PreferenceInputs = Record<PreferenceListField, string>;
 
 type ResumeExperienceImportResponse = {
   experience?: Array<Partial<ExperienceEntry>>;
