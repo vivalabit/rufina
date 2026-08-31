@@ -11,6 +11,7 @@ import zipfile
 from io import BytesIO
 from pathlib import Path
 from urllib.error import HTTPError, URLError
+from urllib.parse import urlencode
 from urllib.request import Request, urlopen
 
 from playwright.sync_api import Page, expect, sync_playwright
@@ -170,8 +171,61 @@ class WorkspaceDockerE2E(unittest.TestCase):
             ) from error
 
     @classmethod
+    def upload_legacy_profile_document(cls, document: dict[str, object]) -> None:
+        header, separator, encoded = str(document["data_url"]).partition(",")
+        if not separator or ";base64" not in header:
+            raise AssertionError("Legacy profile document must use a base64 data URL")
+        content = base64.b64decode(encoded, validate=True)
+        content_type = str(
+            document.get("file_type")
+            or header.removeprefix("data:").partition(";")[0]
+        )
+        query = urlencode(
+            {
+                key: str(value)
+                for key, value in {
+                    "kind": "supporting_document",
+                    "file_name": document["file_name"],
+                    "legacyDocumentId": document["id"],
+                    "title": document.get("title"),
+                    "category": document.get("category"),
+                    "language": document.get("language"),
+                    "issuer": document.get("issuer"),
+                    "notes": document.get("notes"),
+                }.items()
+                if value not in (None, "")
+            }
+        )
+        request = Request(
+            f"{cls.api_url}/profile/files?{query}",
+            data=content,
+            headers={**cls.headers, "Content-Type": content_type},
+            method="POST",
+        )
+        try:
+            with urlopen(request, timeout=180) as response:
+                if response.status != 201:
+                    raise AssertionError(
+                        f"POST /profile/files: expected 201, got {response.status}"
+                    )
+        except HTTPError as error:
+            detail = error.read().decode(errors="replace")
+            raise AssertionError(
+                f"POST /profile/files: expected 201, got {error.code}: {detail}"
+            ) from error
+
+    @classmethod
     def seed_authoritative_match(cls, profile: dict[str, object], job: dict[str, object]) -> None:
-        cls.api_request("PUT", "/profile", profile)
+        # Keep inline documents in the browser migration fixture, omit them from
+        # profile JSON, and seed the same files through the binary API so the
+        # authoritative match remains current after the idempotent migration.
+        profile_payload = {
+            key: value for key, value in profile.items() if key != "documents"
+        }
+        cls.api_request("PUT", "/profile", profile_payload)
+        documents: list[dict[str, object]] = json.loads(str(profile["documents"]))
+        for document in documents:
+            cls.upload_legacy_profile_document(document)
         cls.api_request("PUT", "/jobs", {"jobs": [{"id": JOB_ID, "data": job}]})
         cls.api_request(
             "PUT",
@@ -183,7 +237,6 @@ class WorkspaceDockerE2E(unittest.TestCase):
             "/jobs/ai-match?force=true",
             {"jobs": [{"id": JOB_ID, "data": job}]},
         )
-        documents = json.loads(str(profile["documents"]))
         resume = next(
             document
             for document in documents
