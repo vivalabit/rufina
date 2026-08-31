@@ -12,7 +12,6 @@ import {
   BrainCircuit,
   BriefcaseBusiness,
   Calendar,
-  CalendarDays,
   ChartNoAxesColumnIncreasing,
   Check,
   ChevronDown,
@@ -31,7 +30,6 @@ import {
   Github,
   GraduationCap,
   Globe,
-  Home,
   KeyRound,
   Linkedin,
   Mail,
@@ -73,11 +71,11 @@ import {
   JobsToolbar,
   type BulkAnalysisScope,
 } from "@/components/jobs-toolbar";
-import { LogsView, type AppLogEntry, type AppLogLevel } from "@/components/logs-view";
+import { LogsView } from "@/components/logs-view";
 import { MasterResumeEditor } from "@/components/master-resume-editor";
 import { ResumeTemplateManager } from "@/components/resume-template-manager";
 import { getAiMatchAnalysisStatus, legacyAiMatchVersion } from "@/lib/ai-match";
-import { getAiSourceLabel, type AiBackend } from "@/lib/ai-source";
+import { getAiSourceLabel } from "@/lib/ai-source";
 import { findWorkspaceApplication, getHashForView, getRouteFromHash, type View } from "@/lib/app-route";
 import {
   directCompanyCatalog,
@@ -91,6 +89,31 @@ import {
 import { parseJobDescription } from "@/lib/job-description";
 import { normalizeJobsChJobUrl } from "@/lib/job-url";
 import { cn } from "@/lib/utils";
+import { appLogsStorageKey, maxStoredAppLogs } from "@/features/activity/model/constants";
+import { normalizeStoredLogs } from "@/features/activity/model/normalizers";
+import type { AppLogEntry } from "@/features/activity/model/types";
+import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
+import { navItems } from "@/features/app-shell/model/navigation";
+import {
+  AI_WORKLOAD_MODEL_OPTIONS,
+  defaultAppSettings,
+  defaultUiSettings,
+  isAllowedAIWorkloadModel,
+} from "@/features/settings/model/defaults";
+import type {
+  AIBackendName,
+  AIWorkloadReasoningEffort,
+  AppSettings,
+  AppSettingsUpdate,
+  OpenAIReasoningEffort,
+  UiSettings,
+} from "@/features/settings/model/types";
+import { apiBaseUrl, resolveApiUrl } from "@/shared/api/config";
+import type { PersistedEntityDto } from "@/shared/api/dto";
+import { readApiErrorMessage } from "@/shared/api/error";
+import { decodeDataUrl, isInlineDataUrl } from "@/shared/browser-storage/data-url";
+import { formatFileSize } from "@/shared/formatting/files";
+import { normalizeExternalUrl } from "@/shared/formatting/urls";
 import type {
   ApplicationDocument,
   ApplicationEvent,
@@ -129,100 +152,11 @@ type AiMatchJobStatus = {
   status: "idle" | "queued" | "running" | "completed" | "failed";
   total: number;
   processed: number;
-  updatedJobs: Array<{ id: string; data: unknown }>;
+  updatedJobs: PersistedEntityDto[];
   failedJobs?: Array<{ id: string; error: string }>;
   error?: string | null;
 };
 
-type AIBackendName = AiBackend;
-type OpenAIReasoningEffort = "none" | "low" | "medium" | "high" | "xhigh" | "max";
-type AIWorkloadReasoningEffort = "off" | OpenAIReasoningEffort;
-
-type AppSettings = {
-  has_brightdata_api_key: boolean;
-  brightdata_api_key_preview: string;
-  ai_backend: AIBackendName;
-  openai_api_key_configured: boolean;
-  openai_api_key_preview: string;
-  openai_api_model: string;
-  openai_api_reasoning_effort: OpenAIReasoningEffort;
-  openai_api_timeout_seconds: number;
-  openai_api_max_attempts: number;
-  openai_api_retry_backoff_seconds: number;
-  ai_match_model: string;
-  ai_match_reasoning: AIWorkloadReasoningEffort;
-  ai_match_batch_size: number;
-  ai_match_timeout_seconds: number;
-  ai_match_max_attempts: number;
-  auto_ai_match_enabled: boolean;
-  job_screening_model: string;
-  job_screening_reasoning: AIWorkloadReasoningEffort;
-  job_screening_batch_size: number;
-  job_screening_timeout_seconds: number;
-  job_screening_max_attempts: number;
-  job_screening_max_description_chars: number;
-};
-
-type AppSettingsUpdate = Partial<{
-  brightdata_api_key: string;
-  ai_backend: AIBackendName;
-  openai_api_key: string;
-  openai_api_model: string;
-  openai_api_reasoning_effort: OpenAIReasoningEffort;
-  openai_api_timeout_seconds: number;
-  openai_api_max_attempts: number;
-  openai_api_retry_backoff_seconds: number;
-  ai_match_model: string;
-  ai_match_reasoning: AIWorkloadReasoningEffort;
-  ai_match_batch_size: number;
-  ai_match_timeout_seconds: number;
-  ai_match_max_attempts: number;
-  auto_ai_match_enabled: boolean;
-  job_screening_model: string;
-  job_screening_reasoning: AIWorkloadReasoningEffort;
-  job_screening_batch_size: number;
-  job_screening_timeout_seconds: number;
-  job_screening_max_attempts: number;
-  job_screening_max_description_chars: number;
-}>;
-
-const defaultAppSettings: AppSettings = {
-  has_brightdata_api_key: false,
-  brightdata_api_key_preview: "",
-  ai_backend: "openclaw_codex",
-  openai_api_key_configured: false,
-  openai_api_key_preview: "",
-  openai_api_model: "gpt-5.6-terra",
-  openai_api_reasoning_effort: "medium",
-  openai_api_timeout_seconds: 120,
-  openai_api_max_attempts: 2,
-  openai_api_retry_backoff_seconds: 0.8,
-  ai_match_model: "openai/gpt-5.6-terra",
-  ai_match_reasoning: "low",
-  ai_match_batch_size: 1,
-  ai_match_timeout_seconds: 120,
-  ai_match_max_attempts: 2,
-  auto_ai_match_enabled: false,
-  job_screening_model: "openai/gpt-5.6-luna",
-  job_screening_reasoning: "off",
-  job_screening_batch_size: 10,
-  job_screening_timeout_seconds: 60,
-  job_screening_max_attempts: 2,
-  job_screening_max_description_chars: 12_000,
-};
-
-const AI_WORKLOAD_MODEL_OPTIONS = [
-  { value: "openai/gpt-5.6-terra", label: "GPT-5.6 Terra" },
-  { value: "openai/gpt-5.6-luna", label: "GPT-5.6 Luna" },
-  { value: "openai/gpt-5.5", label: "GPT-5.5" },
-] as const;
-
-const isAllowedAIWorkloadModel = (model: string) =>
-  AI_WORKLOAD_MODEL_OPTIONS.some((option) => option.value === model);
-
-type UiSettings = {
-  showLogs: boolean;
-};
 
 type ParserId = "linkedin" | "indeed" | "jobs_ch";
 type ActiveSearchSource = ParserId | "direct_companies";
@@ -535,7 +469,6 @@ const applicationEventOutcomes: Array<{ outcome: ApplicationEventOutcome; label:
   { outcome: "negative", label: "Rejected" },
 ];
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const aiMatchStatusPollDelayMs = 2500;
 const aiMatchStatusPollMaxAttempts = 720;
 const recentJobWindowMs = 24 * 60 * 60 * 1000;
@@ -559,25 +492,10 @@ const profileStorageKey = "tasko.profile.v1";
 const legacyParserSearchConfigsStorageKey = "tasko.parserSearchConfigs.v1";
 const parserSearchConfigsStorageKey = "tasko.parserSearchConfigs.v2";
 const uiSettingsStorageKey = "tasko.uiSettings.v1";
-const appLogsStorageKey = "tasko.appLogs.v1";
 const screenshotSessionId =
   process.env.NEXT_PUBLIC_SCREENSHOT_SESSION_ID?.trim() ?? "";
 const screenshotSessionStorageKey = "rufina.screenshotSessionId";
 const legacyMovedFromJobsNote = "Moved from Jobs after applying.";
-const maxStoredAppLogs = 300;
-
-const assistantPrompts = {
-  whyMatch: (score: number) =>
-    `Why ${score}%? Explain this rating using the selected vacancy and my verified profile: show what raises the score, what lowers it, and which requirements are missing or only partially supported. End with a prioritized "How to improve the match" section containing concrete actions I can take before applying. Separate resume/presentation improvements from genuinely missing experience or skills, and do not invent evidence.`,
-  whyNoMatch:
-    "Explain why this vacancy does not have a match score yet and what information or analysis is needed to assess it against my profile.",
-  beforeApplying:
-    "Tell me what I need to know before applying to this vacancy. Prioritize must-have requirements, hard constraints, missing or transferable evidence, likely recruiter concerns, facts I should verify, and a clear recommendation on whether and how to apply. Use only the vacancy and verified profile evidence.",
-  followUpApplication: "Write a concise recruiter follow-up for this application based on its current status, next step, and notes.",
-  prepareInterview: "Prepare me for an interview for this role with likely questions, answer guidance, verified evidence to use, and questions to ask.",
-  improveProfile: "Review my candidate profile and give me a prioritized, evidence-based improvement plan. Identify missing or weak sections and rewrite my headline and summary without inventing facts.",
-} as const;
-
 const defaultParserSearchForm: ParserSearchForm = {
   parsers: [],
   directCompaniesEnabled: false,
@@ -837,18 +755,6 @@ function JobFilterDropdown({
     </div>
   );
 }
-
-const defaultUiSettings: UiSettings = {
-  showLogs: false,
-};
-
-const navItems: Array<{ label: string; icon: typeof Home; href: string; view?: View }> = [
-  { label: "Dashboard", icon: Home, href: "#dashboard", view: "Dashboard" },
-  { label: "Jobs", icon: BriefcaseBusiness, href: "#jobs", view: "Jobs" },
-  { label: "Applications", icon: Mail, href: "#applications", view: "Applications" },
-  { label: "Calendar", icon: CalendarDays, href: "#calendar", view: "Calendar" },
-  { label: "AI Assistant", icon: Sparkles, href: "#assistant", view: "Assistant" },
-];
 
 const defaultCandidateProfile: CandidateProfile = {
   avatar_url: "/avatars/default-pug.png",
@@ -1356,11 +1262,6 @@ function profilePayloadForApi(profile: CandidateProfile) {
   return payload;
 }
 
-function resolveApiUrl(value: string) {
-  if (/^https?:\/\//i.test(value) || isInlineDataUrl(value)) return value;
-  return `${apiBaseUrl}${value.startsWith("/") ? value : `/${value}`}`;
-}
-
 function profileFileToDocumentEntry(file: ProfileFilePayload): DocumentEntry {
   return normalizeDocumentEntry({
     id: file.id,
@@ -1429,21 +1330,6 @@ class FileUploadResponseError extends Error {
 }
 
 const permanentLegacyFileStatuses = new Set([400, 413, 415, 422]);
-
-function isInlineDataUrl(value: unknown): boolean {
-  return typeof value === "string" && value.trim().toLowerCase().startsWith("data:");
-}
-
-function decodeDataUrl(dataUrl: string): Blob {
-  const normalizedDataUrl = dataUrl.trim();
-  const match = /^data:([^;,]+)?(;base64)?,(.*)$/is.exec(normalizedDataUrl);
-  if (!match) throw new Error("Legacy file data is invalid");
-  const contentType = match[1] || "application/octet-stream";
-  const bytes = match[2]
-    ? Uint8Array.from(atob(match[3]), (character) => character.charCodeAt(0))
-    : new TextEncoder().encode(decodeURIComponent(match[3]));
-  return new Blob([bytes], { type: contentType });
-}
 
 async function uploadProfileFile(
   file: Blob,
@@ -1816,17 +1702,6 @@ function displayProfileValue(value: string, fallback: string) {
 
 function displayProfileFirstName(value: string, fallback: string) {
   return hasProfileValue(value) ? value.trim().split(/\s+/)[0] : fallback;
-}
-
-function normalizeExternalUrl(value: string) {
-  const trimmedValue = value.trim();
-
-  if (!trimmedValue) return "";
-  if (/^https?:\/\//i.test(trimmedValue)) return trimmedValue;
-  if (/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmedValue)) return `mailto:${trimmedValue}`;
-  if (/^[a-z][a-z\d+\-.]*:/i.test(trimmedValue)) return "";
-
-  return `https://${trimmedValue.replace(/^\/+/, "")}`;
 }
 
 function parseProfileLines(value: string) {
@@ -2214,12 +2089,6 @@ function getAiMatchProfile(profile: CandidateProfile) {
   };
 }
 
-function formatFileSize(size: number) {
-  if (size < 1024) return `${size} B`;
-  if (size < 1024 * 1024) return `${Math.round(size / 1024)} KB`;
-  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
-}
-
 function formatProfileDate(value: string) {
   if (!value) return "";
 
@@ -2555,35 +2424,6 @@ function wait(ms: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
   });
-}
-
-async function readApiErrorMessage(response: Response, fallback: string) {
-  try {
-    const payload = (await response.json()) as { detail?: unknown; message?: unknown };
-    return formatApiErrorDetail(payload.detail) || formatApiErrorDetail(payload.message) || fallback;
-  } catch {
-    // Error responses are not guaranteed to be JSON.
-  }
-
-  return fallback;
-}
-
-function formatApiErrorDetail(value: unknown): string {
-  if (typeof value === "string") return value.trim();
-  if (Array.isArray(value)) {
-    return value.map(formatApiErrorDetail).filter(Boolean).join("; ");
-  }
-  if (!value || typeof value !== "object") return "";
-
-  const detail = value as Record<string, unknown>;
-  if (typeof detail.msg === "string" && detail.msg.trim()) {
-    const location = Array.isArray(detail.loc)
-      ? detail.loc.filter((part) => part !== "body").map(String).join(".")
-      : "";
-    return location ? `${location}: ${detail.msg.trim()}` : detail.msg.trim();
-  }
-
-  return formatApiErrorDetail(detail.detail) || formatApiErrorDetail(detail.message);
 }
 
 function createClientId(prefix: string) {
@@ -3027,26 +2867,6 @@ function filterBoolean(
     if (typeof filters[key] === "boolean") return filters[key];
   }
   return null;
-}
-
-function normalizeStoredLogs(value: unknown) {
-  if (!Array.isArray(value)) return [];
-
-  return value
-    .filter((entry): entry is Partial<AppLogEntry> => Boolean(entry) && typeof entry === "object")
-    .map((entry) => ({
-      id: typeof entry.id === "string" && entry.id ? entry.id : createClientId("log"),
-      timestamp: typeof entry.timestamp === "string" && entry.timestamp ? entry.timestamp : new Date().toISOString(),
-      level: isAppLogLevel(entry.level) ? entry.level : "info",
-      area: typeof entry.area === "string" && entry.area ? entry.area : "Application",
-      message: typeof entry.message === "string" && entry.message ? entry.message : "Log entry",
-      details: typeof entry.details === "string" && entry.details ? entry.details : undefined,
-    }))
-    .slice(0, maxStoredAppLogs);
-}
-
-function isAppLogLevel(value: unknown): value is AppLogLevel {
-  return value === "info" || value === "success" || value === "warning" || value === "error";
 }
 
 function formatAiMatchTimestamp(value?: string) {
@@ -4433,7 +4253,10 @@ export default function HomePage() {
   useEffect(() => {
     try {
       const rawLogs = window.localStorage.getItem(appLogsStorageKey);
-      setAppLogs(normalizeStoredLogs(rawLogs ? JSON.parse(rawLogs) : []));
+      setAppLogs(normalizeStoredLogs(rawLogs ? JSON.parse(rawLogs) : [], {
+        createId: createClientId,
+        now: () => new Date().toISOString(),
+      }));
     } catch {
       window.localStorage.removeItem(appLogsStorageKey);
     } finally {
@@ -4519,7 +4342,7 @@ export default function HomePage() {
 
         if (!response.ok) return;
 
-        const storedApplications = (await response.json()) as Array<{ id: string; data: unknown }>;
+        const storedApplications = (await response.json()) as PersistedEntityDto[];
         const loadedApplications = removeLegacyDemoApplications(
           normalizeStoredApplications(storedApplications.map((application) => application.data)),
         ).filter(
@@ -4573,7 +4396,7 @@ export default function HomePage() {
 
         if (!response.ok) return;
 
-        const storedEvents = (await response.json()) as Array<{ id: string; data: unknown }>;
+        const storedEvents = (await response.json()) as PersistedEntityDto[];
         const loadedEvents = sortApplicationEvents(
           removeLegacyDemoApplicationEvents(
             normalizeStoredApplicationEvents(
@@ -4984,7 +4807,7 @@ export default function HomePage() {
         return;
       }
 
-      const payload = (await response.json()) as Array<{ id: string; data: unknown }>;
+      const payload = (await response.json()) as PersistedEntityDto[];
       const matchedJob = normalizeStoredJobs(payload.map((item) => item.data)).find((job) => job.id === application.job.id);
 
       if (!matchedJob) {
@@ -5009,10 +4832,7 @@ export default function HomePage() {
           ),
         );
       }
-      const authoritativePayload = (await authoritativeResponse.json()) as {
-        id: string;
-        data: unknown;
-      };
+      const authoritativePayload = (await authoritativeResponse.json()) as PersistedEntityDto;
       const authoritativeApplication = normalizeStoredApplications([
         authoritativePayload.data,
       ])[0];

@@ -1,7 +1,8 @@
 import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
-import { LogsView, type AppLogEntry } from "@/components/logs-view";
+import { LogsView } from "@/components/logs-view";
+import type { AppLogEntry } from "@/features/activity/model/types";
 
 const logs: AppLogEntry[] = [
   {

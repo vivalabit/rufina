@@ -16,18 +16,10 @@ import {
 import type { LucideIcon } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import type { AppLogEntry, AppLogLevel } from "@/features/activity/model/types";
 import { cn } from "@/lib/utils";
 
-export type AppLogLevel = "info" | "success" | "warning" | "error";
-
-export type AppLogEntry = {
-  id: string;
-  timestamp: string;
-  level: AppLogLevel;
-  area: string;
-  message: string;
-  details?: string;
-};
+export type { AppLogEntry, AppLogLevel } from "@/features/activity/model/types";
 
 type LogLevelFilter = "all" | AppLogLevel;
 
