@@ -86,6 +86,7 @@ import { cn } from "@/lib/utils";
 import { appLogsStorageKey, maxStoredAppLogs } from "@/features/activity/model/constants";
 import { normalizeStoredLogs } from "@/features/activity/model/normalizers";
 import type { AppLogEntry } from "@/features/activity/model/types";
+import { screenshotSessionStorageKey } from "@/features/app-shell/browser-storage/keys";
 import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
 import { navItems } from "@/features/app-shell/model/navigation";
 import {
@@ -136,13 +137,20 @@ import {
   workspaceSourceToApplicationDocument,
 } from "@/features/applications/api/mappers";
 import {
-  legacyDemoApplicationIds,
-  normalizeApplicationDocuments,
   normalizeStoredApplicationEvents,
   normalizeStoredApplications,
   removeLegacyDemoApplicationEvents,
   removeLegacyDemoApplications,
 } from "@/features/applications/browser-storage/normalizers";
+import {
+  extractLegacyApplicationDocuments,
+  migrateLegacyApplicationDocuments,
+} from "@/features/applications/browser-storage/migrations";
+import {
+  applicationEventsStorageKey,
+  applicationFileStorageMigrationKey,
+  applicationsStorageKey,
+} from "@/features/applications/browser-storage/keys";
 import { applicationPayloadForStorage } from "@/features/applications/browser-storage/serialization";
 import {
   formatApplicationDate,
@@ -184,6 +192,14 @@ import type {
 } from "@/features/job-search/api/dto";
 import { parserSearchConfigFromApi } from "@/features/job-search/api/mappers";
 import {
+  hasEquivalentServerSearchConfig,
+  normalizeParserSearchConfigs,
+} from "@/features/job-search/browser-storage/migrations";
+import {
+  legacyParserSearchConfigsStorageKey,
+  parserSearchConfigsStorageKey,
+} from "@/features/job-search/browser-storage/keys";
+import {
   defaultLinkedInProfessionExperienceLevels,
   defaultParserSearchForm,
   directCompanyDirections,
@@ -191,7 +207,6 @@ import {
 import {
   directCompanySearchFiltersFromForm,
   isLinkedInProfessionQuery,
-  isRecord,
   normalizeDirectCompanyIds,
   normalizeParserIds,
   parserSearchFiltersFromForm,
@@ -218,6 +233,12 @@ import {
   normalizeStoredJobIds,
   normalizeStoredJobs,
 } from "@/features/jobs/browser-storage/normalizers";
+import {
+  archivedJobIdsStorageKey,
+  deletedJobIdsStorageKey,
+  importedJobsStorageKey,
+  savedJobIdsStorageKey,
+} from "@/features/jobs/browser-storage/keys";
 import {
   formatAiMatchTimestamp,
   formatConfidence,
@@ -274,6 +295,7 @@ import {
   defaultUiSettings,
   isAllowedAIWorkloadModel,
 } from "@/features/settings/model/defaults";
+import { uiSettingsStorageKey } from "@/features/settings/browser-storage/keys";
 import type {
   AIBackendName,
   AIWorkloadReasoningEffort,
@@ -285,7 +307,11 @@ import type {
 import { apiBaseUrl, resolveApiUrl } from "@/shared/api/config";
 import type { PersistedEntityDto } from "@/shared/api/dto";
 import { readApiErrorMessage } from "@/shared/api/error";
-import { decodeDataUrl, isInlineDataUrl } from "@/shared/browser-storage/data-url";
+import { isInlineDataUrl } from "@/shared/browser-storage/data-url";
+import {
+  browserStorageNamespacePrefix,
+  completedBrowserStorageMigrationValue,
+} from "@/shared/browser-storage/constants";
 import { formatFileSize } from "@/shared/formatting/files";
 import { normalizeExternalUrl } from "@/shared/formatting/urls";
 import {
@@ -299,6 +325,16 @@ import type {
   ResumeExperienceImportResponse,
   ResumeSkillsImportResponse,
 } from "@/features/profile/api/dto";
+import {
+  profileFileStorageMigrationKey,
+  profileStorageKey,
+} from "@/features/profile/browser-storage/keys";
+import {
+  hasLegacyProfileInlineFiles,
+  migrateLegacyProfileFiles,
+  readLegacyStoredCandidateProfile,
+} from "@/features/profile/browser-storage/migrations";
+import type { LegacyProfileFileUploadMetadata } from "@/features/profile/browser-storage/migrations";
 import {
   defaultCandidateProfile,
   defaultDocumentDraft,
@@ -373,21 +409,8 @@ const tabs = ["Overview", "AI Match"];
 
 const aiMatchStatusPollDelayMs = 2500;
 const aiMatchStatusPollMaxAttempts = 720;
-const importedJobsStorageKey = "tasko.importedJobs.v1";
-const savedJobIdsStorageKey = "tasko.savedJobIds.v1";
-const archivedJobIdsStorageKey = "tasko.archivedJobIds.v1";
-const deletedJobIdsStorageKey = "tasko.deletedJobIds.v1";
-const applicationsStorageKey = "tasko.applications.v1";
-const profileFileStorageMigrationKey = "tasko.file-storage-migration.v1.profile";
-const applicationFileStorageMigrationKey = "tasko.file-storage-migration.v1.applications";
-const applicationEventsStorageKey = "tasko.applicationEvents.v1";
-const profileStorageKey = "tasko.profile.v1";
-const legacyParserSearchConfigsStorageKey = "tasko.parserSearchConfigs.v1";
-const parserSearchConfigsStorageKey = "tasko.parserSearchConfigs.v2";
-const uiSettingsStorageKey = "tasko.uiSettings.v1";
 const screenshotSessionId =
   process.env.NEXT_PUBLIC_SCREENSHOT_SESSION_ID?.trim() ?? "";
-const screenshotSessionStorageKey = "rufina.screenshotSessionId";
 
 const jobFilterWidths: Record<JobFilterKey, string> = {
   location: "w-[126px] 2xl:w-[154px]",
@@ -587,26 +610,6 @@ function JobFilterDropdown({
   );
 }
 
-type LegacyStoredCandidateProfile = Partial<CandidateProfile> & {
-  resume_data_url?: string;
-  resumeDataUrl?: string;
-  documents?: string | unknown[];
-};
-
-function readLegacyStoredCandidateProfile(): LegacyStoredCandidateProfile | null {
-  try {
-    const rawProfile = window.localStorage.getItem(profileStorageKey);
-    if (!rawProfile) return null;
-    const value = JSON.parse(rawProfile) as unknown;
-    return value && typeof value === "object"
-      ? value as LegacyStoredCandidateProfile
-      : null;
-  } catch {
-    window.localStorage.removeItem(profileStorageKey);
-    return null;
-  }
-}
-
 function hydrateProfileFiles(
   profile: CandidateProfile,
   files: ProfileFilePayload[],
@@ -626,19 +629,16 @@ class FileUploadResponseError extends Error {
 
 const permanentLegacyFileStatuses = new Set([400, 413, 415, 422]);
 
+function isPermanentLegacyFileUploadError(error: unknown) {
+  return (
+    error instanceof FileUploadResponseError &&
+    permanentLegacyFileStatuses.has(error.status)
+  );
+}
+
 async function uploadProfileFile(
   file: Blob,
-  metadata: {
-    kind: ProfileFilePayload["kind"];
-    fileName: string;
-    title?: string;
-    category?: string;
-    language?: string;
-    issuer?: string;
-    notes?: string;
-    legacyDocumentId?: string;
-    replaceExisting?: boolean;
-  },
+  metadata: LegacyProfileFileUploadMetadata,
 ): Promise<ProfileFilePayload> {
   const query = new URLSearchParams({
     kind: metadata.kind,
@@ -682,168 +682,6 @@ async function fetchProfileFiles(signal?: AbortSignal): Promise<ProfileFilePaylo
     throw new Error(await readApiErrorMessage(response, "Profile files could not be loaded"));
   }
   return response.json() as Promise<ProfileFilePayload[]>;
-}
-
-async function migrateLegacyProfileFiles(
-  legacyProfile: LegacyStoredCandidateProfile,
-  existingFiles: ProfileFilePayload[],
-): Promise<string[]> {
-  const warnings: string[] = [];
-  const serverResume = existingFiles.find((file) => file.kind === "primary_resume");
-  const serverAvatar = existingFiles.find((file) => file.kind === "avatar");
-
-  async function uploadLegacyFile(
-    blob: Blob,
-    metadata: Parameters<typeof uploadProfileFile>[1],
-    label: string,
-  ) {
-    try {
-      return await uploadProfileFile(blob, metadata);
-    } catch (error) {
-      if (
-        error instanceof FileUploadResponseError
-        && permanentLegacyFileStatuses.has(error.status)
-      ) {
-        warnings.push(`${label} was removed because it is not a safe supported file.`);
-        return null;
-      }
-      throw error;
-    }
-  }
-
-  async function matchesServerFile(blob: Blob, serverFile: ProfileFilePayload) {
-    if (!globalThis.crypto?.subtle || !serverFile.contentSha256) return false;
-    const digest = await globalThis.crypto.subtle.digest("SHA-256", await blob.arrayBuffer());
-    const hash = Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, "0")).join("");
-    return hash === serverFile.contentSha256.toLowerCase();
-  }
-
-  const legacyResumeDataUrl = legacyProfile.resume_data_url ?? legacyProfile.resumeDataUrl;
-  if (isInlineDataUrl(legacyResumeDataUrl)) {
-    let resumeBlob: Blob | null = null;
-    try {
-      resumeBlob = decodeDataUrl(legacyResumeDataUrl as string);
-    } catch {
-      warnings.push("Malformed legacy resume was removed instead of being uploaded.");
-    }
-    if (resumeBlob && (!serverResume || !(await matchesServerFile(resumeBlob, serverResume)))) {
-      const resumeFileName = legacyProfile.resume_file_name?.trim() || "resume.pdf";
-      await uploadLegacyFile(resumeBlob, {
-        kind: serverResume ? "supporting_document" : "primary_resume",
-        fileName: resumeFileName,
-        title: serverResume ? `Legacy resume · ${resumeFileName}` : resumeFileName,
-        category: "CV / Resume",
-        legacyDocumentId: serverResume ? "legacy-primary-resume" : undefined,
-        replaceExisting: false,
-      }, "Legacy resume");
-    }
-  }
-
-  if (isInlineDataUrl(legacyProfile.avatar_url)) {
-    let blob: Blob | null = null;
-    try {
-      blob = decodeDataUrl(legacyProfile.avatar_url as string);
-    } catch {
-      warnings.push("Malformed legacy avatar was removed instead of being uploaded.");
-    }
-    const avatarExtensions: Record<string, string> = {
-      "image/png": "png",
-      "image/jpeg": "jpg",
-      "image/webp": "webp",
-      "image/gif": "gif",
-    };
-    const extension = blob ? avatarExtensions[blob.type.toLowerCase()] : undefined;
-    if (blob && extension) {
-      const matchesServer = serverAvatar
-        ? await matchesServerFile(blob, serverAvatar)
-        : false;
-      if (!matchesServer) await uploadLegacyFile(blob, {
-        kind: serverAvatar ? "supporting_document" : "avatar",
-        fileName: `avatar.${extension}`,
-        title: serverAvatar ? "Legacy profile avatar" : "Profile avatar",
-        category: serverAvatar ? "Other" : "Avatar",
-        legacyDocumentId: serverAvatar ? "legacy-profile-avatar" : undefined,
-        replaceExisting: false,
-      }, "Legacy avatar");
-    } else if (blob) {
-      warnings.push(`Unsupported legacy avatar type ${blob.type || "unknown"} was removed.`);
-    }
-  }
-
-  const serializedDocuments: unknown = legacyProfile.documents;
-  if (
-    (typeof serializedDocuments === "string" && serializedDocuments.trim())
-    || Array.isArray(serializedDocuments)
-  ) {
-    let parsed: unknown;
-    if (Array.isArray(serializedDocuments)) {
-      parsed = serializedDocuments;
-    } else {
-      try {
-        parsed = JSON.parse(serializedDocuments as string) as unknown;
-      } catch {
-        warnings.push("Malformed legacy profile document metadata was removed.");
-      }
-    }
-    if (Array.isArray(parsed)) {
-      for (const [index, value] of parsed.entries()) {
-        if (!value || typeof value !== "object") continue;
-        const document = value as Record<string, unknown>;
-        const dataUrl = document.data_url ?? document.dataUrl;
-        if (!isInlineDataUrl(dataUrl)) continue;
-        const fileName = typeof document.file_name === "string" && document.file_name.trim()
-          ? document.file_name.trim()
-          : typeof document.fileName === "string" && document.fileName.trim()
-            ? document.fileName.trim()
-          : `legacy-document-${index + 1}`;
-        const legacyDocumentId = typeof document.id === "string" && document.id.trim()
-          ? document.id.trim()
-          : `legacy-profile-document-${index + 1}`;
-        let blob: Blob | null = null;
-        try {
-          blob = decodeDataUrl(dataUrl as string);
-        } catch {
-          warnings.push(`Malformed legacy profile document ${fileName} was removed.`);
-        }
-        if (!blob) continue;
-        await uploadLegacyFile(blob, {
-          kind: "supporting_document",
-          fileName,
-          title: typeof document.title === "string" ? document.title : fileName,
-          category: typeof document.category === "string" ? document.category : "Other",
-          language: typeof document.language === "string" ? document.language : "",
-          issuer: typeof document.issuer === "string" ? document.issuer : "",
-          notes: typeof document.notes === "string" ? document.notes : "",
-          legacyDocumentId,
-        }, `Legacy profile document ${fileName}`);
-      }
-    }
-  }
-  return warnings;
-}
-
-function hasLegacyProfileInlineFiles(legacyProfile: LegacyStoredCandidateProfile) {
-  if (isInlineDataUrl(legacyProfile.resume_data_url ?? legacyProfile.resumeDataUrl)) return true;
-  if (isInlineDataUrl(legacyProfile.avatar_url)) return true;
-  const serializedDocuments: unknown = legacyProfile.documents;
-  if (serializedDocuments === null || serializedDocuments === undefined || serializedDocuments === "") return false;
-  try {
-    const documents = Array.isArray(serializedDocuments)
-      ? serializedDocuments
-      : JSON.parse(String(serializedDocuments)) as unknown;
-    return Array.isArray(documents) && documents.some((value) => (
-      Boolean(value)
-      && typeof value === "object"
-      && isInlineDataUrl(
-        (value as Record<string, unknown>).data_url
-        ?? (value as Record<string, unknown>).dataUrl,
-      )
-    ));
-  } catch {
-    // Malformed serialized document state still needs the migration path so it
-    // can be logged and scrubbed instead of silently bypassed.
-    return true;
-  }
 }
 
 async function uploadApplicationAttachment(
@@ -905,53 +743,6 @@ async function fetchApplicationDocuments(
       generatedDocumentToApplicationDocument(document, apiBaseUrl),
     ),
   ];
-}
-
-async function migrateLegacyApplicationDocuments(
-  legacyDocuments: Map<string, ApplicationDocument[]>,
-): Promise<{
-  documents: Map<string, ApplicationDocument[]>;
-  warnings: string[];
-}> {
-  const migrated = new Map<string, ApplicationDocument[]>();
-  const warnings: string[] = [];
-  for (const [applicationId, documents] of legacyDocuments) {
-    const uploaded: ApplicationDocument[] = [];
-    for (const document of documents) {
-      if (!isInlineDataUrl(document.legacyDataUrl)) continue;
-      let blob: Blob | null = null;
-      try {
-        blob = decodeDataUrl(document.legacyDataUrl as string);
-      } catch {
-        warnings.push(`Malformed legacy application document ${document.fileName} was removed.`);
-      }
-      if (!blob) continue;
-      try {
-        uploaded.push(await uploadApplicationAttachment(
-          applicationId,
-          blob,
-          {
-            fileName: document.fileName,
-            title: document.title,
-            legacyDocumentId: document.id,
-          },
-        ));
-      } catch (error) {
-        if (
-          error instanceof FileUploadResponseError
-          && permanentLegacyFileStatuses.has(error.status)
-        ) {
-          warnings.push(
-            `Legacy application document ${document.fileName} was removed because it is not a safe supported file.`,
-          );
-          continue;
-        }
-        throw error;
-      }
-    }
-    migrated.set(applicationId, uploaded);
-  }
-  return { documents: migrated, warnings };
 }
 
 function displayProfileValue(value: string, fallback: string) {
@@ -1066,53 +857,6 @@ function createClientId(prefix: string) {
   }
 
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function normalizeParserSearchConfigs(configs: ParserSearchConfig[]) {
-  const normalizedConfigs = configs
-    .filter((config) => config.id && config.name && config.form)
-    .map((config) => ({
-      ...config,
-      form: {
-        ...defaultParserSearchForm,
-        ...config.form,
-        parsers: normalizeParserIds(config.form),
-        directCompaniesEnabled:
-          config.form.directCompaniesEnabled === true,
-        directCompanyIds: normalizeDirectCompanyIds(
-          config.form.directCompanyIds ??
-            (config.form as ParserSearchForm & { directCompanies?: unknown })
-              .directCompanies,
-        ),
-      },
-      filters: isRecord(config.filters)
-        ? config.filters
-        : parserSearchFiltersFromForm(config.form),
-    }));
-  const uniqueConfigs = new Map<string, ParserSearchConfig>();
-
-  for (const config of normalizedConfigs) {
-    uniqueConfigs.set(config.id, config);
-  }
-
-  return Array.from(uniqueConfigs.values());
-}
-
-function extractLegacyApplicationDocuments(value: unknown) {
-  const documentsByApplication = new Map<string, ApplicationDocument[]>();
-  if (!Array.isArray(value)) return documentsByApplication;
-  for (const candidate of value) {
-    if (!candidate || typeof candidate !== "object") continue;
-    const application = candidate as Record<string, unknown>;
-    if (typeof application.id !== "string" || !application.id.trim()) continue;
-    if (legacyDemoApplicationIds.has(application.id)) continue;
-    const documents = normalizeApplicationDocuments(application.documents)
-      .filter((document) => Boolean(document.legacyDataUrl));
-    if (documents.length > 0) {
-      documentsByApplication.set(application.id, documents);
-    }
-  }
-  return documentsByApplication;
 }
 
 function createApplicationFromJob(job: Job, status: ApplicationStatus = "applied"): TrackedApplication {
@@ -1472,7 +1216,7 @@ export default function HomePage() {
     }
 
     for (const key of Object.keys(window.localStorage)) {
-      if (key.startsWith("tasko.")) {
+      if (key.startsWith(browserStorageNamespacePrefix)) {
         window.localStorage.removeItem(key);
       }
     }
@@ -1545,16 +1289,10 @@ export default function HomePage() {
           }
           for (const legacyConfig of legacyConfigs) {
             const filters = parserSearchFiltersFromForm(legacyConfig.form);
-            const alreadyImported = serverConfigs.some((serverConfig) => {
-              if (serverConfig.name !== legacyConfig.name) return false;
-              return (
-                JSON.stringify(
-                  parserSearchFiltersFromForm(
-                    parserSearchConfigFromApi(serverConfig).form,
-                  ),
-                ) === JSON.stringify(filters)
-              );
-            });
+            const alreadyImported = hasEquivalentServerSearchConfig(
+              legacyConfig,
+              serverConfigs,
+            );
             if (alreadyImported) continue;
 
             const importResponse = await fetch(
@@ -1665,7 +1403,10 @@ export default function HomePage() {
     if (!areApplicationsLoaded) return;
     const hasPendingLegacyDocuments = legacyApplicationDocumentsRef.current.size > 0;
     if (!hasPendingLegacyDocuments) {
-      window.localStorage.setItem(applicationFileStorageMigrationKey, "complete");
+      window.localStorage.setItem(
+        applicationFileStorageMigrationKey,
+        completedBrowserStorageMigrationValue,
+      );
       window.localStorage.setItem(
         applicationsStorageKey,
         JSON.stringify(applications.map(applicationPayloadForStorage)),
@@ -1709,6 +1450,10 @@ export default function HomePage() {
         if (legacyApplicationDocumentsRef.current.size > 0) {
           const migrationResult = await migrateLegacyApplicationDocuments(
             legacyApplicationDocumentsRef.current,
+            {
+              uploadAttachment: uploadApplicationAttachment,
+              isPermanentUploadError: isPermanentLegacyFileUploadError,
+            },
           );
           migratedDocuments = migrationResult.documents;
           for (const warning of migrationResult.warnings) {
@@ -1719,7 +1464,10 @@ export default function HomePage() {
             });
           }
           legacyApplicationDocumentsRef.current.clear();
-          window.localStorage.setItem(applicationFileStorageMigrationKey, "complete");
+          window.localStorage.setItem(
+            applicationFileStorageMigrationKey,
+            completedBrowserStorageMigrationValue,
+          );
           window.localStorage.setItem(
             applicationsStorageKey,
             JSON.stringify(applications.map(applicationPayloadForStorage)),
@@ -2015,14 +1763,16 @@ export default function HomePage() {
     }
 
     async function loadProfile() {
-      const legacyProfile = readLegacyStoredCandidateProfile();
+      const legacyProfile = readLegacyStoredCandidateProfile(
+        window.localStorage,
+      );
       const storedProfile = legacyProfile
         ? normalizeCandidateProfile({
             ...legacyProfile,
             avatar_url: isInlineDataUrl(legacyProfile.avatar_url)
               ? defaultCandidateProfile.avatar_url
               : legacyProfile.avatar_url,
-          })
+          } as Partial<CandidateProfile>)
         : null;
 
       try {
@@ -2062,7 +1812,10 @@ export default function HomePage() {
         }
 
         function finalizeLegacyProfileStorage() {
-          window.localStorage.setItem(profileFileStorageMigrationKey, "complete");
+          window.localStorage.setItem(
+            profileFileStorageMigrationKey,
+            completedBrowserStorageMigrationValue,
+          );
           if (!storedProfile || legacyProfileTextSaved) {
             window.localStorage.removeItem(profileStorageKey);
             return;
@@ -2085,6 +1838,10 @@ export default function HomePage() {
           const migrationWarnings = await migrateLegacyProfileFiles(
             legacyProfile,
             initialFiles,
+            {
+              uploadFile: uploadProfileFile,
+              isPermanentUploadError: isPermanentLegacyFileUploadError,
+            },
           );
           const migratedFiles = await fetchProfileFiles(abortController.signal);
           loadedProfile = hydrateProfileFiles(loadedProfile, migratedFiles);
