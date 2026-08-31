@@ -89,6 +89,57 @@ import type { AppLogEntry } from "@/features/activity/model/types";
 import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
 import { navItems } from "@/features/app-shell/model/navigation";
 import type {
+  GeneratedApplicationDocumentPayload,
+  WorkspaceSourceFilePayload,
+} from "@/features/applications/api/dto";
+import {
+  applicationEventToApiPayload,
+  generatedDocumentToApplicationDocument,
+  workspaceSourceToApplicationDocument,
+} from "@/features/applications/api/mappers";
+import {
+  legacyDemoApplicationIds,
+  normalizeApplicationDocuments,
+  normalizeStoredApplicationEvents,
+  normalizeStoredApplications,
+  removeLegacyDemoApplicationEvents,
+  removeLegacyDemoApplications,
+} from "@/features/applications/browser-storage/normalizers";
+import { applicationPayloadForStorage } from "@/features/applications/browser-storage/serialization";
+import {
+  formatApplicationDate,
+  formatApplicationEventDate,
+  formatApplicationEventTime,
+  getApplicationDocumentBadge,
+  getApplicationEventOutcomeLabel,
+  getApplicationEventTypeLabel,
+  getApplicationStatusLabel,
+  getVisibleApplicationNotes,
+} from "@/features/applications/formatting";
+import {
+  applicationEventOutcomes,
+  applicationEventStatuses,
+  applicationEventTypes,
+  applicationSortOptions,
+  applicationStatusStyles,
+  defaultManualApplicationDraft,
+  trackedApplicationStatuses,
+} from "@/features/applications/model/constants";
+import {
+  buildApplicationTimeline,
+  filterAndSortApplications,
+  getApplicationEventsFor,
+  getApplicationStatusCounts,
+  getNextUpcomingApplicationEvent,
+  getVisibleSelectedApplication,
+  sortApplicationEvents,
+} from "@/features/applications/model/selectors";
+import type {
+  ApplicationSortBy,
+  ApplicationStatusFilter,
+  ManualApplicationDraft,
+} from "@/features/applications/model/types";
+import type {
   JobSearchConfigPayload,
   JobSearchRunPayload,
   JobSourceConfigPayload,
@@ -266,7 +317,6 @@ import type {
   ApplicationEventStatus,
   ApplicationEventType,
   ApplicationStatus,
-  ApplicationTimelineItem,
   TrackedApplication,
 } from "@/shared/types/application";
 import type { Job } from "@/shared/types/job";
@@ -281,66 +331,8 @@ import type {
   PreferenceListField,
   PreferenceToggleField,
 } from "@/shared/types/profile";
-import type {
-  ApplicationSortBy,
-  ManualApplicationDraft,
-} from "@/features/applications/model/types";
-
-type WorkspaceSourceFilePayload = {
-  id: string;
-  applicationId: string;
-  category: string;
-  title: string;
-  language: string;
-  fileName: string;
-  fileSize: string;
-  sizeBytes?: number;
-  fileType: string;
-  uploadedAt: string;
-  downloadUrl: string;
-};
 
 const tabs = ["Overview", "AI Match"];
-
-const applicationStatuses: Array<{ status: ApplicationStatus; label: string }> = [
-  { status: "draft", label: "Preparing" },
-  { status: "applied", label: "Applied" },
-  { status: "interview", label: "Interview" },
-  { status: "assessment", label: "Assessment" },
-  { status: "offer", label: "Offer" },
-  { status: "rejected", label: "Rejected" },
-];
-const trackedApplicationStatuses = applicationStatuses.filter((item) => item.status !== "draft");
-const applicationSortOptions: ApplicationSortBy[] = ["Date applied", "AI Match", "Status"];
-
-const applicationStatusStyles: Record<ApplicationStatus, string> = {
-  draft: "border-[#fa5d00]/40 bg-[#fa5d00]/14 text-accent",
-  applied: "border-accent/35 bg-accent/12 text-accent",
-  interview: "border-success/35 bg-success/12 text-success",
-  assessment: "border-[#fa5d00]/40 bg-[#fa5d00]/14 text-accent",
-  offer: "border-success/45 bg-success/18 text-success",
-  rejected: "border-[#fa5d00]/45 bg-[#fa5d00]/13 text-[#fa5d00]",
-};
-
-const applicationEventTypes: Array<{ type: ApplicationEventType; label: string }> = [
-  { type: "screening", label: "Screening" },
-  { type: "interview", label: "Interview" },
-  { type: "assessment", label: "Assessment deadline" },
-  { type: "follow_up", label: "Follow-up" },
-  { type: "offer_deadline", label: "Offer deadline" },
-];
-
-const applicationEventStatuses: Array<{ status: ApplicationEventStatus; label: string }> = [
-  { status: "scheduled", label: "Scheduled" },
-  { status: "completed", label: "Completed" },
-  { status: "canceled", label: "Canceled" },
-];
-
-const applicationEventOutcomes: Array<{ outcome: ApplicationEventOutcome; label: string }> = [
-  { outcome: "positive", label: "Positive" },
-  { outcome: "neutral", label: "Neutral" },
-  { outcome: "negative", label: "Rejected" },
-];
 
 const aiMatchStatusPollDelayMs = 2500;
 const aiMatchStatusPollMaxAttempts = 720;
@@ -351,14 +343,6 @@ const deletedJobIdsStorageKey = "tasko.deletedJobIds.v1";
 const applicationsStorageKey = "tasko.applications.v1";
 const profileFileStorageMigrationKey = "tasko.file-storage-migration.v1.profile";
 const applicationFileStorageMigrationKey = "tasko.file-storage-migration.v1.applications";
-const legacyDemoApplicationIds = new Set([
-  "application-stripe-senior-product-designer",
-  "application-figma-product-design-lead",
-  "application-manual-job-demo-novara",
-  "application-manual-job-demo-cirruspay",
-  "application-manual-job-demo-alpine-grid",
-  "application-manual-job-demo-luma-health",
-]);
 const applicationEventsStorageKey = "tasko.applicationEvents.v1";
 const profileStorageKey = "tasko.profile.v1";
 const legacyParserSearchConfigsStorageKey = "tasko.parserSearchConfigs.v1";
@@ -367,7 +351,6 @@ const uiSettingsStorageKey = "tasko.uiSettings.v1";
 const screenshotSessionId =
   process.env.NEXT_PUBLIC_SCREENSHOT_SESSION_ID?.trim() ?? "";
 const screenshotSessionStorageKey = "rufina.screenshotSessionId";
-const legacyMovedFromJobsNote = "Moved from Jobs after applying.";
 
 const jobFilterWidths: Record<JobFilterKey, string> = {
   location: "w-[126px] 2xl:w-[154px]",
@@ -566,16 +549,6 @@ function JobFilterDropdown({
     </div>
   );
 }
-
-const defaultManualApplicationDraft: ManualApplicationDraft = {
-  title: "",
-  company: "",
-  location: "",
-  applyUrl: "",
-  overview: "",
-  status: "applied",
-  documents: [],
-};
 
 type LegacyStoredCandidateProfile = Partial<CandidateProfile> & {
   resume_data_url?: string;
@@ -836,22 +809,6 @@ function hasLegacyProfileInlineFiles(legacyProfile: LegacyStoredCandidateProfile
   }
 }
 
-function workspaceSourceToApplicationDocument(
-  source: WorkspaceSourceFilePayload,
-): ApplicationDocument {
-  return {
-    id: `source-${source.id}`,
-    sourceId: source.id,
-    kind: "uploaded",
-    title: source.title,
-    fileName: source.fileName,
-    fileSize: source.fileSize || (source.sizeBytes ? formatFileSize(source.sizeBytes) : ""),
-    fileType: source.fileType,
-    uploadedAt: source.uploadedAt,
-    downloadUrl: resolveApiUrl(source.downloadUrl),
-  };
-}
-
 async function uploadApplicationAttachment(
   applicationId: string,
   file: Blob,
@@ -901,36 +858,15 @@ async function fetchApplicationDocuments(
     throw new Error("Application documents could not be loaded");
   }
   const sources = (await sourceResponse.json()) as WorkspaceSourceFilePayload[];
-  const generated = (await generatedResponse.json()) as Array<{
-    id: string;
-    title: string;
-    type: "cover_letter" | "tailored_resume";
-    currentVersion: number;
-    updatedAt: string;
-    versions: Array<{
-      version: number;
-      artifact?: { fileName?: string; contentType?: string } | null;
-    }>;
-  }>;
+  const generated =
+    (await generatedResponse.json()) as GeneratedApplicationDocumentPayload[];
   return [
     ...sources
       .filter((source) => source.category === "Application Attachment")
       .map(workspaceSourceToApplicationDocument),
-    ...generated.map((document): ApplicationDocument => {
-      const current = document.versions.find((version) => version.version === document.currentVersion);
-      const defaultExtension = document.type === "tailored_resume" ? "docx" : "docx";
-      return {
-        id: `artifact-${document.id}`,
-        artifactId: document.id,
-        kind: "generated",
-        title: document.title,
-        fileName: current?.artifact?.fileName || `${document.title}.${defaultExtension}`,
-        fileSize: "",
-        fileType: current?.artifact?.contentType || "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        uploadedAt: document.updatedAt,
-        downloadUrl: `${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`,
-      };
-    }),
+    ...generated.map((document) =>
+      generatedDocumentToApplicationDocument(document, apiBaseUrl),
+    ),
   ];
 }
 
@@ -1125,108 +1061,6 @@ function normalizeParserSearchConfigs(configs: ParserSearchConfig[]) {
   return Array.from(uniqueConfigs.values());
 }
 
-function legacyFileName(index: number, dataUrl: string) {
-  const contentType = /^data:([^;,]+)/i.exec(dataUrl.trim())?.[1]?.toLowerCase() ?? "";
-  const extensionByType: Record<string, string> = {
-    "application/pdf": "pdf",
-    "application/msword": "doc",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
-    "image/png": "png",
-    "image/jpeg": "jpg",
-    "image/webp": "webp",
-    "image/gif": "gif",
-  };
-  const extension = extensionByType[contentType];
-  return `legacy-document-${index + 1}${extension ? `.${extension}` : ""}`;
-}
-
-function normalizeApplicationDocuments(value: unknown) {
-  if (!Array.isArray(value)) return [];
-
-  return value.flatMap((document, index): ApplicationDocument[] => {
-    if (!document || typeof document !== "object") return [];
-    const candidate = document as Partial<ApplicationDocument> & {
-      dataUrl?: string;
-      data_url?: string;
-      file_name?: string;
-    };
-    const rawLegacyDataUrl = candidate.legacyDataUrl ?? candidate.dataUrl ?? candidate.data_url ?? "";
-    const legacyDataUrl = isInlineDataUrl(rawLegacyDataUrl) ? rawLegacyDataUrl.trim() : "";
-    const fileName = candidate.fileName?.trim()
-      || candidate.file_name?.trim()
-      || (legacyDataUrl ? legacyFileName(index, legacyDataUrl) : "");
-    const downloadUrl = candidate.downloadUrl ?? (
-      rawLegacyDataUrl && !isInlineDataUrl(rawLegacyDataUrl) ? rawLegacyDataUrl : ""
-    );
-
-    if (!fileName || (!downloadUrl && !legacyDataUrl && !candidate.pendingFile)) {
-      return [];
-    }
-
-    return [
-      {
-        id: typeof candidate.id === "string" && candidate.id.trim()
-          ? candidate.id
-          : `legacy-application-document-${index + 1}`,
-        artifactId: candidate.artifactId?.trim() || undefined,
-        sourceId: candidate.sourceId?.trim() || undefined,
-        kind: candidate.kind ?? (candidate.artifactId ? "generated" : "uploaded"),
-        title: candidate.title?.trim() || fileName.replace(/\.[^.]+$/, "").replace(/[_-]+/g, " ").trim() || fileName,
-        fileName,
-        fileSize: candidate.fileSize?.trim() ?? "",
-        fileType: candidate.fileType?.trim() ?? "application/octet-stream",
-        uploadedAt: candidate.uploadedAt?.trim() ?? "",
-        downloadUrl,
-        legacyDataUrl: legacyDataUrl || undefined,
-        pendingFile: candidate.pendingFile,
-      },
-    ];
-  });
-}
-
-function applicationPayloadForStorage(application: TrackedApplication) {
-  const payload: Partial<TrackedApplication> = { ...application };
-  delete payload.documents;
-  return payload;
-}
-
-function normalizeStoredApplications(value: unknown) {
-  if (!Array.isArray(value)) return [];
-
-  return value.flatMap((application): TrackedApplication[] => {
-    if (!application || typeof application !== "object") return [];
-    const candidate = application as Partial<TrackedApplication>;
-    const normalizedJobs = normalizeStoredJobs([candidate.job]);
-    const isValidApplication =
-      typeof candidate.id === "string" &&
-      candidate.job !== undefined &&
-      normalizedJobs.length === 1 &&
-      applicationStatuses.some((item) => item.status === candidate.status) &&
-      typeof candidate.appliedAt === "string" &&
-      typeof candidate.nextStep === "string" &&
-      typeof candidate.notes === "string";
-
-    if (!isValidApplication) return [];
-
-    const id = candidate.id as string;
-    const appliedAt = candidate.appliedAt as string;
-    const nextStep = candidate.nextStep as string;
-    const notes = candidate.notes as string;
-
-    return [
-      {
-        id,
-        job: normalizedJobs[0],
-        status: candidate.status as ApplicationStatus,
-        appliedAt,
-        nextStep,
-        notes,
-        documents: normalizeApplicationDocuments(candidate.documents),
-      },
-    ];
-  });
-}
-
 function extractLegacyApplicationDocuments(value: unknown) {
   const documentsByApplication = new Map<string, ApplicationDocument[]>();
   if (!Array.isArray(value)) return documentsByApplication;
@@ -1242,66 +1076,6 @@ function extractLegacyApplicationDocuments(value: unknown) {
     }
   }
   return documentsByApplication;
-}
-
-function removeLegacyDemoApplications(applications: TrackedApplication[]) {
-  return applications.filter((application) => !legacyDemoApplicationIds.has(application.id));
-}
-
-function removeLegacyDemoApplicationEvents(events: ApplicationEvent[]) {
-  return events.filter(
-    (event) => !legacyDemoApplicationIds.has(event.applicationId),
-  );
-}
-
-function normalizeStoredApplicationEvents(value: unknown) {
-  if (!Array.isArray(value)) return [];
-
-  return value.flatMap((event): ApplicationEvent[] => {
-    if (!event || typeof event !== "object") return [];
-    const candidate = event as Partial<ApplicationEvent>;
-    const { id, applicationId, type, title, startsAt, durationMinutes, timezone, location, notes } = candidate;
-
-    if (
-      typeof id !== "string" ||
-      typeof applicationId !== "string" ||
-      !type ||
-      !applicationEventTypes.some((item) => item.type === type) ||
-      typeof title !== "string" ||
-      typeof startsAt !== "string" ||
-      typeof durationMinutes !== "number" ||
-      typeof timezone !== "string" ||
-      typeof location !== "string" ||
-      typeof notes !== "string"
-    ) {
-      return [];
-    }
-
-    const storedStatus = candidate.status;
-    const storedOutcome = candidate.outcome;
-    const status: ApplicationEventStatus = applicationEventStatuses.some((item) => item.status === storedStatus) && storedStatus
-      ? storedStatus
-      : "scheduled";
-    const outcome = applicationEventOutcomes.some((item) => item.outcome === storedOutcome)
-      ? storedOutcome
-      : undefined;
-
-    return [
-      {
-        id,
-        applicationId,
-        type,
-        status,
-        outcome,
-        title,
-        startsAt,
-        durationMinutes,
-        timezone,
-        location,
-        notes,
-      },
-    ];
-  });
 }
 
 function createApplicationFromJob(job: Job, status: ApplicationStatus = "applied"): TrackedApplication {
@@ -1349,30 +1123,6 @@ function createProfileResumeApplicationDocument(profile: CandidateProfile): Appl
     uploadedAt: profile.resume_updated_at || new Date().toISOString(),
     downloadUrl: profile.resume_download_url,
   };
-}
-
-function getApplicationEventTypeLabel(type: ApplicationEventType) {
-  return applicationEventTypes.find((item) => item.type === type)?.label ?? type;
-}
-
-function getApplicationEventStatusLabel(status: ApplicationEventStatus) {
-  return applicationEventStatuses.find((item) => item.status === status)?.label ?? status;
-}
-
-function getApplicationEventOutcomeLabel(outcome?: ApplicationEventOutcome) {
-  return outcome ? applicationEventOutcomes.find((item) => item.outcome === outcome)?.label ?? outcome : "";
-}
-
-function getApplicationTimelineEventLabel(type: ApplicationEventType) {
-  const labels: Record<ApplicationEventType, string> = {
-    screening: "Phone screen",
-    interview: "Interview",
-    assessment: "Assessment deadline",
-    follow_up: "Follow-up",
-    offer_deadline: "Offer deadline",
-  };
-
-  return labels[type];
 }
 
 function getLocalTimezone() {
@@ -1434,48 +1184,6 @@ function createApplicationEvent(applicationId: string, draft: ApplicationEventDr
     location: draft.location.trim(),
     notes: draft.notes.trim(),
   };
-}
-
-function sortApplicationEvents(events: ApplicationEvent[]) {
-  return [...events].sort((a, b) => new Date(a.startsAt).getTime() - new Date(b.startsAt).getTime());
-}
-
-function formatApplicationEventDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Date TBD";
-
-  return date.toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function formatApplicationEventTime(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Time TBD";
-
-  return date.toLocaleTimeString("en-US", {
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
-
-function formatApplicationDate(value: string) {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Not set";
-
-  const month = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][date.getMonth()];
-  return `${month} ${date.getDate()}, ${date.getFullYear()}`;
-}
-
-function getApplicationStatusLabel(status: ApplicationStatus) {
-  return applicationStatuses.find((item) => item.status === status)?.label ?? status;
-}
-
-function getVisibleApplicationNotes(notes: string) {
-  return notes.trim() === legacyMovedFromJobsNote ? "" : notes.trim();
 }
 
 function mergeSkillLists(currentSkills: string[], importedSkills: string[]) {
@@ -2055,11 +1763,7 @@ export default function HomePage() {
                 (event) =>
                   !deletedApplicationIdsRef.current.has(event.applicationId),
               )
-              .map((event) => ({
-                id: event.id,
-                application_id: event.applicationId,
-                data: event,
-              })),
+              .map(applicationEventToApiPayload),
           }),
         });
         if (!response.ok) {
@@ -2957,11 +2661,7 @@ export default function HomePage() {
           {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              id: event.id,
-              application_id: event.applicationId,
-              data: event,
-            }),
+            body: JSON.stringify(applicationEventToApiPayload(event)),
           },
         );
         if (!response.ok && response.status !== 404) {
@@ -7233,7 +6933,7 @@ function ApplicationsView({
   onDeleteEvent: (eventId: string) => void;
 }) {
   const [applicationQuery, setApplicationQuery] = useState("");
-  const [selectedStatusFilter, setSelectedStatusFilter] = useState<ApplicationStatus | "all">("all");
+  const [selectedStatusFilter, setSelectedStatusFilter] = useState<ApplicationStatusFilter>("all");
   const [applicationSortBy, setApplicationSortBy] = useState<ApplicationSortBy>("Date applied");
   const [isScheduleDialogOpen, setIsScheduleDialogOpen] = useState(false);
   const [eventDraft, setEventDraft] = useState<ApplicationEventDraft | null>(null);
@@ -7246,81 +6946,32 @@ function ApplicationsView({
   const [manualApplicationDraft, setManualApplicationDraft] = useState<ManualApplicationDraft>(defaultManualApplicationDraft);
   const [isManualApplicationSaving, setIsManualApplicationSaving] = useState(false);
   const [manualApplicationError, setManualApplicationError] = useState("");
-  const statusCounts = applications.reduce(
-    (counts, application) => ({
-      ...counts,
-      [application.status]: counts[application.status] + 1,
-    }),
-    { draft: 0, applied: 0, interview: 0, assessment: 0, offer: 0, rejected: 0 } satisfies Record<ApplicationStatus, number>,
-  );
-  const normalizedApplicationQuery = applicationQuery.trim().toLowerCase();
-  const filteredApplications = applications
-    .filter((application) => {
-      const matchesStatus = selectedStatusFilter === "all" || application.status === selectedStatusFilter;
-      const matchesQuery =
-        normalizedApplicationQuery.length === 0 ||
-        [application.job.title, application.job.company, application.job.location, application.job.type, application.nextStep].some((value) =>
-          value.toLowerCase().includes(normalizedApplicationQuery),
-        );
-
-      return matchesStatus && matchesQuery;
-    })
-    .sort((left, right) => {
-      if (applicationSortBy === "AI Match") {
-        return getDisplayMatch(right.job) - getDisplayMatch(left.job);
-      }
-      if (applicationSortBy === "Status") {
-        const leftIndex = trackedApplicationStatuses.findIndex((item) => item.status === left.status);
-        const rightIndex = trackedApplicationStatuses.findIndex((item) => item.status === right.status);
-        return leftIndex - rightIndex;
-      }
-
-      const leftTime = Date.parse(left.appliedAt);
-      const rightTime = Date.parse(right.appliedAt);
-      return (Number.isNaN(rightTime) ? 0 : rightTime) - (Number.isNaN(leftTime) ? 0 : leftTime);
-    });
+  const statusCounts = getApplicationStatusCounts(applications);
+  const filteredApplications = filterAndSortApplications(applications, {
+    query: applicationQuery,
+    status: selectedStatusFilter,
+    sortBy: applicationSortBy,
+  });
   const matchingApplicationIdSet = new Set(matchingApplicationIds);
-  const visibleSelectedApplication =
-    selectedApplication && filteredApplications.some((application) => application.id === selectedApplication.id)
-      ? selectedApplication
-      : filteredApplications[0] ?? null;
+  const visibleSelectedApplication = getVisibleSelectedApplication(
+    selectedApplication,
+    filteredApplications,
+  );
   const visibleApplicationEvents = visibleSelectedApplication
-    ? sortApplicationEvents(events.filter((event) => event.applicationId === visibleSelectedApplication.id))
+    ? getApplicationEventsFor(events, visibleSelectedApplication.id)
     : [];
   const aiInfoApplication = applications.find((application) => application.id === aiInfoApplicationId) ?? null;
-  const nextApplicationEvent =
-    visibleApplicationEvents.find(
-      (event) => event.status === "scheduled" && new Date(event.startsAt).getTime() >= Date.now(),
-    ) ?? null;
+  const nextApplicationEvent = getNextUpcomingApplicationEvent(
+    visibleApplicationEvents,
+    Date.now(),
+  );
   const isEditingEvent = Boolean(eventDraft?.id);
-  const timelineItems: ApplicationTimelineItem[] = visibleSelectedApplication
-    ? [
-        {
-          label: visibleSelectedApplication.status === "draft" ? "Application created" : "Applied",
-          date: formatApplicationDate(visibleSelectedApplication.appliedAt),
-          state: visibleSelectedApplication.status === "draft" ? "current" : "done",
-        },
-        ...visibleApplicationEvents.map((event) => {
-          const isNextEvent = nextApplicationEvent?.id === event.id;
-          const state: ApplicationTimelineItem["state"] =
-            event.status === "canceled"
-              ? "canceled"
-              : event.outcome === "negative"
-                ? "rejected"
-                : event.status === "completed"
-                  ? "done"
-                  : isNextEvent
-                    ? "current"
-                    : "future";
-
-          return {
-            label: getApplicationTimelineEventLabel(event.type),
-            date: `${formatApplicationEventDate(event.startsAt)} at ${formatApplicationEventTime(event.startsAt)}`,
-            state,
-            event,
-          };
-        }),
-      ]
+  const timelineItems = visibleSelectedApplication
+    ? buildApplicationTimeline(
+        visibleSelectedApplication,
+        visibleApplicationEvents,
+        nextApplicationEvent,
+      )
     : [];
 
   function openManualApplicationDialog() {
@@ -7510,15 +7161,6 @@ function ApplicationsView({
 
     onDeleteApplication(visibleSelectedApplication.id);
     setIsApplicationMenuOpen(false);
-  }
-
-  function getApplicationDocumentBadge(document: ApplicationDocument) {
-    const extension = document.fileName.split(".").pop()?.trim().toUpperCase();
-    if (extension && extension.length <= 5) return extension;
-    if (document.fileType.includes("pdf")) return "PDF";
-    if (document.fileType.includes("word")) return "DOC";
-    if (document.fileType.includes("image")) return "IMG";
-    return "FILE";
   }
 
   async function attachApplicationDocument(file: File | undefined) {
