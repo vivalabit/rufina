@@ -15,8 +15,7 @@ import { AutoSearchDialog } from "@/components/auto-search-dialog";
 import { Button } from "@/components/ui/button";
 import { VacancyFilterDialog } from "@/components/vacancy-filter-dialog";
 import { cn } from "@/lib/utils";
-
-export type BulkAnalysisScope = "recent" | "missing";
+import type { BulkAnalysisScope } from "@/features/jobs/model/types";
 
 type JobsToolbarProps = {
   className?: string;

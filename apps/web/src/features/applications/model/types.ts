@@ -1,14 +1,7 @@
 import type { ApplicationDocument, ApplicationStatus } from "@/shared/types/application";
+import type { ManualJobDraft } from "@/features/jobs/model/types";
 
 export type ApplicationSortBy = "Date applied" | "AI Match" | "Status";
-
-export type ManualJobDraft = {
-  title: string;
-  company: string;
-  location: string;
-  applyUrl: string;
-  overview: string;
-};
 
 export type ManualApplicationDraft = ManualJobDraft & {
   id?: string;

@@ -67,15 +67,10 @@ import { ApplicationWorkspace } from "@/components/application-workspace";
 import { CriticalNotificationsBell } from "@/components/critical-notifications-bell";
 import { DashboardGreeting, useHydrationSafeCurrentTime } from "@/components/dashboard-greeting";
 import { DirectCompaniesSource } from "@/components/direct-companies-source";
-import {
-  JobsToolbar,
-  type BulkAnalysisScope,
-} from "@/components/jobs-toolbar";
+import { JobsToolbar } from "@/components/jobs-toolbar";
 import { LogsView } from "@/components/logs-view";
 import { MasterResumeEditor } from "@/components/master-resume-editor";
 import { ResumeTemplateManager } from "@/components/resume-template-manager";
-import { getAiMatchAnalysisStatus, legacyAiMatchVersion } from "@/lib/ai-match";
-import { getAiSourceLabel } from "@/lib/ai-source";
 import { findWorkspaceApplication, getHashForView, getRouteFromHash, type View } from "@/lib/app-route";
 import {
   directCompanyCatalog,
@@ -87,13 +82,68 @@ import {
   type JobSearchProgressPhase,
 } from "@/lib/job-search-progress";
 import { parseJobDescription } from "@/lib/job-description";
-import { normalizeJobsChJobUrl } from "@/lib/job-url";
 import { cn } from "@/lib/utils";
 import { appLogsStorageKey, maxStoredAppLogs } from "@/features/activity/model/constants";
 import { normalizeStoredLogs } from "@/features/activity/model/normalizers";
 import type { AppLogEntry } from "@/features/activity/model/types";
 import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
 import { navItems } from "@/features/app-shell/model/navigation";
+import type { AiMatchJobStatus } from "@/features/jobs/api/dto";
+import {
+  normalizeStoredJobIds,
+  normalizeStoredJobs,
+} from "@/features/jobs/browser-storage/normalizers";
+import {
+  formatAiMatchTimestamp,
+  formatConfidence,
+  formatJobLocationCompact,
+  formatJobPosted,
+  formatJobPostedCompact,
+  getJobApplyUrl,
+} from "@/features/jobs/formatting";
+import {
+  buildAiMatchRawExplanation,
+  buildRecommendationPlan,
+  formatMatchValue,
+  getAiMatchBreakdownItems,
+  getAiMatchSourceDisplay,
+  getDisplayMatch,
+  getProfileImprovementItems,
+  hasDisplayableMatch,
+} from "@/features/jobs/model/ai-match";
+import {
+  defaultJobFilters,
+  defaultManualJobDraft,
+  experienceFilterOptions,
+  jobSortOptions,
+  matchFilterOptions,
+  remoteFilterOptions,
+  salaryFilterOptions,
+} from "@/features/jobs/model/constants";
+import { demoJobs } from "@/features/jobs/model/demo-jobs";
+import { createManualJobFromDraft } from "@/features/jobs/model/manual-analysis";
+import {
+  countArchivedJobs,
+  countSavedJobs,
+  getBulkAnalysisCandidates,
+  getJobPostedTime,
+  hasActiveJobFilters,
+  keepStoredUserJobs,
+  mergeJobs,
+  selectAvailableJobs,
+  selectFilteredJobs,
+  selectJobFilterOptions,
+} from "@/features/jobs/model/selectors";
+import {
+  isUserManagedJob,
+} from "@/features/jobs/model/sources";
+import type {
+  BulkAnalysisScope,
+  JobFilterKey,
+  JobFilters,
+  JobSortBy,
+  ManualJobDraft,
+} from "@/features/jobs/model/types";
 import {
   AI_WORKLOAD_MODEL_OPTIONS,
   defaultAppSettings,
@@ -183,11 +233,7 @@ import type {
   ApplicationTimelineItem,
   TrackedApplication,
 } from "@/shared/types/application";
-import type {
-  AiMatchMetadata,
-  Job,
-  JobRecommendation,
-} from "@/shared/types/job";
+import type { Job } from "@/shared/types/job";
 import type {
   CandidateProfile,
   DocumentEntry,
@@ -202,18 +248,7 @@ import type {
 import type {
   ApplicationSortBy,
   ManualApplicationDraft,
-  ManualJobDraft,
 } from "@/features/applications/model/types";
-
-type AiMatchJobStatus = {
-  runId: string;
-  status: "idle" | "queued" | "running" | "completed" | "failed";
-  total: number;
-  processed: number;
-  updatedJobs: PersistedEntityDto[];
-  failedJobs?: Array<{ id: string; error: string }>;
-  error?: string | null;
-};
 
 
 type ParserId = "linkedin" | "indeed" | "jobs_ch";
@@ -298,12 +333,6 @@ type SourceSearchDraft = Pick<
   | "limitPerInput"
 >;
 
-type JobFilterKey = "location" | "remote" | "salary" | "experience" | "type" | "match";
-
-type JobFilters = Record<JobFilterKey, string>;
-
-type JobSortBy = "AI Match" | "Time" | "Salary";
-
 type ParserSearchConfig = {
   id: string;
   name: string;
@@ -368,87 +397,6 @@ type WorkspaceSourceFilePayload = {
   downloadUrl: string;
 };
 
-const demoJobs: Job[] = [
-  {
-    id: "stripe-senior-product-designer",
-    company: "Stripe",
-    title: "Senior Product Designer",
-    location: "Remote",
-    type: "Full-time",
-    salary: "$120k - $160k",
-    posted: "2h ago",
-    experience: "5+ years",
-    department: "Product Design",
-    match: 92,
-    logo: "stripe",
-    overview:
-      "We're looking for a Senior Product Designer to join our team and help design the future of online payments. You'll work on complex problems that impact millions of businesses worldwide.",
-    responsibilities: [
-      "Lead design projects from concept to execution",
-      "Collaborate with cross-functional teams",
-      "Design user-centered solutions for complex problems",
-      "Mentor junior designers",
-    ],
-    requirements: [
-      "5+ years of product design experience",
-      "Strong portfolio demonstrating design thinking",
-      "Experience with design systems",
-      "Excellent communication skills",
-    ],
-    skills: ["Figma", "Sketch", "Design Systems", "User Research", "Prototyping"],
-    salaryAverage: "$140k",
-    salaryMin: "$120k",
-    salaryMax: "$160k",
-    recommendations: [],
-    companyInfo:
-      "Stripe builds financial infrastructure for internet businesses, with design teams focused on developer tools, dashboards, and payment experiences.",
-    reviews: [
-      "Design quality bar is high and feedback cycles are direct.",
-      "Strong product culture with close engineering collaboration.",
-    ],
-    similarJobs: ["Staff Product Designer at Square", "Design Systems Lead at Ramp", "Senior UX Designer at Shopify"],
-  },
-  {
-    id: "figma-product-design-lead",
-    company: "Figma",
-    title: "Product Design Lead",
-    location: "Remote",
-    type: "Full-time",
-    salary: "$130k - $170k",
-    posted: "5h ago",
-    experience: "6+ years",
-    department: "Editor Experience",
-    match: 89,
-    logo: "figma",
-    overview:
-      "Figma is hiring a Product Design Lead to shape collaborative creation workflows for designers, engineers, and product teams. This role owns strategy, craft, and team rituals for high-impact editor surfaces.",
-    responsibilities: [
-      "Define the product design direction for core collaboration flows",
-      "Partner with research, product, and engineering leads",
-      "Prototype new interaction models",
-      "Coach designers through critiques and launches",
-    ],
-    requirements: [
-      "6+ years designing creative or productivity tools",
-      "Experience leading ambiguous product initiatives",
-      "Strong systems thinking and interaction design craft",
-      "Comfort presenting design rationale to leadership",
-    ],
-    skills: ["Figma", "Prototyping", "Design Strategy", "Research", "Collaboration"],
-    salaryAverage: "$150k",
-    salaryMin: "$130k",
-    salaryMax: "$170k",
-    recommendations: [],
-    companyInfo:
-      "Figma creates collaborative design and product development software used by teams to ideate, design, prototype, and ship together.",
-    reviews: [
-      "Fast-moving product teams with thoughtful design critique.",
-      "Strong remote culture and high ownership expectations.",
-    ],
-    similarJobs: ["Principal Product Designer at Miro", "Design Lead at Linear", "Senior Product Designer at Webflow"],
-  },
-];
-
 const tabs = ["Overview", "AI Match"];
 type ParserSearchStatus = "idle" | "loading" | "ready" | "error";
 
@@ -494,7 +442,6 @@ const applicationEventOutcomes: Array<{ outcome: ApplicationEventOutcome; label:
 
 const aiMatchStatusPollDelayMs = 2500;
 const aiMatchStatusPollMaxAttempts = 720;
-const recentJobWindowMs = 24 * 60 * 60 * 1000;
 const importedJobsStorageKey = "tasko.importedJobs.v1";
 const savedJobIdsStorageKey = "tasko.savedJobIds.v1";
 const archivedJobIdsStorageKey = "tasko.archivedJobIds.v1";
@@ -544,42 +491,6 @@ const defaultLinkedInProfessionExperienceLevels = ["Entry level", "Internship"];
 function isLinkedInProfessionQuery(query: LinkedInDiscoveryQueryDraft) {
   return query.experienceLevels.length > 0;
 }
-
-const defaultJobFilters: JobFilters = {
-  location: "Any",
-  remote: "Any",
-  salary: "Any",
-  experience: "Any",
-  type: "Any",
-  match: "Any",
-};
-
-const remoteFilterOptions = [
-  { value: "remote", label: "Remote only" },
-  { value: "hybrid", label: "Hybrid" },
-  { value: "onsite", label: "On-site" },
-];
-
-const salaryFilterOptions = [
-  { value: "listed", label: "Salary listed" },
-  { value: "100000", label: "$100k+" },
-  { value: "120000", label: "$120k+" },
-  { value: "140000", label: "$140k+" },
-];
-
-const experienceFilterOptions = [
-  { value: "entry", label: "Entry / Junior" },
-  { value: "mid", label: "Mid-level" },
-  { value: "senior", label: "Senior+" },
-];
-
-const matchFilterOptions = [
-  { value: "70", label: "70%+" },
-  { value: "80", label: "80%+" },
-  { value: "90", label: "90%+" },
-];
-
-const jobSortOptions: JobSortBy[] = ["AI Match", "Time", "Salary"];
 
 const jobFilterWidths: Record<JobFilterKey, string> = {
   location: "w-[126px] 2xl:w-[154px]",
@@ -787,14 +698,6 @@ const defaultManualApplicationDraft: ManualApplicationDraft = {
   overview: "",
   status: "applied",
   documents: [],
-};
-
-const defaultManualJobDraft: ManualJobDraft = {
-  title: "",
-  company: "",
-  location: "",
-  applyUrl: "",
-  overview: "",
 };
 
 type LegacyStoredCandidateProfile = Partial<CandidateProfile> & {
@@ -1316,206 +1219,6 @@ function normalizeParserIds(form: ParserSearchForm): ParserId[] {
   return [...defaultParserSearchForm.parsers];
 }
 
-const manualJobSkillPatterns: Array<{ label: string; pattern: RegExp }> = [
-  { label: "IPX", pattern: /\bipx\b/i },
-  { label: "HVAC", pattern: /\bhvac\b/i },
-  { label: "IoT", pattern: /\biot\b/i },
-  { label: "Embedded systems", pattern: /\bembedded\b/i },
-  { label: "Firmware", pattern: /\bfirmware\b/i },
-  { label: "IP networking", pattern: /\bip\s+(network|networking|protocol)|\bnetworking\b/i },
-  { label: "Cybersecurity", pattern: /\bcyber\s?security|security\b/i },
-  { label: "Cloud", pattern: /\bcloud\b/i },
-  { label: "AWS", pattern: /\baws\b/i },
-  { label: "Azure", pattern: /\bazure\b/i },
-  { label: "GCP", pattern: /\bgcp|google cloud\b/i },
-  { label: "Python", pattern: /\bpython\b/i },
-  { label: "JavaScript", pattern: /\bjavascript|js\b/i },
-  { label: "TypeScript", pattern: /\btypescript|ts\b/i },
-  { label: "React", pattern: /\breact\b/i },
-  { label: "Node.js", pattern: /\bnode(?:\.js)?\b/i },
-  { label: "Java", pattern: /\bjava\b/i },
-  { label: "C++", pattern: /\bc\+\+\b/i },
-  { label: "C#", pattern: /\bc#\b/i },
-  { label: "SQL", pattern: /\bsql\b/i },
-  { label: "Data analysis", pattern: /\bdata analysis|analytics|analyse|analysis\b/i },
-  { label: "Machine learning", pattern: /\bmachine learning|ml\b/i },
-  { label: "AI", pattern: /\bartificial intelligence|\bai\b/i },
-  { label: "Figma", pattern: /\bfigma\b/i },
-  { label: "UX", pattern: /\bux|user experience\b/i },
-  { label: "UI", pattern: /\bui|user interface\b/i },
-  { label: "Product management", pattern: /\bproduct management|product owner\b/i },
-  { label: "Project management", pattern: /\bproject management|coordination|coordinate\b/i },
-  { label: "Agile", pattern: /\bagile|scrum|kanban\b/i },
-  { label: "SAP", pattern: /\bsap\b/i },
-  { label: "Excel", pattern: /\bexcel\b/i },
-  { label: "Power BI", pattern: /\bpower\s?bi\b/i },
-  { label: "Communication", pattern: /\bcommunication|stakeholder|presentation\b/i },
-  { label: "English", pattern: /\benglish\b/i },
-  { label: "German", pattern: /\bgerman|deutsch\b/i },
-  { label: "French", pattern: /\bfrench|franzosisch|francais\b/i },
-];
-
-function splitJobDescriptionItems(value: string) {
-  return value
-    .replace(/\r/g, "")
-    .split(/\n+|[.;]\s+/)
-    .map((item) => item.replace(/^[-*•\d.)\s]+/, "").trim())
-    .filter((item) => item.length >= 8);
-}
-
-function truncateJobText(value: string, maxLength = 180) {
-  const normalizedValue = value.replace(/\s+/g, " ").trim();
-  if (normalizedValue.length <= maxLength) return normalizedValue;
-  return `${normalizedValue.slice(0, maxLength - 1).trim()}...`;
-}
-
-function uniqueJobItems(items: string[], limit: number) {
-  return Array.from(
-    new Map(
-      items
-        .map((item) => truncateJobText(item))
-        .filter(Boolean)
-        .map((item) => [item.toLowerCase(), item]),
-    ).values(),
-  ).slice(0, limit);
-}
-
-function inferManualJobType(text: string) {
-  if (/\bworking student\b/i.test(text)) return "Working student";
-  if (/\bintern(ship)?|trainee\b/i.test(text)) return "Internship";
-  if (/\bfreelance|self-employed\b/i.test(text)) return "Freelance";
-  if (/\bcontract|temporary|befristet\b/i.test(text)) return "Contract";
-  if (/\bpart[-\s]?time|\b[2-8]0\s?%/i.test(text)) return "Part-time";
-  if (/\bfull[-\s]?time|100\s?%/i.test(text)) return "Full-time";
-  return "Not specified";
-}
-
-function inferManualJobExperience(text: string) {
-  if (/\bworking student\b|\bintern(ship)?|trainee|student|entry[-\s]?level|junior|graduate\b/i.test(text)) return "Entry level";
-  if (/\bassociate\b/i.test(text)) return "Associate";
-  if (/\bsenior|sr\.?|lead|principal|staff|head of|director\b/i.test(text)) return "Senior";
-  if (/\bmid[-\s]?level|professional|experienced\b/i.test(text)) return "Mid-level";
-
-  const years = text.match(/\b(\d+)\+?\s*(?:years?|yrs?)\b/i)?.[1];
-  if (!years) return "Not specified";
-
-  const yearCount = Number.parseInt(years, 10);
-  if (yearCount >= 5) return `${yearCount}+ years`;
-  if (yearCount >= 2) return `${yearCount}+ years`;
-  return "Entry level";
-}
-
-function inferManualJobSalary(text: string) {
-  const salaryMatch = text.match(
-    /(?:CHF|EUR|USD|GBP|[$€£])\s?[\d'.,]+(?:\s?[kK])?(?:\s?[-–]\s?(?:CHF|EUR|USD|GBP|[$€£])?\s?[\d'.,]+(?:\s?[kK])?)?/,
-  );
-  return salaryMatch?.[0].replace(/\s+/g, " ").trim() || "Not specified";
-}
-
-function inferManualJobDepartment(text: string) {
-  const departmentPatterns: Array<{ label: string; pattern: RegExp }> = [
-    { label: "Product", pattern: /\bproduct\b/i },
-    { label: "Design", pattern: /\bdesign|ux|ui\b/i },
-    { label: "Engineering", pattern: /\bengineering|software|developer|embedded|firmware\b/i },
-    { label: "IT", pattern: /\bit\b|information technology|network|cyber/i },
-    { label: "Data", pattern: /\bdata|analytics|machine learning|ai\b/i },
-    { label: "Marketing", pattern: /\bmarketing|brand|campaign\b/i },
-    { label: "Sales", pattern: /\bsales|business development|account\b/i },
-    { label: "Operations", pattern: /\boperations|supply chain|logistics\b/i },
-    { label: "Finance", pattern: /\bfinance|accounting|controlling\b/i },
-    { label: "People", pattern: /\bhr|people|talent|recruiting\b/i },
-    { label: "Manufacturing", pattern: /\bmanufacturing|production|quality\b/i },
-  ];
-  const departments = departmentPatterns
-    .filter((item) => item.pattern.test(text))
-    .map((item) => item.label);
-
-  return departments.length > 0 ? departments.slice(0, 2).join(" / ") : "Manual entry";
-}
-
-function extractManualJobSkills(text: string) {
-  const matchedSkills = manualJobSkillPatterns
-    .filter((item) => item.pattern.test(text))
-    .map((item) => item.label);
-
-  return uniqueJobItems(matchedSkills, 14);
-}
-
-function extractManualJobRequirements(description: string, title: string) {
-  const items = splitJobDescriptionItems(description);
-  const requirementItems = items.filter((item) =>
-    /\brequire|qualification|profile|experience|knowledge|skill|degree|student|fluent|english|german|must|you have|you bring|familiar|proficient|able to\b/i.test(item),
-  );
-
-  return uniqueJobItems(requirementItems, 6).length > 0
-    ? uniqueJobItems(requirementItems, 6)
-    : uniqueJobItems([`Relevant background for ${title}`, "Review the vacancy description before applying"], 2);
-}
-
-function extractManualJobResponsibilities(description: string) {
-  const items = splitJobDescriptionItems(description);
-  const responsibilityItems = items.filter((item) =>
-    /\bresponsib|support|develop|create|design|analy[sz]e|manage|maintain|coordinate|collaborate|contribute|work with|implement|build|prepare\b/i.test(item),
-  );
-
-  return uniqueJobItems(responsibilityItems, 6).length > 0
-    ? uniqueJobItems(responsibilityItems, 6)
-    : ["Track application progress", "Keep next steps and events up to date"];
-}
-
-function analyzeManualJobDescription(draft: ManualJobDraft) {
-  const title = draft.title.trim();
-  const description = draft.overview.trim();
-  const analysisText = [title, draft.company, draft.location, description].filter(Boolean).join("\n");
-  const skills = extractManualJobSkills(analysisText);
-
-  return {
-    type: inferManualJobType(analysisText),
-    salary: inferManualJobSalary(analysisText),
-    experience: inferManualJobExperience(analysisText),
-    department: inferManualJobDepartment(analysisText),
-    responsibilities: extractManualJobResponsibilities(description),
-    requirements: extractManualJobRequirements(description, title),
-    skills: skills.length > 0 ? skills : ["Manual entry"],
-  };
-}
-
-function createManualJobFromDraft(draft: ManualJobDraft): Job {
-  const title = draft.title.trim();
-  const company = draft.company.trim();
-  const location = draft.location.trim() || "Not specified";
-  const applyUrl = normalizeExternalUrl(draft.applyUrl);
-  const analysis = analyzeManualJobDescription(draft);
-
-  return {
-    id: createClientId("manual-job"),
-    company,
-    title,
-    location,
-    type: analysis.type,
-    salary: analysis.salary,
-    posted: "Manual entry",
-    experience: analysis.experience,
-    department: analysis.department,
-    match: 50,
-    logo: "manual",
-    overview: draft.overview.trim() || "Manually added vacancy. Add notes, events, and next steps from the application tracker.",
-    responsibilities: analysis.responsibilities,
-    requirements: analysis.requirements,
-    skills: analysis.skills,
-    salaryAverage: "N/A",
-    salaryMin: "N/A",
-    salaryMax: "N/A",
-    recommendations: [],
-    companyInfo: `${company} vacancy added manually${applyUrl ? `: ${applyUrl}` : "."}`,
-    reviews: ["This vacancy was added manually and has not been scored yet."],
-    similarJobs: [],
-    applyUrl: applyUrl || undefined,
-    sourceUrl: applyUrl || undefined,
-    addedAt: new Date().toISOString(),
-  };
-}
-
 function wait(ms: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
@@ -1965,205 +1668,6 @@ function filterBoolean(
   return null;
 }
 
-function formatAiMatchTimestamp(value?: string) {
-  if (!value) return "Not calculated yet";
-
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "Time unknown";
-
-  return date.toLocaleString("en-US", {
-    month: "short",
-    day: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
-}
-
-const aiMatchBreakdownItems = [
-  { key: "role_fit", label: "Role", max: 20 },
-  { key: "skills_fit", label: "Skills", max: 30 },
-  { key: "experience_fit", label: "Experience", max: 15 },
-  { key: "preferences_fit", label: "Preferences", max: 15 },
-  { key: "constraints_fit", label: "Constraints", max: 10 },
-  { key: "industry_fit", label: "Industry", max: 5 },
-  { key: "evidence_fit", label: "Evidence", max: 5 },
-];
-
-function getAiMatchBreakdownItems(job: Job) {
-  const breakdown = job.aiMatch?.breakdown ?? {};
-  return aiMatchBreakdownItems.map(({ key, label, max }) => {
-    const value = Math.max(0, Math.min(max, Math.round(Number(breakdown[key] ?? 0))));
-    return {
-      key,
-      label,
-      value,
-      max,
-      progress: Math.round((value / max) * 100),
-    };
-  });
-}
-
-function getAiMatchSourceLabel(job: Job) {
-  if (job.aiMatch?.source === "openclaw_codex" || job.aiMatch?.source === "openai_api") {
-    return getAiSourceLabel(job.aiMatch.source);
-  }
-  if (job.aiMatch?.source === "local") return "Legacy local score";
-  if (isImportedJob(job)) return "Not scored";
-  if (isManualJob(job)) return "Not scored";
-  return "Static score";
-}
-
-function getAiMatchSourceStatus(job: Job) {
-  if (!job.aiMatch?.providerError) return "";
-  return "Provider fallback/error";
-}
-
-function getAiMatchSourceDisplay(job: Job) {
-  const sourceLabel = getAiMatchSourceLabel(job);
-  const sourceStatus = getAiMatchSourceStatus(job);
-  return sourceStatus ? `${sourceLabel} · ${sourceStatus}` : sourceLabel;
-}
-
-function formatConfidence(value?: AiMatchMetadata["confidence"]) {
-  if (!value) return "Not calculated";
-  return `${value[0].toUpperCase()}${value.slice(1)}`;
-}
-
-function buildAiMatchRawExplanation(job: Job) {
-  if (job.aiMatch?.rawExplanation) return job.aiMatch.rawExplanation;
-  if (job.aiMatch?.explanation) return job.aiMatch.explanation;
-  if (job.aiMatch?.providerError) return `Provider fallback: ${job.aiMatch.providerError}`;
-  if (!hasDisplayableMatch(job)) return "AI match has not been calculated for this vacancy yet.";
-
-  const source = getAiMatchSourceLabel(job);
-  const reasons = job.aiMatch?.reasons.length ? job.aiMatch.reasons.join("; ") : "no AI-generated reasons are available";
-  const gaps = job.aiMatch?.gaps.length ? job.aiMatch.gaps.join("; ") : "no major gaps detected";
-
-  return `${source} calculated a ${job.match}% match for ${job.title} at ${job.company}. Reasons: ${reasons}. Gaps: ${gaps}.`;
-}
-
-function getProfileImprovementItems(job: Job) {
-  const evidence = job.aiMatch?.applicationGuide?.evidenceMatrix ?? [];
-  return evidence
-    .filter((item) => ["verified", "transferable"].includes(item.status) && item.sources?.length)
-    .map((item) => `${item.action} Sources: ${item.sources?.map((source) => `${source.label} — “${source.excerpt}”`).join("; ")}.`)
-    .slice(0, 5);
-}
-
-function buildRecommendationPlan(job: Job): JobRecommendation[] {
-  const evidence = job.aiMatch?.applicationGuide?.evidenceMatrix ?? [];
-  return evidence
-    .filter((item) => ["verified", "transferable"].includes(item.status) && item.sources?.length)
-    .map((item) => ({
-      text: item.action,
-      gain: item.status === "verified" ? "verified evidence" : "transferable evidence",
-      why: `${item.requirement}: ${item.evidence}`,
-      impact: `Sources: ${item.sources?.map((source) => source.label).join(", ")}`,
-      action: item.sources?.map((source) => `${source.label}: “${source.excerpt}”`).join(" · "),
-    }))
-    .slice(0, 9);
-}
-
-function isImportedJob(job: Job) {
-  return job.id.startsWith("linkedin-") ||
-    job.id.startsWith("indeed-") ||
-    job.id.startsWith("jobs_ch-") ||
-    directCompanyCatalog.some((company) => job.id.startsWith(`${company.id}-`));
-}
-
-function isManualJob(job: Job) {
-  return job.id.startsWith("manual-job-");
-}
-
-function isUserManagedJob(job: Job) {
-  return isImportedJob(job) || isManualJob(job);
-}
-
-function hasAiBackendMatch(job: Job) {
-  return job.aiMatch?.source === "openclaw_codex" || job.aiMatch?.source === "openai_api";
-}
-
-function hasDisplayableMatch(job: Job) {
-  return (!isImportedJob(job) && !isManualJob(job)) || hasAiBackendMatch(job);
-}
-
-function formatMatchValue(job: Job) {
-  return hasDisplayableMatch(job) ? `${job.match}%` : "Not scored";
-}
-
-function getDisplayMatch(job: Job) {
-  return hasDisplayableMatch(job) ? job.match : 0;
-}
-
-function sanitizeLegacyLocalAiMatch(job: Job): Job {
-  if (job.aiMatch?.source !== "local" || job.aiMatch.version === legacyAiMatchVersion) return job;
-
-  const { aiMatch: _legacyAiMatch, ...jobWithoutLegacyAiMatch } = job;
-  return {
-    ...jobWithoutLegacyAiMatch,
-    match: 50,
-  };
-}
-
-function normalizeStoredJobs(value: unknown) {
-  if (!Array.isArray(value)) return [];
-
-  return value.flatMap((job): Job[] => {
-    if (!job || typeof job !== "object") return [];
-    const candidate = job as Partial<Job>;
-    const isValidJob =
-      typeof candidate.id === "string" &&
-      typeof candidate.company === "string" &&
-      typeof candidate.title === "string" &&
-      typeof candidate.location === "string" &&
-      typeof candidate.type === "string" &&
-      typeof candidate.salary === "string" &&
-      typeof candidate.posted === "string" &&
-      typeof candidate.experience === "string" &&
-      typeof candidate.department === "string" &&
-      typeof candidate.match === "number" &&
-      (
-        candidate.logo === "stripe" ||
-        candidate.logo === "figma" ||
-        candidate.logo === "linkedin" ||
-        candidate.logo === "indeed" ||
-        candidate.logo === "jobs_ch" ||
-        candidate.logo === "company" ||
-        candidate.logo === "manual"
-      ) &&
-      typeof candidate.overview === "string" &&
-      Array.isArray(candidate.responsibilities) &&
-      Array.isArray(candidate.requirements) &&
-      Array.isArray(candidate.skills);
-
-    if (!isValidJob) return [];
-
-    return [
-      sanitizeLegacyLocalAiMatch({
-        ...(candidate as Job),
-        logo: normalizeStoredJobLogo(candidate as Job),
-        archived: Boolean(candidate.archived),
-        archivedAt: typeof candidate.archivedAt === "string" ? candidate.archivedAt : undefined,
-      }),
-    ];
-  });
-}
-
-function normalizeStoredJobLogo(job: Job): Job["logo"] {
-  if (job.id.startsWith("linkedin-")) return "linkedin";
-  if (job.id.startsWith("indeed-")) return "indeed";
-  if (job.id.startsWith("jobs_ch-")) return "jobs_ch";
-  if (directCompanyCatalog.some((company) => job.id.startsWith(`${company.id}-`))) return "company";
-  return job.logo;
-}
-
-function normalizeStoredJobIds(value: unknown) {
-  if (!Array.isArray(value)) return [];
-
-  return Array.from(new Set(value.filter((id): id is string => typeof id === "string" && id.trim().length > 0)));
-}
-
 function legacyFileName(index: number, dataUrl: string) {
   const contentType = /^data:([^;,]+)/i.exec(dataUrl.trim())?.[1]?.toLowerCase() ?? "";
   const extensionByType: Record<string, string> = {
@@ -2358,7 +1862,10 @@ function createApplicationFromJob(job: Job, status: ApplicationStatus = "applied
 }
 
 function createApplicationFromManualDraft(draft: ManualApplicationDraft): TrackedApplication {
-  const generatedJob = createManualJobFromDraft(draft);
+  const generatedJob = createManualJobFromDraft(draft, {
+    createId: createClientId,
+    now: () => new Date().toISOString(),
+  });
   const job = draft.jobId ? { ...generatedJob, id: draft.jobId } : generatedJob;
 
   return {
@@ -2385,13 +1892,6 @@ function createProfileResumeApplicationDocument(profile: CandidateProfile): Appl
     uploadedAt: profile.resume_updated_at || new Date().toISOString(),
     downloadUrl: profile.resume_download_url,
   };
-}
-
-function getJobApplyUrl(job: Job) {
-  const normalizedUrl = normalizeExternalUrl(job.applyUrl || job.sourceUrl || "");
-  return /^https?:\/\//i.test(normalizedUrl)
-    ? normalizeJobsChJobUrl(normalizedUrl)
-    : "";
 }
 
 function getApplicationEventTypeLabel(type: ApplicationEventType) {
@@ -2521,186 +2021,6 @@ function getVisibleApplicationNotes(notes: string) {
   return notes.trim() === legacyMovedFromJobsNote ? "" : notes.trim();
 }
 
-function mergeJobs(importedJobs: Job[], currentJobs: Job[]) {
-  const importedIds = new Set(importedJobs.map((job) => job.id));
-  return [...importedJobs, ...currentJobs.filter((job) => !importedIds.has(job.id))];
-}
-
-function keepStoredUserJobs(jobs: Job[]) {
-  return jobs.filter(isUserManagedJob);
-}
-
-function hasActiveJobFilters(filters: JobFilters) {
-  return Object.values(filters).some((value) => value !== "Any");
-}
-
-function parseSalaryAmount(value: string) {
-  if (!value || value === "N/A") return 0;
-
-  const hasThousandsSuffix = /k/i.test(value);
-  const amounts = value.match(/\d+(?:[,.]\d+)?/g)?.map((amount) => {
-    const normalizedAmount = Number.parseFloat(amount.replace(/,/g, ""));
-    if (Number.isNaN(normalizedAmount)) return 0;
-    return hasThousandsSuffix ? normalizedAmount * 1000 : normalizedAmount;
-  });
-
-  return amounts?.length ? Math.max(...amounts) : 0;
-}
-
-function getJobSalaryAmount(job: Job) {
-  return parseSalaryAmount(job.salaryAverage) || parseSalaryAmount(job.salaryMax) || parseSalaryAmount(job.salary);
-}
-
-function getRelativePostedTime(value: string) {
-  const normalizedValue = value.trim().toLowerCase();
-  const relativeMatch = normalizedValue.match(/^(\d+)\s*([hdw])(?:\s+ago)?$/);
-  if (!relativeMatch) return 0;
-
-  const amount = Number.parseInt(relativeMatch[1], 10);
-  const unit = relativeMatch[2];
-  const multiplier = unit === "h" ? 60 * 60 * 1000 : unit === "d" ? 24 * 60 * 60 * 1000 : 7 * 24 * 60 * 60 * 1000;
-
-  return Date.now() - amount * multiplier;
-}
-
-function getJobPostedTime(job: Job) {
-  const parsedDate = Date.parse(job.posted);
-  if (!Number.isNaN(parsedDate)) return parsedDate;
-
-  return getRelativePostedTime(job.posted);
-}
-
-function getBulkAnalysisCandidates(jobsToCheck: Job[], scope: BulkAnalysisScope) {
-  const recentCutoff = Date.now() - recentJobWindowMs;
-
-  return jobsToCheck.filter((job) => {
-    if (job.archived) return false;
-    if (scope === "missing") return getAiMatchAnalysisStatus(job.aiMatch) !== "current";
-
-    const addedAt = Date.parse(job.addedAt ?? "");
-    return !Number.isNaN(addedAt) && addedAt >= recentCutoff;
-  });
-}
-
-function formatJobPosted(value: string) {
-  const parsedDate = Date.parse(value);
-  if (!Number.isNaN(parsedDate)) {
-    return new Intl.DateTimeFormat("de-CH", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(new Date(parsedDate));
-  }
-
-  return value.replace(/^(\d+)h ago$/i, "$1 hours ago").replace(/^(\d+)d ago$/i, "$1 days ago");
-}
-
-function formatJobPostedCompact(value: string) {
-  const parsedDate = Date.parse(value);
-  if (!Number.isNaN(parsedDate)) {
-    const parsedDateValue = new Date(parsedDate);
-    const day = parsedDateValue.getDate().toString().padStart(2, "0");
-    const month = (parsedDateValue.getMonth() + 1).toString().padStart(2, "0");
-    const date = `${day}.${month}`;
-    const time = new Intl.DateTimeFormat("de-CH", {
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(parsedDateValue);
-
-    return `${date} • ${time}`;
-  }
-
-  return formatJobPosted(value);
-}
-
-function formatJobLocationCompact(value: string) {
-  return value.split(",")[0]?.trim() || value;
-}
-
-function getJobExperienceYears(job: Job) {
-  const normalizedExperience = job.experience.toLowerCase();
-  const explicitYears = normalizedExperience.match(/\d+/)?.[0];
-
-  if (explicitYears) return Number.parseInt(explicitYears, 10);
-  if (normalizedExperience.includes("director") || normalizedExperience.includes("lead") || normalizedExperience.includes("principal")) return 7;
-  if (normalizedExperience.includes("senior")) return 5;
-  if (normalizedExperience.includes("mid")) return 3;
-  if (normalizedExperience.includes("associate")) return 1;
-  if (normalizedExperience.includes("entry") || normalizedExperience.includes("junior") || normalizedExperience.includes("intern")) return 0;
-
-  return null;
-}
-
-function matchesExperienceFilter(job: Job, filter: string) {
-  if (filter === "Any") return true;
-
-  const years = getJobExperienceYears(job);
-  const normalizedExperience = job.experience.toLowerCase();
-
-  if (filter === "entry") {
-    return (
-      (years !== null && years <= 2) ||
-      normalizedExperience.includes("entry") ||
-      normalizedExperience.includes("junior") ||
-      normalizedExperience.includes("associate") ||
-      normalizedExperience.includes("intern")
-    );
-  }
-
-  if (filter === "mid") {
-    return (years !== null && years >= 2 && years < 5) || normalizedExperience.includes("mid");
-  }
-
-  if (filter === "senior") {
-    return (
-      (years !== null && years >= 5) ||
-      normalizedExperience.includes("senior") ||
-      normalizedExperience.includes("director") ||
-      normalizedExperience.includes("lead") ||
-      normalizedExperience.includes("principal")
-    );
-  }
-
-  return true;
-}
-
-function matchesRemoteFilter(job: Job, filter: string) {
-  if (filter === "Any") return true;
-
-  const searchableText = [job.location, job.type, job.overview, job.department].join(" ").toLowerCase();
-
-  if (filter === "remote") return searchableText.includes("remote");
-  if (filter === "hybrid") return searchableText.includes("hybrid");
-  if (filter === "onsite") {
-    return (
-      searchableText.includes("on-site") ||
-      searchableText.includes("onsite") ||
-      searchableText.includes("office") ||
-      (!searchableText.includes("remote") && !searchableText.includes("hybrid"))
-    );
-  }
-
-  return true;
-}
-
-function matchesJobFilters(job: Job, filters: JobFilters) {
-  const salaryAmount = getJobSalaryAmount(job);
-
-  return (
-    (filters.location === "Any" || job.location.toLowerCase().includes(filters.location.toLowerCase())) &&
-    matchesRemoteFilter(job, filters.remote) &&
-    (filters.salary === "Any" ||
-      (filters.salary === "listed" ? salaryAmount > 0 : salaryAmount >= Number.parseInt(filters.salary, 10))) &&
-    matchesExperienceFilter(job, filters.experience) &&
-    (filters.type === "Any" || job.type === filters.type) &&
-    (filters.match === "Any" || getDisplayMatch(job) >= Number.parseInt(filters.match, 10))
-  );
-}
-
 function mergeSkillLists(currentSkills: string[], importedSkills: string[]) {
   return mergeSkillListsModel(currentSkills, importedSkills);
 }
@@ -2810,37 +2130,36 @@ export default function HomePage() {
   const [appLogs, setAppLogs] = useState<AppLogEntry[]>([]);
   const [areAppLogsLoaded, setAreAppLogsLoaded] = useState(false);
   const availableJobs = useMemo(
-    () =>
-      jobList
-        .filter((job) => !deletedJobIds.includes(job.id))
-        .map((job) => ({
-          ...job,
-          archived: job.archived || archivedJobIds.includes(job.id),
-        })),
+    () => selectAvailableJobs(jobList, archivedJobIds, deletedJobIds),
     [archivedJobIds, deletedJobIds, jobList],
   );
 
-  const archivedJobsCount = useMemo(() => availableJobs.filter((job) => job.archived).length, [availableJobs]);
+  const archivedJobsCount = useMemo(
+    () => countArchivedJobs(availableJobs),
+    [availableJobs],
+  );
   const savedJobsCount = useMemo(
-    () => availableJobs.filter((job) => !job.archived && savedJobs.includes(job.id)).length,
+    () => countSavedJobs(availableJobs, savedJobs),
     [availableJobs, savedJobs],
   );
-  const recentAnalysisJobs = getBulkAnalysisCandidates(availableJobs, "recent");
-  const missingAnalysisJobs = getBulkAnalysisCandidates(availableJobs, "missing");
+  const recentAnalysisJobs = getBulkAnalysisCandidates(
+    availableJobs,
+    "recent",
+    Date.now(),
+  );
+  const missingAnalysisJobs = getBulkAnalysisCandidates(
+    availableJobs,
+    "missing",
+    Date.now(),
+  );
 
   const locationFilterOptions = useMemo(
-    () =>
-      Array.from(new Set(availableJobs.map((job) => job.location.trim()).filter(Boolean)))
-        .sort((a, b) => a.localeCompare(b))
-        .map((location) => ({ value: location, label: location })),
+    () => selectJobFilterOptions(availableJobs, "location"),
     [availableJobs],
   );
 
   const typeFilterOptions = useMemo(
-    () =>
-      Array.from(new Set(availableJobs.map((job) => job.type.trim()).filter(Boolean)))
-        .sort((a, b) => a.localeCompare(b))
-        .map((type) => ({ value: type, label: type })),
+    () => selectJobFilterOptions(availableJobs, "type"),
     [availableJobs],
   );
 
@@ -2858,28 +2177,20 @@ export default function HomePage() {
     { key: "match", label: "AI Match", icon: Sparkles, options: matchFilterOptions },
   ];
 
-  const filteredJobs = useMemo(() => {
-    const normalizedQuery = query.trim().toLowerCase();
-    const jobsForCurrentMode = availableJobs
-      .filter((job) => Boolean(job.archived) === showArchivedJobs)
-      .filter((job) => !showSavedJobs || savedJobs.includes(job.id))
-      .filter((job) => matchesJobFilters(job, jobFilters));
-    const results = normalizedQuery
-      ? jobsForCurrentMode.filter((job) =>
-          [job.title, job.company, job.location, job.type, job.salary].some((value) =>
-            value.toLowerCase().includes(normalizedQuery),
-          ),
-        )
-      : jobsForCurrentMode;
-
-    return [...results].sort((a, b) => {
-      if (sortBy === "Time") return getJobPostedTime(b) - getJobPostedTime(a);
-      if (sortBy === "Salary") {
-        return getJobSalaryAmount(b) - getJobSalaryAmount(a);
-      }
-      return getDisplayMatch(b) - getDisplayMatch(a);
-    });
-  }, [availableJobs, jobFilters, query, savedJobs, showArchivedJobs, showSavedJobs, sortBy]);
+  const filteredJobs = useMemo(
+    () =>
+      selectFilteredJobs({
+        jobs: availableJobs,
+        filters: jobFilters,
+        query,
+        savedJobIds: savedJobs,
+        showArchivedJobs,
+        showSavedJobs,
+        sortBy,
+        nowMs: Date.now(),
+      }),
+    [availableJobs, jobFilters, query, savedJobs, showArchivedJobs, showSavedJobs, sortBy],
+  );
 
   const selectedJob = filteredJobs.find((job) => job.id === selectedJobId) ?? filteredJobs[0] ?? null;
   const selectedJobPostingUrl = selectedJob ? getJobApplyUrl(selectedJob) : "";
@@ -3819,7 +3130,10 @@ export default function HomePage() {
       return;
     }
 
-    const job = createManualJobFromDraft(manualJobDraft);
+    const job = createManualJobFromDraft(manualJobDraft, {
+      createId: createClientId,
+      now: () => new Date().toISOString(),
+    });
     setAiMatchErrorMessage("");
     setQuery("");
     setJobFilters(defaultJobFilters);
@@ -5744,7 +5058,11 @@ export default function HomePage() {
   }
 
   async function runBulkAiAnalysis(scope: BulkAnalysisScope) {
-    const jobsToAnalyze = getBulkAnalysisCandidates(availableJobs, scope);
+    const jobsToAnalyze = getBulkAnalysisCandidates(
+      availableJobs,
+      scope,
+      Date.now(),
+    );
     if (jobsToAnalyze.length === 0 || bulkAnalysisScope) return;
 
     setIsAnalysisMenuOpen(false);
@@ -10754,10 +10072,11 @@ function DashboardView({
   const currentTime = useHydrationSafeCurrentTime();
   const [dashboardMonthOffset, setDashboardMonthOffset] = useState(0);
   const now = currentTime?.getTime() ?? Number.NEGATIVE_INFINITY;
+  const jobSortNowMs = Date.now();
   const profileCompletion = getProfileCompletion(profile);
   const scoredJobs = jobs.filter(hasDisplayableMatch);
   const recommendedJobs = [...jobs]
-    .sort((left, right) => getDisplayMatch(right) - getDisplayMatch(left) || getJobPostedTime(right) - getJobPostedTime(left))
+    .sort((left, right) => getDisplayMatch(right) - getDisplayMatch(left) || getJobPostedTime(right, jobSortNowMs) - getJobPostedTime(left, jobSortNowMs))
     .slice(0, 3);
   const upcomingEvents = sortApplicationEvents(events.filter((event) => (
     event.status === "scheduled" && new Date(event.startsAt).getTime() >= now
