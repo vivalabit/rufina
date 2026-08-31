@@ -88,6 +88,42 @@ import { normalizeStoredLogs } from "@/features/activity/model/normalizers";
 import type { AppLogEntry } from "@/features/activity/model/types";
 import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
 import { navItems } from "@/features/app-shell/model/navigation";
+import type {
+  JobSearchConfigPayload,
+  JobSearchRunPayload,
+  JobSourceConfigPayload,
+} from "@/features/job-search/api/dto";
+import { parserSearchConfigFromApi } from "@/features/job-search/api/mappers";
+import {
+  defaultLinkedInProfessionExperienceLevels,
+  defaultParserSearchForm,
+  directCompanyDirections,
+} from "@/features/job-search/model/constants";
+import {
+  directCompanySearchFiltersFromForm,
+  isLinkedInProfessionQuery,
+  isRecord,
+  normalizeDirectCompanyIds,
+  normalizeParserIds,
+  parserSearchFiltersFromForm,
+  parserSearchSourceIds,
+  sourceSearchDraftFromFilters,
+  sourceSearchDraftFromForm,
+  sourceSearchFiltersFromForm,
+} from "@/features/job-search/model/form-mappers";
+import {
+  getDefaultLinkedInSearchSelection,
+  getSourceSearchConfigLabel,
+} from "@/features/job-search/model/selectors";
+import type {
+  ActiveSearchSource,
+  DirectCompanyDirection,
+  ParserId,
+  ParserSearchConfig,
+  ParserSearchForm,
+  ParserSearchStatus,
+  SourceSearchDraft,
+} from "@/features/job-search/model/types";
 import type { AiMatchJobStatus } from "@/features/jobs/api/dto";
 import {
   normalizeStoredJobIds,
@@ -250,139 +286,6 @@ import type {
   ManualApplicationDraft,
 } from "@/features/applications/model/types";
 
-
-type ParserId = "linkedin" | "indeed" | "jobs_ch";
-type ActiveSearchSource = ParserId | "direct_companies";
-
-const directCompanyDirections = [
-  {
-    id: "information_technology",
-    label: "Information Technology (IT)",
-    targetRole: "Information Technology",
-  },
-  { id: "marketing", label: "Marketing", targetRole: "Marketing" },
-  { id: "sales", label: "Sales", targetRole: "Sales" },
-  {
-    id: "finance_accounting",
-    label: "Finance & Accounting",
-    targetRole: "Finance and Accounting",
-  },
-  { id: "design", label: "Design", targetRole: "Design" },
-  {
-    id: "human_resources",
-    label: "Human Resources",
-    targetRole: "Human Resources and Recruiting",
-  },
-  { id: "operations", label: "Operations", targetRole: "Operations" },
-  {
-    id: "customer_support",
-    label: "Customer Service & Support",
-    targetRole: "Customer Service and Support",
-  },
-  {
-    id: "engineering",
-    label: "Engineering & Technical",
-    targetRole: "Engineering and Technical",
-  },
-  { id: "healthcare", label: "Healthcare", targetRole: "Healthcare" },
-  { id: "legal", label: "Legal", targetRole: "Legal" },
-  { id: "all", label: "All directions", targetRole: "" },
-] as const;
-
-type DirectCompanyDirection = (typeof directCompanyDirections)[number]["id"];
-
-type LinkedInDiscoveryQueryDraft = {
-  keyword: string;
-  experienceLevels: string[];
-  jobType?: string | null;
-  selectiveSearch: boolean;
-};
-
-type ParserSearchForm = {
-  parsers: ParserId[];
-  directCompaniesEnabled: boolean;
-  directCompanyIds: string[];
-  directCompanyDirection: DirectCompanyDirection;
-  keywords: string;
-  location: string;
-  remote: string;
-  experienceLevel: string;
-  jobType: string;
-  datePosted: string;
-  resultsLimit: string;
-  country: string;
-  deduplicate: boolean;
-  linkedinQueries: LinkedInDiscoveryQueryDraft[];
-  limitPerInput: string;
-  searchName: string;
-  folder: string;
-};
-
-type SourceSearchDraft = Pick<
-  ParserSearchForm,
-  | "keywords"
-  | "location"
-  | "remote"
-  | "experienceLevel"
-  | "jobType"
-  | "datePosted"
-  | "resultsLimit"
-  | "country"
-  | "deduplicate"
-  | "linkedinQueries"
-  | "limitPerInput"
->;
-
-type ParserSearchConfig = {
-  id: string;
-  name: string;
-  form: ParserSearchForm;
-  filters: Record<string, unknown>;
-  updatedAt: string;
-};
-
-type JobSearchConfigPayload = {
-  id: string;
-  name: string;
-  filters: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type JobSourceConfigPayload = {
-  id: string;
-  name: string;
-  configId: string;
-  source: ParserId;
-  filters: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type JobSearchRunPayload = {
-  id: string;
-  runType: "manual" | "automatic";
-  sources: string[];
-  status: string;
-  jobsFound: number;
-  jobsAlreadyKnown: number;
-  jobsDiscoveredNew: number;
-  jobsDiscoveredUpdated: number;
-  jobsAlreadyObserved: number;
-  jobsScreened: number;
-  jobsPassed: number;
-  jobsRejected: number;
-  jobsUncertain: number;
-  jobsAdded: number;
-  jobsAnalyzed: number;
-  screeningErrors: number;
-  jobsScreeningAiCalls: number;
-  sourceErrors: Record<string, string>;
-  startedAt: string;
-  completedAt?: string | null;
-  warning?: string | null;
-};
-
 type WorkspaceSourceFilePayload = {
   id: string;
   applicationId: string;
@@ -398,7 +301,6 @@ type WorkspaceSourceFilePayload = {
 };
 
 const tabs = ["Overview", "AI Match"];
-type ParserSearchStatus = "idle" | "loading" | "ready" | "error";
 
 const applicationStatuses: Array<{ status: ApplicationStatus; label: string }> = [
   { status: "draft", label: "Preparing" },
@@ -466,31 +368,6 @@ const screenshotSessionId =
   process.env.NEXT_PUBLIC_SCREENSHOT_SESSION_ID?.trim() ?? "";
 const screenshotSessionStorageKey = "rufina.screenshotSessionId";
 const legacyMovedFromJobsNote = "Moved from Jobs after applying.";
-const defaultParserSearchForm: ParserSearchForm = {
-  parsers: [],
-  directCompaniesEnabled: false,
-  directCompanyIds: [],
-  directCompanyDirection: "information_technology",
-  keywords: "",
-  location: "",
-  remote: "Any",
-  experienceLevel: "Any",
-  jobType: "Any",
-  datePosted: "Any time",
-  resultsLimit: "10",
-  country: "Any",
-  deduplicate: true,
-  linkedinQueries: [],
-  limitPerInput: "25",
-  searchName: "",
-  folder: "",
-};
-
-const defaultLinkedInProfessionExperienceLevels = ["Entry level", "Internship"];
-
-function isLinkedInProfessionQuery(query: LinkedInDiscoveryQueryDraft) {
-  return query.experienceLevels.length > 0;
-}
 
 const jobFilterWidths: Record<JobFilterKey, string> = {
   location: "w-[126px] 2xl:w-[154px]",
@@ -1204,21 +1081,6 @@ function getSearchSourcesLabel(form: ParserSearchForm) {
   return sources.join(" + ");
 }
 
-function normalizeParserIds(form: ParserSearchForm): ParserId[] {
-  const parserCandidates = Array.isArray(form.parsers) ? form.parsers : [];
-  const legacyParser = (form as ParserSearchForm & { parser?: unknown }).parser;
-  const validParsers = parserCandidates.filter(
-    (parser): parser is ParserId =>
-      parser === "linkedin" || parser === "indeed" || parser === "jobs_ch",
-  );
-  if (validParsers.length > 0) return Array.from(new Set(validParsers));
-  if (legacyParser === "linkedin" || legacyParser === "indeed" || legacyParser === "jobs_ch") {
-    return [legacyParser];
-  }
-  if (form.directCompaniesEnabled) return [];
-  return [...defaultParserSearchForm.parsers];
-}
-
 function wait(ms: number) {
   return new Promise((resolve) => {
     window.setTimeout(resolve, ms);
@@ -1231,21 +1093,6 @@ function createClientId(prefix: string) {
   }
 
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-function parserSearchSourceIds(form: ParserSearchForm): string[] {
-  return Array.from(
-    new Set([
-      ...normalizeParserIds(form),
-      ...(form.directCompaniesEnabled
-        ? normalizeDirectCompanyIds(form.directCompanyIds)
-        : []),
-    ]),
-  );
 }
 
 function normalizeParserSearchConfigs(configs: ParserSearchConfig[]) {
@@ -1276,396 +1123,6 @@ function normalizeParserSearchConfigs(configs: ParserSearchConfig[]) {
   }
 
   return Array.from(uniqueConfigs.values());
-}
-
-function parserSearchFiltersFromForm(
-  form: ParserSearchForm,
-  currentFilters: Record<string, unknown> = {},
-): Record<string, unknown> {
-  const linkedinQueries = Array.isArray(form.linkedinQueries)
-    ? form.linkedinQueries.flatMap((query) => {
-        const keyword = query.keyword.trim();
-        return keyword ? [{ ...query, keyword }] : [];
-      })
-    : [];
-  const versioned =
-    isRecord(currentFilters.search) ||
-    isRecord(currentFilters.screening);
-  const currentSearch = versioned && isRecord(currentFilters.search)
-    ? currentFilters.search
-    : versioned
-      ? {}
-      : currentFilters;
-  const currentScreening = isRecord(currentFilters.screening)
-    ? currentFilters.screening
-    : null;
-  return {
-    ...(versioned ? currentFilters : {}),
-    schemaVersion: 2,
-    search: {
-      ...currentSearch,
-      keywords: form.keywords.trim(),
-      location: form.location.trim(),
-      remote: form.remote,
-      experienceLevel: form.experienceLevel,
-      jobType: form.jobType,
-      datePosted: form.datePosted,
-      resultsLimit: Number.parseInt(form.resultsLimit, 10) || 10,
-      country: form.country,
-      deduplicate: form.deduplicate,
-      ...(linkedinQueries.length > 0
-        ? {
-            linkedinQueries,
-            limitPerInput: Number.parseInt(form.limitPerInput, 10) || 25,
-          }
-        : {}),
-      searchName: form.searchName.trim(),
-      folder: form.folder,
-      sources: undefined,
-      parsers: undefined,
-      directCompaniesEnabled: undefined,
-      direct_companies_enabled: undefined,
-      directCompanyIds: undefined,
-      direct_company_ids: undefined,
-      directCompanies: undefined,
-      direct_companies: undefined,
-    },
-    screening: currentScreening ?? {
-      enabled: true,
-      targetRoles: form.keywords.trim() ? [form.keywords.trim()] : [],
-      excludedRoles: [],
-      allowedSeniority: [],
-      excludedSeniority: [],
-      hardRules: [],
-    },
-  };
-}
-
-function directCompanyDirectionFromFilters(
-  filters: Record<string, unknown>,
-): DirectCompanyDirection {
-  const screening = isRecord(filters.screening) ? filters.screening : null;
-  const targetRoles = screening?.targetRoles ?? screening?.target_roles;
-  if (!Array.isArray(targetRoles)) {
-    return defaultParserSearchForm.directCompanyDirection;
-  }
-  const normalizedRoles = new Set(
-    targetRoles.flatMap((role) =>
-      typeof role === "string" ? [role.trim().toLocaleLowerCase()] : [],
-    ),
-  );
-  return (
-    directCompanyDirections.find(
-      (direction) =>
-        direction.targetRole &&
-        normalizedRoles.has(direction.targetRole.toLocaleLowerCase()),
-    )?.id ?? defaultParserSearchForm.directCompanyDirection
-  );
-}
-
-function directCompanySearchFiltersFromForm(
-  form: ParserSearchForm,
-): Record<string, unknown> {
-  const direction =
-    directCompanyDirections.find(
-      (option) => option.id === form.directCompanyDirection,
-    ) ?? directCompanyDirections[0];
-  const targetRoles = direction.targetRole ? [direction.targetRole] : [];
-
-  return {
-    schemaVersion: 2,
-    search: {
-      keywords: "",
-      location: "",
-      remote: "Any",
-      experienceLevel: "Any",
-      jobType: "Any",
-      datePosted: "Any time",
-      resultsLimit: 1000,
-      country: "Any",
-      deduplicate: true,
-      searchName: form.searchName.trim(),
-      folder: form.folder,
-    },
-    screening: {
-      enabled: targetRoles.length > 0,
-      targetRoles,
-      excludedRoles: [],
-      allowedSeniority: [],
-      excludedSeniority: [],
-      hardRules: [],
-    },
-  };
-}
-
-function sourceSearchFiltersFromForm(
-  form: ParserSearchForm,
-): Record<string, unknown> {
-  const filters = parserSearchFiltersFromForm(form);
-  return isRecord(filters.search) ? filters.search : {};
-}
-
-function sourceSearchDraftFromForm(form: ParserSearchForm): SourceSearchDraft {
-  return {
-    keywords: form.keywords,
-    location: form.location,
-    remote: form.remote,
-    experienceLevel: form.experienceLevel,
-    jobType: form.jobType,
-    datePosted: form.datePosted,
-    resultsLimit: form.resultsLimit,
-    country: form.country,
-    deduplicate: form.deduplicate,
-    linkedinQueries: form.linkedinQueries,
-    limitPerInput: form.limitPerInput,
-  };
-}
-
-function sourceSearchDraftFromFilters(
-  filters: Record<string, unknown>,
-  fallback: ParserSearchForm,
-): SourceSearchDraft {
-  const stringValue = (fallbackValue: string, ...keys: string[]) => {
-    for (const key of keys) {
-      if (typeof filters[key] === "string") return filters[key];
-    }
-    return fallbackValue;
-  };
-  return {
-    keywords: stringValue(fallback.keywords, "keywords"),
-    location: stringValue(fallback.location, "location"),
-    remote: stringValue(fallback.remote, "remote"),
-    experienceLevel: stringValue(
-      fallback.experienceLevel,
-      "experienceLevel",
-      "experience_level",
-    ),
-    jobType: stringValue(fallback.jobType, "jobType", "job_type"),
-    datePosted: stringValue(
-      fallback.datePosted,
-      "datePosted",
-      "date_posted",
-    ),
-    resultsLimit: String(
-      filterNumber(filters, "resultsLimit", "results_limit") ??
-        (Number.parseInt(fallback.resultsLimit, 10) || 10),
-    ),
-    country: stringValue(fallback.country, "country"),
-    deduplicate: filterBoolean(filters, "deduplicate") ?? fallback.deduplicate,
-    linkedinQueries: linkedInDiscoveryQueriesFromFilters(filters),
-    limitPerInput: String(
-      filterNumber(filters, "limitPerInput", "limit_per_input") ??
-        (Number.parseInt(fallback.limitPerInput, 10) || 25),
-    ),
-  };
-}
-
-function linkedInDiscoveryQueriesFromFilters(
-  filters: Record<string, unknown>,
-): LinkedInDiscoveryQueryDraft[] {
-  const raw = filters.linkedinQueries ?? filters.linkedin_queries;
-  if (!Array.isArray(raw)) return [];
-  return raw.flatMap((value) => {
-    if (!isRecord(value) || typeof value.keyword !== "string") return [];
-    const rawLevels = value.experienceLevels ?? value.experience_levels;
-    return [
-      {
-        keyword: value.keyword,
-        experienceLevels: Array.isArray(rawLevels)
-          ? rawLevels.filter(
-              (level): level is string => typeof level === "string",
-            )
-          : [],
-        jobType:
-          typeof (value.jobType ?? value.job_type) === "string"
-            ? String(value.jobType ?? value.job_type)
-            : null,
-        selectiveSearch:
-          typeof (value.selectiveSearch ?? value.selective_search) === "boolean"
-            ? Boolean(value.selectiveSearch ?? value.selective_search)
-            : true,
-      },
-    ];
-  });
-}
-
-function getSourceSearchConfigLabel(config: JobSourceConfigPayload) {
-  return (
-    config.name
-      .replace(/\s*·\s*(?:LinkedIn|Indeed|jobs(?:\.|_)?ch)$/i, "")
-      .trim() || config.name
-  );
-}
-
-function getDefaultLinkedInSearchSelection(
-  configs: ParserSearchConfig[],
-  sourceConfigs: JobSourceConfigPayload[],
-) {
-  const sourceConfig =
-    sourceConfigs.find(
-      (config) =>
-        config.source === "linkedin" && config.id === "entry-it-linkedin",
-    ) ??
-    sourceConfigs.find(
-      (config) =>
-        config.source === "linkedin" &&
-        getSourceSearchConfigLabel(config).toLowerCase() === "entry it",
-    );
-  if (!sourceConfig) return null;
-
-  const commonConfig = configs.find(
-    (config) => config.id === sourceConfig.configId,
-  );
-  const fallback = commonConfig?.form ?? defaultParserSearchForm;
-  const draft = sourceSearchDraftFromFilters(sourceConfig.filters, fallback);
-
-  return {
-    commonConfigId: sourceConfig.configId,
-    sourceConfigId: sourceConfig.id,
-    draft,
-    form: {
-      ...defaultParserSearchForm,
-      ...fallback,
-      ...draft,
-      parsers: [],
-      directCompaniesEnabled: false,
-      directCompanyIds: [],
-      searchName:
-        commonConfig?.name ?? getSourceSearchConfigLabel(sourceConfig),
-    },
-  };
-}
-
-function parserSearchConfigFromApi(
-  config: JobSearchConfigPayload,
-): ParserSearchConfig {
-  const filters = config.filters;
-  const searchFilters = isRecord(filters.search)
-    ? filters.search
-    : filters;
-  const sources = Array.isArray(searchFilters.sources)
-    ? searchFilters.sources.filter(
-        (source): source is ParserId =>
-          source === "linkedin" || source === "indeed" || source === "jobs_ch",
-      )
-    : [];
-  const directCompanyIds = normalizeDirectCompanyIds(
-    searchFilters.directCompanyIds ??
-      searchFilters.direct_company_ids ??
-      searchFilters.directCompanies ??
-      searchFilters.direct_companies,
-  );
-  const directCompaniesEnabled =
-    filterBoolean(
-      searchFilters,
-      "directCompaniesEnabled",
-      "direct_companies_enabled",
-    ) ?? directCompanyIds.length > 0;
-  return {
-    id: config.id,
-    name: config.name,
-    filters,
-    updatedAt: config.updatedAt,
-    form: {
-      ...defaultParserSearchForm,
-      parsers:
-        sources.length > 0 || directCompaniesEnabled
-          ? sources
-          : [...defaultParserSearchForm.parsers],
-      directCompaniesEnabled,
-      directCompanyIds,
-      directCompanyDirection: directCompanyDirectionFromFilters(filters),
-      keywords: filterString(searchFilters, "keywords"),
-      location: filterString(searchFilters, "location"),
-      remote:
-        filterString(searchFilters, "remote") ||
-        defaultParserSearchForm.remote,
-      experienceLevel:
-        filterString(
-          searchFilters,
-          "experienceLevel",
-          "experience_level",
-        ) ||
-        defaultParserSearchForm.experienceLevel,
-      jobType:
-        filterString(searchFilters, "jobType", "job_type") ||
-        defaultParserSearchForm.jobType,
-      datePosted:
-        filterString(searchFilters, "datePosted", "date_posted") ||
-        defaultParserSearchForm.datePosted,
-      resultsLimit: String(
-        filterNumber(
-          searchFilters,
-          "resultsLimit",
-          "results_limit",
-        ) ?? 10,
-      ),
-      country:
-        filterString(searchFilters, "country") ||
-        defaultParserSearchForm.country,
-      deduplicate:
-        filterBoolean(searchFilters, "deduplicate") ??
-        defaultParserSearchForm.deduplicate,
-      linkedinQueries: linkedInDiscoveryQueriesFromFilters(searchFilters),
-      limitPerInput: String(
-        filterNumber(searchFilters, "limitPerInput", "limit_per_input") ?? 25,
-      ),
-      searchName: config.name,
-      folder: filterString(searchFilters, "folder"),
-    },
-  };
-}
-
-function normalizeDirectCompanyIds(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-
-  return Array.from(
-    new Set(
-      value.flatMap((item) => {
-        const id =
-          typeof item === "string"
-            ? item.trim()
-            : isRecord(item)
-              ? filterString(item, "id").trim()
-              : "";
-        return id ? [id] : [];
-      }),
-    ),
-  );
-}
-
-function filterString(
-  filters: Record<string, unknown>,
-  ...keys: string[]
-): string {
-  for (const key of keys) {
-    if (typeof filters[key] === "string") return filters[key];
-  }
-  return "";
-}
-
-function filterNumber(
-  filters: Record<string, unknown>,
-  ...keys: string[]
-): number | null {
-  for (const key of keys) {
-    const value = filters[key];
-    if (typeof value === "number" && Number.isFinite(value)) return value;
-    if (typeof value === "string" && Number.isFinite(Number(value))) {
-      return Number(value);
-    }
-  }
-  return null;
-}
-
-function filterBoolean(
-  filters: Record<string, unknown>,
-  ...keys: string[]
-): boolean | null {
-  for (const key of keys) {
-    if (typeof filters[key] === "boolean") return filters[key];
-  }
-  return null;
 }
 
 function legacyFileName(index: number, dataUrl: string) {
