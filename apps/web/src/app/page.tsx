@@ -98,20 +98,10 @@ import {
 } from "@/features/applications/model/selectors";
 import type { ManualApplicationDraft } from "@/features/applications/model/types";
 import type {
-  JobSearchConfigPayload,
   JobSearchRunPayload,
-  JobSourceConfigPayload,
 } from "@/features/job-search/api/dto";
-import { parserSearchConfigFromApi } from "@/features/job-search/api/mappers";
 import { getParserLabel } from "@/features/job-search/formatting";
-import {
-  hasEquivalentServerSearchConfig,
-  normalizeParserSearchConfigs,
-} from "@/features/job-search/browser-storage/migrations";
-import {
-  legacyParserSearchConfigsStorageKey,
-  parserSearchConfigsStorageKey,
-} from "@/features/job-search/browser-storage/keys";
+import { useJobSearch } from "@/features/job-search/hooks/use-job-search";
 import {
   defaultLinkedInProfessionExperienceLevels,
   defaultParserSearchForm,
@@ -130,7 +120,6 @@ import { getDefaultLinkedInSearchSelection } from "@/features/job-search/model/s
 import type {
   ActiveSearchSource,
   ParserId,
-  ParserSearchConfig,
   ParserSearchForm,
   ParserSearchStatus,
   SourceSearchDraft,
@@ -584,9 +573,10 @@ function HomePageContent() {
   const hasParserSearchInteractionRef = useRef(false);
   const [activeSearchSource, setActiveSearchSource] = useState<ActiveSearchSource>("linkedin");
   const [sourceSearchDrafts, setSourceSearchDrafts] = useState<Partial<Record<ParserId, SourceSearchDraft>>>({});
-  const [parserSearchConfigs, setParserSearchConfigs] = useState<ParserSearchConfig[]>([]);
+  const jobSearchState = useJobSearch();
+  const parserSearchConfigs = jobSearchState.configs;
   const [selectedParserSearchConfigId, setSelectedParserSearchConfigId] = useState("");
-  const [sourceSearchConfigs, setSourceSearchConfigs] = useState<JobSourceConfigPayload[]>([]);
+  const sourceSearchConfigs = jobSearchState.sourceConfigs;
   const [selectedSourceConfigIds, setSelectedSourceConfigIds] = useState<Partial<Record<ParserId, string>>>({});
   const profileState = useProfile();
   const profile = profileState.profile;
@@ -802,111 +792,22 @@ function HomePageContent() {
   }, []);
 
   useEffect(() => {
-    let isMounted = true;
+    const defaultSelection = getDefaultLinkedInSearchSelection(
+      parserSearchConfigs,
+      sourceSearchConfigs,
+    );
+    if (!defaultSelection || hasParserSearchInteractionRef.current) return;
+    setParserSearchForm(defaultSelection.form);
+    setSelectedParserSearchConfigId(defaultSelection.commonConfigId);
+    setSelectedSourceConfigIds({ linkedin: defaultSelection.sourceConfigId });
+    setSourceSearchDrafts({ linkedin: defaultSelection.draft });
+  }, [parserSearchConfigs, sourceSearchConfigs]);
 
-    async function loadParserSearchConfigs() {
-      try {
-        window.localStorage.removeItem(legacyParserSearchConfigsStorageKey);
-        const response = await fetch(`${apiBaseUrl}/job-search/configs`, {
-          cache: "no-store",
-        });
-        if (!response.ok) {
-          throw new Error(
-            await readApiErrorMessage(response, "Search configs could not be loaded"),
-          );
-        }
-        const serverConfigs = (await response.json()) as JobSearchConfigPayload[];
-        const rawLegacyConfigs = window.localStorage.getItem(
-          parserSearchConfigsStorageKey,
-        );
-
-        if (rawLegacyConfigs) {
-          let legacyConfigs: ParserSearchConfig[] = [];
-          try {
-            const parsedLegacyConfigs = JSON.parse(rawLegacyConfigs) as unknown;
-            legacyConfigs = Array.isArray(parsedLegacyConfigs)
-              ? normalizeParserSearchConfigs(
-                  parsedLegacyConfigs as ParserSearchConfig[],
-                )
-              : [];
-          } catch {
-            window.localStorage.removeItem(parserSearchConfigsStorageKey);
-          }
-          for (const legacyConfig of legacyConfigs) {
-            const filters = parserSearchFiltersFromForm(legacyConfig.form);
-            const alreadyImported = hasEquivalentServerSearchConfig(
-              legacyConfig,
-              serverConfigs,
-            );
-            if (alreadyImported) continue;
-
-            const importResponse = await fetch(
-              `${apiBaseUrl}/job-search/configs`,
-              {
-                method: "POST",
-                headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({
-                  name: legacyConfig.name,
-                  filters,
-                }),
-              },
-            );
-            if (!importResponse.ok) {
-              throw new Error(
-                await readApiErrorMessage(
-                  importResponse,
-                  `Could not import config: ${legacyConfig.name}`,
-                ),
-              );
-            }
-            serverConfigs.push(
-              (await importResponse.json()) as JobSearchConfigPayload,
-            );
-          }
-          window.localStorage.removeItem(parserSearchConfigsStorageKey);
-        }
-
-        const sourceConfigsResponse = await fetch(
-          `${apiBaseUrl}/job-search/source-configs`,
-          { cache: "no-store" },
-        ).catch(() => null);
-        const loadedSourceConfigs = sourceConfigsResponse?.ok
-          ? (await sourceConfigsResponse.json()) as JobSourceConfigPayload[]
-          : [];
-        const normalizedConfigs = serverConfigs.map(parserSearchConfigFromApi);
-        const defaultSelection = getDefaultLinkedInSearchSelection(
-          normalizedConfigs,
-          loadedSourceConfigs,
-        );
-
-        if (!isMounted) return;
-        setParserSearchConfigs(normalizedConfigs);
-        setSourceSearchConfigs(loadedSourceConfigs);
-        if (defaultSelection && !hasParserSearchInteractionRef.current) {
-          setParserSearchForm(defaultSelection.form);
-          setSelectedParserSearchConfigId(defaultSelection.commonConfigId);
-          setSelectedSourceConfigIds({
-            linkedin: defaultSelection.sourceConfigId,
-          });
-          setSourceSearchDrafts({ linkedin: defaultSelection.draft });
-        }
-      } catch (error) {
-        if (!isMounted) return;
-        setParserSearchStatus("error");
-        setParserSearchMessage(
-          error instanceof Error
-            ? error.message
-            : "Search configs could not be loaded",
-        );
-      }
-    }
-
-    void loadParserSearchConfigs();
-
-    return () => {
-      isMounted = false;
-    };
-  }, []);
+  useEffect(() => {
+    if (!jobSearchState.error) return;
+    setParserSearchStatus("error");
+    setParserSearchMessage(jobSearchState.error.message);
+  }, [jobSearchState.error]);
 
   useEffect(() => {
     try {
@@ -1665,14 +1566,9 @@ function HomePageContent() {
       `${existingId ? "Updating" : "Creating"} ${sourceLabel} query config...`,
     );
     try {
-      const response = await fetch(
-        `${apiBaseUrl}/job-search/source-configs${
-          existingId ? `/${encodeURIComponent(existingId)}` : ""
-        }`,
-        {
-          method: existingId ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+      const saved = await jobSearchState.saveSourceConfig({
+        id: existingId || undefined,
+        data: {
             name: `${commonConfig?.name ?? (parserSearchForm.searchName || "Search")} · ${sourceLabel}`,
             ...(!existingId
               ? {
@@ -1681,20 +1577,8 @@ function HomePageContent() {
                 }
               : {}),
             filters: sourceSearchFiltersFromForm(sourceForm),
-          }),
         },
-      );
-      if (!response.ok) {
-        throw new Error(
-          await readApiErrorMessage(response, `${sourceLabel} config save failed`),
-        );
-      }
-      const saved = (await response.json()) as JobSourceConfigPayload;
-      setSourceSearchConfigs((current) =>
-        current.some((config) => config.id === saved.id)
-          ? current.map((config) => (config.id === saved.id ? saved : config))
-          : [saved, ...current],
-      );
+      });
       setSelectedSourceConfigIds((current) => ({ ...current, [source]: saved.id }));
       setParserSearchStatus("ready");
       setParserSearchMessage(`Saved ${sourceLabel} query config`);
@@ -2793,10 +2677,7 @@ function HomePageContent() {
           appSettings.auto_ai_match_enabled,
         );
         try {
-          const response = await fetch(`${apiBaseUrl}/job-search/run`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
+          const run = await jobSearchState.run({
               ...(group.configId
                 ? { configId: group.configId }
                 : {
@@ -2826,14 +2707,8 @@ function HomePageContent() {
                 }),
               ),
               aiAnalysisEnabled: true,
-            }),
           });
-          if (!response.ok) {
-            throw new Error(
-              await readApiErrorMessage(response, `${groupLabel} search failed`),
-            );
-          }
-          runs.push((await response.json()) as JobSearchRunPayload);
+          runs.push(run);
         } catch (error) {
           requestFailures.push({
             sources: group.sources,
@@ -2968,12 +2843,9 @@ function HomePageContent() {
     const poll = async () => {
       if (stopped) return;
       try {
-        const response = await fetch(`${apiBaseUrl}/job-search/runs?limit=20`, {
-          cache: "no-store",
-        });
+        const runs = await jobSearchState.fetchRuns();
         if (stopped) return;
-        if (response.ok) {
-          const runs = (await response.json()) as JobSearchRunPayload[];
+        {
           const run = trackedRunId
             ? runs.find((candidate) => candidate.id === trackedRunId)
             : runs.find((candidate) => {
