@@ -82,20 +82,16 @@ import {
 import { createClientId } from "@/lib/client-id";
 import { cn } from "@/lib/utils";
 import { useActivityFeed } from "@/features/activity/hooks/use-activity-feed";
+import { useApplicationEvents } from "@/features/applications/hooks/use-application-events";
 import { useApplications } from "@/features/applications/hooks/use-applications";
 import { useProfile } from "@/features/profile/hooks/use-profile";
 import { useAppSettings } from "@/features/settings/hooks/use-app-settings";
 import { screenshotSessionStorageKey } from "@/features/app-shell/browser-storage/keys";
 import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
-import { applicationEventToApiPayload } from "@/features/applications/api/mappers";
 import {
   normalizeStoredApplicationEvents,
   normalizeStoredApplications,
-  removeLegacyDemoApplicationEvents,
 } from "@/features/applications/browser-storage/normalizers";
-import {
-  applicationEventsStorageKey,
-} from "@/features/applications/browser-storage/keys";
 import {
   sortApplicationEvents,
 } from "@/features/applications/model/selectors";
@@ -571,11 +567,10 @@ function HomePageContent() {
   const [selectedApplicationId, setSelectedApplicationId] = useState("");
   const [workspaceApplicationId, setWorkspaceApplicationId] = useState<string | null>(null);
   const areApplicationsLoaded = !applicationState.isLoading;
-  const applicationMutationQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const deletedApplicationIdsRef = useRef<Set<string>>(new Set());
   const [matchingApplicationIds, setMatchingApplicationIds] = useState<string[]>([]);
-  const [applicationEvents, setApplicationEvents] = useState<ApplicationEvent[]>([]);
-  const [areApplicationEventsLoaded, setAreApplicationEventsLoaded] = useState(false);
+  const applicationEventState = useApplicationEvents();
+  const applicationEvents = applicationEventState.events;
+  const areApplicationEventsLoaded = !applicationEventState.isLoading;
   const [jobFilters, setJobFilters] = useState<JobFilters>(defaultJobFilters);
   const [sortBy, setSortBy] = useState<JobSortBy>("AI Match");
   const [isAnalysisMenuOpen, setIsAnalysisMenuOpen] = useState(false);
@@ -747,18 +742,6 @@ function HomePageContent() {
   );
   const selectedApplication = trackedApplications.find((application) => application.id === selectedApplicationId) ?? trackedApplications[0] ?? null;
   const workspaceApplication = findWorkspaceApplication(applications, workspaceApplicationId);
-
-  const enqueueApplicationMutation = useCallback(
-    (mutation: () => Promise<void>) => {
-      const queuedMutation = applicationMutationQueueRef.current.then(
-        mutation,
-        mutation,
-      );
-      applicationMutationQueueRef.current = queuedMutation.catch(() => undefined);
-      return queuedMutation;
-    },
-    [],
-  );
 
   function openAiMatchSection(section: "analysis" | "recommendations") {
     setActiveTab("AI Match");
@@ -970,69 +953,6 @@ function HomePageContent() {
 
   useEffect(() => {
     try {
-      const rawEvents = window.localStorage.getItem(applicationEventsStorageKey);
-      const storedEvents = removeLegacyDemoApplicationEvents(
-        normalizeStoredApplicationEvents(
-          rawEvents ? JSON.parse(rawEvents) : [],
-        ),
-      );
-      setApplicationEvents(sortApplicationEvents(storedEvents));
-    } catch {
-      window.localStorage.removeItem(applicationEventsStorageKey);
-    } finally {
-      setAreApplicationEventsLoaded(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!areApplicationEventsLoaded) return;
-
-    window.localStorage.setItem(applicationEventsStorageKey, JSON.stringify(applicationEvents));
-
-    async function saveStoredApplicationEvents() {
-      await enqueueApplicationMutation(async () => {
-        const response = await fetch(`${apiBaseUrl}/applications/events`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            events: applicationEvents
-              .filter(
-                (event) =>
-                  !deletedApplicationIdsRef.current.has(event.applicationId),
-              )
-              .map(applicationEventToApiPayload),
-          }),
-        });
-        if (!response.ok) {
-          throw new Error(
-            await readApiErrorMessage(
-              response,
-              "Application events could not be saved",
-            ),
-          );
-        }
-      });
-    }
-
-    void saveStoredApplicationEvents().catch((error) => {
-      appendAppLog({
-        level: "error",
-        area: "Applications",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Application events could not be saved",
-      });
-    });
-  }, [
-    appendAppLog,
-    areApplicationEventsLoaded,
-    applicationEvents,
-    enqueueApplicationMutation,
-  ]);
-
-  useEffect(() => {
-    try {
       const rawSettings = window.localStorage.getItem(uiSettingsStorageKey);
       const storedSettings = rawSettings ? (JSON.parse(rawSettings) as Partial<UiSettings>) : {};
       setUiSettings({ ...defaultUiSettings, ...storedSettings });
@@ -1112,38 +1032,8 @@ function HomePageContent() {
       }
     }
 
-    async function loadStoredApplicationEvents() {
-      try {
-        const response = await fetch(`${apiBaseUrl}/applications/events`, {
-          cache: "no-store",
-          signal: abortController.signal,
-        });
-
-        if (!response.ok) return;
-
-        const storedEvents = (await response.json()) as PersistedEntityDto[];
-        const loadedEvents = sortApplicationEvents(
-          removeLegacyDemoApplicationEvents(
-            normalizeStoredApplicationEvents(
-              storedEvents.map((event) => event.data),
-            ),
-          ).filter(
-            (event) =>
-              !deletedApplicationIdsRef.current.has(event.applicationId),
-          ),
-        );
-        if (loadedEvents.length === 0) return;
-
-        setApplicationEvents(loadedEvents);
-        window.localStorage.setItem(applicationEventsStorageKey, JSON.stringify(loadedEvents));
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-      }
-    }
-
     loadStoredJobs();
     loadDismissedJobIds();
-    loadStoredApplicationEvents();
     return () => {
       abortController.abort();
     };
@@ -1210,7 +1100,6 @@ function HomePageContent() {
     const nextApplication = existingApplication
       ? { ...existingApplication, job, status: "applied" as const, appliedAt: new Date().toISOString() }
       : application;
-    deletedApplicationIdsRef.current.delete(nextApplication.id);
     void applicationState.upsert(nextApplication).catch((error) => appendAppLog({
       level: "error",
       area: "Applications",
@@ -1229,7 +1118,6 @@ function HomePageContent() {
       changeView("ApplicationWorkspace", existingApplication.id);
     } else {
       const application = createApplicationFromJob(job, "draft");
-      deletedApplicationIdsRef.current.delete(application.id);
       void applicationState.upsert(application).catch((error) => appendAppLog({
         level: "error",
         area: "Applications",
@@ -1247,8 +1135,6 @@ function HomePageContent() {
 
   async function addManualApplication(draft: ManualApplicationDraft) {
     const application = { ...createApplicationFromManualDraft(draft), documents: [] };
-    deletedApplicationIdsRef.current.delete(application.id);
-
     setSelectedApplicationId(application.id);
     try {
       await applicationState.upsert(application);
@@ -1550,7 +1436,7 @@ function HomePageContent() {
     if (result.resourceKind === "event") {
       const createdEvent = normalizeStoredApplicationEvents([result.resource])[0];
       if (!createdEvent) return;
-      setApplicationEvents((currentEvents) => sortApplicationEvents([
+      applicationEventState.updateCached((currentEvents) => sortApplicationEvents([
         createdEvent,
         ...currentEvents.filter((event) => event.id !== createdEvent.id),
       ]));
@@ -1568,19 +1454,16 @@ function HomePageContent() {
     const deletedEvents = applicationEvents.filter(
       (event) => event.applicationId === applicationId,
     );
-    deletedApplicationIdsRef.current.add(applicationId);
-
     const nextApplicationId = applications.find((application) => application.id !== applicationId)?.id ?? "";
     setSelectedApplicationId((currentId) => currentId === applicationId ? nextApplicationId : currentId);
-    setApplicationEvents((currentEvents) => currentEvents.filter((event) => event.applicationId !== applicationId));
+    applicationEventState.removeForApplication(applicationId);
 
     void applicationState.remove(applicationId).then(
       () => undefined,
       (error) => {
-        deletedApplicationIdsRef.current.delete(applicationId);
         setSelectedApplicationId((currentId) => currentId || applicationId);
         if (deletedEvents.length > 0) {
-          setApplicationEvents((currentEvents) =>
+          applicationEventState.updateCached((currentEvents) =>
             sortApplicationEvents([
               ...deletedEvents,
               ...currentEvents.filter(
@@ -1605,69 +1488,24 @@ function HomePageContent() {
   }
 
   function saveApplicationEvent(event: ApplicationEvent) {
-    const isExistingEvent = applicationEvents.some((item) => item.id === event.id);
-
-    setApplicationEvents((currentEvents) => {
-      const existingEvent = currentEvents.find((item) => item.id === event.id);
-      const nextEvents = existingEvent
-        ? currentEvents.map((item) => (item.id === event.id ? event : item))
-        : [event, ...currentEvents];
-
-      return sortApplicationEvents(nextEvents);
-    });
-
     if (event.outcome === "negative") {
       updateApplicationStatus(event.applicationId, "rejected");
     }
 
-    if (isExistingEvent) {
-      void enqueueApplicationMutation(async () => {
-        const response = await fetch(
-          `${apiBaseUrl}/applications/events/${encodeURIComponent(event.id)}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(applicationEventToApiPayload(event)),
-          },
-        );
-        if (!response.ok && response.status !== 404) {
-          throw new Error(
-            await readApiErrorMessage(
-              response,
-              "Application event could not be saved",
-            ),
-          );
-        }
-      }).catch((error) => {
-        appendAppLog({
-          level: "error",
-          area: "Applications",
-          message:
-            error instanceof Error
-              ? error.message
-              : "Application event could not be saved",
-        });
+    void applicationEventState.upsert(event).catch((error) => {
+      appendAppLog({
+        level: "error",
+        area: "Applications",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Application event could not be saved",
       });
-    }
+    });
   }
 
   function deleteApplicationEvent(eventId: string) {
-    setApplicationEvents((currentEvents) => currentEvents.filter((event) => event.id !== eventId));
-
-    void enqueueApplicationMutation(async () => {
-      const response = await fetch(
-        `${apiBaseUrl}/applications/events/${encodeURIComponent(eventId)}`,
-        { method: "DELETE" },
-      );
-      if (!response.ok && response.status !== 404) {
-        throw new Error(
-          await readApiErrorMessage(
-            response,
-            "Application event could not be deleted",
-          ),
-        );
-      }
-    }).catch((error) => {
+    void applicationEventState.remove(eventId).catch((error) => {
       appendAppLog({
         level: "error",
         area: "Applications",

@@ -42,3 +42,9 @@ export type ApplicationEventApiPayload = {
   application_id: string;
   data: ApplicationEvent;
 };
+
+export type StoredApplicationEventPayload = ApplicationEventApiPayload & {
+  created_at?: string;
+  updated_at?: string;
+  revision?: number;
+};

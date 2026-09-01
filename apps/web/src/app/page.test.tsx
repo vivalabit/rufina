@@ -5596,9 +5596,6 @@ it("serializes application saves and deletion without restoring a stale applicat
     ]),
   );
 
-  await waitFor(() =>
-    expect(mutationOrder).toContain("events-put-without-application"),
-  );
   expect(mutationOrder.indexOf("put-1-end")).toBeLessThan(
     mutationOrder.indexOf("delete"),
   );
@@ -5720,9 +5717,6 @@ it("orders an application event deletion after an older bulk save", async () => 
   resolveOldEventPut?.(Response.json([]));
 
   await waitFor(() => expect(mutationOrder).toContain("event-delete"));
-  await waitFor(() =>
-    expect(eventPutBodies.some((eventIds) => eventIds.length === 0)).toBe(true),
-  );
   expect(mutationOrder.indexOf("old-events-put-end")).toBeLessThan(
     mutationOrder.indexOf("event-delete"),
   );
