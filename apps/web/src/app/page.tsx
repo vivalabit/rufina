@@ -80,9 +80,7 @@ import {
 } from "@/lib/job-search-progress";
 import { createClientId } from "@/lib/client-id";
 import { cn } from "@/lib/utils";
-import { appLogsStorageKey, maxStoredAppLogs } from "@/features/activity/model/constants";
-import { normalizeStoredLogs } from "@/features/activity/model/normalizers";
-import type { AppLogEntry } from "@/features/activity/model/types";
+import { useActivityFeed } from "@/features/activity/hooks/use-activity-feed";
 import { screenshotSessionStorageKey } from "@/features/app-shell/browser-storage/keys";
 import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
 import type {
@@ -848,8 +846,11 @@ export default function HomePage() {
   const [aiSettingsSaveMessage, setAiSettingsSaveMessage] = useState("");
   const [uiSettings, setUiSettings] = useState<UiSettings>(defaultUiSettings);
   const [areUiSettingsLoaded, setAreUiSettingsLoaded] = useState(false);
-  const [appLogs, setAppLogs] = useState<AppLogEntry[]>([]);
-  const [areAppLogsLoaded, setAreAppLogsLoaded] = useState(false);
+  const {
+    entries: appLogs,
+    append: appendAppLog,
+    clear: clearAppLogs,
+  } = useActivityFeed();
   const availableJobs = useMemo(
     () => selectAvailableJobs(jobList, archivedJobIds, deletedJobIds),
     [archivedJobIds, deletedJobIds, jobList],
@@ -1372,26 +1373,6 @@ export default function HomePage() {
   }, [areUiSettingsLoaded, uiSettings]);
 
   useEffect(() => {
-    try {
-      const rawLogs = window.localStorage.getItem(appLogsStorageKey);
-      setAppLogs(normalizeStoredLogs(rawLogs ? JSON.parse(rawLogs) : [], {
-        createId: createClientId,
-        now: () => new Date().toISOString(),
-      }));
-    } catch {
-      window.localStorage.removeItem(appLogsStorageKey);
-    } finally {
-      setAreAppLogsLoaded(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!areAppLogsLoaded) return;
-
-    window.localStorage.setItem(appLogsStorageKey, JSON.stringify(appLogs.slice(0, maxStoredAppLogs)));
-  }, [areAppLogsLoaded, appLogs]);
-
-  useEffect(() => {
     const abortController = new AbortController();
     let locallyDeletedJobIds: string[] = [];
 
@@ -1712,17 +1693,6 @@ export default function HomePage() {
     changeView("Assistant");
   }
 
-  function appendAppLog(entry: Omit<AppLogEntry, "id" | "timestamp">) {
-    setAppLogs((currentLogs) => [
-      {
-        ...entry,
-        id: createClientId("log"),
-        timestamp: new Date().toISOString(),
-      },
-      ...currentLogs,
-    ].slice(0, maxStoredAppLogs));
-  }
-
   function updateShowLogs(showLogs: boolean) {
     setUiSettings((currentSettings) => ({ ...currentSettings, showLogs }));
     appendAppLog({
@@ -1734,10 +1704,6 @@ export default function HomePage() {
     if (!showLogs && activeView === "Logs") {
       changeView("Settings");
     }
-  }
-
-  function clearAppLogs() {
-    setAppLogs([]);
   }
 
   function markJobApplied(job: Job) {
