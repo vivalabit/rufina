@@ -5277,6 +5277,26 @@ it("keeps preparation drafts out of Applications until they are marked as applie
         );
         return Response.json(payload.applications);
       }
+      if (url.pathname === "/applications" && method === "POST") {
+        const payload = JSON.parse(String(init?.body)) as {
+          id: string;
+          data: { status: string };
+        };
+        savedApplicationStatuses.push(payload.data.status);
+        return Response.json({ ...payload, revision: 1 });
+      }
+      if (/^\/applications\/[^/]+$/.test(url.pathname) && method === "PATCH") {
+        const payload = JSON.parse(String(init?.body)) as {
+          data: { id: string; status: string };
+          revision: number;
+        };
+        savedApplicationStatuses.push(payload.data.status);
+        return Response.json({
+          id: payload.data.id,
+          data: payload.data,
+          revision: payload.revision + 1,
+        });
+      }
       if (url.pathname === "/applications/events" && method === "PUT")
         return Response.json([]);
       return undefined;
@@ -5565,8 +5585,6 @@ it("serializes application saves and deletion without restoring a stale applicat
   expect(mutationOrder.indexOf("events-put-with-application")).toBeLessThan(
     mutationOrder.indexOf("delete"),
   );
-  await waitFor(() => expect(mutationOrder).toContain("put-2-start"));
-
   resolveStaleGet?.(Response.json([{ id: application.id, data: application }]));
   resolveStaleEventGet?.(
     Response.json([
@@ -5578,12 +5596,11 @@ it("serializes application saves and deletion without restoring a stale applicat
     ]),
   );
 
-  await waitFor(() => expect(mutationOrder).toContain("put-2-end"));
   await waitFor(() =>
     expect(mutationOrder).toContain("events-put-without-application"),
   );
-  expect(mutationOrder.indexOf("delete")).toBeLessThan(
-    mutationOrder.lastIndexOf("events-put-without-application"),
+  expect(mutationOrder.indexOf("put-1-end")).toBeLessThan(
+    mutationOrder.indexOf("delete"),
   );
   expect(screen.queryAllByText("Delete Race Test Vacancy")).toHaveLength(0);
   expect(screen.getByText("No applications yet")).toBeInTheDocument();

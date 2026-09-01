@@ -82,35 +82,20 @@ import {
 import { createClientId } from "@/lib/client-id";
 import { cn } from "@/lib/utils";
 import { useActivityFeed } from "@/features/activity/hooks/use-activity-feed";
+import { useApplications } from "@/features/applications/hooks/use-applications";
 import { useProfile } from "@/features/profile/hooks/use-profile";
 import { useAppSettings } from "@/features/settings/hooks/use-app-settings";
 import { screenshotSessionStorageKey } from "@/features/app-shell/browser-storage/keys";
 import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
-import type {
-  GeneratedApplicationDocumentPayload,
-  WorkspaceSourceFilePayload,
-} from "@/features/applications/api/dto";
-import {
-  applicationEventToApiPayload,
-  generatedDocumentToApplicationDocument,
-  workspaceSourceToApplicationDocument,
-} from "@/features/applications/api/mappers";
+import { applicationEventToApiPayload } from "@/features/applications/api/mappers";
 import {
   normalizeStoredApplicationEvents,
   normalizeStoredApplications,
   removeLegacyDemoApplicationEvents,
-  removeLegacyDemoApplications,
 } from "@/features/applications/browser-storage/normalizers";
 import {
-  extractLegacyApplicationDocuments,
-  migrateLegacyApplicationDocuments,
-} from "@/features/applications/browser-storage/migrations";
-import {
   applicationEventsStorageKey,
-  applicationFileStorageMigrationKey,
-  applicationsStorageKey,
 } from "@/features/applications/browser-storage/keys";
-import { applicationPayloadForStorage } from "@/features/applications/browser-storage/serialization";
 import {
   sortApplicationEvents,
 } from "@/features/applications/model/selectors";
@@ -216,7 +201,6 @@ import type { PersistedEntityDto } from "@/shared/api/dto";
 import { readApiErrorMessage } from "@/shared/api/error";
 import {
   browserStorageNamespacePrefix,
-  completedBrowserStorageMigrationValue,
 } from "@/shared/browser-storage/constants";
 import { formatFileSize } from "@/shared/formatting/files";
 import {
@@ -470,109 +454,6 @@ function JobFilterDropdown({
   );
 }
 
-class FileUploadResponseError extends Error {
-  readonly status: number;
-
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = "FileUploadResponseError";
-    this.status = status;
-  }
-}
-
-const permanentLegacyFileStatuses = new Set([400, 413, 415, 422]);
-
-function isPermanentLegacyFileUploadError(error: unknown) {
-  return (
-    error instanceof FileUploadResponseError &&
-    permanentLegacyFileStatuses.has(error.status)
-  );
-}
-
-async function uploadApplicationAttachment(
-  applicationId: string,
-  file: Blob,
-  metadata: {
-    fileName: string;
-    title: string;
-    legacyDocumentId?: string;
-  },
-): Promise<ApplicationDocument> {
-  const query = new URLSearchParams({
-    applicationId,
-    category: "Application Attachment",
-    title: metadata.title,
-    fileName: metadata.fileName,
-  });
-  if (metadata.legacyDocumentId) query.set("legacyDocumentId", metadata.legacyDocumentId);
-  const response = await fetch(`${apiBaseUrl}/documents/workspace-sources/upload?${query}`, {
-    method: "POST",
-    headers: { "Content-Type": file.type || "application/octet-stream" },
-    body: file,
-  });
-  if (!response.ok) {
-    throw new FileUploadResponseError(
-      await readApiErrorMessage(response, "Application document could not be uploaded"),
-      response.status,
-    );
-  }
-  return workspaceSourceToApplicationDocument(await response.json() as WorkspaceSourceFilePayload);
-}
-
-async function fetchApplicationDocuments(
-  applicationId: string,
-  signal?: AbortSignal,
-): Promise<ApplicationDocument[]> {
-  const applicationIdQuery = encodeURIComponent(applicationId);
-  const [sourceResponse, generatedResponse] = await Promise.all([
-    fetch(`${apiBaseUrl}/documents/workspace-sources/library?applicationId=${applicationIdQuery}`, {
-      cache: "no-store",
-      signal,
-    }),
-    fetch(`${apiBaseUrl}/documents?applicationId=${applicationIdQuery}`, {
-      cache: "no-store",
-      signal,
-    }),
-  ]);
-  if (!sourceResponse.ok || !generatedResponse.ok) {
-    throw new Error("Application documents could not be loaded");
-  }
-  const sources = (await sourceResponse.json()) as WorkspaceSourceFilePayload[];
-  const generated =
-    (await generatedResponse.json()) as GeneratedApplicationDocumentPayload[];
-  return [
-    ...sources
-      .filter((source) => source.category === "Application Attachment")
-      .map(workspaceSourceToApplicationDocument),
-    ...generated.map((document) =>
-      generatedDocumentToApplicationDocument(document, apiBaseUrl),
-    ),
-  ];
-}
-
-async function deleteApplicationAttachment(
-  applicationId: string,
-  document: ApplicationDocument,
-) {
-  let response: Response | null = null;
-  if (document.artifactId) {
-    response = await fetch(
-      `${apiBaseUrl}/documents/${encodeURIComponent(document.artifactId)}/attachments/${encodeURIComponent(applicationId)}`,
-      { method: "DELETE" },
-    );
-  } else if (document.sourceId) {
-    response = await fetch(
-      `${apiBaseUrl}/documents/workspace-sources/${encodeURIComponent(document.sourceId)}?applicationId=${encodeURIComponent(applicationId)}`,
-      { method: "DELETE" },
-    );
-  }
-  if (response && !response.ok) {
-    throw new Error(
-      await readApiErrorMessage(response, "Document could not be deleted"),
-    );
-  }
-}
-
 function parseProfileLines(value: string) {
   return parseProfileLinesModel(value);
 }
@@ -684,24 +565,13 @@ function HomePageContent() {
   const [deletedJobIds, setDeletedJobIds] = useState<string[]>([]);
   const [showSavedJobs, setShowSavedJobs] = useState(false);
   const [showArchivedJobs, setShowArchivedJobs] = useState(false);
-  const [applications, setApplicationsState] = useState<TrackedApplication[]>([]);
-  const applicationsRevisionRef = useRef(0);
-  const setApplications = useCallback(
-    (
-      update:
-        | TrackedApplication[]
-        | ((currentApplications: TrackedApplication[]) => TrackedApplication[]),
-    ) => {
-      applicationsRevisionRef.current += 1;
-      setApplicationsState(update);
-    },
-    [],
-  );
+  const applicationState = useApplications();
+  const applications = applicationState.applications;
+  const setApplications = applicationState.updateCached;
   const [selectedApplicationId, setSelectedApplicationId] = useState("");
   const [workspaceApplicationId, setWorkspaceApplicationId] = useState<string | null>(null);
-  const [areApplicationsLoaded, setAreApplicationsLoaded] = useState(false);
+  const areApplicationsLoaded = !applicationState.isLoading;
   const applicationMutationQueueRef = useRef<Promise<void>>(Promise.resolve());
-  const legacyApplicationDocumentsRef = useRef<Map<string, ApplicationDocument[]>>(new Map());
   const deletedApplicationIdsRef = useRef<Set<string>>(new Set());
   const [matchingApplicationIds, setMatchingApplicationIds] = useState<string[]>([]);
   const [applicationEvents, setApplicationEvents] = useState<ApplicationEvent[]>([]);
@@ -776,6 +646,7 @@ function HomePageContent() {
     clear: clearAppLogs,
   } = useActivityFeed();
   const loggedProfileWarningsRef = useRef(new Set<string>());
+  const loggedApplicationWarningsRef = useRef(new Set<string>());
 
   useEffect(() => {
     for (const warning of profileState.warnings) {
@@ -784,6 +655,14 @@ function HomePageContent() {
       appendAppLog({ level: "warning", area: "Profile", message: warning });
     }
   }, [appendAppLog, profileState.warnings]);
+
+  useEffect(() => {
+    for (const warning of applicationState.warnings) {
+      if (loggedApplicationWarningsRef.current.has(warning)) continue;
+      loggedApplicationWarningsRef.current.add(warning);
+      appendAppLog({ level: "warning", area: "Applications", message: warning });
+    }
+  }, [appendAppLog, applicationState.warnings]);
   const availableJobs = useMemo(
     () => selectAvailableJobs(jobList, archivedJobIds, deletedJobIds),
     [archivedJobIds, deletedJobIds, jobList],
@@ -1091,143 +970,6 @@ function HomePageContent() {
 
   useEffect(() => {
     try {
-      const rawApplications = window.localStorage.getItem(applicationsStorageKey);
-      const parsedApplications = rawApplications ? JSON.parse(rawApplications) as unknown : [];
-      const storedApplications = removeLegacyDemoApplications(
-        normalizeStoredApplications(parsedApplications),
-      );
-      legacyApplicationDocumentsRef.current = extractLegacyApplicationDocuments(
-        parsedApplications,
-      );
-      setApplications(storedApplications);
-      setSelectedApplicationId((currentId) => currentId || storedApplications[0]?.id || "");
-    } catch {
-      window.localStorage.removeItem(applicationsStorageKey);
-    } finally {
-      setAreApplicationsLoaded(true);
-    }
-  }, [setApplications]);
-
-  useEffect(() => {
-    if (!areApplicationsLoaded) return;
-    const hasPendingLegacyDocuments = legacyApplicationDocumentsRef.current.size > 0;
-    if (!hasPendingLegacyDocuments) {
-      window.localStorage.setItem(
-        applicationFileStorageMigrationKey,
-        completedBrowserStorageMigrationValue,
-      );
-      window.localStorage.setItem(
-        applicationsStorageKey,
-        JSON.stringify(applications.map(applicationPayloadForStorage)),
-      );
-    }
-    const applicationsRevision = applicationsRevisionRef.current;
-
-    async function saveStoredApplications() {
-      await enqueueApplicationMutation(async () => {
-        const response = await fetch(`${apiBaseUrl}/applications`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            applications: applications.map((application) => ({
-              id: application.id,
-              data: applicationPayloadForStorage(application),
-            })),
-          }),
-        });
-        if (!response.ok) {
-          throw new Error(
-            await readApiErrorMessage(
-              response,
-              "Applications could not be saved",
-            ),
-          );
-        }
-        const storedApplications = (await response.json()) as Array<{
-          id: string;
-          data: unknown;
-        }>;
-        const authoritativeApplications = removeLegacyDemoApplications(
-          normalizeStoredApplications(
-            storedApplications.map((application) => application.data),
-          ),
-        ).filter(
-          (application) =>
-            !deletedApplicationIdsRef.current.has(application.id),
-        );
-        let migratedDocuments = new Map<string, ApplicationDocument[]>();
-        if (legacyApplicationDocumentsRef.current.size > 0) {
-          const migrationResult = await migrateLegacyApplicationDocuments(
-            legacyApplicationDocumentsRef.current,
-            {
-              uploadAttachment: uploadApplicationAttachment,
-              isPermanentUploadError: isPermanentLegacyFileUploadError,
-            },
-          );
-          migratedDocuments = migrationResult.documents;
-          for (const warning of migrationResult.warnings) {
-            appendAppLog({
-              level: "warning",
-              area: "Applications",
-              message: warning,
-            });
-          }
-          legacyApplicationDocumentsRef.current.clear();
-          window.localStorage.setItem(
-            applicationFileStorageMigrationKey,
-            completedBrowserStorageMigrationValue,
-          );
-          window.localStorage.setItem(
-            applicationsStorageKey,
-            JSON.stringify(applications.map(applicationPayloadForStorage)),
-          );
-        }
-        if (applicationsRevisionRef.current !== applicationsRevision) return;
-        if (authoritativeApplications.length === 0) return;
-        window.localStorage.setItem(
-          applicationsStorageKey,
-          JSON.stringify(authoritativeApplications.map(applicationPayloadForStorage)),
-        );
-        setApplications((currentApplications) => {
-          const withDocuments = authoritativeApplications.map((application) => ({
-            ...application,
-            documents: [
-              ...(currentApplications.find((item) => item.id === application.id)?.documents ?? [])
-                .filter((document) => !document.legacyDataUrl),
-              ...(migratedDocuments.get(application.id) ?? []),
-            ],
-          }));
-          if (
-            JSON.stringify(currentApplications)
-            === JSON.stringify(withDocuments)
-          ) {
-            return currentApplications;
-          }
-          return withDocuments;
-        });
-      });
-    }
-
-    void saveStoredApplications().catch((error) => {
-      appendAppLog({
-        level: "error",
-        area: "Applications",
-        message:
-          error instanceof Error
-            ? error.message
-            : "Applications could not be saved",
-      });
-    });
-  }, [
-    appendAppLog,
-    areApplicationsLoaded,
-    applications,
-    enqueueApplicationMutation,
-    setApplications,
-  ]);
-
-  useEffect(() => {
-    try {
       const rawEvents = window.localStorage.getItem(applicationEventsStorageKey);
       const storedEvents = removeLegacyDemoApplicationEvents(
         normalizeStoredApplicationEvents(
@@ -1370,60 +1112,6 @@ function HomePageContent() {
       }
     }
 
-    async function loadStoredApplications() {
-      try {
-        const response = await fetch(`${apiBaseUrl}/applications`, {
-          cache: "no-store",
-          signal: abortController.signal,
-        });
-
-        if (!response.ok) return;
-
-        const storedApplications = (await response.json()) as PersistedEntityDto[];
-        const loadedApplications = removeLegacyDemoApplications(
-          normalizeStoredApplications(storedApplications.map((application) => application.data)),
-        ).filter(
-          (application) =>
-            !deletedApplicationIdsRef.current.has(application.id),
-        );
-        if (loadedApplications.length === 0) return;
-
-        const loadedWithDocuments = await Promise.all(
-          loadedApplications.map(async (application) => {
-            try {
-              return {
-                ...application,
-                documents: await fetchApplicationDocuments(application.id, abortController.signal),
-              };
-            } catch {
-              return application;
-            }
-          }),
-        );
-
-        setApplications((currentApplications) => loadedWithDocuments.map((application) => ({
-          ...application,
-          documents: [
-            ...application.documents,
-            ...(currentApplications.find((item) => item.id === application.id)?.documents ?? [])
-              .filter((document) => document.legacyDataUrl),
-          ],
-        })));
-        setSelectedApplicationId((currentId) => currentId || loadedWithDocuments[0]?.id || "");
-        if (
-          window.localStorage.getItem(applicationFileStorageMigrationKey)
-          && legacyApplicationDocumentsRef.current.size === 0
-        ) {
-          window.localStorage.setItem(
-            applicationsStorageKey,
-            JSON.stringify(loadedWithDocuments.map(applicationPayloadForStorage)),
-          );
-        }
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-      }
-    }
-
     async function loadStoredApplicationEvents() {
       try {
         const response = await fetch(`${apiBaseUrl}/applications/events`, {
@@ -1455,7 +1143,6 @@ function HomePageContent() {
 
     loadStoredJobs();
     loadDismissedJobIds();
-    loadStoredApplications();
     loadStoredApplicationEvents();
     return () => {
       abortController.abort();
@@ -1520,21 +1207,16 @@ function HomePageContent() {
   function markJobApplied(job: Job) {
     const application = createApplicationFromJob(job);
     const existingApplication = applications.find((item) => item.job.id === job.id);
-    deletedApplicationIdsRef.current.delete(
-      existingApplication?.id ?? application.id,
-    );
-
-    if (existingApplication) {
-      setApplications((currentApplications) => currentApplications.map((item) =>
-        item.id === existingApplication.id
-          ? { ...item, job, status: "applied", appliedAt: new Date().toISOString() }
-          : item,
-      ));
-      setSelectedApplicationId(existingApplication.id);
-    } else {
-      setApplications((currentApplications) => [application, ...currentApplications]);
-      setSelectedApplicationId(application.id);
-    }
+    const nextApplication = existingApplication
+      ? { ...existingApplication, job, status: "applied" as const, appliedAt: new Date().toISOString() }
+      : application;
+    deletedApplicationIdsRef.current.delete(nextApplication.id);
+    void applicationState.upsert(nextApplication).catch((error) => appendAppLog({
+      level: "error",
+      area: "Applications",
+      message: error instanceof Error ? error.message : "Application could not be saved",
+    }));
+    setSelectedApplicationId(nextApplication.id);
 
     changeView("Applications");
   }
@@ -1548,7 +1230,11 @@ function HomePageContent() {
     } else {
       const application = createApplicationFromJob(job, "draft");
       deletedApplicationIdsRef.current.delete(application.id);
-      setApplications((currentApplications) => [application, ...currentApplications]);
+      void applicationState.upsert(application).catch((error) => appendAppLog({
+        level: "error",
+        area: "Applications",
+        message: error instanceof Error ? error.message : "Application could not be prepared",
+      }));
       setSelectedApplicationId(application.id);
       changeView("ApplicationWorkspace", application.id);
     }
@@ -1563,28 +1249,9 @@ function HomePageContent() {
     const application = { ...createApplicationFromManualDraft(draft), documents: [] };
     deletedApplicationIdsRef.current.delete(application.id);
 
-    setApplications((currentApplications) => (
-      currentApplications.some((item) => item.id === application.id)
-        ? currentApplications.map((item) => (
-            item.id === application.id
-              ? { ...application, documents: item.documents }
-              : item
-          ))
-        : [application, ...currentApplications]
-    ));
     setSelectedApplicationId(application.id);
     try {
-      const createResponse = await fetch(`${apiBaseUrl}/applications`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: application.id,
-          data: applicationPayloadForStorage(application),
-        }),
-      });
-      if (!createResponse.ok && createResponse.status !== 409) {
-        throw new Error(await readApiErrorMessage(createResponse, "Application could not be created"));
-      }
+      await applicationState.upsert(application);
       const uploadedDocuments: ApplicationDocument[] = [];
       for (const document of draft.documents) {
         let body: Blob | null = document.pendingFile ?? null;
@@ -1596,7 +1263,7 @@ function HomePageContent() {
           body = await sourceResponse.blob();
         }
         if (!body) throw new Error("Selected resume could not be loaded");
-        uploadedDocuments.push(await uploadApplicationAttachment(application.id, body, {
+        uploadedDocuments.push(await applicationState.uploadAttachment(application.id, body, {
           fileName: document.fileName,
           title: document.title,
         }));
@@ -1677,16 +1344,13 @@ function HomePageContent() {
   }
 
   function updateApplicationJob(applicationId: string, job: Job) {
-    setApplications((currentApplications) =>
-      currentApplications.map((application) =>
-        application.id === applicationId
-          ? {
-              ...application,
-              job,
-            }
-          : application,
-      ),
-    );
+    const application = applications.find((item) => item.id === applicationId);
+    if (!application) return;
+    void applicationState.upsert({ ...application, job }).catch((error) => appendAppLog({
+      level: "error",
+      area: "Applications",
+      message: error instanceof Error ? error.message : "Application could not be saved",
+    }));
   }
 
   async function analyzeApplicationWithAi(application: TrackedApplication) {
@@ -1782,33 +1446,30 @@ function HomePageContent() {
   }
 
   function updateApplicationStatus(applicationId: string, status: ApplicationStatus) {
-    setApplications((currentApplications) =>
-      currentApplications.map((application) =>
-        application.id === applicationId
-          ? {
-              ...application,
-              status,
-              appliedAt:
-                status === "applied" && application.status === "draft"
-                  ? new Date().toISOString()
-                  : application.appliedAt,
-            }
-          : application,
-      ),
-    );
+    const application = applications.find((item) => item.id === applicationId);
+    if (!application) return;
+    void applicationState.upsert({
+      ...application,
+      status,
+      appliedAt:
+        status === "applied" && application.status === "draft"
+          ? new Date().toISOString()
+          : application.appliedAt,
+    }).catch((error) => appendAppLog({
+      level: "error",
+      area: "Applications",
+      message: error instanceof Error ? error.message : "Application status could not be saved",
+    }));
   }
 
   function updateApplicationNotes(applicationId: string, notes: string) {
-    setApplications((currentApplications) =>
-      currentApplications.map((application) =>
-        application.id === applicationId
-          ? {
-              ...application,
-              notes,
-            }
-          : application,
-      ),
-    );
+    const application = applications.find((item) => item.id === applicationId);
+    if (!application) return;
+    void applicationState.upsert({ ...application, notes }).catch((error) => appendAppLog({
+      level: "error",
+      area: "Applications",
+      message: error instanceof Error ? error.message : "Application notes could not be saved",
+    }));
   }
 
   function updateApplicationDocuments(applicationId: string, documents: ApplicationDocument[]) {
@@ -1904,61 +1565,20 @@ function HomePageContent() {
   }
 
   function deleteApplication(applicationId: string) {
-    const deletedApplication = applications.find(
-      (application) => application.id === applicationId,
-    );
-    const deletedApplicationIndex = applications.findIndex(
-      (application) => application.id === applicationId,
-    );
     const deletedEvents = applicationEvents.filter(
       (event) => event.applicationId === applicationId,
     );
     deletedApplicationIdsRef.current.add(applicationId);
 
-    setApplications((currentApplications) => {
-      const nextApplications = currentApplications.filter((application) => application.id !== applicationId);
-      setSelectedApplicationId((currentId) => (currentId === applicationId ? nextApplications[0]?.id || "" : currentId));
-      return nextApplications;
-    });
+    const nextApplicationId = applications.find((application) => application.id !== applicationId)?.id ?? "";
+    setSelectedApplicationId((currentId) => currentId === applicationId ? nextApplicationId : currentId);
     setApplicationEvents((currentEvents) => currentEvents.filter((event) => event.applicationId !== applicationId));
 
-    void enqueueApplicationMutation(async () => {
-      const response = await fetch(
-        `${apiBaseUrl}/applications/${encodeURIComponent(applicationId)}`,
-        { method: "DELETE" },
-      );
-      if (!response.ok && response.status !== 404) {
-        throw new Error(
-          await readApiErrorMessage(
-            response,
-            "Application could not be deleted",
-          ),
-        );
-      }
-    }).then(
+    void applicationState.remove(applicationId).then(
       () => undefined,
       (error) => {
         deletedApplicationIdsRef.current.delete(applicationId);
-
-        if (deletedApplication) {
-          setApplications((currentApplications) => {
-            if (
-              currentApplications.some(
-                (application) => application.id === applicationId,
-              )
-            ) {
-              return currentApplications;
-            }
-            const nextApplications = [...currentApplications];
-            nextApplications.splice(
-              Math.max(0, deletedApplicationIndex),
-              0,
-              deletedApplication,
-            );
-            return nextApplications;
-          });
-          setSelectedApplicationId((currentId) => currentId || applicationId);
-        }
+        setSelectedApplicationId((currentId) => currentId || applicationId);
         if (deletedEvents.length > 0) {
           setApplicationEvents((currentEvents) =>
             sortApplicationEvents([
@@ -3867,8 +3487,8 @@ function HomePageContent() {
             onDeleteApplication={deleteApplication}
             onSaveEvent={saveApplicationEvent}
             onDeleteEvent={deleteApplicationEvent}
-            onUploadDocument={uploadApplicationAttachment}
-            onDeleteDocument={deleteApplicationAttachment}
+            onUploadDocument={applicationState.uploadAttachment}
+            onDeleteDocument={applicationState.deleteAttachment}
           />
         ) : activeView === "Calendar" ? (
           <CalendarView

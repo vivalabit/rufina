@@ -1,5 +1,13 @@
 import type { ApplicationEvent } from "@/shared/types/application";
 
+export type StoredApplicationPayload = {
+  id: string;
+  data: unknown;
+  created_at?: string;
+  updated_at?: string;
+  revision?: number;
+};
+
 export type WorkspaceSourceFilePayload = {
   id: string;
   applicationId: string;
