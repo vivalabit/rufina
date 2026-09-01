@@ -100,6 +100,17 @@ export async function deleteApplication(
   );
 }
 
+export async function fetchApplicationAnalysis(
+  applicationId: string,
+  signal?: AbortSignal,
+) {
+  return (await requestJson<StoredApplicationPayload>(
+    `${apiBaseUrl}/applications/${encodeURIComponent(applicationId)}/analysis`,
+    { cache: "no-store", signal },
+    { errorMessage: "Authoritative application analysis could not be loaded" },
+  )).data;
+}
+
 export async function fetchApplicationDocuments(
   applicationId: string,
   signal?: AbortSignal,

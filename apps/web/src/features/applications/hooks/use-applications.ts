@@ -10,6 +10,7 @@ import {
   deleteApplication,
   deleteApplicationAttachment,
   fetchApplicationDocuments,
+  fetchApplicationAnalysis,
   fetchApplications,
   importLegacyApplications,
   patchApplication,
@@ -49,6 +50,9 @@ function normalizePayload(payload: StoredApplicationPayload) {
 }
 
 function readLocalApplications() {
+  if (typeof window === "undefined") {
+    return { applications: [], legacyDocuments: new Map<string, ApplicationDocument[]>() };
+  }
   let parsedLocal: unknown = [];
   try {
     const raw = window.localStorage.getItem(applicationsStorageKey);
@@ -275,6 +279,29 @@ export function useApplications() {
     });
   }, [queryClient]);
 
+  const refreshAnalysis = useCallback((applicationId: string) => withSignal(async (signal) => {
+    const payload = await fetchApplicationAnalysis(applicationId, signal);
+    const normalized = normalizePayload(payload);
+    if (!normalized || normalized.application.id !== applicationId) {
+      throw new Error("Authoritative application analysis returned an invalid payload");
+    }
+    const current = queryClient.getQueryData<ApplicationsSnapshot>(applicationsQueryKey);
+    const existing = current?.items.find((item) => item.application.id === applicationId);
+    const saved = {
+      ...normalized,
+      application: {
+        ...normalized.application,
+        documents: existing?.application.documents ?? normalized.application.documents,
+      },
+    };
+    queryClient.setQueryData<ApplicationsSnapshot>(applicationsQueryKey, (snapshot) => ({
+      warnings: snapshot?.warnings ?? [],
+      items: (snapshot?.items ?? []).map((item) =>
+        item.application.id === applicationId ? saved : item),
+    }));
+    return saved.application;
+  }), [queryClient, withSignal]);
+
   const applications = useMemo(
     () => query.data?.items.map((item) => item.application) ?? [],
     [query.data?.items],
@@ -313,5 +340,6 @@ export function useApplications() {
       withSignal((signal) => uploadApplicationAttachment(applicationId, file, metadata, signal)),
     deleteAttachment: (applicationId: string, document: ApplicationDocument) =>
       withSignal((signal) => deleteApplicationAttachment(applicationId, document, signal)),
+    refreshAnalysis,
   };
 }

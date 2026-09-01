@@ -176,8 +176,7 @@ import type {
   AppSettingsUpdate,
   UiSettings,
 } from "@/features/settings/model/types";
-import { apiBaseUrl, resolveApiUrl } from "@/shared/api/config";
-import type { PersistedEntityDto } from "@/shared/api/dto";
+import { resolveApiUrl } from "@/shared/api/config";
 import { readApiErrorMessage } from "@/shared/api/error";
 import {
   browserStorageNamespacePrefix,
@@ -1049,32 +1048,7 @@ function HomePageContent() {
         return;
       }
 
-      const authoritativeResponse = await fetch(
-        `${apiBaseUrl}/applications/${encodeURIComponent(application.id)}/analysis`,
-        { cache: "no-store" },
-      );
-      if (!authoritativeResponse.ok) {
-        throw new Error(
-          await readApiErrorMessage(
-            authoritativeResponse,
-            "Authoritative application analysis could not be loaded",
-          ),
-        );
-      }
-      const authoritativePayload = (await authoritativeResponse.json()) as PersistedEntityDto;
-      const authoritativeApplication = normalizeStoredApplications([
-        authoritativePayload.data,
-      ])[0];
-      if (!authoritativeApplication || authoritativeApplication.id !== application.id) {
-        throw new Error("Authoritative application analysis returned an invalid payload");
-      }
-      setApplications((currentApplications) =>
-        currentApplications.map((item) =>
-          item.id === application.id
-            ? { ...authoritativeApplication, documents: item.documents }
-            : item,
-        ),
-      );
+      const authoritativeApplication = await applicationState.refreshAnalysis(application.id);
       appendAppLog({
         level: "success",
         area: "AI Match",

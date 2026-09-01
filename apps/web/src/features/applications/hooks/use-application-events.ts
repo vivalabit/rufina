@@ -39,6 +39,7 @@ function normalizePayload(payload: StoredApplicationEventPayload) {
 }
 
 function readLocalEvents() {
+  if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(applicationEventsStorageKey);
     return sortApplicationEvents(removeLegacyDemoApplicationEvents(

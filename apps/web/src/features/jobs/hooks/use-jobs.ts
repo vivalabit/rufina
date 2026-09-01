@@ -35,6 +35,7 @@ type JobsSnapshot = {
 };
 
 function readIds(key: string) {
+  if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(key);
     return normalizeStoredJobIds(raw ? JSON.parse(raw) : []);
@@ -45,6 +46,7 @@ function readIds(key: string) {
 }
 
 function readLocalJobs() {
+  if (typeof window === "undefined") return [];
   try {
     const raw = window.localStorage.getItem(importedJobsStorageKey);
     return keepStoredUserJobs(normalizeStoredJobs(raw ? JSON.parse(raw) : []));
