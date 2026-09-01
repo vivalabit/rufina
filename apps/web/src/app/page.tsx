@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import type { LucideIcon } from "lucide-react";
 
+import { AppProviders } from "@/app/providers";
 import { Button } from "@/components/ui/button";
 import {
   AssistantView,
@@ -81,6 +82,7 @@ import {
 import { createClientId } from "@/lib/client-id";
 import { cn } from "@/lib/utils";
 import { useActivityFeed } from "@/features/activity/hooks/use-activity-feed";
+import { useAppSettings } from "@/features/settings/hooks/use-app-settings";
 import { screenshotSessionStorageKey } from "@/features/app-shell/browser-storage/keys";
 import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
 import type {
@@ -202,13 +204,9 @@ import type {
   JobSortBy,
   ManualJobDraft,
 } from "@/features/jobs/model/types";
-import {
-  defaultAppSettings,
-  defaultUiSettings,
-} from "@/features/settings/model/defaults";
+import { defaultUiSettings } from "@/features/settings/model/defaults";
 import { uiSettingsStorageKey } from "@/features/settings/browser-storage/keys";
 import type {
-  AppSettings,
   AppSettingsUpdate,
   UiSettings,
 } from "@/features/settings/model/types";
@@ -744,7 +742,7 @@ function mergeSkillLists(currentSkills: string[], importedSkills: string[]) {
   return mergeSkillListsModel(currentSkills, importedSkills);
 }
 
-export default function HomePage() {
+function HomePageContent() {
   const demoMode = process.env.NEXT_PUBLIC_DEMO_MODE === "1";
   const initialJobs = demoMode ? demoJobs : [];
   const [activeView, setActiveView] = useState<View>("Dashboard");
@@ -838,12 +836,12 @@ export default function HomePage() {
   const [additionalNotesDraft, setAdditionalNotesDraft] = useState("");
   const [profileSaveStatus, setProfileSaveStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
   const [profileSaveMessage, setProfileSaveMessage] = useState("");
-  const [appSettings, setAppSettings] = useState<AppSettings>(defaultAppSettings);
   const [brightDataApiKeyDraft, setBrightDataApiKeyDraft] = useState("");
-  const [settingsSaveStatus, setSettingsSaveStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [settingsSaveMessage, setSettingsSaveMessage] = useState("");
-  const [aiSettingsSaveStatus, setAiSettingsSaveStatus] = useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [aiSettingsSaveMessage, setAiSettingsSaveMessage] = useState("");
+  const {
+    settings: appSettings,
+    connection: settingsConnection,
+    ai: aiSettings,
+  } = useAppSettings();
   const [uiSettings, setUiSettings] = useState<UiSettings>(defaultUiSettings);
   const [areUiSettingsLoaded, setAreUiSettingsLoaded] = useState(false);
   const {
@@ -1286,6 +1284,7 @@ export default function HomePage() {
       });
     });
   }, [
+    appendAppLog,
     areApplicationsLoaded,
     applications,
     enqueueApplicationMutation,
@@ -1349,6 +1348,7 @@ export default function HomePage() {
       });
     });
   }, [
+    appendAppLog,
     areApplicationEventsLoaded,
     applicationEvents,
     enqueueApplicationMutation,
@@ -1624,32 +1624,15 @@ export default function HomePage() {
       }
     }
 
-    async function loadSettings() {
-      try {
-        const response = await fetch(`${apiBaseUrl}/settings`, {
-          cache: "no-store",
-          signal: abortController.signal,
-        });
-
-        if (!response.ok) return;
-
-        setAppSettings({ ...defaultAppSettings, ...await response.json() as AppSettings });
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-      }
-    }
-
     loadStoredJobs();
     loadDismissedJobIds();
     loadStoredApplications();
     loadStoredApplicationEvents();
     loadProfile();
-    loadSettings();
-
     return () => {
       abortController.abort();
     };
-  }, [setApplications]);
+  }, [appendAppLog, setApplications]);
 
   function changeView(view: View, applicationId?: string) {
     setActiveView(view);
@@ -2608,54 +2591,16 @@ export default function HomePage() {
   }
 
   async function saveAppSettings(apiKey = brightDataApiKeyDraft) {
-    setSettingsSaveStatus("loading");
-    setSettingsSaveMessage("");
-
     try {
-      const response = await fetch(`${apiBaseUrl}/settings`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ brightdata_api_key: apiKey }),
-      });
-      const savedSettings = (await response.json()) as AppSettings & { detail?: string };
-
-      if (!response.ok) {
-        throw new Error(savedSettings.detail ?? "Settings save failed");
-      }
-
-      setAppSettings(savedSettings);
+      await settingsConnection.save({ brightdata_api_key: apiKey });
       setBrightDataApiKeyDraft("");
-      setSettingsSaveStatus("ready");
-      setSettingsSaveMessage(savedSettings.has_brightdata_api_key ? "Bright Data API key saved" : "Bright Data API key cleared");
-    } catch (error) {
-      setSettingsSaveStatus("error");
-      setSettingsSaveMessage(error instanceof Error ? error.message : "Settings save failed");
-    }
+    } catch {}
   }
 
   async function saveAiSettings(update: AppSettingsUpdate) {
-    setAiSettingsSaveStatus("loading");
-    setAiSettingsSaveMessage("");
-
     try {
-      const response = await fetch(`${apiBaseUrl}/settings`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(update),
-      });
-      const savedSettings = (await response.json()) as AppSettings & { detail?: string };
-
-      if (!response.ok) {
-        throw new Error(savedSettings.detail ?? "AI settings save failed");
-      }
-
-      setAppSettings({ ...defaultAppSettings, ...savedSettings });
-      setAiSettingsSaveStatus("ready");
-      setAiSettingsSaveMessage("AI backend settings saved and activated");
-    } catch (error) {
-      setAiSettingsSaveStatus("error");
-      setAiSettingsSaveMessage(error instanceof Error ? error.message : "AI settings save failed");
-    }
+      await aiSettings.save(update);
+    } catch {}
   }
 
   function openProfileEditor() {
@@ -4363,14 +4308,25 @@ export default function HomePage() {
             settings={appSettings}
             showLogs={uiSettings.showLogs}
             apiKeyDraft={brightDataApiKeyDraft}
-            status={settingsSaveStatus}
-            message={settingsSaveMessage}
-            aiStatus={aiSettingsSaveStatus}
-            aiMessage={aiSettingsSaveMessage}
+            status={settingsConnection.status}
+            message={
+              settingsConnection.error?.message ??
+              (settingsConnection.status === "ready"
+                ? appSettings.has_brightdata_api_key
+                  ? "Bright Data API key saved"
+                  : "Bright Data API key cleared"
+                : "")
+            }
+            aiStatus={aiSettings.status}
+            aiMessage={
+              aiSettings.error?.message ??
+              (aiSettings.status === "ready"
+                ? "AI backend settings saved and activated"
+                : "")
+            }
             onApiKeyChange={(value) => {
               setBrightDataApiKeyDraft(value);
-              setSettingsSaveStatus("idle");
-              setSettingsSaveMessage("");
+              settingsConnection.reset();
             }}
             onClear={() => saveAppSettings("")}
             onSave={() => saveAppSettings()}
@@ -5171,5 +5127,13 @@ export default function HomePage() {
         />
       )}
     </AppShell>
+  );
+}
+
+export default function HomePage() {
+  return (
+    <AppProviders>
+      <HomePageContent />
+    </AppProviders>
   );
 }
