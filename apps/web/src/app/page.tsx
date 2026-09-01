@@ -82,6 +82,7 @@ import {
 import { createClientId } from "@/lib/client-id";
 import { cn } from "@/lib/utils";
 import { useActivityFeed } from "@/features/activity/hooks/use-activity-feed";
+import { useProfile } from "@/features/profile/hooks/use-profile";
 import { useAppSettings } from "@/features/settings/hooks/use-app-settings";
 import { screenshotSessionStorageKey } from "@/features/app-shell/browser-storage/keys";
 import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
@@ -213,33 +214,11 @@ import type {
 import { apiBaseUrl, resolveApiUrl } from "@/shared/api/config";
 import type { PersistedEntityDto } from "@/shared/api/dto";
 import { readApiErrorMessage } from "@/shared/api/error";
-import { isInlineDataUrl } from "@/shared/browser-storage/data-url";
 import {
   browserStorageNamespacePrefix,
   completedBrowserStorageMigrationValue,
 } from "@/shared/browser-storage/constants";
 import { formatFileSize } from "@/shared/formatting/files";
-import {
-  hydrateProfileFiles as hydrateProfileFilesModel,
-  mergeHydratedProfileMetadata,
-  profilePayloadForApi,
-} from "@/features/profile/api/mappers";
-import type {
-  ProfileFilePayload,
-  ResumeEducationImportResponse,
-  ResumeExperienceImportResponse,
-  ResumeSkillsImportResponse,
-} from "@/features/profile/api/dto";
-import {
-  profileFileStorageMigrationKey,
-  profileStorageKey,
-} from "@/features/profile/browser-storage/keys";
-import {
-  hasLegacyProfileInlineFiles,
-  migrateLegacyProfileFiles,
-  readLegacyStoredCandidateProfile,
-} from "@/features/profile/browser-storage/migrations";
-import type { LegacyProfileFileUploadMetadata } from "@/features/profile/browser-storage/migrations";
 import {
   defaultCandidateProfile,
   defaultDocumentDraft,
@@ -268,7 +247,6 @@ import {
   parseJobPreferences as parseJobPreferencesModel,
   serializeJobPreferences as serializeJobPreferencesModel,
 } from "@/features/profile/model/preferences";
-import { hasCandidateProfileData } from "@/features/profile/model/selectors";
 import type {
   ApplicationDocument,
   ApplicationEvent,
@@ -491,12 +469,6 @@ function JobFilterDropdown({
     </div>
   );
 }
-function hydrateProfileFiles(
-  profile: CandidateProfile,
-  files: ProfileFilePayload[],
-): CandidateProfile {
-  return hydrateProfileFilesModel(profile, files, createClientId);
-}
 
 class FileUploadResponseError extends Error {
   readonly status: number;
@@ -515,54 +487,6 @@ function isPermanentLegacyFileUploadError(error: unknown) {
     error instanceof FileUploadResponseError &&
     permanentLegacyFileStatuses.has(error.status)
   );
-}
-
-async function uploadProfileFile(
-  file: Blob,
-  metadata: LegacyProfileFileUploadMetadata,
-): Promise<ProfileFilePayload> {
-  const query = new URLSearchParams({
-    kind: metadata.kind,
-    file_name: metadata.fileName,
-  });
-  if (metadata.legacyDocumentId) {
-    query.set("legacyDocumentId", metadata.legacyDocumentId);
-  }
-  if (metadata.replaceExisting !== undefined) {
-    query.set("replaceExisting", String(metadata.replaceExisting));
-  }
-  for (const [key, value] of Object.entries({
-    title: metadata.title,
-    category: metadata.category,
-    language: metadata.language,
-    issuer: metadata.issuer,
-    notes: metadata.notes,
-  })) {
-    if (value) query.set(key, value);
-  }
-  const response = await fetch(`${apiBaseUrl}/profile/files?${query}`, {
-    method: "POST",
-    headers: { "Content-Type": file.type || "application/octet-stream" },
-    body: file,
-  });
-  if (!response.ok) {
-    throw new FileUploadResponseError(
-      await readApiErrorMessage(response, "Profile file could not be uploaded"),
-      response.status,
-    );
-  }
-  return response.json() as Promise<ProfileFilePayload>;
-}
-
-async function fetchProfileFiles(signal?: AbortSignal): Promise<ProfileFilePayload[]> {
-  const response = await fetch(`${apiBaseUrl}/profile/files`, {
-    cache: "no-store",
-    signal,
-  });
-  if (!response.ok) {
-    throw new Error(await readApiErrorMessage(response, "Profile files could not be loaded"));
-  }
-  return response.json() as Promise<ProfileFilePayload[]>;
 }
 
 async function uploadApplicationAttachment(
@@ -802,11 +726,13 @@ function HomePageContent() {
   const [selectedParserSearchConfigId, setSelectedParserSearchConfigId] = useState("");
   const [sourceSearchConfigs, setSourceSearchConfigs] = useState<JobSourceConfigPayload[]>([]);
   const [selectedSourceConfigIds, setSelectedSourceConfigIds] = useState<Partial<Record<ParserId, string>>>({});
-  const [profile, setProfile] = useState<CandidateProfile>(defaultCandidateProfile);
+  const profileState = useProfile();
+  const profile = profileState.profile;
+  const setProfile = profileState.updateCachedProfile;
   const [profileDraft, setProfileDraft] = useState<CandidateProfile>(defaultCandidateProfile);
   const [profileAvatarDraftFile, setProfileAvatarDraftFile] = useState<File | null>(null);
   const [profileAvatarUseDefault, setProfileAvatarUseDefault] = useState(false);
-  const [isProfileLoaded, setIsProfileLoaded] = useState(false);
+  const isProfileLoaded = !profileState.isLoading;
   const [isProfileDialogOpen, setIsProfileDialogOpen] = useState(false);
   const [isExperienceDialogOpen, setIsExperienceDialogOpen] = useState(false);
   const [isExperienceEditMode, setIsExperienceEditMode] = useState(false);
@@ -849,6 +775,15 @@ function HomePageContent() {
     append: appendAppLog,
     clear: clearAppLogs,
   } = useActivityFeed();
+  const loggedProfileWarningsRef = useRef(new Set<string>());
+
+  useEffect(() => {
+    for (const warning of profileState.warnings) {
+      if (loggedProfileWarningsRef.current.has(warning)) continue;
+      loggedProfileWarningsRef.current.add(warning);
+      appendAppLog({ level: "warning", area: "Profile", message: warning });
+    }
+  }, [appendAppLog, profileState.warnings]);
   const availableJobs = useMemo(
     () => selectAvailableJobs(jobList, archivedJobIds, deletedJobIds),
     [archivedJobIds, deletedJobIds, jobList],
@@ -1518,117 +1453,10 @@ function HomePageContent() {
       }
     }
 
-    async function loadProfile() {
-      const legacyProfile = readLegacyStoredCandidateProfile(
-        window.localStorage,
-      );
-      const storedProfile = legacyProfile
-        ? normalizeCandidateProfile({
-            ...legacyProfile,
-            avatar_url: isInlineDataUrl(legacyProfile.avatar_url)
-              ? defaultCandidateProfile.avatar_url
-              : legacyProfile.avatar_url,
-          } as Partial<CandidateProfile>)
-        : null;
-
-      try {
-        const response = await fetch(`${apiBaseUrl}/profile`, {
-          cache: "no-store",
-          signal: abortController.signal,
-        });
-
-        if (!response.ok) return;
-        let initialFiles: ProfileFilePayload[] | null = null;
-        try {
-          initialFiles = await fetchProfileFiles(abortController.signal);
-        } catch {
-          // File metadata is independently recoverable; keep the text profile usable.
-        }
-
-        let loadedProfile = hydrateProfileFiles(
-          normalizeCandidateProfile((await response.json()) as Partial<CandidateProfile>),
-          initialFiles ?? [],
-        );
-        let legacyProfileTextSaved = !storedProfile || hasCandidateProfileData(loadedProfile);
-
-        if (!hasCandidateProfileData(loadedProfile) && storedProfile) {
-          const saveResponse = await fetch(`${apiBaseUrl}/profile`, {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(profilePayloadForApi(storedProfile)),
-            signal: abortController.signal,
-          });
-          if (saveResponse.ok) {
-            legacyProfileTextSaved = true;
-            loadedProfile = hydrateProfileFiles(
-              normalizeCandidateProfile((await saveResponse.json()) as Partial<CandidateProfile>),
-              initialFiles ?? [],
-            );
-          }
-        }
-
-        function finalizeLegacyProfileStorage() {
-          window.localStorage.setItem(
-            profileFileStorageMigrationKey,
-            completedBrowserStorageMigrationValue,
-          );
-          if (!storedProfile || legacyProfileTextSaved) {
-            window.localStorage.removeItem(profileStorageKey);
-            return;
-          }
-          window.localStorage.setItem(
-            profileStorageKey,
-            JSON.stringify(profilePayloadForApi(storedProfile)),
-          );
-          appendAppLog({
-            level: "warning",
-            area: "Profile",
-            message: "Legacy profile text was kept locally for retry; inline files were removed.",
-          });
-        }
-
-        const hasLegacyInlineFiles = legacyProfile
-          ? hasLegacyProfileInlineFiles(legacyProfile)
-          : false;
-        if (legacyProfile && hasLegacyInlineFiles && initialFiles !== null) {
-          const migrationWarnings = await migrateLegacyProfileFiles(
-            legacyProfile,
-            initialFiles,
-            {
-              uploadFile: uploadProfileFile,
-              isPermanentUploadError: isPermanentLegacyFileUploadError,
-            },
-          );
-          const migratedFiles = await fetchProfileFiles(abortController.signal);
-          loadedProfile = hydrateProfileFiles(loadedProfile, migratedFiles);
-          for (const warning of migrationWarnings) {
-            appendAppLog({
-              level: "warning",
-              area: "Profile",
-              message: warning,
-            });
-          }
-          finalizeLegacyProfileStorage();
-        } else if (legacyProfile && !hasLegacyInlineFiles) {
-          finalizeLegacyProfileStorage();
-        }
-
-        setProfile(loadedProfile);
-        setProfileDraft(loadedProfile);
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-      } finally {
-        if (!abortController.signal.aborted) {
-          setIsProfileLoaded(true);
-        }
-      }
-    }
-
     loadStoredJobs();
     loadDismissedJobIds();
     loadStoredApplications();
     loadStoredApplicationEvents();
-    loadProfile();
     return () => {
       abortController.abort();
     };
@@ -2851,50 +2679,23 @@ function HomePageContent() {
       const profileToSave = profileAvatarUseDefault
         ? { ...profileDraft, avatar_url: defaultCandidateProfile.avatar_url }
         : profileDraft;
-      const response = await fetch(`${apiBaseUrl}/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profilePayloadForApi(profileToSave)),
-      });
-
-      const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
-
-      if (!response.ok) {
-        throw new Error(savedProfile.detail ?? "Profile save failed");
-      }
-
-      let profileWithAvatar = profileToSave;
+      const saved = await profileState.save(profileToSave);
+      let normalizedProfile = saved.profile;
       if (profileAvatarDraftFile) {
-        const uploaded = await uploadProfileFile(profileAvatarDraftFile, {
+        await profileState.uploadFile(profileAvatarDraftFile, {
           kind: "avatar",
           fileName: profileAvatarDraftFile.name,
           title: "Profile avatar",
           category: "Avatar",
         });
-        profileWithAvatar = normalizeCandidateProfile({
-          ...profileToSave,
-          avatar_file_id: uploaded.id,
-          avatar_url: resolveApiUrl(uploaded.downloadUrl),
-        });
+        normalizedProfile = await profileState.refetch();
       } else if (profileAvatarUseDefault) {
         if (profile.avatar_file_id) {
-          const deleteResponse = await fetch(
-            `${apiBaseUrl}/profile/files/${encodeURIComponent(profile.avatar_file_id)}`,
-            { method: "DELETE" },
-          );
-          if (!deleteResponse.ok && deleteResponse.status !== 404) {
-            throw new Error(await readApiErrorMessage(deleteResponse, "Avatar reset failed"));
-          }
+          await profileState.removeFile(profile.avatar_file_id);
         }
-        profileWithAvatar = normalizeCandidateProfile({
-          ...profileToSave,
-          avatar_file_id: "",
-          avatar_url: defaultCandidateProfile.avatar_url,
-        });
+        normalizedProfile = await profileState.refetch();
       }
 
-      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, profileWithAvatar);
-      setProfile(normalizedProfile);
       setProfileDraft(normalizedProfile);
       setProfileAvatarDraftFile(null);
       setProfileAvatarUseDefault(false);
@@ -2930,20 +2731,8 @@ function HomePageContent() {
     });
 
     try {
-      const response = await fetch(`${apiBaseUrl}/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profilePayloadForApi(nextProfile)),
-      });
-      const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
-
-      if (!response.ok) {
-        throw new Error(savedProfile.detail ?? "Experience save failed");
-      }
-
-      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
-      setProfile(normalizedProfile);
-      setProfileDraft(normalizedProfile);
+      const saved = await profileState.save(nextProfile);
+      setProfileDraft(saved.profile);
       setProfileSaveStatus("ready");
       setProfileSaveMessage("");
       setIsExperienceDialogOpen(false);
@@ -2976,20 +2765,8 @@ function HomePageContent() {
     });
 
     try {
-      const response = await fetch(`${apiBaseUrl}/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profilePayloadForApi(nextProfile)),
-      });
-      const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
-
-      if (!response.ok) {
-        throw new Error(savedProfile.detail ?? "Education save failed");
-      }
-
-      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
-      setProfile(normalizedProfile);
-      setProfileDraft(normalizedProfile);
+      const saved = await profileState.save(nextProfile);
+      setProfileDraft(saved.profile);
       setProfileSaveStatus("ready");
       setProfileSaveMessage("");
       setIsEducationDialogOpen(false);
@@ -3037,7 +2814,7 @@ function HomePageContent() {
 
     try {
       if (normalizedDocument.pending_file) {
-        const uploaded = await uploadProfileFile(normalizedDocument.pending_file, {
+        const uploaded = await profileState.uploadFile(normalizedDocument.pending_file, {
           kind: "supporting_document",
           fileName: normalizedDocument.file_name,
           title: normalizedDocument.title,
@@ -3047,32 +2824,19 @@ function HomePageContent() {
           notes: normalizedDocument.notes,
         });
         if (isDocumentEditMode && normalizedDocument.id !== uploaded.id) {
-          await fetch(`${apiBaseUrl}/profile/files/${encodeURIComponent(normalizedDocument.id)}`, {
-            method: "DELETE",
-          });
+          await profileState.removeFile(normalizedDocument.id);
         }
       } else {
-        const response = await fetch(
-          `${apiBaseUrl}/profile/files/${encodeURIComponent(normalizedDocument.id)}`,
-          {
-            method: "PATCH",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              title: normalizedDocument.title,
-              category: normalizedDocument.category,
-              language: normalizedDocument.language,
-              issuer: normalizedDocument.issuer,
-              notes: normalizedDocument.notes,
-            }),
-          },
-        );
-        if (!response.ok) {
-          throw new Error(await readApiErrorMessage(response, "Document save failed"));
-        }
+        await profileState.updateFile(normalizedDocument.id, {
+          title: normalizedDocument.title,
+          category: normalizedDocument.category,
+          language: normalizedDocument.language,
+          issuer: normalizedDocument.issuer,
+          notes: normalizedDocument.notes,
+        });
       }
 
-      const normalizedProfile = hydrateProfileFiles(profile, await fetchProfileFiles());
-      setProfile(normalizedProfile);
+      const normalizedProfile = await profileState.refetch();
       setProfileDraft(normalizedProfile);
       setProfileSaveStatus("ready");
       setProfileSaveMessage("");
@@ -3104,20 +2868,8 @@ function HomePageContent() {
     setProfileSaveMessage("");
 
     try {
-      const response = await fetch(`${apiBaseUrl}/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profilePayloadForApi(nextProfile)),
-      });
-      const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
-
-      if (!response.ok) {
-        throw new Error(savedProfile.detail ?? "Preferences save failed");
-      }
-
-      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
-      setProfile(normalizedProfile);
-      setProfileDraft(normalizedProfile);
+      const saved = await profileState.save(nextProfile);
+      setProfileDraft(saved.profile);
       setProfileSaveStatus("ready");
       setProfileSaveMessage("");
       setIsPreferencesDialogOpen(false);
@@ -3138,20 +2890,8 @@ function HomePageContent() {
     setProfileSaveMessage("");
 
     try {
-      const response = await fetch(`${apiBaseUrl}/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profilePayloadForApi(nextProfile)),
-      });
-      const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
-
-      if (!response.ok) {
-        throw new Error(savedProfile.detail ?? "Skills save failed");
-      }
-
-      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
-      setProfile(normalizedProfile);
-      setProfileDraft(normalizedProfile);
+      const saved = await profileState.save(nextProfile);
+      setProfileDraft(saved.profile);
       setProfileSaveStatus("ready");
       setProfileSaveMessage("");
       setIsSkillsDialogOpen(false);
@@ -3172,20 +2912,8 @@ function HomePageContent() {
     setProfileSaveMessage("");
 
     try {
-      const response = await fetch(`${apiBaseUrl}/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profilePayloadForApi(nextProfile)),
-      });
-      const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
-
-      if (!response.ok) {
-        throw new Error(savedProfile.detail ?? "Dealbreakers save failed");
-      }
-
-      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
-      setProfile(normalizedProfile);
-      setProfileDraft(normalizedProfile);
+      const saved = await profileState.save(nextProfile);
+      setProfileDraft(saved.profile);
       setProfileSaveStatus("ready");
       setProfileSaveMessage("");
       setIsDealbreakersDialogOpen(false);
@@ -3205,20 +2933,8 @@ function HomePageContent() {
     setProfileSaveMessage("");
 
     try {
-      const response = await fetch(`${apiBaseUrl}/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profilePayloadForApi(nextProfile)),
-      });
-      const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
-
-      if (!response.ok) {
-        throw new Error(savedProfile.detail ?? "Notes save failed");
-      }
-
-      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
-      setProfile(normalizedProfile);
-      setProfileDraft(normalizedProfile);
+      const saved = await profileState.save(nextProfile);
+      setProfileDraft(saved.profile);
       setProfileSaveStatus("ready");
       setProfileSaveMessage("");
       setIsAdditionalNotesDialogOpen(false);
@@ -3241,20 +2957,8 @@ function HomePageContent() {
     setProfileSaveMessage("");
 
     try {
-      const response = await fetch(`${apiBaseUrl}/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profilePayloadForApi(nextProfile)),
-      });
-      const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
-
-      if (!response.ok) {
-        throw new Error(savedProfile.detail ?? "Experience delete failed");
-      }
-
-      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
-      setProfile(normalizedProfile);
-      setProfileDraft(normalizedProfile);
+      const saved = await profileState.save(nextProfile);
+      setProfileDraft(saved.profile);
       setProfileSaveStatus("ready");
       setProfileSaveMessage("");
     } catch (error) {
@@ -3277,20 +2981,8 @@ function HomePageContent() {
     setProfileSaveMessage("");
 
     try {
-      const response = await fetch(`${apiBaseUrl}/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profilePayloadForApi(nextProfile)),
-      });
-      const savedProfile = (await response.json()) as Partial<CandidateProfile> & { detail?: string };
-
-      if (!response.ok) {
-        throw new Error(savedProfile.detail ?? "Education delete failed");
-      }
-
-      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
-      setProfile(normalizedProfile);
-      setProfileDraft(normalizedProfile);
+      const saved = await profileState.save(nextProfile);
+      setProfileDraft(saved.profile);
       setProfileSaveStatus("ready");
       setProfileSaveMessage("");
     } catch (error) {
@@ -3307,16 +2999,8 @@ function HomePageContent() {
     setProfileSaveMessage("");
 
     try {
-      const response = await fetch(`${apiBaseUrl}/profile/files/${encodeURIComponent(documentId)}`, {
-        method: "DELETE",
-      });
-
-      if (!response.ok) {
-        throw new Error(await readApiErrorMessage(response, "Document delete failed"));
-      }
-
-      const normalizedProfile = hydrateProfileFiles(profile, await fetchProfileFiles());
-      setProfile(normalizedProfile);
+      await profileState.removeFile(documentId);
+      const normalizedProfile = await profileState.refetch();
       setProfileDraft(normalizedProfile);
       setProfileSaveStatus("ready");
       setProfileSaveMessage("");
@@ -3340,18 +3024,7 @@ function HomePageContent() {
     setProfileSaveMessage("");
 
     try {
-      const importResponse = await fetch(`${apiBaseUrl}/profile/import-experience-from-resume`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profile_file_id: profile.resume_file_id,
-        }),
-      });
-      const importResult = (await importResponse.json()) as ResumeExperienceImportResponse;
-
-      if (!importResponse.ok) {
-        throw new Error(importResult.detail ?? "Experience import failed");
-      }
+      const importResult = await profileState.importExperience(profile.resume_file_id);
 
       const importedEntries = (importResult.experience ?? []).map((entry) =>
         normalizeExperienceEntry({
@@ -3380,20 +3053,8 @@ function HomePageContent() {
         ...profile,
         experience: serializeExperienceEntries(mergedEntries),
       });
-      const saveResponse = await fetch(`${apiBaseUrl}/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profilePayloadForApi(nextProfile)),
-      });
-      const savedProfile = (await saveResponse.json()) as Partial<CandidateProfile> & { detail?: string };
-
-      if (!saveResponse.ok) {
-        throw new Error(savedProfile.detail ?? "Experience import save failed");
-      }
-
-      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
-      setProfile(normalizedProfile);
-      setProfileDraft(normalizedProfile);
+      const saved = await profileState.save(nextProfile);
+      setProfileDraft(saved.profile);
       setProfileSaveStatus("ready");
       setProfileSaveMessage("");
       setExperienceImportMessage(`AI imported ${addedCount} experience entr${addedCount === 1 ? "y" : "ies"} from CV`);
@@ -3420,18 +3081,7 @@ function HomePageContent() {
     setProfileSaveMessage("");
 
     try {
-      const importResponse = await fetch(`${apiBaseUrl}/profile/import-education-from-resume`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profile_file_id: profile.resume_file_id,
-        }),
-      });
-      const importResult = (await importResponse.json()) as ResumeEducationImportResponse;
-
-      if (!importResponse.ok) {
-        throw new Error(importResult.detail ?? "Education import failed");
-      }
+      const importResult = await profileState.importEducation(profile.resume_file_id);
 
       const importedEntries = (importResult.education ?? []).map((entry) =>
         normalizeEducationEntry({
@@ -3460,20 +3110,8 @@ function HomePageContent() {
         ...profile,
         education: serializeEducationEntries(mergedEntries),
       });
-      const saveResponse = await fetch(`${apiBaseUrl}/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profilePayloadForApi(nextProfile)),
-      });
-      const savedProfile = (await saveResponse.json()) as Partial<CandidateProfile> & { detail?: string };
-
-      if (!saveResponse.ok) {
-        throw new Error(savedProfile.detail ?? "Education import save failed");
-      }
-
-      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
-      setProfile(normalizedProfile);
-      setProfileDraft(normalizedProfile);
+      const saved = await profileState.save(nextProfile);
+      setProfileDraft(saved.profile);
       setProfileSaveStatus("ready");
       setProfileSaveMessage("");
       setEducationImportMessage(`AI imported ${addedCount} education entr${addedCount === 1 ? "y" : "ies"} from CV`);
@@ -3500,18 +3138,7 @@ function HomePageContent() {
     setProfileSaveMessage("");
 
     try {
-      const importResponse = await fetch(`${apiBaseUrl}/profile/import-skills-from-resume`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          profile_file_id: profile.resume_file_id,
-        }),
-      });
-      const importResult = (await importResponse.json()) as ResumeSkillsImportResponse;
-
-      if (!importResponse.ok) {
-        throw new Error(importResult.detail ?? "Skills import failed");
-      }
+      const importResult = await profileState.importSkills(profile.resume_file_id);
 
       const importedSkills = importResult.skills ?? [];
       if (importedSkills.length === 0) {
@@ -3534,21 +3161,9 @@ function HomePageContent() {
         ...profile,
         skills: mergedSkills.join("\n"),
       });
-      const saveResponse = await fetch(`${apiBaseUrl}/profile`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(profilePayloadForApi(nextProfile)),
-      });
-      const savedProfile = (await saveResponse.json()) as Partial<CandidateProfile> & { detail?: string };
-
-      if (!saveResponse.ok) {
-        throw new Error(savedProfile.detail ?? "Skills import save failed");
-      }
-
-      const normalizedProfile = mergeHydratedProfileMetadata(savedProfile, nextProfile);
-      setProfile(normalizedProfile);
-      setProfileDraft(normalizedProfile);
-      setSkillsDraft(parseProfileLines(normalizedProfile.skills));
+      const saved = await profileState.save(nextProfile);
+      setProfileDraft(saved.profile);
+      setSkillsDraft(parseProfileLines(saved.profile.skills));
       setProfileSaveStatus("ready");
       setProfileSaveMessage("");
       setSkillsImportMessage(`AI added ${addedCount} new skill${addedCount === 1 ? "" : "s"} from CV`);
