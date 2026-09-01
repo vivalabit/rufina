@@ -1995,8 +1995,18 @@ it("does not re-add a vacancy whose deleted id was synchronized with the server"
     if (url.pathname === "/job-search/configs" && method === "GET")
       return Response.json([]);
     if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
-    if (url.pathname === "/jobs/dismissed-ids" && method === "PUT") {
-      return Response.json([dismissedId]);
+    if (url.pathname === "/jobs/state/import" && method === "POST") {
+      return Response.json([{
+        jobId: dismissedId,
+        saved: false,
+        archived: false,
+        dismissed: true,
+        savedAt: null,
+        archivedAt: null,
+        dismissedAt: "2026-08-31T10:00:00Z",
+        updatedAt: "2026-08-31T10:00:00Z",
+        revision: 1,
+      }]);
     }
     if (url.pathname === "/applications" && method === "GET")
       return Response.json([]);
@@ -2028,8 +2038,8 @@ it("does not re-add a vacancy whose deleted id was synchronized with the server"
 
   await waitFor(() => {
     expect(requests).toContainEqual({
-      path: "/jobs/dismissed-ids",
-      method: "PUT",
+      path: "/jobs/state/import",
+      method: "POST",
     });
   });
   fireEvent.click(

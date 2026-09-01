@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ArchiveRestore,
@@ -80,6 +80,7 @@ import {
   type JobSearchProgressPhase,
 } from "@/lib/job-search-progress";
 import { createClientId } from "@/lib/client-id";
+import { ApiResponseError } from "@/lib/api-client";
 import { cn } from "@/lib/utils";
 import { useActivityFeed } from "@/features/activity/hooks/use-activity-feed";
 import { useApplicationEvents } from "@/features/applications/hooks/use-application-events";
@@ -135,16 +136,10 @@ import type {
   SourceSearchDraft,
 } from "@/features/job-search/model/types";
 import type { AiMatchJobStatus } from "@/features/jobs/api/dto";
+import { useJobs } from "@/features/jobs/hooks/use-jobs";
 import {
-  normalizeStoredJobIds,
   normalizeStoredJobs,
 } from "@/features/jobs/browser-storage/normalizers";
-import {
-  archivedJobIdsStorageKey,
-  deletedJobIdsStorageKey,
-  importedJobsStorageKey,
-  savedJobIdsStorageKey,
-} from "@/features/jobs/browser-storage/keys";
 import {
   formatJobLocationCompact,
   formatJobPostedCompact,
@@ -548,17 +543,19 @@ function HomePageContent() {
   const initialJobs = demoMode ? demoJobs : [];
   const [activeView, setActiveView] = useState<View>("Dashboard");
   const [assistantLaunch, setAssistantLaunch] = useState<AssistantLaunch | null>(null);
-  const [jobList, setJobList] = useState<Job[]>(initialJobs);
+  const jobsState = useJobs(initialJobs);
+  const jobList = jobsState.jobs;
+  const setJobList = jobsState.updateCached;
   const [selectedJobId, setSelectedJobId] = useState(initialJobs[0]?.id ?? "");
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState(tabs[0]);
   const [pendingAiMatchFocus, setPendingAiMatchFocus] = useState<"analysis" | "recommendations" | null>(null);
   const aiMatchAnalysisRef = useRef<HTMLElement | null>(null);
   const aiMatchRecommendationsRef = useRef<HTMLElement | null>(null);
-  const [savedJobs, setSavedJobs] = useState<string[]>([]);
-  const [areSavedJobsLoaded, setAreSavedJobsLoaded] = useState(false);
-  const [archivedJobIds, setArchivedJobIds] = useState<string[]>([]);
-  const [deletedJobIds, setDeletedJobIds] = useState<string[]>([]);
+  const savedJobs = jobsState.savedJobIds;
+  const areSavedJobsLoaded = !jobsState.isLoading;
+  const archivedJobIds = jobsState.archivedJobIds;
+  const deletedJobIds = jobsState.deletedJobIds;
   const [showSavedJobs, setShowSavedJobs] = useState(false);
   const [showArchivedJobs, setShowArchivedJobs] = useState(false);
   const applicationState = useApplications();
@@ -749,32 +746,9 @@ function HomePageContent() {
   }
 
   async function refreshStoredJobsFromServer(signal?: AbortSignal) {
-    const response = await fetch(`${apiBaseUrl}/jobs`, {
-      cache: "no-store",
-      signal,
-    });
-    if (!response.ok) {
-      throw new Error(
-        await readApiErrorMessage(response, "Vacancies could not be refreshed"),
-      );
-    }
-
-    const storedJobs = (await response.json()) as Array<{
-      id: string;
-      data: unknown;
-    }>;
-    const storedUserJobs = keepStoredUserJobs(
-      normalizeStoredJobs(storedJobs.map((job) => job.data)),
-    );
-    setJobList((currentJobs) => [
-      ...storedUserJobs,
-      ...currentJobs.filter((job) => !isUserManagedJob(job)),
-    ]);
-    window.localStorage.setItem(
-      importedJobsStorageKey,
-      JSON.stringify(storedUserJobs),
-    );
-    return storedUserJobs;
+    if (signal?.aborted) return [];
+    const result = await jobsState.refetch();
+    return keepStoredUserJobs(result.data?.jobs ?? []);
   }
 
   useEffect(() => {
@@ -936,23 +910,6 @@ function HomePageContent() {
 
   useEffect(() => {
     try {
-      const rawSavedJobIds = window.localStorage.getItem(savedJobIdsStorageKey);
-      setSavedJobs(normalizeStoredJobIds(rawSavedJobIds ? JSON.parse(rawSavedJobIds) : []));
-    } catch {
-      window.localStorage.removeItem(savedJobIdsStorageKey);
-    } finally {
-      setAreSavedJobsLoaded(true);
-    }
-  }, []);
-
-  useEffect(() => {
-    if (!areSavedJobsLoaded) return;
-
-    window.localStorage.setItem(savedJobIdsStorageKey, JSON.stringify(savedJobs));
-  }, [areSavedJobsLoaded, savedJobs]);
-
-  useEffect(() => {
-    try {
       const rawSettings = window.localStorage.getItem(uiSettingsStorageKey);
       const storedSettings = rawSettings ? (JSON.parse(rawSettings) as Partial<UiSettings>) : {};
       setUiSettings({ ...defaultUiSettings, ...storedSettings });
@@ -968,76 +925,6 @@ function HomePageContent() {
 
     window.localStorage.setItem(uiSettingsStorageKey, JSON.stringify(uiSettings));
   }, [areUiSettingsLoaded, uiSettings]);
-
-  useEffect(() => {
-    const abortController = new AbortController();
-    let locallyDeletedJobIds: string[] = [];
-
-    try {
-      const rawArchivedJobIds = window.localStorage.getItem(archivedJobIdsStorageKey);
-      setArchivedJobIds(normalizeStoredJobIds(rawArchivedJobIds ? JSON.parse(rawArchivedJobIds) : []));
-    } catch {
-      window.localStorage.removeItem(archivedJobIdsStorageKey);
-    }
-
-    try {
-      const rawDeletedJobIds = window.localStorage.getItem(deletedJobIdsStorageKey);
-      locallyDeletedJobIds = normalizeStoredJobIds(rawDeletedJobIds ? JSON.parse(rawDeletedJobIds) : []);
-      setDeletedJobIds(locallyDeletedJobIds);
-    } catch {
-      window.localStorage.removeItem(deletedJobIdsStorageKey);
-    }
-
-    try {
-      const rawImportedJobs = window.localStorage.getItem(importedJobsStorageKey);
-      const storedUserJobs = keepStoredUserJobs(normalizeStoredJobs(rawImportedJobs ? JSON.parse(rawImportedJobs) : []));
-      if (storedUserJobs.length > 0) {
-        window.localStorage.setItem(importedJobsStorageKey, JSON.stringify(storedUserJobs));
-        setJobList((currentJobs) => [...storedUserJobs, ...currentJobs.filter((job) => !isUserManagedJob(job))]);
-        setSelectedJobId((currentId) => currentId || storedUserJobs[0].id);
-      }
-    } catch {
-      window.localStorage.removeItem(importedJobsStorageKey);
-    }
-
-    async function loadStoredJobs() {
-      try {
-        await refreshStoredJobsFromServer(abortController.signal);
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-      }
-    }
-
-    async function loadDismissedJobIds() {
-      try {
-        const response = await fetch(`${apiBaseUrl}/jobs/dismissed-ids`, {
-          method: locallyDeletedJobIds.length > 0 ? "PUT" : "GET",
-          headers: locallyDeletedJobIds.length > 0 ? { "Content-Type": "application/json" } : undefined,
-          body: locallyDeletedJobIds.length > 0
-            ? JSON.stringify({ job_ids: locallyDeletedJobIds })
-            : undefined,
-          cache: "no-store",
-          signal: abortController.signal,
-        });
-        if (!response.ok) return;
-
-        const serverIds = normalizeStoredJobIds(await response.json());
-        setDeletedJobIds((currentIds) => {
-          const nextIds = Array.from(new Set([...currentIds, ...serverIds]));
-          window.localStorage.setItem(deletedJobIdsStorageKey, JSON.stringify(nextIds));
-          return nextIds;
-        });
-      } catch (error) {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-      }
-    }
-
-    loadStoredJobs();
-    loadDismissedJobIds();
-    return () => {
-      abortController.abort();
-    };
-  }, [appendAppLog, setApplications]);
 
   function changeView(view: View, applicationId?: string) {
     setActiveView(view);
@@ -1248,26 +1135,7 @@ function HomePageContent() {
     });
 
     try {
-      const response = await fetch(`${apiBaseUrl}/jobs/ai-match?force=true`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobs: [{ id: application.job.id, data: application.job }],
-        }),
-      });
-
-      if (!response.ok) {
-        const message = await readApiErrorMessage(response, "AI analysis failed");
-        appendAppLog({
-          level: "error",
-          area: "AI Match",
-          message,
-          details: `${application.job.title} at ${application.job.company}`,
-        });
-        return;
-      }
-
-      const payload = (await response.json()) as PersistedEntityDto[];
+      const payload = await jobsState.matchNow([application.job], true);
       const matchedJob = normalizeStoredJobs(payload.map((item) => item.data)).find((job) => job.id === application.job.id);
 
       if (!matchedJob) {
@@ -1518,30 +1386,13 @@ function HomePageContent() {
   }
 
   function toggleSaved(jobId: string) {
-    setSavedJobs((current) => (current.includes(jobId) ? current.filter((id) => id !== jobId) : [...current, jobId]));
-  }
-
-  function persistArchivedJobIds(jobIds: string[]) {
-    window.localStorage.setItem(archivedJobIdsStorageKey, JSON.stringify(jobIds));
-  }
-
-  function persistDeletedJobIds(jobIds: string[]) {
-    window.localStorage.setItem(deletedJobIdsStorageKey, JSON.stringify(jobIds));
+    void jobsState.patchState(jobId, { saved: !savedJobs.includes(jobId) }).catch(() => undefined);
   }
 
   function updateJobArchiveState(job: Job, archived: boolean) {
     const archivedAt = archived ? new Date().toISOString() : undefined;
-
-    setArchivedJobIds((currentIds) => {
-      const nextIds = archived
-        ? Array.from(new Set([...currentIds, job.id]))
-        : currentIds.filter((id) => id !== job.id);
-      persistArchivedJobIds(nextIds);
-      return nextIds;
-    });
-
     setJobList((currentJobs) => {
-      const nextJobs = currentJobs.map((item) =>
+      return currentJobs.map((item) =>
         item.id === job.id
           ? {
               ...item,
@@ -1550,9 +1401,8 @@ function HomePageContent() {
             }
           : item,
       );
-      void persistUserJobs(nextJobs.filter(isUserManagedJob));
-      return nextJobs;
     });
+    void jobsState.patchState(job.id, { archived }).catch(() => undefined);
 
     setSelectedJobId("");
   }
@@ -1567,28 +1417,8 @@ function HomePageContent() {
 
     if (!shouldDelete) return;
 
-    setDeletedJobIds((currentIds) => {
-      const nextIds = Array.from(new Set([...currentIds, job.id]));
-      persistDeletedJobIds(nextIds);
-      return nextIds;
-    });
-    setArchivedJobIds((currentIds) => {
-      const nextIds = currentIds.filter((id) => id !== job.id);
-      persistArchivedJobIds(nextIds);
-      return nextIds;
-    });
-    setSavedJobs((currentIds) => currentIds.filter((id) => id !== job.id));
-
-    setJobList((currentJobs) => {
-      const nextJobs = currentJobs.filter((item) => item.id !== job.id);
-      void persistUserJobs(nextJobs.filter(isUserManagedJob));
-      return nextJobs;
-    });
     setSelectedJobId("");
-
-    void fetch(`${apiBaseUrl}/jobs/${encodeURIComponent(job.id)}`, {
-      method: "DELETE",
-    }).catch(() => undefined);
+    void jobsState.remove(job.id).catch(() => undefined);
   }
 
   function updateJobFilter(filter: JobFilterKey, value: string) {
@@ -2683,16 +2513,11 @@ function HomePageContent() {
 
   async function persistUserJobs(userJobs: Job[]) {
     const storedUserJobs = keepStoredUserJobs(userJobs);
-    window.localStorage.setItem(importedJobsStorageKey, JSON.stringify(storedUserJobs));
-
     try {
-      await fetch(`${apiBaseUrl}/jobs`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobs: storedUserJobs.map((job) => ({ id: job.id, data: job })),
-        }),
-      });
+      await jobsState.saveJobs([
+        ...storedUserJobs,
+        ...jobList.filter((job) => !isUserManagedJob(job)),
+      ]);
     } catch {
       // localStorage keeps imported and manually added jobs available when the API is offline.
     }
@@ -2709,9 +2534,7 @@ function HomePageContent() {
     }));
 
     setJobList((currentJobs) => {
-      const nextJobs = mergeJobs(matchedJobs, currentJobs);
-      window.localStorage.setItem(importedJobsStorageKey, JSON.stringify(keepStoredUserJobs(nextJobs.filter(isUserManagedJob))));
-      return nextJobs;
+      return mergeJobs(matchedJobs, currentJobs);
     });
   }
 
@@ -2730,27 +2553,23 @@ function HomePageContent() {
     setAiMatchErrorMessage("");
 
     try {
-      const response = await fetch(`${apiBaseUrl}/jobs/ai-match/run${force ? "?force=true" : ""}`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          jobs: jobsToMatch.map((job) => ({ id: job.id, data: job })),
-        }),
-      });
+      let startedStatus: AiMatchJobStatus;
+      try {
+        startedStatus = await jobsState.startAiMatch(jobsToMatch, force);
+      } catch (error) {
+        if (error instanceof ApiResponseError && error.status === 409) {
+          const previousRunStatus = await pollAiMatchStatus();
+          if (!previousRunStatus || conflictRetry) return false;
+          return refreshAiMatches(jobsToMatch, force, true);
+        }
+        throw error;
+      }
 
-      if (response.status === 409) {
+      if (!startedStatus) {
         const previousRunStatus = await pollAiMatchStatus();
         if (!previousRunStatus || conflictRetry) return false;
         return refreshAiMatches(jobsToMatch, force, true);
       }
-
-      if (!response.ok) {
-        const message = await readApiErrorMessage(response, "AI match run could not start");
-        reportAiMatchError(message, `HTTP ${response.status}`);
-        return false;
-      }
-
-      const startedStatus = (await response.json()) as AiMatchJobStatus;
       applyAiMatchStatus(startedStatus);
       if (startedStatus.status === "completed") return true;
 
@@ -2811,16 +2630,13 @@ function HomePageContent() {
     for (let attempt = 0; attempt < aiMatchStatusPollMaxAttempts; attempt += 1) {
       await wait(aiMatchStatusPollDelayMs);
 
-      const response = await fetch(`${apiBaseUrl}/jobs/ai-match/status`, {
-        cache: "no-store",
-      });
-      if (!response.ok) {
-        const message = await readApiErrorMessage(response, "AI match status check failed");
-        reportAiMatchError(message, `HTTP ${response.status}`);
+      let status: AiMatchJobStatus;
+      try {
+        status = await jobsState.fetchAiMatchStatus();
+      } catch (error) {
+        reportAiMatchError(error instanceof Error ? error.message : "AI match status check failed");
         return null;
       }
-
-      const status = (await response.json()) as AiMatchJobStatus;
       applyAiMatchStatus(status);
 
       if (status.status === "completed") {
