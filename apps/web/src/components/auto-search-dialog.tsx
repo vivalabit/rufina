@@ -20,10 +20,33 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { DirectCompaniesSource } from "@/components/direct-companies-source";
+import {
+  createAutomationSearchConfig,
+  deleteJobSearchSchedule,
+  fetchAutomationSearchConfig,
+  fetchAutomationSearchData,
+  fetchScreeningAudit,
+  patchAutomationSearchConfig,
+  patchJobSearchSchedule,
+  runJobSearchSchedule,
+  runScreeningAuditAction,
+  saveJobSearchSchedule,
+  type JobScreeningAuditEntry,
+  type JobSearchConfig,
+  type JobSearchFrequency,
+  type JobSearchPreset,
+  type JobSearchSchedule,
+  type JobSearchSource,
+  type JobSourceConfig,
+} from "@/features/job-search/api/automation-client";
 import { directCompanyCatalog } from "@/lib/direct-company-catalog";
 import { cn } from "@/lib/utils";
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+export type {
+  JobScreeningAuditEntry,
+  JobSearchConfig,
+  JobSearchSchedule,
+} from "@/features/job-search/api/automation-client";
 
 const aggregatorSourceOptions = [
   {
@@ -108,8 +131,6 @@ const screeningOperatorOptions = [
   ["matches", "matches regex"],
 ] as const;
 
-type JobSearchSource = string;
-type JobSearchFrequency = "daily" | "weekdays" | "selected_days";
 type ScreeningSeniority = (typeof seniorityOptions)[number]["id"];
 type AutoSearchSource =
   (typeof aggregatorSourceOptions)[number]["id"] | "direct_companies";
@@ -121,74 +142,6 @@ type ScreeningHardRuleDraft = {
   value: string;
   enabled: boolean;
   original: Record<string, unknown>;
-};
-
-export type JobSearchConfig = {
-  id: string;
-  name: string;
-  filters: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type JobSearchSchedule = {
-  id: string;
-  name: string;
-  configId: string;
-  presetId?: string | null;
-  sources: JobSearchSource[];
-  sourceConfigIds?: Record<string, string>;
-  frequency: JobSearchFrequency;
-  weekdays: number[];
-  localTime: string;
-  timezone: string;
-  aiAnalysisEnabled: boolean;
-  enabled: boolean;
-  nextRunAt: string | null;
-  lastRunAt: string | null;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type JobSourceConfig = {
-  id: string;
-  name: string;
-  configId: string;
-  source: JobSearchSource;
-  filters: Record<string, unknown>;
-  createdAt: string;
-  updatedAt: string;
-};
-
-type JobSearchPreset = {
-  id: string;
-  name: string;
-  configId: string;
-  sources: JobSearchSource[];
-  sourceConfigIds: Record<string, string>;
-  createdAt: string;
-  updatedAt: string;
-};
-
-export type JobScreeningAuditEntry = {
-  id: string;
-  jobId: string;
-  decision: "keep" | "reject" | "uncertain";
-  reasonCode: string;
-  reason: string;
-  matchedRuleIds: string[];
-  configHash: string;
-  configId: string | null;
-  model: string;
-  promptVersion: string;
-  title: string;
-  company: string;
-  sourceUrl: string;
-  checkedAt: string;
-  invalidatedAt: string | null;
-  manuallyAllowedAt: string | null;
-  canRecheck: boolean;
-  canAllowManually: boolean;
 };
 
 type AutoSearchDialogProps = {
@@ -289,7 +242,9 @@ export function AutoSearchDialog({
     if (!open) return;
     setView("list");
     setMessage("");
-    void loadSearchData();
+    const controller = new AbortController();
+    void loadSearchData(controller.signal);
+    return () => controller.abort();
   }, [open]);
 
   useEffect(() => {
@@ -309,19 +264,14 @@ export function AutoSearchDialog({
 
   if (!open) return null;
 
-  async function loadSearchData() {
+  async function loadSearchData(signal?: AbortSignal) {
     setStatus("loading");
     try {
-      const [nextConfigs, nextSourceConfigs, nextPresets, nextSchedules] = await Promise.all([
-        requestJson<JobSearchConfig[]>("/job-search/configs"),
-        requestJson<JobSourceConfig[]>("/job-search/source-configs").catch(() => []),
-        requestJson<JobSearchPreset[]>("/job-search/presets").catch(() => []),
-        requestJson<JobSearchSchedule[]>("/job-search/schedules"),
-      ]);
-      setConfigs(nextConfigs);
-      setSourceConfigs(nextSourceConfigs);
-      setPresets(nextPresets);
-      setSchedules(nextSchedules);
+      const data = await fetchAutomationSearchData(signal);
+      setConfigs(data.configs);
+      setSourceConfigs(data.sourceConfigs);
+      setPresets(data.presets);
+      setSchedules(data.schedules);
       setStatus("idle");
     } catch (error) {
       setStatus("error");
@@ -335,9 +285,7 @@ export function AutoSearchDialog({
     setAuditLoading(true);
     try {
       setAuditEntries(
-        await requestJson<JobScreeningAuditEntry[]>(
-          "/job-search/screening-audit?limit=200",
-        ),
+        await fetchScreeningAudit(),
       );
     } catch (error) {
       setMessage(errorMessage(error));
@@ -359,10 +307,7 @@ export function AutoSearchDialog({
     setBusyAuditId(entry.id);
     setMessage("");
     try {
-      const updated = await requestJson<JobScreeningAuditEntry>(
-        `/job-search/screening-audit/${encodeURIComponent(entry.id)}/${action}`,
-        { method: "POST" },
-      );
+      const updated = await runScreeningAuditAction(entry.id, action);
       setAuditEntries((current) =>
         current.map((item) => (item.id === updated.id ? updated : item)),
       );
@@ -460,20 +405,9 @@ export function AutoSearchDialog({
         enabled: draft.enabled,
       };
       if (draft.mode === "edit" && draft.id) {
-        await requestJson<JobSearchSchedule>(
-          `/job-search/schedules/${encodeURIComponent(draft.id)}`,
-          {
-            method: "PATCH",
-            headers: jsonHeaders,
-            body: JSON.stringify(schedulePayload),
-          },
-        );
+        await saveJobSearchSchedule(draft.id, schedulePayload);
       } else {
-        await requestJson<JobSearchSchedule>("/job-search/schedules", {
-          method: "POST",
-          headers: jsonHeaders,
-          body: JSON.stringify(schedulePayload),
-        });
+        await saveJobSearchSchedule(null, schedulePayload);
       }
       setView("list");
       setMessage(
@@ -494,14 +428,9 @@ export function AutoSearchDialog({
     setBusyScheduleId(schedule.id);
     setMessage("");
     try {
-      const updated = await requestJson<JobSearchSchedule>(
-        `/job-search/schedules/${encodeURIComponent(schedule.id)}`,
-        {
-          method: "PATCH",
-          headers: jsonHeaders,
-          body: JSON.stringify({ enabled: !schedule.enabled }),
-        },
-      );
+      const updated = await patchJobSearchSchedule(schedule.id, {
+        enabled: !schedule.enabled,
+      });
       setSchedules((current) =>
         current.map((item) => (item.id === updated.id ? updated : item)),
       );
@@ -516,14 +445,7 @@ export function AutoSearchDialog({
     setRunningScheduleId(schedule.id);
     setMessage("");
     try {
-      const run = await requestJson<{
-        status: string;
-        jobsFound: number;
-        jobsAdded: number;
-        warning?: string | null;
-      }>(`/job-search/schedules/${encodeURIComponent(schedule.id)}/run`, {
-        method: "POST",
-      });
+      const run = await runJobSearchSchedule(schedule.id);
       const parts = [
         `${schedule.name}: ${run.status}`,
         `${run.jobsFound} found`,
@@ -549,10 +471,7 @@ export function AutoSearchDialog({
     setBusyScheduleId(schedule.id);
     setMessage("");
     try {
-      await requestJson<void>(
-        `/job-search/schedules/${encodeURIComponent(schedule.id)}`,
-        { method: "DELETE" },
-      );
+      await deleteJobSearchSchedule(schedule.id);
       setSchedules((current) =>
         current.filter((item) => item.id !== schedule.id),
       );
@@ -2080,13 +1999,9 @@ async function saveConfigForDraft(
 ): Promise<string> {
   const limit = Number.parseInt(draft.resultsLimit, 10);
   if (draft.createConfig) {
-    const config = await requestJson<JobSearchConfig>("/job-search/configs", {
-      method: "POST",
-      headers: jsonHeaders,
-      body: JSON.stringify({
-        name: draft.configName.trim(),
-        filters: createVersionedFilters(draft, limit),
-      }),
+    const config = await createAutomationSearchConfig({
+      name: draft.configName.trim(),
+      filters: createVersionedFilters(draft, limit),
     });
     return config.id;
   }
@@ -2096,23 +2011,14 @@ async function saveConfigForDraft(
   if (!configHasEditableChanges(config.filters, draft, limit)) {
     return config.id;
   }
-  const currentConfig = await requestJson<JobSearchConfig>(
-    `/job-search/configs/${encodeURIComponent(config.id)}`,
-  );
+  const currentConfig = await fetchAutomationSearchConfig(config.id);
   const nextFilters = updateVersionedFilters(
     currentConfig.filters,
     draft,
     limit,
   );
   if (JSON.stringify(nextFilters) !== JSON.stringify(currentConfig.filters)) {
-    await requestJson<JobSearchConfig>(
-      `/job-search/configs/${encodeURIComponent(config.id)}`,
-      {
-        method: "PATCH",
-        headers: jsonHeaders,
-        body: JSON.stringify({ filters: nextFilters }),
-      },
-    );
+    await patchAutomationSearchConfig(config.id, { filters: nextFilters });
   }
   return config.id;
 }
@@ -2573,7 +2479,6 @@ function formatAuditTime(value: string): string {
       }).format(date);
 }
 
-const jsonHeaders = { "Content-Type": "application/json" };
 const inputClass =
   "h-10 w-full rounded-lg border border-border bg-[#ffffff] px-3 text-xs font-semibold text-foreground outline-none placeholder:text-muted/60 focus:border-accent/25";
 const textareaClass =
@@ -2586,33 +2491,6 @@ function choiceClass(selected: boolean): string {
       ? "border-accent/25 bg-accent/10 text-foreground"
       : "border-border bg-[#fff8f1] text-muted hover:bg-[#fff3e8] hover:text-foreground",
   );
-}
-
-async function requestJson<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    cache: "no-store",
-    ...init,
-  });
-  if (!response.ok) {
-    let detail = `Request failed (${response.status})`;
-    try {
-      const payload = (await response.json()) as {
-        detail?: string | { message?: string };
-      };
-      detail =
-        typeof payload.detail === "string"
-          ? payload.detail
-          : payload.detail?.message ?? detail;
-    } catch {
-      // Keep the HTTP fallback when the response is not JSON.
-    }
-    throw new Error(detail);
-  }
-  if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
 }
 
 function errorMessage(error: unknown): string {

@@ -11,9 +11,16 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
+import {
+  fetchVacancyFilterSettings,
+  putVacancyFilterSettings,
+  type PostingAgeDays,
+  type VacancyFilterSettings,
+  type VacancySeniority,
+} from "@/features/job-search/api/filter-client";
 import { cn } from "@/lib/utils";
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+export type { VacancyFilterSettings } from "@/features/job-search/api/filter-client";
 
 const seniorityOptions = [
   { id: "intern", label: "Intern" },
@@ -32,23 +39,6 @@ const postingAgeOptions = [
   { days: 7, label: "Past week" },
   { days: 30, label: "Past month" },
 ] as const;
-
-type VacancySeniority = (typeof seniorityOptions)[number]["id"];
-type PostingAgeDays = (typeof postingAgeOptions)[number]["days"];
-
-export type VacancyFilterSettings = {
-  schemaVersion: number;
-  enabled: boolean;
-  seniorityEnabled?: boolean;
-  allowedSeniority: VacancySeniority[];
-  excludedSeniority: VacancySeniority[];
-  postingAgeEnabled?: boolean;
-  maxPostingAgeDays?: PostingAgeDays | null;
-  technologyStackEnabled?: boolean;
-  targetTechnologies: string[];
-  excludedTechnologies: string[];
-  updatedAt?: string | null;
-};
 
 type VacancyFilterDraft = {
   schemaVersion: number;
@@ -122,11 +112,9 @@ export function VacancyFilterDialog({
     setStatus("loading");
     setMessage("");
 
-    void requestJson<unknown>("/job-search/filter-settings", {
-      signal: abortController.signal,
-    })
+    void fetchVacancyFilterSettings(abortController.signal)
       .then((payload) => {
-        setDraft(settingsToDraft(normalizeSettings(payload)));
+        setDraft(settingsToDraft(payload));
         setStatus("idle");
       })
       .catch((error: unknown) => {
@@ -213,23 +201,19 @@ export function VacancyFilterDialog({
     setStatus("saving");
     setMessage("");
     try {
-      const saved = await requestJson<unknown>("/job-search/filter-settings", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          schemaVersion: draft.schemaVersion,
-          enabled: draft.enabled,
-          seniorityEnabled: draft.seniorityEnabled,
-          allowedSeniority: draft.allowedSeniority,
-          excludedSeniority: draft.excludedSeniority,
-          postingAgeEnabled: draft.postingAgeEnabled,
-          maxPostingAgeDays: draft.maxPostingAgeDays,
-          technologyStackEnabled: draft.technologyStackEnabled,
-          targetTechnologies,
-          excludedTechnologies,
-        }),
+      const saved = await putVacancyFilterSettings({
+        schemaVersion: draft.schemaVersion,
+        enabled: draft.enabled,
+        seniorityEnabled: draft.seniorityEnabled,
+        allowedSeniority: draft.allowedSeniority,
+        excludedSeniority: draft.excludedSeniority,
+        postingAgeEnabled: draft.postingAgeEnabled,
+        maxPostingAgeDays: draft.maxPostingAgeDays,
+        technologyStackEnabled: draft.technologyStackEnabled,
+        targetTechnologies,
+        excludedTechnologies,
       });
-      setDraft(settingsToDraft(normalizeSettings(saved)));
+      setDraft(settingsToDraft(saved));
       setStatus("idle");
       onClose();
     } catch (error) {
@@ -647,69 +631,11 @@ function settingsToDraft(settings: VacancyFilterSettings): VacancyFilterDraft {
   };
 }
 
-function normalizeSettings(value: unknown): VacancyFilterSettings {
-  const payload = isRecord(value) ? value : {};
-  return {
-    schemaVersion:
-      typeof payload.schemaVersion === "number" ? payload.schemaVersion : 1,
-    enabled: typeof payload.enabled === "boolean" ? payload.enabled : false,
-    seniorityEnabled:
-      typeof payload.seniorityEnabled === "boolean"
-        ? payload.seniorityEnabled
-        : true,
-    allowedSeniority: normalizeSeniority(payload.allowedSeniority),
-    excludedSeniority: normalizeSeniority(payload.excludedSeniority),
-    postingAgeEnabled:
-      typeof payload.postingAgeEnabled === "boolean"
-        ? payload.postingAgeEnabled
-        : false,
-    maxPostingAgeDays: normalizePostingAge(payload.maxPostingAgeDays),
-    technologyStackEnabled:
-      typeof payload.technologyStackEnabled === "boolean"
-        ? payload.technologyStackEnabled
-        : true,
-    targetTechnologies: normalizeEntries(payload.targetTechnologies),
-    excludedTechnologies: normalizeEntries(payload.excludedTechnologies),
-    updatedAt: typeof payload.updatedAt === "string" ? payload.updatedAt : "",
-  };
-}
-
-function normalizePostingAge(value: unknown): PostingAgeDays {
-  return postingAgeOptions.some((option) => option.days === value)
-    ? (value as PostingAgeDays)
-    : 7;
-}
-
-function normalizeSeniority(value: unknown): VacancySeniority[] {
-  if (!Array.isArray(value)) return [];
-  const allowed = new Set<VacancySeniority>(
-    seniorityOptions.map((option) => option.id),
-  );
-  return orderSeniority(
-    Array.from(
-      new Set(
-        value.filter(
-          (item): item is VacancySeniority =>
-            typeof item === "string" &&
-            allowed.has(item as VacancySeniority),
-        ),
-      ),
-    ),
-  );
-}
-
 function orderSeniority(values: VacancySeniority[]): VacancySeniority[] {
   const selected = new Set(values);
   return seniorityOptions
     .map((option) => option.id)
     .filter((value) => selected.has(value));
-}
-
-function normalizeEntries(value: unknown): string[] {
-  if (!Array.isArray(value)) return [];
-  return uniqueEntries(
-    value.filter((item): item is string => typeof item === "string"),
-  );
 }
 
 function splitEntries(value: string): string[] {
@@ -818,44 +744,6 @@ function formatUpdatedAt(value: string): string {
         dateStyle: "medium",
         timeStyle: "short",
       }).format(date);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
-}
-
-async function requestJson<T>(
-  path: string,
-  init?: RequestInit,
-): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    cache: "no-store",
-    ...init,
-  });
-  if (!response.ok) {
-    let detail = `Request failed (${response.status})`;
-    try {
-      const payload = (await response.json()) as { detail?: unknown };
-      detail = apiErrorDetail(payload.detail) ?? detail;
-    } catch {
-      // Keep the HTTP fallback when the response is not JSON.
-    }
-    throw new Error(detail);
-  }
-  return (await response.json()) as T;
-}
-
-function apiErrorDetail(detail: unknown): string | null {
-  if (typeof detail === "string") return detail;
-  if (isRecord(detail) && typeof detail.message === "string") {
-    return detail.message;
-  }
-  if (!Array.isArray(detail)) return null;
-
-  const messages = detail.flatMap((item) =>
-    isRecord(item) && typeof item.msg === "string" ? [item.msg] : [],
-  );
-  return messages.length > 0 ? messages.join("; ") : null;
 }
 
 function trapFocus(

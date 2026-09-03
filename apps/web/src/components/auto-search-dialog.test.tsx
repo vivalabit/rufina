@@ -777,9 +777,5 @@ describe("AutoSearchDialog", () => {
 });
 
 function response(payload: unknown, status = 200): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    json: async () => payload,
-  } as Response;
+  return Response.json(payload, { status });
 }

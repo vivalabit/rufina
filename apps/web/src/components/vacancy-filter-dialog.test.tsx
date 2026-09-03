@@ -233,7 +233,7 @@ it("shows load failures, retries, and lets the user cancel without saving", asyn
         throw new Error(`Unexpected request: ${method} ${path}`);
       }
       getAttempts += 1;
-      return getAttempts === 1
+      return getAttempts <= 2
         ? response({ detail: "Filter service is unavailable" }, 503)
         : response(initialSettings);
     },
@@ -316,9 +316,5 @@ it("shows FastAPI validation details when saving fails", async () => {
 });
 
 function response(payload: unknown, status = 200): Response {
-  return {
-    ok: status >= 200 && status < 300,
-    status,
-    json: async () => payload,
-  } as Response;
+  return Response.json(payload, { status });
 }
