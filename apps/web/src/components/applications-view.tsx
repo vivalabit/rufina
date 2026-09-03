@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   BriefcaseBusiness,
   Calendar,
@@ -188,6 +188,12 @@ export function ApplicationsView({
     selectedApplication,
     filteredApplications,
   );
+
+  useEffect(() => {
+    if (!visibleSelectedApplication) return;
+    if (selectedApplication?.id === visibleSelectedApplication.id) return;
+    onSelectApplication(visibleSelectedApplication.id);
+  }, [onSelectApplication, selectedApplication?.id, visibleSelectedApplication]);
   const visibleApplicationEvents = visibleSelectedApplication
     ? getApplicationEventsFor(events, visibleSelectedApplication.id)
     : [];
