@@ -18,7 +18,16 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { fetchWithTimeout } from "@/lib/api-client";
+import {
+  attachGeneratedDocument,
+  downloadGeneratedDocument,
+  fetchGeneratedDocument,
+  generatedDocumentDownloadUrl,
+  generatedResumeRenderUrl,
+  renderResumePdf,
+  ResumeTemplateUnavailableError,
+  resumeTemplateThumbnailUrl,
+} from "@/features/applications/api/workspace-client";
 import type {
   ResumeTemplate,
   ResumeTemplateId,
@@ -26,7 +35,6 @@ import type {
 import {
   resumeArtifactGenerationMode,
   resumeRenderSource,
-  resumeRenderUrl,
 } from "@/lib/resume-generation";
 import { cn } from "@/lib/utils";
 
@@ -124,15 +132,8 @@ function currentVersion(document: ResumePdfDocument | null | undefined) {
   );
 }
 
-function ResumeTemplateThumbnail({
-  apiBaseUrl,
-  template,
-}: {
-  apiBaseUrl: string;
-  template: ResumeTemplate;
-}) {
-  const templateVersion = template.version ?? template.baseTemplateId;
-  const thumbnailUrl = `${apiBaseUrl}/resume-templates/${encodeURIComponent(template.id)}/thumbnail?version=${encodeURIComponent(String(templateVersion))}&format=9x16`;
+function ResumeTemplateThumbnail({ template }: { template: ResumeTemplate }) {
+  const thumbnailUrl = resumeTemplateThumbnailUrl(template);
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading",
   );
@@ -180,14 +181,12 @@ function ResumeTemplateThumbnail({
 }
 
 export function ResumeTemplatePicker({
-  apiBaseUrl,
   templates,
   selectedId,
   onChange,
   notice,
   compact = false,
 }: {
-  apiBaseUrl: string;
   templates: ResumeTemplate[];
   selectedId: ResumeTemplateId;
   onChange: (templateId: ResumeTemplateId) => void;
@@ -233,10 +232,7 @@ export function ResumeTemplatePicker({
           <div className="grid grid-cols-[76px_minmax(0,1fr)] items-center gap-4">
             <span className="relative block w-full max-w-[9rem]">
               {selectedTemplate ? (
-                <ResumeTemplateThumbnail
-                  apiBaseUrl={apiBaseUrl}
-                  template={selectedTemplate}
-                />
+                <ResumeTemplateThumbnail template={selectedTemplate} />
               ) : (
                 <span className="block aspect-[9/16] w-full border border-dashed border-border bg-[#fff8f1]" />
               )}
@@ -306,7 +302,6 @@ export function ResumeTemplatePicker({
               <div className="job-scroll overflow-y-auto px-5 pb-6 sm:px-6">
                 {customTemplates.length ? (
                   <TemplatePickerGroup
-                    apiBaseUrl={apiBaseUrl}
                     title="My templates"
                     templates={customTemplates}
                     selectedId={selectedId}
@@ -314,7 +309,6 @@ export function ResumeTemplatePicker({
                   />
                 ) : null}
                 <TemplatePickerGroup
-                  apiBaseUrl={apiBaseUrl}
                   title="Built-in"
                   templates={bundledTemplates}
                   selectedId={selectedId}
@@ -367,7 +361,6 @@ export function ResumeTemplatePicker({
       </select>
       {customTemplates.length ? (
         <TemplatePickerGroup
-          apiBaseUrl={apiBaseUrl}
           title="My templates"
           templates={customTemplates}
           selectedId={selectedId}
@@ -375,7 +368,6 @@ export function ResumeTemplatePicker({
         />
       ) : null}
       <TemplatePickerGroup
-        apiBaseUrl={apiBaseUrl}
         title="Built-in"
         templates={bundledTemplates}
         selectedId={selectedId}
@@ -394,13 +386,11 @@ export function ResumeTemplatePicker({
 }
 
 function TemplatePickerGroup({
-  apiBaseUrl,
   title,
   templates,
   selectedId,
   onChange,
 }: {
-  apiBaseUrl: string;
   title: string;
   templates: ResumeTemplate[];
   selectedId: ResumeTemplateId;
@@ -430,10 +420,7 @@ function TemplatePickerGroup({
               )}
             >
               <span className="relative mx-auto block w-full max-w-[9rem]">
-                <ResumeTemplateThumbnail
-                  apiBaseUrl={apiBaseUrl}
-                  template={template}
-                />
+                <ResumeTemplateThumbnail template={template} />
                 {isSelected ? (
                   <span className="absolute -right-1.5 -top-1.5 flex h-5 w-5 items-center justify-center rounded-full border border-accent/50 bg-[#ffffff] shadow-lg">
                     <Check className="h-3 w-3 text-accent" />
@@ -493,7 +480,6 @@ function provenanceValue(
 }
 
 export function ResumePdfReview({
-  apiBaseUrl,
   applicationId,
   document,
   templates,
@@ -501,7 +487,6 @@ export function ResumePdfReview({
   onDocumentReady,
   onTemplateUnavailable,
 }: {
-  apiBaseUrl: string;
   applicationId: string;
   document: ResumePdfDocument | null | undefined;
   templates: ResumeTemplate[];
@@ -596,21 +581,17 @@ export function ResumePdfReview({
     setError("");
 
     async function loadStoredArtifact() {
-      const [detailResponse, pdfResponse] = await Promise.all([
-        fetchWithTimeout(
-          `${apiBaseUrl}/documents/${encodeURIComponent(document!.id)}`,
-          { cache: "no-store", signal: controller.signal },
+      const [detail, blob] = await Promise.all([
+        fetchGeneratedDocument<ResumePdfDocument>(
+          document!.id,
+          controller.signal,
         ),
-        fetchWithTimeout(
-          `${apiBaseUrl}/documents/${encodeURIComponent(document!.id)}/download?version=${document!.currentVersion}`,
-          { cache: "no-store", signal: controller.signal },
+        downloadGeneratedDocument(
+          document!.id,
+          document!.currentVersion,
+          controller.signal,
         ),
       ]);
-      if (!detailResponse.ok || !pdfResponse.ok) {
-        throw new Error("The saved PDF preview is temporarily unavailable.");
-      }
-      const detail = await detailResponse.json() as ResumePdfDocument;
-      const blob = await pdfResponse.blob();
       setActiveDocument(detail);
       replacePreviewUrl(blob);
       setStatus("ready");
@@ -631,7 +612,7 @@ export function ResumePdfReview({
     };
     // replacePreviewUrl only reads stable browser globals and state setters.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiBaseUrl, document?.id, document?.currentVersion, hasPdf]);
+  }, [document?.id, document?.currentVersion, hasPdf]);
 
   async function renderSelectedTemplate() {
     if (!renderSource) {
@@ -643,64 +624,44 @@ export function ResumePdfReview({
     setStatus("rendering");
     setError("");
     try {
-      const response = await fetchWithTimeout(
-        resumeRenderUrl(
-          apiBaseUrl,
-          renderSource,
-          "pdf",
-          selectedTemplateId,
-        ),
-        { cache: "no-store" },
-      );
-      if (!response.ok) {
-        const detail = await readResumePdfError(
-          response,
-          "The selected PDF template could not be rendered.",
-        );
-        if (response.status === 404) {
-          onTemplateUnavailable?.(selectedTemplateId);
-          throw new Error(
-            "This resume template was deleted or is no longer available. Choose another template.",
-          );
-        }
-        throw new Error(detail);
-      }
-      const documentId = response.headers.get("X-Rufina-Document-Id");
+      const rendered = await renderResumePdf(renderSource, selectedTemplateId);
+      const documentId = rendered.documentId;
       if (!documentId) throw new Error("The renderer did not return a saved document ID.");
-      const blob = await response.blob();
-      const detailResponse = await fetchWithTimeout(
-        `${apiBaseUrl}/documents/${encodeURIComponent(documentId)}/attachments`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ applicationId }),
-        },
+      const detail = await attachGeneratedDocument<ResumePdfDocument>(
+        documentId,
+        applicationId,
       );
-      if (!detailResponse.ok) throw new Error("The rendered PDF details could not be loaded.");
-      const detail = await detailResponse.json() as ResumePdfDocument;
-      replacePreviewUrl(blob);
+      replacePreviewUrl(rendered.data);
       setActiveDocument(detail);
       setStatus("ready");
       onDocumentReady(detail);
     } catch (caught) {
+      if (caught instanceof ResumeTemplateUnavailableError) {
+        onTemplateUnavailable?.(selectedTemplateId);
+      }
       setStatus("error");
-      setError(caught instanceof Error ? caught.message : "The PDF could not be rendered.");
+      setError(
+        caught instanceof ResumeTemplateUnavailableError
+          ? "This resume template was deleted or is no longer available. Choose another template."
+          : caught instanceof Error
+            ? caught.message
+            : "The PDF could not be rendered.",
+      );
     }
   }
 
   if (!hasPdf && !activeDocument) return null;
 
   const downloadHref = activeDocument
-    ? `${apiBaseUrl}/documents/${encodeURIComponent(activeDocument.id)}/download`
+    ? generatedDocumentDownloadUrl(activeDocument.id)
     : "";
   const downloadName = artifact?.fileName ?? "resume.pdf";
   const docxHref = renderSource
-    ? resumeRenderUrl(
-        apiBaseUrl,
-        renderSource,
-        "docx",
-        artifact?.templateId ?? selectedTemplateId,
-      )
+    ? generatedResumeRenderUrl(
+      renderSource,
+      "docx",
+      artifact?.templateId ?? selectedTemplateId,
+    )
     : "";
   const docxName = downloadName.toLowerCase().endsWith(".pdf")
     ? `${downloadName.slice(0, -4)}.docx`
@@ -1018,16 +979,4 @@ export function ResumePdfReview({
       </div>
     </section>
   );
-}
-
-async function readResumePdfError(
-  response: Response,
-  fallback: string,
-): Promise<string> {
-  const payload = await response.json().catch(() => null) as {
-    detail?: unknown;
-  } | null;
-  return typeof payload?.detail === "string" && payload.detail.trim()
-    ? payload.detail
-    : fallback;
 }

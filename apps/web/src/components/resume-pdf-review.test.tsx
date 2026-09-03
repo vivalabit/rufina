@@ -200,7 +200,6 @@ describe("ResumeTemplatePicker", () => {
     const onChange = vi.fn();
     render(
       <ResumeTemplatePicker
-        apiBaseUrl="http://localhost:8000"
         templates={[customTemplate, ...templates]}
         selectedId="modern_two_column"
         onChange={onChange}
@@ -285,7 +284,6 @@ describe("ResumePdfReview", () => {
 
     render(
       <ResumePdfReview
-        apiBaseUrl="http://localhost:8000"
         applicationId="application-1"
         document={detail}
         templates={templates}
@@ -339,7 +337,6 @@ describe("ResumePdfReview", () => {
 
     render(
       <ResumePdfReview
-        apiBaseUrl="http://localhost:8000"
         applicationId="application-1"
         document={detail}
         templates={templates}
@@ -401,7 +398,6 @@ describe("ResumePdfReview", () => {
 
     render(
       <ResumePdfReview
-        apiBaseUrl="http://localhost:8000"
         applicationId="application-1"
         document={classic}
         templates={[customTemplate, ...templates]}
@@ -458,7 +454,6 @@ describe("ResumePdfReview", () => {
 
     render(
       <ResumePdfReview
-        apiBaseUrl="http://localhost:8000"
         applicationId="application-1"
         document={classic}
         templates={[customTemplate, ...templates]}

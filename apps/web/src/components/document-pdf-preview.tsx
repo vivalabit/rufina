@@ -8,7 +8,11 @@ import {
   LoaderCircle,
 } from "lucide-react";
 
-import { fetchWithTimeout } from "@/lib/api-client";
+import {
+  downloadGeneratedDocumentPdf,
+  generatedDocumentDownloadUrl,
+  generatedDocumentPdfUrl,
+} from "@/features/applications/api/workspace-client";
 
 type PreviewDocument = {
   id: string;
@@ -36,11 +40,9 @@ function pdfFileName(document: PreviewDocument) {
 }
 
 export function DocumentPdfPreview({
-  apiBaseUrl,
   document,
   label,
 }: {
-  apiBaseUrl: string;
   document: PreviewDocument;
   label: string;
 }) {
@@ -55,21 +57,11 @@ export function DocumentPdfPreview({
     setError("");
 
     async function loadPreview() {
-      const response = await fetchWithTimeout(
-        `${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/pdf?version=${document.currentVersion}`,
-        { cache: "no-store", signal: controller.signal },
+      const blob = await downloadGeneratedDocumentPdf(
+        document.id,
+        document.currentVersion,
+        controller.signal,
       );
-      if (!response.ok) {
-        let detail = "The PDF preview is temporarily unavailable.";
-        try {
-          const payload = await response.json() as { detail?: string };
-          detail = payload.detail?.trim() || detail;
-        } catch {
-          // Keep the stable fallback for non-JSON conversion errors.
-        }
-        throw new Error(detail);
-      }
-      const blob = await response.blob();
       const nextUrl = typeof URL.createObjectURL === "function"
         ? URL.createObjectURL(blob)
         : "";
@@ -94,7 +86,7 @@ export function DocumentPdfPreview({
       }
       previewUrlRef.current = "";
     };
-  }, [apiBaseUrl, document.currentVersion, document.id]);
+  }, [document.currentVersion, document.id]);
 
   return (
     <section
@@ -115,7 +107,7 @@ export function DocumentPdfPreview({
         </div>
         <div className="flex flex-wrap gap-2">
           <a
-            href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/pdf`}
+            href={generatedDocumentPdfUrl(document.id)}
             download={pdfFileName(document)}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"
           >
@@ -123,7 +115,7 @@ export function DocumentPdfPreview({
             Download PDF
           </a>
           <a
-            href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`}
+            href={generatedDocumentDownloadUrl(document.id)}
             download={currentFileName(document)}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"
           >

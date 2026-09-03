@@ -28,7 +28,6 @@ describe("DocumentPdfPreview", () => {
 
     render(
       <DocumentPdfPreview
-        apiBaseUrl="http://localhost:8000"
         label="Cover letter"
         document={{
           id: "cover-letter-1",

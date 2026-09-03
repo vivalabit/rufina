@@ -26,16 +26,37 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import type { AiBackend } from "@/lib/ai-source";
+import {
+  askWorkspaceAssistant,
+  attachGeneratedDocument,
+  checkApiHealth,
+  deleteGeneratedDocument as deleteGeneratedDocumentRequest,
+  documentTemplateThumbnailUrl,
+  fetchCandidateConfirmations,
+  fetchGeneratedDocuments,
+  fetchGeneratedDocumentVersions,
+  fetchWorkspaceAiConfiguration,
+  fetchWorkspaceDocumentTemplates,
+  fetchWorkspaceMasterResume,
+  fetchWorkspaceResumeTemplates,
+  generatedDocumentDownloadUrl,
+  generatedDocumentPdfUrl,
+  generatedResumeRenderUrl,
+  renderResumePdf,
+  restoreGeneratedDocument,
+  ResumeTemplateUnavailableError,
+  runResumeTailoringStage,
+  saveCandidateConfirmations,
+  saveGeneratedDocument,
+  type WorkspaceAiConfiguration as AiConfiguration,
+  type WorkspaceDocumentTemplate as DocumentTemplate,
+  type WorkspaceMasterResume as CurrentMasterResume,
+} from "@/features/applications/api/workspace-client";
 import {
   getAiMatchAnalysisStatus,
   hasCurrentApplicationGuide,
   isLegacyAiMatch,
 } from "@/lib/ai-match";
-import {
-  RetryablePackError,
-  retryPackOperation,
-} from "@/lib/application-pack";
 import {
   importLegacyCandidateConfirmations,
   isCandidateConfirmationComplete,
@@ -49,7 +70,6 @@ import {
   canReuseResumeRenderSource,
   resumeArtifactGenerationMode,
   resumeRenderSource,
-  resumeRenderUrl,
   type ResumeGenerationMode,
   type ResumeRenderSource,
 } from "@/lib/resume-generation";
@@ -57,12 +77,7 @@ import {
   getDocumentVersionDownloadWarnings,
   getGeneratedDocumentReadiness,
 } from "@/lib/document-readiness";
-import {
-  AI_GENERATION_REQUEST_TIMEOUT_MS,
-  API_HEALTH_TIMEOUT_MS,
-  apiUnavailableMessage,
-  fetchWithTimeout,
-} from "@/lib/api-client";
+import { apiUnavailableMessage } from "@/shared/api/client";
 import { cn } from "@/lib/utils";
 import {
   completedResumeTailoringProgress,
@@ -271,11 +286,6 @@ type GeneratedDocument = {
   versionsHasMore?: boolean;
 };
 
-type AiConfiguration = {
-  providerName: string;
-  backend: AiBackend;
-};
-
 type PackStageId = "resume_generation" | "resume_validation" | "cover_letter_generation" | "saving";
 type PackProgressStatus = "active" | "retrying" | "failed" | "completed" | "partial";
 type WorkspaceStep = "review" | "confirm" | "create" | "final";
@@ -296,29 +306,12 @@ type DocumentGenerationCorrection = {
   previousDraft: string;
 };
 
-type CurrentMasterResume = {
-  masterResumeId: string;
-  version: number;
-  createdAt: string;
-  updatedAt: string;
-};
-
 type PackProgress = {
   jobId: string;
   stage: PackStageId;
   status: PackProgressStatus;
   attempt: number;
   message: string;
-};
-
-type DocumentTemplate = {
-  id: string;
-  type: "cover_letter" | "tailored_resume";
-  name: string;
-  fileName: string;
-  builtIn: boolean;
-  createdAt: string;
-  updatedAt: string;
 };
 
 type DocumentChatTarget = GeneratedDocument["type"] | "question";
@@ -351,7 +344,6 @@ type ApplicationWorkspaceProps = {
   isAnalysisRefreshing: boolean;
 };
 
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const docxContentType = "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
 const defaultAiConfiguration: AiConfiguration = {
   providerName: "OpenAI via OpenClaw/Codex",
@@ -451,7 +443,7 @@ function resumeDocxDownload(document: GeneratedDocument) {
     ? `${artifact.fileName.slice(0, -4)}.docx`
     : "resume.docx";
   return {
-    href: resumeRenderUrl(apiBaseUrl, source, "docx", templateId),
+    href: generatedResumeRenderUrl(source, "docx", templateId),
     fileName,
   };
 }
@@ -468,11 +460,11 @@ function coverLetterPdfDownload(
   const fileName = sourceFileName.toLowerCase().endsWith(".docx")
     ? `${sourceFileName.slice(0, -5)}.pdf`
     : `${sourceFileName}.pdf`;
-  const versionQuery = version === document.currentVersion
-    ? ""
-    : `?version=${version}`;
   return {
-    href: `${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/pdf${versionQuery}`,
+    href: generatedDocumentPdfUrl(
+      document.id,
+      version === document.currentVersion ? undefined : version,
+    ),
     fileName,
   };
 }
@@ -536,15 +528,9 @@ function CollapsibleDocumentPreview({
   );
 }
 
-function CoverLetterTemplateCard({
-  apiBaseUrl,
-  template,
-}: {
-  apiBaseUrl: string;
-  template: DocumentTemplate | null;
-}) {
+function CoverLetterTemplateCard({ template }: { template: DocumentTemplate | null }) {
   const thumbnailUrl = template
-    ? `${apiBaseUrl}/documents/templates/${encodeURIComponent(template.id)}/thumbnail?version=${encodeURIComponent(template.updatedAt)}&format=9x16`
+    ? documentTemplateThumbnailUrl(template.id, template.updatedAt)
     : "";
   const [loadedThumbnailUrl, setLoadedThumbnailUrl] = useState("");
   const [failedThumbnailUrl, setFailedThumbnailUrl] = useState("");
@@ -716,19 +702,6 @@ function structuredReplacementCount(content: string) {
   }
 }
 
-async function readApiError(response: Response, fallback: string) {
-  const payload = await response.json().catch(() => null) as { detail?: unknown } | null;
-  if (typeof payload?.detail === "string" && payload.detail.trim()) return payload.detail;
-  if (
-    payload?.detail
-    && typeof payload.detail === "object"
-    && "message" in payload.detail
-    && typeof payload.detail.message === "string"
-    && payload.detail.message.trim()
-  ) return payload.detail.message;
-  return fallback;
-}
-
 function reusableResumeSource(
   document: GeneratedDocument | undefined,
   isOutdated: boolean,
@@ -898,15 +871,8 @@ export function ApplicationWorkspace({
   useEffect(() => {
     const controller = new AbortController();
     setApiHealth("checking");
-    fetchWithTimeout(
-      `${apiBaseUrl}/health`,
-      { cache: "no-store", signal: controller.signal },
-      API_HEALTH_TIMEOUT_MS,
-    )
-      .then((response) => {
-        if (!response.ok) throw new Error("API health check failed");
-        setApiHealth("available");
-      })
+    checkApiHealth(controller.signal)
+      .then(() => setApiHealth("available"))
       .catch((error) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setApiHealth("unavailable");
@@ -937,21 +903,13 @@ export function ApplicationWorkspace({
     setResumeTailoringProgress(null);
     const controller = new AbortController();
     Promise.all([
-      fetchWithTimeout(`${apiBaseUrl}/documents?applicationId=${encodeURIComponent(application.id)}`, { signal: controller.signal }),
-      fetchWithTimeout(`${apiBaseUrl}/documents/templates/library`, { signal: controller.signal }),
-      fetchWithTimeout(`${apiBaseUrl}/resume-templates`, { cache: "no-store", signal: controller.signal }),
-      fetchWithTimeout(`${apiBaseUrl}/assistant/config`, { signal: controller.signal }),
-      fetchWithTimeout(`${apiBaseUrl}/profile/master-resume`, { cache: "no-store", signal: controller.signal }),
+      fetchGeneratedDocuments<GeneratedDocument>(application.id, controller.signal),
+      fetchWorkspaceDocumentTemplates(controller.signal),
+      fetchWorkspaceResumeTemplates(controller.signal),
+      fetchWorkspaceAiConfiguration(controller.signal),
+      fetchWorkspaceMasterResume(controller.signal),
     ])
-      .then(async ([documentsResponse, templatesResponse, resumeTemplatesResponse, aiConfigurationResponse, masterResumeResponse]) => {
-        if (!documentsResponse.ok || !templatesResponse.ok || !resumeTemplatesResponse.ok || !aiConfigurationResponse.ok || (!masterResumeResponse.ok && masterResumeResponse.status !== 404)) throw new Error("Application documents are temporarily unavailable");
-        const loadedDocuments = await documentsResponse.json() as GeneratedDocument[];
-        const loadedTemplates = await templatesResponse.json() as DocumentTemplate[];
-        const loadedResumeTemplates = await resumeTemplatesResponse.json() as ResumeTemplate[];
-        const loadedAiConfiguration = await aiConfigurationResponse.json() as AiConfiguration;
-        const loadedMasterResume = masterResumeResponse.ok
-          ? await masterResumeResponse.json() as CurrentMasterResume
-          : null;
+      .then(([loadedDocuments, loadedTemplates, loadedResumeTemplates, loadedAiConfiguration, loadedMasterResume]) => {
         setDocuments(loadedDocuments);
         setTemplates(loadedTemplates.filter((template) => template.type === "cover_letter"));
         setResumeTemplates(loadedResumeTemplates);
@@ -1092,14 +1050,10 @@ export function ApplicationWorkspace({
 
     async function loadCandidateConfirmations() {
       try {
-        const response = await fetchWithTimeout(
-          `${apiBaseUrl}/applications/${encodeURIComponent(applicationId)}/confirmations`,
-          { cache: "no-store", signal: controller.signal },
+        const storedConfirmations = await fetchCandidateConfirmations(
+          applicationId,
+          controller.signal,
         );
-        if (!response.ok && response.status !== 404) {
-          throw new Error(await readApiError(response, "Candidate confirmations could not be loaded"));
-        }
-        const storedConfirmations = response.ok ? await response.json() as CandidateConfirmation[] : [];
         const questionsById = new Map(clarificationQuestions.map((question) => [question.id, question]));
         const backendNeedsSync = storedConfirmations.some((confirmation) => {
           const question = questionsById.get(confirmation.questionId);
@@ -1172,17 +1126,11 @@ export function ApplicationWorkspace({
             exampleText: confirmation.exampleText,
           }];
         });
-        const response = await fetchWithTimeout(
-          `${apiBaseUrl}/applications/${encodeURIComponent(application.id)}/confirmations`,
-          {
-            method: "PUT",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ confirmations }),
-            signal: controller.signal,
-          },
+        const savedConfirmations = await saveCandidateConfirmations(
+          application.id,
+          confirmations,
+          controller.signal,
         );
-        if (!response.ok) throw new Error(await readApiError(response, "Candidate confirmations could not be saved"));
-        const savedConfirmations = await response.json() as CandidateConfirmation[];
         setCandidateConfirmations(Object.fromEntries(savedConfirmations.map((confirmation) => [confirmation.questionId, confirmation])));
         setConfirmationsDirty(false);
         setConfirmationSyncStatus("saved");
@@ -1339,39 +1287,15 @@ export function ApplicationWorkspace({
     },
   ) {
     if (!message.trim()) return { message: "", generationArtifactId: "" };
-    const response = await fetch(`${apiBaseUrl}/assistant/chat`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        threadId: createId(`application-workspace-${activeApplication.id}`),
-        message,
-        contextKind: "application",
-        contextId: activeApplication.id,
-        ...(generationContext ? { generationContext } : {}),
-      }),
-    });
-    if (response.status === 413) {
-      throw new Error(await readApiError(response, "The document-generation request is too large. Shorten the revision instruction and try again."));
-    }
-    if (!response.ok) {
-      const message = await readApiError(response, "AI request failed");
-      if (response.status === 429 || response.status >= 500) {
-        throw new RetryablePackError(message);
-      }
-      throw new Error(message);
-    }
-    const payload = await response.json() as {
-      message?: string;
-      metadata?: { generationArtifactId?: string };
-    };
-    return {
-      message: payload.message?.trim() ?? "",
-      generationArtifactId: payload.metadata?.generationArtifactId?.trim() ?? "",
-    };
+    return await askWorkspaceAssistant(
+      activeApplication.id,
+      createId(`application-workspace-${activeApplication.id}`),
+      message,
+      generationContext,
+    );
   }
 
   async function generateCoverLetterDraft(
-    onRetry?: (attempt: number) => void,
     correction?: DocumentGenerationCorrection,
     userInstruction = "",
   ): Promise<CoverLetterDraftResult> {
@@ -1400,14 +1324,8 @@ export function ApplicationWorkspace({
       documentType: "cover_letter" as const,
       targetLanguage: documentLanguage,
     };
-    const invokeAssistant = async (prompt: string) => {
-      const generate = () => askAssistant(ensureGenerationPromptFits(prompt), generationContext);
-      return onRetry
-        ? await retryPackOperation(generate, (attempt) => {
-            onRetry(attempt);
-          })
-        : await generate();
-    };
+    const invokeAssistant = (prompt: string) =>
+      askAssistant(ensureGenerationPromptFits(prompt), generationContext);
 
     const basePrompt = buildDocumentGenerationPrompt(documentLanguage);
     const requestedPrompt = userInstruction.trim()
@@ -1474,26 +1392,6 @@ export function ApplicationWorkspace({
     );
     setGenerationType("tailored_resume");
     setDocumentError("");
-    const postStage = async <T extends { id: string }>(
-      path: string,
-      body: unknown,
-      fallback: string,
-      timeoutMs = AI_GENERATION_REQUEST_TIMEOUT_MS,
-    ): Promise<T> => {
-      const response = await fetchWithTimeout(
-        `${apiBaseUrl}${path}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
-        },
-        timeoutMs,
-      );
-      if (!response.ok) {
-        throw new Error(await readApiError(response, fallback));
-      }
-      return await response.json() as T;
-    };
     const renderAndAttachFinalResume = async (
       source: ResumeRenderSource,
       reuseSavedFinalResume: boolean,
@@ -1507,31 +1405,19 @@ export function ApplicationWorkspace({
           : "Rendering finalResume with the selected resume template",
         attempt,
       });
-      const pdfResponse = await fetchWithTimeout(
-        resumeRenderUrl(
-          apiBaseUrl,
-          source,
-          "pdf",
-          selectedResumeTemplateId,
-        ),
-        { cache: "no-store" },
-        AI_GENERATION_REQUEST_TIMEOUT_MS,
-      );
-      if (!pdfResponse.ok) {
-        const detail = await readApiError(pdfResponse, "PDF rendering failed");
-        if (pdfResponse.status === 404) {
+      let renderedPdf: Awaited<ReturnType<typeof renderResumePdf>>;
+      try {
+        renderedPdf = await renderResumePdf(source, selectedResumeTemplateId);
+      } catch (error) {
+        if (error instanceof ResumeTemplateUnavailableError) {
           handleResumeTemplateUnavailable(selectedResumeTemplateId);
-          throw new Error(
-            "The selected resume template was deleted or is no longer available. Choose another template.",
-          );
         }
-        throw new Error(detail);
+        throw error;
       }
-      const documentId = pdfResponse.headers.get("X-Rufina-Document-Id");
+      const documentId = renderedPdf.documentId;
       if (!documentId) {
         throw new Error("PDF renderer did not return a saved document ID");
       }
-      await pdfResponse.arrayBuffer();
 
       setResumeTailoringProgress({
         mode: generationMode,
@@ -1540,18 +1426,10 @@ export function ApplicationWorkspace({
         message: "Loading the server-validated PDF artifact",
         attempt,
       });
-      const attachResponse = await fetchWithTimeout(
-        `${apiBaseUrl}/documents/${encodeURIComponent(documentId)}/attachments`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ applicationId: activeApplication.id }),
-        },
+      const saved = await attachGeneratedDocument<GeneratedDocument>(
+        documentId,
+        activeApplication.id,
       );
-      if (!attachResponse.ok) {
-        throw new Error(await readApiError(attachResponse, "PDF could not be attached to the application"));
-      }
-      const saved = await attachResponse.json() as GeneratedDocument;
       setDocuments((current) => [
         saved,
         ...current.filter((document) => document.id !== saved.id),
@@ -1571,7 +1449,7 @@ export function ApplicationWorkspace({
         fileName: documentFileName(saved),
         fileType: "application/pdf",
         uploadedAt: saved.updatedAt,
-        downloadUrl: `${apiBaseUrl}/documents/${encodeURIComponent(saved.id)}/download`,
+        downloadUrl: generatedDocumentDownloadUrl(saved.id),
       });
       return true;
     };
@@ -1592,8 +1470,8 @@ export function ApplicationWorkspace({
             "Imaginator is building an idealized profile and then running an independent protected-fact audit",
           attempt,
         });
-        const imaginator = await postStage<{ id: string }>(
-          "/resume-tailoring/imaginator",
+        const imaginator = await runResumeTailoringStage<{ id: string }>(
+          "imaginator",
           {
             masterResumeId: currentMasterResume.masterResumeId,
             targetJobId: activeApplication.job.id,
@@ -1604,8 +1482,6 @@ export function ApplicationWorkspace({
               ? { revisionInstruction: revisionInstruction.trim() }
               : {}),
           },
-          "Imaginator generation failed",
-          AI_GENERATION_REQUEST_TIMEOUT_MS * 2,
         );
         setResumeTailoringProgress({
           mode: generationMode,
@@ -1628,8 +1504,8 @@ export function ApplicationWorkspace({
         message: "Recruiter analysis is reviewing the confirmed Master Resume",
         attempt,
       });
-      const recruiter = await postStage<{ id: string }>(
-        "/resume-tailoring/senior-recruiter-analysis",
+      const recruiter = await runResumeTailoringStage<{ id: string }>(
+        "senior_recruiter_analysis",
         {
           masterResumeId: currentMasterResume.masterResumeId,
           targetJobId: activeApplication.job.id,
@@ -1640,7 +1516,6 @@ export function ApplicationWorkspace({
             ? { revisionInstruction: revisionInstruction.trim() }
             : {}),
         },
-        "Senior recruiter analysis failed",
       );
 
       setResumeTailoringProgress({
@@ -1650,13 +1525,12 @@ export function ApplicationWorkspace({
         message: "Experience rewrite is adapting verified achievements",
         attempt,
       });
-      const rewrite = await postStage<{ id: string }>(
-        "/resume-tailoring/experience-rewrite",
+      const rewrite = await runResumeTailoringStage<{ id: string }>(
+        "experience_rewrite",
         {
           seniorRecruiterAnalysisId: recruiter.id,
           targetLanguage: documentLanguage,
         },
-        "Experience rewrite failed",
       );
 
       setResumeTailoringProgress({
@@ -1666,13 +1540,12 @@ export function ApplicationWorkspace({
         message: "ATS final review is producing the only renderable finalResume",
         attempt,
       });
-      const review = await postStage<{ id: string }>(
-        "/resume-tailoring/ats-final-review",
+      const review = await runResumeTailoringStage<{ id: string }>(
+        "ats_final_review",
         {
           experienceRewriteId: rewrite.id,
           targetLanguage: documentLanguage,
         },
-        "ATS final review failed",
       );
       return await renderAndAttachFinalResume(
         { kind: "ats_final_review", id: review.id },
@@ -1716,31 +1589,20 @@ export function ApplicationWorkspace({
     try {
       const generated = await generateCoverLetterDraft(
         undefined,
-        undefined,
         userInstruction,
       );
       const { draft } = generated;
-      const response = await fetch(
-          latestCoverLetter
-            ? `${apiBaseUrl}/documents/${encodeURIComponent(latestCoverLetter.id)}`
-            : `${apiBaseUrl}/documents`,
-          {
-            method: latestCoverLetter ? "PATCH" : "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              ...draft,
-              applicationId: activeApplication.id,
-              ...(latestCoverLetter ? { documentId: undefined } : {
-                type: "cover_letter",
-                jobId: activeApplication.job.id,
-              }),
-            }),
-          },
-        );
-      if (!response.ok) {
-        throw new Error(await readApiError(response, "Document save failed"));
-      }
-      const saved = await response.json() as GeneratedDocument;
+      const saved = await saveGeneratedDocument<GeneratedDocument>(
+        latestCoverLetter?.id ?? null,
+        {
+          ...draft,
+          applicationId: activeApplication.id,
+          ...(latestCoverLetter ? { documentId: undefined } : {
+            type: "cover_letter",
+            jobId: activeApplication.job.id,
+          }),
+        },
+      );
       setDocuments((current) => [
         saved,
         ...current.filter((document) => document.id !== saved.id),
@@ -1751,7 +1613,7 @@ export function ApplicationWorkspace({
         fileName: documentFileName(saved),
         fileType: docxContentType,
         uploadedAt: saved.updatedAt,
-        downloadUrl: `${apiBaseUrl}/documents/${encodeURIComponent(saved.id)}/download`,
+        downloadUrl: generatedDocumentDownloadUrl(saved.id),
       });
       return true;
     } catch (error) {
@@ -1922,16 +1784,10 @@ export function ApplicationWorkspace({
     setRestoringVersionKey(restoreKey);
     setDocumentError("");
     try {
-      const response = await fetch(
-        `${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/restore`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ version }),
-        },
+      const restored = await restoreGeneratedDocument<GeneratedDocument>(
+        document.id,
+        version,
       );
-      if (!response.ok) throw new Error(await readApiError(response, "Document version could not be restored"));
-      const restored = await response.json() as GeneratedDocument;
       setDocuments((current) => [
         restored,
         ...current.filter((currentDocument) => currentDocument.id !== restored.id),
@@ -1942,7 +1798,7 @@ export function ApplicationWorkspace({
         fileName: documentFileName(restored),
         fileType: docxContentType,
         uploadedAt: restored.updatedAt,
-        downloadUrl: `${apiBaseUrl}/documents/${encodeURIComponent(restored.id)}/download`,
+        downloadUrl: generatedDocumentDownloadUrl(restored.id),
       });
     } catch (error) {
       setDocumentError(error instanceof Error ? error.message : "Document version could not be restored");
@@ -1955,14 +1811,10 @@ export function ApplicationWorkspace({
     setLoadingVersionHistoryId(document.id);
     setDocumentError("");
     try {
-      const response = await fetch(
-        `${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/versions?offset=${document.versions.length}&limit=20`,
+      const page = await fetchGeneratedDocumentVersions<GeneratedDocumentVersion>(
+        document.id,
+        document.versions.length,
       );
-      if (!response.ok) throw new Error(await readApiError(response, "Version history could not be loaded"));
-      const page = await response.json() as {
-        items: GeneratedDocumentVersion[];
-        total: number;
-      };
       setDocuments((current) => current.map((item) => {
         if (item.id !== document.id) return item;
         const versions = [...item.versions, ...page.items].filter(
@@ -1987,10 +1839,7 @@ export function ApplicationWorkspace({
     setDeletingDocumentId(document.id);
     setDocumentError("");
     try {
-      const response = await fetch(`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}`, {
-        method: "DELETE",
-      });
-      if (!response.ok) throw new Error(await readApiError(response, "Document could not be deleted"));
+      await deleteGeneratedDocumentRequest(document.id);
       setDocuments((current) => current.filter((item) => item.id !== document.id));
     } catch (error) {
       setDocumentError(error instanceof Error ? error.message : "Document could not be deleted");
@@ -2205,7 +2054,7 @@ export function ApplicationWorkspace({
                 {packProgress ? <div className={cn("mb-4 rounded-xl border p-3", packProgress.status === "failed" ? "border-accent/25 bg-accent/10" : packProgress.status === "partial" ? "border-accent/25 bg-accent/10" : "border-border bg-black/15")}><div className="grid gap-2 sm:grid-cols-4">{packStageDefinitions.map((stage, index) => { const currentIndex = packStageDefinitions.findIndex((candidate) => candidate.id === packProgress.stage); const stageStatus = index < currentIndex ? "completed" : index === currentIndex ? packProgress.status : "pending"; return <div key={stage.id} className={cn("rounded-lg border px-2.5 py-2", stageStatus === "completed" ? "border-success/20 bg-success/[0.05]" : stageStatus === "failed" ? "border-accent/25 bg-accent/10" : stageStatus === "partial" ? "border-accent/25 bg-accent/10" : stageStatus === "active" || stageStatus === "retrying" ? "border-accent/30 bg-accent/[0.07]" : "border-border bg-[#fff8f1]")}><div className="flex items-center gap-2">{stageStatus === "completed" ? <Check className="h-3.5 w-3.5 text-success" /> : stageStatus === "active" || stageStatus === "retrying" ? <LoaderCircle className="h-3.5 w-3.5 animate-spin text-accent" /> : stageStatus === "failed" ? <AlertTriangle className="h-3.5 w-3.5 text-accent" /> : <CircleDot className="h-3.5 w-3.5 text-muted" />}<span className={cn("text-[9px] font-black uppercase tracking-wide", stageStatus === "completed" ? "text-success" : stageStatus === "failed" ? "text-accent" : stageStatus === "partial" ? "text-accent" : stageStatus === "active" || stageStatus === "retrying" ? "text-foreground" : "text-muted")}>{stage.label}</span></div></div>; })}</div><div className="mt-2 flex items-center justify-between gap-3 px-1 text-[9px]"><span className={cn(packProgress.status === "failed" ? "text-accent" : packProgress.status === "partial" ? "text-accent" : "text-muted")}>{packProgress.message}</span><span className="shrink-0 font-mono text-muted">{packProgress.attempt > 1 ? `attempt ${packProgress.attempt}/3 · ` : ""}{packProgress.jobId.slice(-8)}</span></div></div> : null}
                 {masterResumeLoaded && !currentMasterResume ? <div className="mb-4 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2.5 text-xs leading-5 text-accent">Confirm your Master Resume in My Profile before tailoring a vacancy.</div> : null}
                 <div>
-                  <DocumentCard sectionLabel="Resume document" documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Create and download a tailored CV for this role." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><p className="mt-3 text-[9px] text-muted">Master Resume · {currentMasterResume ? `v${currentMasterResume.version} confirmed` : "required"}</p><ResumeTemplatePicker compact apiBaseUrl={apiBaseUrl} templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} generationControl={<ResumeGenerationModePicker selectedId={selectedResumeGenerationMode} onChange={selectResumeGenerationMode} disabled={Boolean(generationType || isGeneratingPack)} />} />
+                  <DocumentCard sectionLabel="Resume document" documentType="tailored_resume" icon={FileText} label="Tailored CV" description="Create and download a tailored CV for this role." document={latestResume} isOutdated={isResumeOutdated} isGenerating={generationType === "tailored_resume"} restoringVersionKey={restoringVersionKey} loadingVersionHistoryId={loadingVersionHistoryId} deletingDocumentId={deletingDocumentId} onGenerate={() => requestAiGeneration("tailored_resume")} onRestore={(version) => latestResume && restoreDocumentVersion(latestResume, version)} onLoadMoreVersions={() => latestResume && void loadMoreDocumentVersions(latestResume)} onDelete={() => latestResume && void deleteGeneratedDocument(latestResume)} canGenerate={Boolean(!isGeneratingPack && documentsLoaded && currentMasterResume && resumeTemplates.length && applicationReview && confirmationsReady)} disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded || !masterResumeLoaded ? "Loading…" : !currentMasterResume ? "Confirm Master Resume" : !resumeTemplates.length ? "Loading templates…" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"} sourceControl={<><p className="mt-3 text-[9px] text-muted">Master Resume · {currentMasterResume ? `v${currentMasterResume.version} confirmed` : "required"}</p><ResumeTemplatePicker compact templates={resumeTemplates} selectedId={selectedResumeTemplateId} onChange={selectResumeTemplate} notice={resumeTemplateNotice} /></>} generationControl={<ResumeGenerationModePicker selectedId={selectedResumeGenerationMode} onChange={selectResumeGenerationMode} disabled={Boolean(generationType || isGeneratingPack)} />} />
                   <CollapsibleDocumentPreview
                     title="Resume preview"
                     description="Open the exact generated PDF, ATS scan and document changes"
@@ -2213,7 +2062,6 @@ export function ApplicationWorkspace({
                   >
                     {latestResumeIsPdf ? (
                       <ResumePdfReview
-                        apiBaseUrl={apiBaseUrl}
                         applicationId={activeApplication.id}
                         document={latestResume}
                         templates={resumeTemplates}
@@ -2228,7 +2076,6 @@ export function ApplicationWorkspace({
                       />
                     ) : latestResume ? (
                       <DocumentPdfPreview
-                        apiBaseUrl={apiBaseUrl}
                         document={latestResume}
                         label="Resume"
                       />
@@ -2254,7 +2101,6 @@ export function ApplicationWorkspace({
                     disabledLabel={isGeneratingPack ? "Pack job running…" : !documentsLoaded ? documentError ? "Retry loading history" : "Loading history…" : !coverLetterTemplate ? "Loading template…" : !coverLetterNamesComplete ? "Complete contact names" : !applicationReview ? analysisRequiredLabel : hasOversizedConfirmation ? "Shorten confirmation" : "Complete required answers"}
                     sourceControl={(
                       <CoverLetterTemplateCard
-                        apiBaseUrl={apiBaseUrl}
                         template={coverLetterTemplate}
                       />
                     )}
@@ -2308,7 +2154,6 @@ export function ApplicationWorkspace({
                   >
                     {latestCoverLetter ? (
                       <DocumentPdfPreview
-                        apiBaseUrl={apiBaseUrl}
                         document={latestCoverLetter}
                         label="Cover letter"
                       />
@@ -2448,7 +2293,7 @@ export function ApplicationWorkspace({
                         <div className="mt-4 flex gap-2">
                           <Button type="button" variant="ghost" onClick={() => setActiveWorkspaceStep("create")} className="h-9 flex-1 rounded-xl border border-border text-[10px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8]">{item.document ? "Review & edit" : "Prepare document"}</Button>
                           {itemPdfDownload ? <a href={itemPdfDownload.href} download={itemPdfDownload.fileName} onClick={(event) => confirmDocumentDownload(event, itemDownloadWarnings)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"><Download className="h-3.5 w-3.5" /> PDF</a> : null}
-                          {item.document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(item.document.id)}/download`} download={documentFileName(item.document)} onClick={(event) => confirmDocumentDownload(event, itemDownloadWarnings)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(item.document)}</a> : null}
+                          {item.document ? <a href={generatedDocumentDownloadUrl(item.document.id)} download={documentFileName(item.document)} onClick={(event) => confirmDocumentDownload(event, itemDownloadWarnings)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(item.document)}</a> : null}
                           {itemDocxDownload ? <a href={itemDocxDownload.href} download={itemDocxDownload.fileName} onClick={(event) => confirmDocumentDownload(event, itemDownloadWarnings)} className="inline-flex h-9 items-center gap-1.5 rounded-xl border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"><Download className="h-3.5 w-3.5" /> DOCX</a> : null}
                         </div>
                       </article>
@@ -2671,7 +2516,7 @@ function DocumentCard({
       {currentVersion ? <p className="mt-1 text-[9px] text-muted">Generated {formatVersionTimestamp(currentVersion.createdAt)}</p> : null}
       <div className="mt-4 flex flex-wrap gap-2">
         {pdfDownload ? <a href={pdfDownload.href} download={pdfDownload.fileName} onClick={(event) => confirmDocumentDownload(event, currentDownloadWarnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border px-3 text-[11px] font-bold text-[#1d1e1c] transition hover:bg-[#fff3e8]"><Download className="h-3.5 w-3.5" /> PDF</a> : null}
-        {document ? <a href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`} download={documentFileName(document)} onClick={(event) => confirmDocumentDownload(event, currentDownloadWarnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border px-3 text-[11px] font-bold text-[#1d1e1c] transition hover:bg-[#fff3e8]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(document)}</a> : null}
+        {document ? <a href={generatedDocumentDownloadUrl(document.id)} download={documentFileName(document)} onClick={(event) => confirmDocumentDownload(event, currentDownloadWarnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border px-3 text-[11px] font-bold text-[#1d1e1c] transition hover:bg-[#fff3e8]"><Download className="h-3.5 w-3.5" /> {documentArtifactLabel(document)}</a> : null}
         {docxDownload ? <a href={docxDownload.href} download={docxDownload.fileName} onClick={(event) => confirmDocumentDownload(event, currentDownloadWarnings)} className="inline-flex h-10 items-center gap-1.5 rounded-xl border border-border px-3 text-[11px] font-bold text-[#1d1e1c] transition hover:bg-[#fff3e8]"><Download className="h-3.5 w-3.5" /> DOCX</a> : null}
         <Button type="button" aria-label={isGenerating ? "Generating…" : !canGenerate ? disabledLabel : document ? "Regenerate" : `Generate ${label}`} variant={document ? "ghost" : "default"} disabled={isGenerating || isRestoringDocument || !canGenerate} onClick={onGenerate} className={cn("h-10 px-3 text-[11px] font-bold disabled:opacity-40", document ? "rounded-none border-0 bg-transparent text-muted hover:bg-transparent hover:text-foreground" : "rounded-lg bg-accent text-foreground hover:bg-[#e95300]")}>{isGenerating ? <LoaderCircle className="h-3.5 w-3.5 animate-spin" /> : document ? <RefreshCw className="h-3.5 w-3.5" /> : null}{isGenerating ? "Generating…" : document ? "Regenerate" : `Create ${isResume ? "CV" : "letter"}`}</Button>
         {document && !isResume ? <Button type="button" variant="ghost" aria-label={`Delete ${label}`} disabled={deletingDocumentId === document.id || isGenerating} onClick={onDelete} className="h-10 rounded-xl border border-accent/25 px-3 text-accent hover:bg-accent/10"><Trash2 className="h-3.5 w-3.5" /></Button> : null}
@@ -2707,7 +2552,7 @@ function DocumentCard({
                     <p className="mt-0.5 text-[9px] text-muted">{formatVersionTimestamp(version.createdAt)}</p>
                   </div>
                   {versionPdfDownload ? <a href={versionPdfDownload.href} download={versionPdfDownload.fileName} onClick={(event) => confirmDocumentDownload(event, downloadWarnings)} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-[9px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8]"><Download className="h-3 w-3" /> PDF</a> : null}
-                  <a href={`${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download?version=${version.version}`} download={documentFileName(document, version.version)} onClick={(event) => confirmDocumentDownload(event, downloadWarnings)} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-[9px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8]"><Download className="h-3 w-3" /> {documentArtifactLabel(document, version.version)}</a>
+                  <a href={generatedDocumentDownloadUrl(document.id, version.version)} download={documentFileName(document, version.version)} onClick={(event) => confirmDocumentDownload(event, downloadWarnings)} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-[9px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8]"><Download className="h-3 w-3" /> {documentArtifactLabel(document, version.version)}</a>
                   {!isCurrent && !isResume ? <button type="button" disabled={Boolean(restoringVersionKey) || isGenerating} onClick={() => onRestore(version.version)} className="inline-flex h-7 items-center gap-1 rounded-md border border-border px-2 text-[9px] font-bold text-[#1d1e1c] transition hover:border-accent/30 hover:text-foreground disabled:opacity-40">{isRestoring ? <LoaderCircle className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />} Restore</button> : null}
                 </div>
               );

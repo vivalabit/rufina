@@ -2,7 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { buildDocumentGenerationPrompt } from "@/components/application-workspace";
-import { AI_GENERATION_REQUEST_TIMEOUT_MS } from "@/lib/api-client";
+import { AI_GENERATION_REQUEST_TIMEOUT_MS } from "@/shared/api/client";
 import {
   createLegacyWorkspaceApplication,
   createV3WorkspaceApplication,
