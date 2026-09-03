@@ -30,30 +30,27 @@ import { cn } from "@/lib/utils";
 export function SettingsView({
   settings,
   showLogs,
-  apiKeyDraft,
   status,
   message,
   aiStatus,
   aiMessage,
-  onApiKeyChange,
-  onClear,
-  onSave,
+  onConnectionDraftChange,
+  onSaveConnection,
   onSaveAi,
   onShowLogsChange,
 }: {
   settings: AppSettings;
   showLogs: boolean;
-  apiKeyDraft: string;
   status: "idle" | "loading" | "ready" | "error";
   message: string;
   aiStatus: "idle" | "loading" | "ready" | "error";
   aiMessage: string;
-  onApiKeyChange: (value: string) => void;
-  onClear: () => void;
-  onSave: () => void;
+  onConnectionDraftChange: () => void;
+  onSaveConnection: (apiKey: string) => Promise<void>;
   onSaveAi: (update: AppSettingsUpdate) => void;
   onShowLogsChange: (value: boolean) => void;
 }) {
+  const [apiKeyDraft, setApiKeyDraft] = useState("");
   const hasApiKeyDraft = apiKeyDraft.trim().length > 0;
   const [aiBackendDraft, setAiBackendDraft] = useState<AIBackendName>(settings.ai_backend);
   const [openAiApiKeyDraft, setOpenAiApiKeyDraft] = useState("");
@@ -196,6 +193,15 @@ export function SettingsView({
       job_screening_max_attempts: screeningAttemptsDraft,
       job_screening_max_description_chars: screeningDescriptionLimitDraft,
     });
+  }
+
+  async function saveBrightDataKey(apiKey: string) {
+    try {
+      await onSaveConnection(apiKey);
+      setApiKeyDraft("");
+    } catch {
+      // Mutation state owns the error; keep the draft available for retry.
+    }
   }
 
   function clearOpenAiApiKey() {
@@ -679,7 +685,10 @@ export function SettingsView({
               <input
                 type="password"
                 value={apiKeyDraft}
-                onChange={(event) => onApiKeyChange(event.target.value)}
+                onChange={(event) => {
+                  setApiKeyDraft(event.target.value);
+                  onConnectionDraftChange();
+                }}
                 placeholder="Enter your Bright Data API key"
                 className="h-12 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70 2xl:h-[52px] 2xl:px-4 2xl:text-base"
                 autoComplete="off"
@@ -734,7 +743,7 @@ export function SettingsView({
                     variant="ghost"
                     className="h-12 w-full rounded-md border border-border bg-transparent px-6 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8] sm:w-auto 2xl:h-[52px] 2xl:text-sm"
                     disabled={status === "loading"}
-                    onClick={onClear}
+                    onClick={() => void saveBrightDataKey("")}
                   >
                     Clear key
                   </Button>
@@ -743,7 +752,7 @@ export function SettingsView({
                   type="button"
                   className="h-12 w-full rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-7 text-[13px] text-foreground shadow-[0_12px_28px_rgba(255,90,0,0.25)] hover:from-[#e95300] hover:to-[#e95300] sm:w-auto 2xl:h-[52px] 2xl:text-sm"
                   disabled={status === "loading" || !hasApiKeyDraft}
-                  onClick={onSave}
+                  onClick={() => void saveBrightDataKey(apiKeyDraft.trim())}
                 >
                   <Save className="h-4 w-4" />
                   {status === "loading" ? "Saving..." : "Save settings"}

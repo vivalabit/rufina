@@ -19,14 +19,12 @@ function renderSettingsView(
   const props: React.ComponentProps<typeof SettingsView> = {
     settings: configuredSettings,
     showLogs: true,
-    apiKeyDraft: "new-bright-data-key",
     status: "idle",
     message: "",
     aiStatus: "idle",
     aiMessage: "",
-    onApiKeyChange: vi.fn(),
-    onClear: vi.fn(),
-    onSave: vi.fn(),
+    onConnectionDraftChange: vi.fn(),
+    onSaveConnection: vi.fn().mockResolvedValue(undefined),
     onSaveAi: vi.fn(),
     onShowLogsChange: vi.fn(),
     ...overrides,
@@ -50,12 +48,12 @@ it("delegates logs and Bright Data settings through controlled props", () => {
   fireEvent.change(screen.getByLabelText(/Bright Data API key/), {
     target: { value: "rotated-key" },
   });
-  expect(props.onApiKeyChange).toHaveBeenCalledWith("rotated-key");
+  expect(props.onConnectionDraftChange).toHaveBeenCalledOnce();
 
   fireEvent.click(screen.getByRole("button", { name: "Save settings" }));
   fireEvent.click(screen.getByRole("button", { name: "Clear key" }));
-  expect(props.onSave).toHaveBeenCalledOnce();
-  expect(props.onClear).toHaveBeenCalledOnce();
+  expect(props.onSaveConnection).toHaveBeenNthCalledWith(1, "rotated-key");
+  expect(props.onSaveConnection).toHaveBeenNthCalledWith(2, "");
 
   fireEvent.click(
     screen.getByRole("button", { name: "Delete saved OpenAI API key" }),
