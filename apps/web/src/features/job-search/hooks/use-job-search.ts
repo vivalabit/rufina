@@ -1,6 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 
+import { ownerQueryKey } from "@/shared/api/query-key";
+
 import type { JobSearchRunPayload, JobSourceConfigPayload } from "../api/dto";
 import {
   createSearchConfig,
@@ -22,8 +24,8 @@ import {
 import { parserSearchFiltersFromForm } from "../model/form-mappers";
 import type { ParserSearchConfig } from "../model/types";
 
-const configsQueryKey = ["job-search", "configs"] as const;
-const runsQueryKey = ["job-search", "runs"] as const;
+const configsQueryKey = ownerQueryKey(["job-search", "configs"] as const);
+const runsQueryKey = ownerQueryKey(["job-search", "runs"] as const);
 
 type SearchConfigsSnapshot = {
   configs: ParserSearchConfig[];

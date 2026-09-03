@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { ApiResponseError } from "@/lib/api-client";
+import { ApiResponseError } from "@/shared/api/client";
+import { ownerQueryKey } from "@/shared/api/query-key";
 import type { Job } from "@/shared/types/job";
 
 import {
@@ -27,7 +28,7 @@ import {
 import { normalizeStoredJobIds, normalizeStoredJobs } from "../browser-storage/normalizers";
 import { keepStoredUserJobs, mergeJobs } from "../model/selectors";
 
-const jobsQueryKey = ["jobs"] as const;
+const jobsQueryKey = ownerQueryKey(["jobs"] as const);
 
 type JobsSnapshot = {
   jobs: Job[];

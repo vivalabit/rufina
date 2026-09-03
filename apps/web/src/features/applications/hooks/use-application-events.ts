@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { ApiResponseError } from "@/lib/api-client";
+import { ApiResponseError } from "@/shared/api/client";
+import { ownerQueryKey } from "@/shared/api/query-key";
 import type { ApplicationEvent } from "@/shared/types/application";
 
 import {
@@ -22,7 +23,7 @@ import {
 } from "../browser-storage/normalizers";
 import { sortApplicationEvents } from "../model/selectors";
 
-const applicationEventsQueryKey = ["application-events"] as const;
+const applicationEventsQueryKey = ownerQueryKey(["application-events"] as const);
 
 type VersionedApplicationEvent = {
   event: ApplicationEvent;

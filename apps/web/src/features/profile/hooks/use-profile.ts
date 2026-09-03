@@ -2,7 +2,8 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef } from "react";
 
 import { createClientId } from "@/lib/client-id";
-import { ApiResponseError } from "@/lib/api-client";
+import { ApiResponseError } from "@/shared/api/client";
+import { ownerQueryKey } from "@/shared/api/query-key";
 import { completedBrowserStorageMigrationValue } from "@/shared/browser-storage/constants";
 import { isInlineDataUrl } from "@/shared/browser-storage/data-url";
 import type { CandidateProfile } from "@/shared/types/profile";
@@ -38,7 +39,7 @@ import { defaultCandidateProfile } from "../model/defaults";
 import { normalizeCandidateProfile } from "../model/normalizers";
 import { hasCandidateProfileData } from "../model/selectors";
 
-const profileQueryKey = ["profile"] as const;
+const profileQueryKey = ownerQueryKey(["profile"] as const);
 const permanentLegacyFileStatuses = new Set([400, 413, 415, 422]);
 
 type ProfileSnapshot = {

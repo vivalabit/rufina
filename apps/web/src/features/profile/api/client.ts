@@ -1,5 +1,4 @@
-import { requestJson } from "@/lib/api-client";
-import { apiBaseUrl } from "@/shared/api/config";
+import { apiClient } from "@/shared/api/client";
 import type { CandidateProfile } from "@/shared/types/profile";
 
 import type { LegacyProfileFileUploadMetadata } from "../browser-storage/migrations";
@@ -21,12 +20,13 @@ export class ProfileFileUploadError extends Error {
 }
 
 export async function fetchProfile(signal?: AbortSignal) {
-  const result = await requestJson<Partial<CandidateProfile>>(
-    `${apiBaseUrl}/profile`,
-    { cache: "no-store", signal },
-    { errorMessage: "Profile could not be loaded" },
-  );
-  return { profile: result.data, etag: result.etag };
+  const result = await apiClient.json<Partial<CandidateProfile>>({
+    path: "/profile",
+    cache: "no-store",
+    signal,
+    errorMessage: "Profile could not be loaded",
+  });
+  return { profile: result.data, etag: result.meta.etag };
 }
 
 export async function putProfile(
@@ -34,28 +34,24 @@ export async function putProfile(
   etag: string | null,
   signal?: AbortSignal,
 ) {
-  const result = await requestJson<Partial<CandidateProfile>>(
-    `${apiBaseUrl}/profile`,
-    {
-      method: "PUT",
-      headers: {
-        "Content-Type": "application/json",
-        ...(etag ? { "If-Match": etag } : {}),
-      },
-      body: JSON.stringify(profile),
-      signal,
-    },
-    { errorMessage: "Profile could not be saved" },
-  );
-  return { profile: result.data, etag: result.etag };
+  const result = await apiClient.json<Partial<CandidateProfile>>({
+    path: "/profile",
+    method: "PUT",
+    ifMatch: etag,
+    json: profile,
+    signal,
+    errorMessage: "Profile could not be saved",
+  });
+  return { profile: result.data, etag: result.meta.etag };
 }
 
 export async function fetchProfileFiles(signal?: AbortSignal) {
-  return (await requestJson<ProfileFilePayload[]>(
-    `${apiBaseUrl}/profile/files`,
-    { cache: "no-store", signal },
-    { errorMessage: "Profile files could not be loaded" },
-  )).data;
+  return (await apiClient.json<ProfileFilePayload[]>({
+    path: "/profile/files",
+    cache: "no-store",
+    signal,
+    errorMessage: "Profile files could not be loaded",
+  })).data;
 }
 
 export async function uploadProfileFile(
@@ -82,16 +78,15 @@ export async function uploadProfileFile(
   }
 
   try {
-    return (await requestJson<ProfileFilePayload>(
-      `${apiBaseUrl}/profile/files?${query}`,
-      {
-        method: "POST",
-        headers: { "Content-Type": file.type || "application/octet-stream" },
-        body: file,
-        signal,
-      },
-      { errorMessage: "Profile file could not be uploaded" },
-    )).data;
+    return (await apiClient.json<ProfileFilePayload>({
+      path: "/profile/files",
+      query,
+      method: "POST",
+      headers: { "Content-Type": file.type || "application/octet-stream" },
+      body: file,
+      signal,
+      errorMessage: "Profile file could not be uploaded",
+    })).data;
   } catch (error) {
     if (error && typeof error === "object" && "status" in error && typeof error.status === "number") {
       throw new ProfileFileUploadError(
@@ -108,37 +103,32 @@ export async function patchProfileFile(
   metadata: Record<string, string>,
   signal?: AbortSignal,
 ) {
-  return (await requestJson<ProfileFilePayload>(
-    `${apiBaseUrl}/profile/files/${encodeURIComponent(fileId)}`,
-    {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(metadata),
-      signal,
-    },
-    { errorMessage: "Profile file could not be saved" },
-  )).data;
+  return (await apiClient.json<ProfileFilePayload>({
+    path: `/profile/files/${encodeURIComponent(fileId)}`,
+    method: "PATCH",
+    json: metadata,
+    signal,
+    errorMessage: "Profile file could not be saved",
+  })).data;
 }
 
 export async function deleteProfileFile(fileId: string, signal?: AbortSignal) {
-  await requestJson<null>(
-    `${apiBaseUrl}/profile/files/${encodeURIComponent(fileId)}`,
-    { method: "DELETE", signal },
-    { errorMessage: "Profile file could not be deleted" },
-  );
+  await apiClient.empty({
+    path: `/profile/files/${encodeURIComponent(fileId)}`,
+    method: "DELETE",
+    signal,
+    errorMessage: "Profile file could not be deleted",
+  });
 }
 
 async function importFromResume<T>(path: string, profileFileId: string, signal?: AbortSignal) {
-  return (await requestJson<T>(
-    `${apiBaseUrl}/profile/${path}`,
-    {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ profile_file_id: profileFileId }),
-      signal,
-    },
-    { errorMessage: "Profile data could not be imported" },
-  )).data;
+  return (await apiClient.json<T>({
+    path: `/profile/${path}`,
+    method: "POST",
+    json: { profile_file_id: profileFileId },
+    signal,
+    errorMessage: "Profile data could not be imported",
+  })).data;
 }
 
 export const importProfileExperience = (profileFileId: string, signal?: AbortSignal) =>

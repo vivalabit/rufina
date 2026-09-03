@@ -52,7 +52,6 @@ describe("application API mappers", () => {
             { version: 2, artifact: null },
           ],
         },
-        "http://localhost:8000",
       ),
     ).toMatchObject({
       fileName: "Tailored resume.docx",

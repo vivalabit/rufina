@@ -30,7 +30,6 @@ export function workspaceSourceToApplicationDocument(
 
 export function generatedDocumentToApplicationDocument(
   document: GeneratedApplicationDocumentPayload,
-  apiBaseUrl: string,
 ): ApplicationDocument {
   const current = document.versions.find(
     (version) => version.version === document.currentVersion,
@@ -47,7 +46,9 @@ export function generatedDocumentToApplicationDocument(
       current?.artifact?.contentType ||
       "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     uploadedAt: document.updatedAt,
-    downloadUrl: `${apiBaseUrl}/documents/${encodeURIComponent(document.id)}/download`,
+    downloadUrl: resolveApiUrl(
+      `/documents/${encodeURIComponent(document.id)}/download`,
+    ),
   };
 }
 

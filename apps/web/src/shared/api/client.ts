@@ -177,7 +177,7 @@ async function parseResponseBody(response: Response): Promise<unknown> {
 
 export function createApiClient(options: ApiClientOptions) {
   const normalizedBaseUrl = options.baseUrl.replace(/\/+$/, "");
-  const fetchImplementation = options.fetch ?? globalThis.fetch.bind(globalThis);
+  const fetchImplementation = options.fetch;
   const sleep = options.sleep ?? defaultSleep;
 
   function url(path: string, query?: ApiQuery | URLSearchParams) {
@@ -211,23 +211,23 @@ export function createApiClient(options: ApiClientOptions) {
           controller.abort();
         }, timeoutMs);
 
-    const headers = new Headers(request.headers);
+    const headers = Object.fromEntries(new Headers(request.headers).entries());
     if (requestOwnerId && requestUrl.href.startsWith(`${normalizedBaseUrl}/`)) {
-      headers.set(ownerHeader, requestOwnerId);
+      headers[ownerHeader] = requestOwnerId;
     }
     if (request.ifMatch !== undefined && request.ifMatch !== null) {
-      headers.set("If-Match", revisionToken(request.ifMatch));
+      headers["If-Match"] = revisionToken(request.ifMatch);
     }
     let body = request.body;
     if (request.json !== undefined) {
-      headers.set("Content-Type", "application/json");
+      headers["Content-Type"] = "application/json";
       body = JSON.stringify(request.json);
     }
 
     try {
-      return await fetchImplementation(requestUrl, {
+      return await (fetchImplementation ?? globalThis.fetch)(requestUrl.toString(), {
         ...request,
-        method: request.method ?? "GET",
+        method: request.method,
         headers,
         body,
         signal: controller.signal,

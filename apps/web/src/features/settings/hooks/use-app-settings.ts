@@ -1,11 +1,13 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 
+import { ownerQueryKey } from "@/shared/api/query-key";
+
 import { fetchAppSettings, putAppSettings } from "../api/client";
 import { defaultAppSettings } from "../model/defaults";
 import type { AppSettings, AppSettingsUpdate } from "../model/types";
 
-const appSettingsQueryKey = ["app-settings"] as const;
+const appSettingsQueryKey = ownerQueryKey(["app-settings"] as const);
 
 type MutationStatus = "idle" | "loading" | "ready" | "error";
 

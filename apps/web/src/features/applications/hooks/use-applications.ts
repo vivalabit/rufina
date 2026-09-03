@@ -1,7 +1,8 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 
-import { ApiResponseError } from "@/lib/api-client";
+import { ApiResponseError } from "@/shared/api/client";
+import { ownerQueryKey } from "@/shared/api/query-key";
 import { completedBrowserStorageMigrationValue } from "@/shared/browser-storage/constants";
 import type { ApplicationDocument, TrackedApplication } from "@/shared/types/application";
 
@@ -32,7 +33,7 @@ import {
 } from "../browser-storage/normalizers";
 import { applicationPayloadForStorage } from "../browser-storage/serialization";
 
-const applicationsQueryKey = ["applications"] as const;
+const applicationsQueryKey = ownerQueryKey(["applications"] as const);
 
 type VersionedApplication = {
   application: TrackedApplication;
