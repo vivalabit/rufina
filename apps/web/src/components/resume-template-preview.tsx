@@ -13,20 +13,17 @@ import {
   Undo2,
 } from "lucide-react";
 
-import { apiUnavailableMessage, fetchWithTimeout } from "@/lib/api-client";
+import { previewResumeTemplate } from "@/features/profile/api/template-client";
 import type { ResumeTemplateDraft } from "@/lib/resume-templates";
+import { apiUnavailableMessage } from "@/shared/api/client";
 
 const PREVIEW_DEBOUNCE_MS = 650;
-const PREVIEW_TIMEOUT_MS = 90_000;
-
 type PreviewStatus = "waiting" | "loading" | "ready" | "error";
 
 export function ResumeTemplatePreview({
-  apiBaseUrl,
   draft,
   debounceMs = PREVIEW_DEBOUNCE_MS,
 }: {
-  apiBaseUrl: string;
   draft: ResumeTemplateDraft;
   debounceMs?: number;
 }) {
@@ -60,21 +57,13 @@ export function ResumeTemplatePreview({
     const timeoutId = window.setTimeout(async () => {
       setStatus("loading");
       try {
-        const response = await fetchWithTimeout(
-          `${apiBaseUrl}/resume-templates/preview`,
-          {
-            method: "POST",
-            cache: "no-store",
-            headers: { "Content-Type": "application/json" },
-            body: previewKey,
-            signal: controller.signal,
-          },
-          PREVIEW_TIMEOUT_MS,
+        const pdf = await previewResumeTemplate(
+          JSON.parse(previewKey) as Pick<
+            ResumeTemplateDraft,
+            "baseTemplateId" | "designJson"
+          >,
+          controller.signal,
         );
-        if (!response.ok) {
-          throw new Error(await readPreviewError(response));
-        }
-        const pdf = await response.blob();
         if (controller.signal.aborted) return;
         const nextUrl = URL.createObjectURL(pdf);
         if (objectUrlRef.current) {
@@ -97,7 +86,7 @@ export function ResumeTemplatePreview({
       window.clearTimeout(timeoutId);
       controller.abort();
     };
-  }, [apiBaseUrl, debounceMs, draft.designJson.accentColor, previewKey]);
+  }, [debounceMs, draft.designJson.accentColor, previewKey]);
 
   useEffect(
     () => () => {
@@ -253,18 +242,4 @@ function PreviewToolButton({
       {children}
     </button>
   );
-}
-
-async function readPreviewError(response: Response): Promise<string> {
-  try {
-    const payload = (await response.json()) as { detail?: unknown };
-    if (typeof payload.detail === "string") return payload.detail;
-  } catch {
-    // The preview endpoint normally returns JSON errors, but keep a safe
-    // fallback for proxies that replace the response body.
-  }
-  if (response.status === 429) {
-    return "Preview limit reached. Wait a moment, then try again.";
-  }
-  return `Could not generate the preview (${response.status}).`;
 }

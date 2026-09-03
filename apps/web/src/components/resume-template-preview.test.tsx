@@ -48,14 +48,12 @@ it("debounces draft changes and keeps the PDF as a browser Blob URL", async () =
 
   const { rerender, unmount } = render(
     <ResumeTemplatePreview
-      apiBaseUrl="http://localhost:8000"
       draft={draft}
       debounceMs={20}
     />,
   );
   rerender(
     <ResumeTemplatePreview
-      apiBaseUrl="http://localhost:8000"
       draft={{
         ...draft,
         designJson: { ...draft.designJson, accentColor: "#8A1538" },

@@ -19,12 +19,20 @@ import {
 import { ResumeTemplateEditor } from "@/components/resume-template-editor";
 import { ResumeTemplatePreview } from "@/components/resume-template-preview";
 import { Button } from "@/components/ui/button";
-import { apiUnavailableMessage, fetchWithTimeout } from "@/lib/api-client";
+import {
+  deleteResumeTemplate,
+  duplicateResumeTemplate,
+  exportResumeTemplate,
+  fetchResumeTemplates,
+  importResumeTemplate,
+  saveResumeTemplate,
+} from "@/features/profile/api/template-client";
 import type {
   ResumeTemplate,
   ResumeTemplateDraft,
 } from "@/lib/resume-templates";
 import { cn } from "@/lib/utils";
+import { apiUnavailableMessage } from "@/shared/api/client";
 
 type ManagerStatus = "loading" | "ready" | "error";
 type MutationKind =
@@ -32,7 +40,7 @@ type MutationKind =
 type MessageKind = "success" | "error" | null;
 const MAX_TEMPLATE_BACKUP_BYTES = 32_000;
 
-export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
+export function ResumeTemplateManager() {
   const [templates, setTemplates] = useState<ResumeTemplate[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<ResumeTemplateDraft | null>(null);
@@ -69,21 +77,14 @@ export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
     const controller = new AbortController();
     void loadTemplates(controller.signal);
     return () => controller.abort();
-    // Loading is intentionally scoped to the API base URL.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [apiBaseUrl]);
+  }, []);
 
   async function loadTemplates(signal?: AbortSignal) {
     setStatus("loading");
     setMessage("");
     setMessageKind(null);
     try {
-      const response = await fetchWithTimeout(
-        `${apiBaseUrl}/resume-templates`,
-        { cache: "no-store", signal },
-      );
-      if (!response.ok) throw new Error(await readApiError(response));
-      const nextTemplates = (await response.json()) as ResumeTemplate[];
+      const nextTemplates = await fetchResumeTemplates(signal);
       if (signal?.aborted) return;
       setTemplates(nextTemplates);
       const preferred =
@@ -124,22 +125,10 @@ export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
     setMessageKind(null);
     try {
       const isCreate = selectedTemplate.kind === "bundled";
-      const response = await fetchWithTimeout(
-        isCreate
-          ? `${apiBaseUrl}/resume-templates`
-          : `${apiBaseUrl}/resume-templates/${encodeURIComponent(selectedTemplate.id)}`,
-        {
-          method: isCreate ? "POST" : "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            name: draft.name.trim(),
-            baseTemplateId: draft.baseTemplateId,
-            designJson: draft.designJson,
-          }),
-        },
+      const saved = await saveResumeTemplate(
+        isCreate ? null : selectedTemplate.id,
+        draft,
       );
-      if (!response.ok) throw new Error(await readApiError(response));
-      const saved = (await response.json()) as ResumeTemplate;
       setTemplates((current) => upsertCustomTemplate(current, saved));
       setSelectedId(saved.id);
       setDraft(draftFromTemplate(saved));
@@ -163,16 +152,7 @@ export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
     setMessage("");
     setMessageKind(null);
     try {
-      const response = await fetchWithTimeout(
-        `${apiBaseUrl}/resume-templates/${encodeURIComponent(selectedTemplate.id)}/duplicate`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: "{}",
-        },
-      );
-      if (!response.ok) throw new Error(await readApiError(response));
-      const duplicate = (await response.json()) as ResumeTemplate;
+      const duplicate = await duplicateResumeTemplate(selectedTemplate.id);
       setTemplates((current) => upsertCustomTemplate(current, duplicate));
       setSelectedId(duplicate.id);
       setDraft(draftFromTemplate(duplicate));
@@ -201,11 +181,7 @@ export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
     setMessage("");
     setMessageKind(null);
     try {
-      const response = await fetchWithTimeout(
-        `${apiBaseUrl}/resume-templates/${encodeURIComponent(selectedTemplate.id)}`,
-        { method: "DELETE" },
-      );
-      if (!response.ok) throw new Error(await readApiError(response));
+      await deleteResumeTemplate(selectedTemplate.id);
       const remaining = templates.filter(
         (template) => template.id !== selectedTemplate.id,
       );
@@ -243,17 +219,12 @@ export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
     setMessageKind(null);
     let objectUrl = "";
     try {
-      const response = await fetchWithTimeout(
-        `${apiBaseUrl}/resume-templates/${encodeURIComponent(selectedTemplate.id)}/export`,
-        { cache: "no-store" },
-      );
-      if (!response.ok) throw new Error(await readApiError(response));
-      const backup = await response.blob();
-      objectUrl = URL.createObjectURL(backup);
+      const backup = await exportResumeTemplate(selectedTemplate.id);
+      objectUrl = URL.createObjectURL(backup.blob);
       const download = document.createElement("a");
       download.href = objectUrl;
       download.download =
-        responseFileName(response) ??
+        backup.fileName ??
         `${safeBackupName(selectedTemplate.name)}.resume-template.local.json`;
       document.body.append(download);
       download.click();
@@ -292,16 +263,7 @@ export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
       }
       const raw = await file.text();
       const backup = JSON.parse(raw) as unknown;
-      const response = await fetchWithTimeout(
-        `${apiBaseUrl}/resume-templates/import`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(backup),
-        },
-      );
-      if (!response.ok) throw new Error(await readApiError(response));
-      const imported = (await response.json()) as ResumeTemplate;
+      const imported = await importResumeTemplate(backup);
       setTemplates((current) => upsertCustomTemplate(current, imported));
       setSelectedId(imported.id);
       setDraft(draftFromTemplate(imported));
@@ -483,7 +445,7 @@ export function ResumeTemplateManager({ apiBaseUrl }: { apiBaseUrl: string }) {
                     : undefined
                 }
               />
-              <ResumeTemplatePreview apiBaseUrl={apiBaseUrl} draft={draft} />
+              <ResumeTemplatePreview draft={draft} />
             </div>
           </div>
           {message ? (
@@ -636,24 +598,6 @@ function upsertCustomTemplate(
       String(right.updatedAt ?? "").localeCompare(String(left.updatedAt ?? "")),
     );
   return [...bundled, ...custom];
-}
-
-async function readApiError(response: Response): Promise<string> {
-  try {
-    const payload = (await response.json()) as {
-      detail?: unknown;
-    };
-    if (typeof payload.detail === "string") return payload.detail;
-  } catch {
-    // Fall through to a status-based message.
-  }
-  return `Resume template request failed (${response.status}).`;
-}
-
-function responseFileName(response: Response): string | null {
-  const disposition = response.headers.get("Content-Disposition");
-  const match = disposition?.match(/filename="?([^";]+)"?/i);
-  return match?.[1] ?? null;
 }
 
 function safeBackupName(name: string): string {

@@ -20,177 +20,33 @@ import {
 
 import { Button } from "@/components/ui/button";
 import {
-  apiUnavailableMessage,
-  fetchWithTimeout,
-} from "@/lib/api-client";
+  confirmMasterResumeImport,
+  importMasterResume,
+  MASTER_RESUME_REVIEW_SECTIONS,
+  uploadPrimaryResume,
+  type MasterResume,
+  type MasterResumeConfirmationResponse,
+  type MasterResumeImportResponse,
+  type MasterResumeReviewSectionName,
+  type ProfileResume,
+  type UploadedProfileResume,
+} from "@/features/profile/api/master-resume-client";
 import { cn } from "@/lib/utils";
+import { apiUnavailableMessage } from "@/shared/api/client";
 
-const MASTER_RESUME_IMPORT_TIMEOUT_MS = 180_000;
+export { MASTER_RESUME_REVIEW_SECTIONS } from "@/features/profile/api/master-resume-client";
+export type { MasterResume } from "@/features/profile/api/master-resume-client";
 
-export const MASTER_RESUME_REVIEW_SECTIONS = [
-  "contacts",
-  "summary",
-  "skills",
-  "experience",
-  "education",
-  "projects",
-  "certifications",
-] as const;
-
-type MasterResumeReviewSectionName =
-  (typeof MASTER_RESUME_REVIEW_SECTIONS)[number];
-type ResumeSectionName =
-  | "summary"
-  | "experience"
-  | "skills"
-  | "education"
-  | "projects"
-  | "certifications"
-  | "languages"
-  | "additional";
-
-type EvidenceBackedText = {
-  text: string;
-  evidenceIds: string[];
-};
-
-type ResumeBullet = EvidenceBackedText & {
-  id: string;
-};
-
-type MasterExperience = {
-  id: string;
-  company: string;
-  title: string;
-  employmentType?: string;
-  location?: string;
-  startDate?: string;
-  endDate?: string;
-  isCurrent?: boolean;
-  bullets: ResumeBullet[];
-};
-
-type MasterSkill = {
-  id: string;
-  name: string;
-  category?: string;
-  evidenceIds: string[];
-};
-
-type MasterEducation = {
-  id: string;
-  institution: string;
-  credential: string;
-  fieldOfStudy?: string;
-  location?: string;
-  startDate?: string;
-  endDate?: string;
-  details: ResumeBullet[];
-};
-
-type MasterProject = {
-  id: string;
-  name: string;
-  role?: string;
-  url?: string;
-  bullets: ResumeBullet[];
-};
-
-type MasterCertification = {
-  id: string;
-  name: string;
-  issuer: string;
-  issuedOn?: string;
-  expiresOn?: string;
-  evidenceIds: string[];
-};
-
-type MasterLanguage = {
-  id: string;
-  name: string;
-  proficiency: string;
-  evidenceIds: string[];
-};
-
-type AdditionalSection = {
-  id: string;
-  title: string;
-  items: ResumeBullet[];
-};
-
-export type MasterResume = {
-  schemaVersion: "1.0";
-  id: string;
-  language: string;
-  basics: {
-    fullName: string;
-    headline?: string;
-    email?: string;
-    phone?: string;
-    location?: string;
-    linkedin?: string;
-    github?: string;
-    portfolio?: string;
-  };
-  summary: EvidenceBackedText | null;
-  experiences: MasterExperience[];
-  skills: MasterSkill[];
-  education: MasterEducation[];
-  projects: MasterProject[];
-  certifications: MasterCertification[];
-  languages: MasterLanguage[];
-  additionalSections: AdditionalSection[];
-  evidence: Array<{
-    id: string;
-    type: string;
-    text: string;
-    claimType?: string | null;
-    experienceId?: string | null;
-    sourceId?: string | null;
-  }>;
-  sectionOrder: ResumeSectionName[];
-};
-
-type MasterResumeImportResponse = {
-  sourceFileId: string;
-  masterResume: MasterResume;
-  source: {
-    sourceFormat: "pdf" | "docx";
-    layout: string;
-    pageCount?: number | null;
-    usedOcr: boolean;
-    fragments: Array<{ id: string; text: string }>;
-  };
-  reviewSections: Array<{
-    name: MasterResumeReviewSectionName;
-    itemCount: number;
-  }>;
-  model: string;
-  backend: "openclaw_codex" | "openai_api";
-};
-
-type MasterResumeConfirmationResponse = {
-  masterResumeId: string;
-  version: number;
-  sourceFileId: string;
-  masterResume: MasterResume;
-  createdAt: string;
-};
-
-type ProfileResume = {
-  fileId: string;
-  fileName: string;
-  fileSize?: string;
-};
-
-type UploadedProfileResume = {
-  id: string;
-  fileName: string;
-  sizeBytes: number;
-  contentType: string;
-  updatedAt: string;
-  downloadUrl: string;
-};
+type ResumeSectionName = MasterResume["sectionOrder"][number];
+type EvidenceBackedText = NonNullable<MasterResume["summary"]>;
+type ResumeBullet = MasterResume["experiences"][number]["bullets"][number];
+type MasterExperience = MasterResume["experiences"][number];
+type MasterSkill = MasterResume["skills"][number];
+type MasterEducation = MasterResume["education"][number];
+type MasterProject = MasterResume["projects"][number];
+type MasterCertification = MasterResume["certifications"][number];
+type MasterLanguage = MasterResume["languages"][number];
+type AdditionalSection = MasterResume["additionalSections"][number];
 
 type RequestState = "idle" | "loading" | "error";
 
@@ -215,11 +71,9 @@ const sectionDescriptions: Record<MasterResumeReviewSectionName, string> = {
 };
 
 export function MasterResumeEditor({
-  apiBaseUrl,
   profileResume,
   onProfileResumeUploaded,
 }: {
-  apiBaseUrl: string;
   profileResume?: ProfileResume | null;
   onProfileResumeUploaded?: (file: UploadedProfileResume) => void;
 }) {
@@ -254,27 +108,7 @@ export function MasterResumeEditor({
     setImportedFileName(fileName);
 
     try {
-      const response = await fetchWithTimeout(
-        `${apiBaseUrl}/profile/import-master-resume`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            profileFileId,
-          }),
-        },
-        MASTER_RESUME_IMPORT_TIMEOUT_MS,
-      );
-      const payload = (await response.json()) as
-        | MasterResumeImportResponse
-        | { detail?: string };
-      if (!response.ok || !("masterResume" in payload)) {
-        throw new Error(
-          "detail" in payload && payload.detail
-            ? payload.detail
-            : "Master Resume import failed",
-        );
-      }
+      const payload = await importMasterResume(profileFileId);
 
       setImportResult(payload);
       setDraft(cloneResume(payload.masterResume));
@@ -300,28 +134,7 @@ export function MasterResumeEditor({
       return;
     }
     try {
-      const query = new URLSearchParams({
-        kind: "primary_resume",
-        file_name: file.name,
-        title: file.name,
-        category: "CV / Resume",
-      });
-      const uploadResponse = await fetchWithTimeout(
-        `${apiBaseUrl}/profile/files?${query}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": file.type || "application/octet-stream" },
-          body: file,
-        },
-      );
-      const uploaded = (await uploadResponse.json()) as UploadedProfileResume | { detail?: string };
-      if (!uploadResponse.ok || !("id" in uploaded)) {
-        throw new Error(
-          "detail" in uploaded && uploaded.detail
-            ? uploaded.detail
-            : "Resume upload failed",
-        );
-      }
+      const uploaded = await uploadPrimaryResume(file);
       onProfileResumeUploaded?.(uploaded);
       await importResume(uploaded.fileName, uploaded.id);
     } catch (error) {
@@ -366,28 +179,10 @@ export function MasterResumeEditor({
     setConfirmState("loading");
     setMessage("");
     try {
-      const response = await fetchWithTimeout(
-        `${apiBaseUrl}/profile/import-master-resume/confirm`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            sourceFileId: importResult.sourceFileId,
-            masterResume: draft,
-            confirmedSections: MASTER_RESUME_REVIEW_SECTIONS,
-          }),
-        },
+      const payload = await confirmMasterResumeImport(
+        importResult.sourceFileId,
+        draft,
       );
-      const payload = (await response.json()) as
-        | MasterResumeConfirmationResponse
-        | { detail?: string };
-      if (!response.ok || !("masterResumeId" in payload)) {
-        throw new Error(
-          "detail" in payload && payload.detail
-            ? payload.detail
-            : "Master Resume confirmation failed",
-        );
-      }
       setConfirmation(payload);
       setDraft(cloneResume(payload.masterResume));
       setConfirmState("idle");

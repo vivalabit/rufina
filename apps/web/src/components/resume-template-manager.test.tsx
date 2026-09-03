@@ -114,7 +114,7 @@ it("edits, saves, duplicates, and deletes an owner template", async () => {
     }),
   );
 
-  render(<ResumeTemplateManager apiBaseUrl="http://localhost:8000" />);
+  render(<ResumeTemplateManager />);
 
   expect(await screen.findByDisplayValue("Zurich applications")).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("Template name"), {
@@ -207,7 +207,7 @@ it("creates a personal template from a bundled foundation", async () => {
     }),
   );
 
-  render(<ResumeTemplateManager apiBaseUrl="http://localhost:8000" />);
+  render(<ResumeTemplateManager />);
 
   expect(
     await screen.findByDisplayValue("Modern two-column — personal"),
@@ -300,7 +300,7 @@ it("downloads one portable JSON backup and imports it as a new template", async 
     }),
   );
 
-  render(<ResumeTemplateManager apiBaseUrl="http://localhost:8000" />);
+  render(<ResumeTemplateManager />);
 
   await screen.findByDisplayValue("Zurich applications");
   fireEvent.click(screen.getByRole("button", { name: "Export template" }));

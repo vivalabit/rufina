@@ -45,7 +45,6 @@ import {
   displayProfileValue,
   formatProfileDate,
 } from "@/features/profile/formatting";
-import { apiBaseUrl } from "@/shared/api/config";
 import { normalizeExternalUrl } from "@/shared/formatting/urls";
 import type {
   CandidateProfile,
@@ -178,7 +177,6 @@ export function ProfileView({
 
       <div className="mt-4 grid shrink-0 content-start gap-4 2xl:gap-5">
         <MasterResumeEditor
-          apiBaseUrl={apiBaseUrl}
           onProfileResumeUploaded={onProfileResumeUploaded}
           profileResume={
             profile.resume_file_name && profile.resume_file_id
@@ -241,7 +239,7 @@ export function ProfileView({
           onEditAdditionalNotes={onEditAdditionalNotes}
         />
         <ProfileCompletenessPanel profile={profile} />
-        <ResumeTemplateManager apiBaseUrl={apiBaseUrl} />
+        <ResumeTemplateManager />
       </div>
     </section>
   );

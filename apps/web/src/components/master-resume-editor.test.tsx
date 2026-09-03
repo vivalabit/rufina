@@ -128,7 +128,6 @@ it("imports, edits, reviews, and confirms a Master Resume once", async () => {
 
   render(
     <MasterResumeEditor
-      apiBaseUrl="http://localhost:8000"
       profileResume={{
         fileId: "profile-file-1",
         fileName: "ada-resume.docx",
@@ -217,7 +216,7 @@ it("uploads a selected resume as raw bytes before importing by file id", async (
     }),
   );
 
-  render(<MasterResumeEditor apiBaseUrl="http://localhost:8000" />);
+  render(<MasterResumeEditor />);
   fireEvent.change(screen.getByLabelText("Choose Master Resume file"), {
     target: { files: [selectedFile] },
   });
@@ -239,7 +238,6 @@ it("invalidates a reviewed section when its content changes", async () => {
 
   render(
     <MasterResumeEditor
-      apiBaseUrl="http://localhost:8000"
       profileResume={{
         fileId: "profile-file-1",
         fileName: "ada-resume.docx",
@@ -281,7 +279,6 @@ it("shows an actionable import error", async () => {
 
   render(
     <MasterResumeEditor
-      apiBaseUrl="http://localhost:8000"
       profileResume={{
         fileId: "profile-file-broken",
         fileName: "broken.pdf",
