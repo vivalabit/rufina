@@ -21,7 +21,7 @@ it("shows persistent parser failure details in the critical notification bell", 
     vi.fn(async () => Response.json([notification])),
   );
 
-  render(<CriticalNotificationsBell apiBaseUrl="http://localhost:8000" />);
+  render(<CriticalNotificationsBell />);
 
   const bell = await screen.findByRole("button", {
     name: "Critical notifications (1)",
@@ -58,7 +58,7 @@ it("removes a critical notification only after explicit deletion", async () => {
     }),
   );
 
-  render(<CriticalNotificationsBell apiBaseUrl="http://localhost:8000" />);
+  render(<CriticalNotificationsBell />);
   fireEvent.click(
     await screen.findByRole("button", { name: "Critical notifications (1)" }),
   );

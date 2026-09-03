@@ -11,7 +11,6 @@ import {
 } from "@/features/profile/formatting";
 import type { View } from "@/lib/app-route";
 import { cn } from "@/lib/utils";
-import { apiBaseUrl } from "@/shared/api/config";
 import type { CandidateProfile } from "@/shared/types/profile";
 
 type AppSidebarProps = {
@@ -78,7 +77,7 @@ export function AppSidebar({
       </nav>
 
       <div className="app-sidebar-footer ml-auto flex shrink-0 items-center gap-1.5">
-        <CriticalNotificationsBell apiBaseUrl={apiBaseUrl} />
+        <CriticalNotificationsBell />
         <a
           href="#profile"
           onClick={() => onChangeView("Profile")}

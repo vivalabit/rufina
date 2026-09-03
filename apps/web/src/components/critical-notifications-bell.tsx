@@ -3,21 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Bell, LoaderCircle, Trash2, X } from "lucide-react";
 
+import {
+  deleteCriticalNotification,
+  fetchCriticalNotifications,
+  type CriticalNotification,
+} from "@/features/notifications/api/client";
 import { cn } from "@/lib/utils";
 
-export type CriticalNotification = {
-  id: string;
-  severity: "critical";
-  category: "parser_failure";
-  source: string;
-  title: string;
-  description: string;
-  attempts: number;
-  runId: string;
-  createdAt: string;
-};
+export type { CriticalNotification } from "@/features/notifications/api/client";
 
-export function CriticalNotificationsBell({ apiBaseUrl }: { apiBaseUrl: string }) {
+export function CriticalNotificationsBell() {
   const [notifications, setNotifications] = useState<CriticalNotification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -26,15 +21,11 @@ export function CriticalNotificationsBell({ apiBaseUrl }: { apiBaseUrl: string }
   const containerRef = useRef<HTMLDivElement>(null);
   const deletedIdsRef = useRef(new Set<string>());
 
-  const loadNotifications = useCallback(async () => {
+  const loadNotifications = useCallback(async (signal?: AbortSignal) => {
     try {
-      const response = await fetch(`${apiBaseUrl}/notifications/critical`);
-      if (!response.ok) {
-        throw new Error(`Critical notifications request failed (${response.status})`);
-      }
-      const payload: unknown = await response.json();
+      const notifications = await fetchCriticalNotifications(signal);
       setNotifications(
-        normalizeNotifications(payload).filter(
+        notifications.filter(
           (notification) => !deletedIdsRef.current.has(notification.id),
         ),
       );
@@ -48,14 +39,18 @@ export function CriticalNotificationsBell({ apiBaseUrl }: { apiBaseUrl: string }
     } finally {
       setIsLoading(false);
     }
-  }, [apiBaseUrl]);
+  }, []);
 
   useEffect(() => {
-    void loadNotifications();
+    const controller = new AbortController();
+    void loadNotifications(controller.signal);
     const intervalId = window.setInterval(() => {
-      void loadNotifications();
+      void loadNotifications(controller.signal);
     }, 30_000);
-    return () => window.clearInterval(intervalId);
+    return () => {
+      controller.abort();
+      window.clearInterval(intervalId);
+    };
   }, [loadNotifications]);
 
   useEffect(() => {
@@ -86,13 +81,7 @@ export function CriticalNotificationsBell({ apiBaseUrl }: { apiBaseUrl: string }
     setDeletingId(notification.id);
     setError("");
     try {
-      const response = await fetch(
-        `${apiBaseUrl}/notifications/critical/${encodeURIComponent(notification.id)}`,
-        { method: "DELETE" },
-      );
-      if (!response.ok) {
-        throw new Error(`Critical notification delete failed (${response.status})`);
-      }
+      await deleteCriticalNotification(notification.id);
       deletedIdsRef.current.add(notification.id);
       setNotifications((current) =>
         current.filter((item) => item.id !== notification.id),
@@ -239,28 +228,6 @@ export function CriticalNotificationsBell({ apiBaseUrl }: { apiBaseUrl: string }
         </section>
       ) : null}
     </div>
-  );
-}
-
-function normalizeNotifications(value: unknown): CriticalNotification[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter(isCriticalNotification);
-}
-
-function isCriticalNotification(value: unknown): value is CriticalNotification {
-  if (!value || typeof value !== "object") return false;
-  const candidate = value as Partial<CriticalNotification>;
-  return Boolean(
-    typeof candidate.id === "string"
-    && candidate.severity === "critical"
-    && candidate.category === "parser_failure"
-    && typeof candidate.source === "string"
-    && typeof candidate.title === "string"
-    && typeof candidate.description === "string"
-    && typeof candidate.attempts === "number"
-    && candidate.attempts > 0
-    && typeof candidate.runId === "string"
-    && typeof candidate.createdAt === "string",
   );
 }
 

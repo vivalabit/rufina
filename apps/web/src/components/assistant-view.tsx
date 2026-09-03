@@ -30,16 +30,47 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { getAiSourceLabel, type AiSource } from "@/lib/ai-source";
+import {
+  applyAssistantAction as applyAssistantActionRequest,
+  assistantDocumentDownloadUrl,
+  attachAssistantDocument,
+  deleteAssistantDocument,
+  deleteAssistantMessage,
+  deleteAssistantThread,
+  fetchAssistantDocuments,
+  fetchAssistantThreads,
+  importLegacyAssistantThread,
+  patchAssistantThread,
+  persistAssistantMessage,
+  restoreAssistantDocumentVersion,
+  saveAssistantDocument,
+  stopAssistantStream,
+  streamAssistantMessage,
+} from "@/features/assistant/api/client";
+import {
+  normalizeAssistantActions,
+  normalizeAssistantDocuments,
+  normalizeAssistantThreads,
+} from "@/features/assistant/api/dto";
+import type {
+  AssistantActionPreview,
+  AssistantAppliedAction,
+  AssistantContextKind,
+  AssistantDocument,
+  AssistantDocumentAttachment,
+  AssistantDocumentDraft,
+  AssistantLaunch,
+  AssistantMessage,
+  AssistantThread,
+} from "@/features/assistant/model/types";
+import { getAiSourceLabel } from "@/lib/ai-source";
 import { cn } from "@/lib/utils";
 
-export type AssistantLaunch = {
-  id: string;
-  prompt: string;
-  contextKind: "profile" | "job" | "application";
-  contextId?: string;
-  autoSubmit?: boolean;
-};
+export type {
+  AssistantAppliedAction,
+  AssistantDocumentAttachment,
+  AssistantLaunch,
+} from "@/features/assistant/model/types";
 
 type AssistantProfile = {
   name: string;
@@ -78,104 +109,7 @@ type AssistantApplication = {
   job: AssistantJob;
 };
 
-type AssistantContextKind = AssistantLaunch["contextKind"];
-type AssistantConnectionStatus = "idle" | "connecting" | "connected" | "reconnecting" | "disconnected";
-
-type AssistantSseEvent = {
-  event: string;
-  data: Record<string, unknown>;
-};
-
-type AssistantMessage = {
-  id: string;
-  role: "user" | "assistant";
-  content: string;
-  createdAt: string;
-  source?: AiSource;
-  status?: "generating" | "complete" | "stopped" | "error";
-  actions?: AssistantActionPreview[];
-};
-
-type AssistantActionFieldPreview = {
-  label: string;
-  before: string;
-  after: string;
-};
-
-type AssistantActionPreview = {
-  id: string;
-  type: "add_application_note" | "update_application_next_step" | "create_interview_event" | "save_document" | "update_profile_field";
-  title: string;
-  description: string;
-  contextKind: AssistantContextKind;
-  contextId: string;
-  fields: AssistantActionFieldPreview[];
-  payload: Record<string, unknown>;
-  status: "preview" | "applying" | "applied" | "error";
-  resultMessage: string;
-};
-
-export type AssistantAppliedAction = {
-  actionId: string;
-  type: AssistantActionPreview["type"];
-  status: "applied";
-  message: string;
-  resourceKind: "application" | "event" | "document" | "profile";
-  resource: Record<string, unknown>;
-};
-
-type AssistantThread = {
-  id: string;
-  title: string;
-  contextKind: AssistantContextKind;
-  contextId: string;
-  providerSessionId?: string | null;
-  archived: boolean;
-  createdAt: string;
-  updatedAt: string;
-  messages: AssistantMessage[];
-};
-
-type AssistantDocumentVersion = {
-  id: string;
-  version: number;
-  content: string;
-  createdAt: string;
-  artifact?: {
-    fileName: string;
-    contentType: string;
-  } | null;
-};
-
-type AssistantDocument = {
-  id: string;
-  type: "cover_letter" | "tailored_resume";
-  title: string;
-  jobId: string | null;
-  applicationIds: string[];
-  currentVersion: number;
-  createdAt: string;
-  updatedAt: string;
-  versions: AssistantDocumentVersion[];
-};
-
-type AssistantDocumentDraft = {
-  id: string;
-  type: "cover_letter";
-  title: string;
-  content: string;
-  jobId: string;
-  applicationId: string;
-};
-
-export type AssistantDocumentAttachment = {
-  artifactId: string;
-  title: string;
-  fileName: string;
-  fileType: string;
-  uploadedAt: string;
-  downloadUrl: string;
-};
+type AssistantConnectionStatus = "idle" | "connecting" | "connected" | "disconnected";
 
 type AssistantViewProps = {
   profile: AssistantProfile;
@@ -191,9 +125,7 @@ type AssistantViewProps = {
 };
 
 const legacyAssistantThreadsStorageKey = "tasko.assistantThreads.v1";
-const apiBaseUrl = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 const assistantMessageMaxChars = 6_000;
-const assistantActionMarkerPattern = /\s*<!--TASKO_ACTIONS:([A-Za-z0-9_\-=]+)-->\s*$/;
 
 const quickActions = [
   {
@@ -218,224 +150,6 @@ const quickActions = [
 
 function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function parseSseEvent(block: string): AssistantSseEvent | null {
-  let event = "message";
-  const dataLines: string[] = [];
-  for (const line of block.split("\n")) {
-    if (line.startsWith(":")) continue;
-    if (line.startsWith("event:")) event = line.slice(6).trim();
-    if (line.startsWith("data:")) dataLines.push(line.slice(5).trimStart());
-  }
-  if (!dataLines.length) return null;
-
-  try {
-    const data = JSON.parse(dataLines.join("\n")) as unknown;
-    return data && typeof data === "object" ? { event, data: data as Record<string, unknown> } : null;
-  } catch {
-    return null;
-  }
-}
-
-async function consumeAssistantSse(
-  response: Response,
-  onEvent: (event: AssistantSseEvent) => void,
-): Promise<"done" | "stopped" | "error" | null> {
-  if (!response.body) throw new Error("Assistant stream has no response body");
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let buffer = "";
-
-  while (true) {
-    const { value, done } = await reader.read();
-    buffer += decoder.decode(value, { stream: !done }).replace(/\r\n/g, "\n");
-    let boundary = buffer.indexOf("\n\n");
-    while (boundary >= 0) {
-      const parsed = parseSseEvent(buffer.slice(0, boundary));
-      buffer = buffer.slice(boundary + 2);
-      if (parsed) {
-        onEvent(parsed);
-        if (["done", "stopped", "error"].includes(parsed.event)) {
-          return parsed.event as "done" | "stopped" | "error";
-        }
-      }
-      boundary = buffer.indexOf("\n\n");
-    }
-    if (done) return null;
-  }
-}
-
-function wait(milliseconds: number) {
-  return new Promise((resolve) => window.setTimeout(resolve, milliseconds));
-}
-
-async function readAssistantApiError(response: Response) {
-  const payload = await response.json().catch(() => null) as { detail?: unknown } | null;
-  if (typeof payload?.detail === "string" && payload.detail.trim()) return payload.detail;
-  if (response.status === 413) return "This message is too long. Shorten it and try again.";
-  if (response.status === 504) return "The assistant took too long to respond. Try a shorter request.";
-  if (response.status === 503) return "The assistant is temporarily unavailable. Try again shortly.";
-  return `Assistant request failed (HTTP ${response.status}). Please try again.`;
-}
-
-function normalizeAssistantActions(value: unknown): AssistantActionPreview[] {
-  if (!Array.isArray(value)) return [];
-  return value.flatMap((item): AssistantActionPreview[] => {
-    if (!item || typeof item !== "object") return [];
-    const candidate = item as Partial<AssistantActionPreview>;
-    if (
-      typeof candidate.id !== "string" ||
-      ![
-        "add_application_note",
-        "update_application_next_step",
-        "create_interview_event",
-        "save_document",
-        "update_profile_field",
-      ].includes(candidate.type ?? "") ||
-      typeof candidate.title !== "string" ||
-      typeof candidate.description !== "string" ||
-      !["profile", "job", "application"].includes(candidate.contextKind ?? "") ||
-      typeof candidate.contextId !== "string" ||
-      !Array.isArray(candidate.fields) ||
-      !candidate.payload ||
-      typeof candidate.payload !== "object"
-    ) {
-      return [];
-    }
-    const fields = candidate.fields.flatMap((field): AssistantActionFieldPreview[] => (
-      field &&
-      typeof field.label === "string" &&
-      typeof field.before === "string" &&
-      typeof field.after === "string"
-        ? [field]
-        : []
-    ));
-    return [{
-      id: candidate.id,
-      type: candidate.type as AssistantActionPreview["type"],
-      title: candidate.title,
-      description: candidate.description,
-      contextKind: candidate.contextKind as AssistantContextKind,
-      contextId: candidate.contextId,
-      fields,
-      payload: candidate.payload as Record<string, unknown>,
-      status: ["preview", "applying", "applied", "error"].includes(candidate.status ?? "")
-        ? candidate.status as AssistantActionPreview["status"]
-        : "preview",
-      resultMessage: typeof candidate.resultMessage === "string" ? candidate.resultMessage : "",
-    }];
-  });
-}
-
-function decodeAssistantMessage(content: string) {
-  const match = content.match(assistantActionMarkerPattern);
-  if (!match) return { content, actions: [] as AssistantActionPreview[] };
-  try {
-    const base64 = match[1].replace(/-/g, "+").replace(/_/g, "/");
-    const binary = window.atob(base64);
-    const bytes = Uint8Array.from(binary, (character) => character.charCodeAt(0));
-    const actions = normalizeAssistantActions(JSON.parse(new TextDecoder().decode(bytes)));
-    return { content: content.replace(assistantActionMarkerPattern, "").trimEnd(), actions };
-  } catch {
-    return { content, actions: [] as AssistantActionPreview[] };
-  }
-}
-
-function encodeAssistantMessage(message: AssistantMessage) {
-  if (!message.actions?.length) return message.content;
-  const bytes = new TextEncoder().encode(JSON.stringify(message.actions));
-  let binary = "";
-  const chunkSize = 8_192;
-  for (let offset = 0; offset < bytes.length; offset += chunkSize) {
-    binary += String.fromCharCode(...bytes.slice(offset, offset + chunkSize));
-  }
-  const encoded = window.btoa(binary).replace(/\+/g, "-").replace(/\//g, "_");
-  return `${message.content.trimEnd()}\n\n<!--TASKO_ACTIONS:${encoded}-->`;
-}
-
-function normalizeThreads(value: unknown): AssistantThread[] {
-  if (!Array.isArray(value)) return [];
-
-  return value
-    .filter((item) => {
-      if (!item || typeof item !== "object") return false;
-      const candidate = item as Partial<AssistantThread>;
-      return (
-        typeof candidate.id === "string" &&
-        typeof candidate.title === "string" &&
-        typeof candidate.updatedAt === "string" &&
-        Array.isArray(candidate.messages) &&
-        ["profile", "job", "application"].includes(candidate.contextKind ?? "")
-      );
-    })
-    .map((item) => {
-      const candidate = item as AssistantThread;
-      return {
-        ...candidate,
-        archived: Boolean(candidate.archived),
-        createdAt: candidate.createdAt || candidate.updatedAt,
-        providerSessionId: candidate.providerSessionId ?? null,
-        messages: candidate.messages.flatMap((message): AssistantMessage[] => {
-          if (
-            !message ||
-            typeof message.id !== "string" ||
-            !["user", "assistant"].includes(message.role) ||
-            typeof message.content !== "string" ||
-            typeof message.createdAt !== "string"
-          ) {
-            return [];
-          }
-          const decoded = decodeAssistantMessage(message.content);
-          return [{ ...message, content: decoded.content, actions: decoded.actions }];
-        }),
-      };
-    });
-}
-
-async function fetchAssistantThreads(archived: boolean): Promise<AssistantThread[]> {
-  const response = await fetch(`${apiBaseUrl}/assistant/conversations?archived=${archived}`);
-  if (!response.ok) throw new Error(`Conversation loading failed with status ${response.status}`);
-  return normalizeThreads(await response.json());
-}
-
-async function importLegacyThread(thread: AssistantThread) {
-  const response = await fetch(
-    `${apiBaseUrl}/assistant/conversations/${encodeURIComponent(thread.id)}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(thread),
-    },
-  );
-  if (!response.ok) throw new Error(`Conversation import failed with status ${response.status}`);
-}
-
-async function persistAssistantMessage(threadId: string, message: AssistantMessage) {
-  const response = await fetch(
-    `${apiBaseUrl}/assistant/conversations/${encodeURIComponent(threadId)}/messages/${encodeURIComponent(message.id)}`,
-    {
-      method: "PUT",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ ...message, content: encodeAssistantMessage(message), actions: undefined }),
-    },
-  );
-  if (!response.ok) throw new Error(`Message persistence failed with status ${response.status}`);
-}
-
-function normalizeAssistantDocuments(value: unknown): AssistantDocument[] {
-  if (!Array.isArray(value)) return [];
-  return value.filter((item): item is AssistantDocument => {
-    if (!item || typeof item !== "object") return false;
-    const candidate = item as Partial<AssistantDocument>;
-    return (
-      typeof candidate.id === "string" &&
-      ["cover_letter", "tailored_resume"].includes(candidate.type ?? "") &&
-      typeof candidate.title === "string" &&
-      typeof candidate.currentVersion === "number" &&
-      Array.isArray(candidate.versions)
-    );
-  });
 }
 
 function currentDocumentContent(document: AssistantDocument) {
@@ -700,14 +414,16 @@ export function AssistantView({
         let serverThreads = await fetchAssistantThreads(showArchived);
         if (!showArchived) {
           const rawThreads = window.localStorage.getItem(legacyAssistantThreadsStorageKey);
-          const legacyThreads = normalizeThreads(rawThreads ? JSON.parse(rawThreads) : []);
+          const legacyThreads = normalizeAssistantThreads(rawThreads ? JSON.parse(rawThreads) : []);
           if (legacyThreads.length) {
             const archivedThreads = await fetchAssistantThreads(true);
             const serverIds = new Set(
               [...serverThreads, ...archivedThreads].map((thread) => thread.id),
             );
             const threadsToImport = legacyThreads.filter((thread) => !serverIds.has(thread.id));
-            await Promise.all(threadsToImport.map(importLegacyThread));
+            await Promise.all(
+              threadsToImport.map((thread) => importLegacyAssistantThread(thread)),
+            );
             window.localStorage.removeItem(legacyAssistantThreadsStorageKey);
             if (threadsToImport.length) serverThreads = await fetchAssistantThreads(false);
           }
@@ -730,13 +446,9 @@ export function AssistantView({
 
   useEffect(() => {
     let cancelled = false;
-    fetch(`${apiBaseUrl}/documents`)
-      .then((response) => {
-        if (!response.ok) throw new Error("Document loading failed");
-        return response.json();
-      })
-      .then((value) => {
-        if (!cancelled) setDocuments(normalizeAssistantDocuments(value));
+    fetchAssistantDocuments()
+      .then((loadedDocuments) => {
+        if (!cancelled) setDocuments(loadedDocuments);
       })
       .catch(() => {
         if (!cancelled) setDocumentError("Documents are temporarily unavailable");
@@ -804,12 +516,9 @@ export function AssistantView({
         ? { ...thread, contextKind: nextKind, contextId: nextId, updatedAt: new Date().toISOString() }
         : thread,
     ));
-    void fetch(`${apiBaseUrl}/assistant/conversations/${encodeURIComponent(activeThread.id)}`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ contextKind: nextKind, contextId: nextId }),
-    }).then((response) => {
-      if (!response.ok) throw new Error("Conversation context update failed");
+    void patchAssistantThread(activeThread.id, {
+      contextKind: nextKind,
+      contextId: nextId,
     }).catch(() => setConnectionStatus("disconnected"));
   }
 
@@ -824,11 +533,7 @@ export function AssistantView({
   async function deleteThread(threadId: string) {
     if (isGenerating && activeThreadId === threadId) return;
     try {
-      const response = await fetch(
-        `${apiBaseUrl}/assistant/conversations/${encodeURIComponent(threadId)}`,
-        { method: "DELETE" },
-      );
-      if (!response.ok) throw new Error("Conversation deletion failed");
+      await deleteAssistantThread(threadId);
     } catch {
       setConnectionStatus("disconnected");
       return;
@@ -840,15 +545,7 @@ export function AssistantView({
   async function setThreadArchived(threadId: string, archived: boolean) {
     if (isGenerating && activeThreadId === threadId) return;
     try {
-      const response = await fetch(
-        `${apiBaseUrl}/assistant/conversations/${encodeURIComponent(threadId)}`,
-        {
-          method: "PATCH",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ archived }),
-        },
-      );
-      if (!response.ok) throw new Error("Conversation archive update failed");
+      await patchAssistantThread(threadId, { archived });
     } catch {
       setConnectionStatus("disconnected");
       return;
@@ -878,42 +575,28 @@ export function AssistantView({
     setDocumentError("");
     try {
       const isExisting = Boolean(documentDraft.id);
-      const response = await fetch(
-        isExisting
-          ? `${apiBaseUrl}/documents/${encodeURIComponent(documentDraft.id)}`
-          : `${apiBaseUrl}/documents`,
+      let savedDocument = await saveAssistantDocument(
+        isExisting ? documentDraft.id : null,
         {
-          method: isExisting ? "PATCH" : "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...(isExisting ? {} : { type: documentDraft.type }),
-            title: documentDraft.title.trim(),
-            content: documentDraft.content.trim(),
-            jobId: documentDraft.jobId || null,
-            ...(!isExisting && documentDraft.applicationId
-              ? { applicationId: documentDraft.applicationId }
-              : {}),
-          }),
+          ...(isExisting ? {} : { type: documentDraft.type }),
+          title: documentDraft.title.trim(),
+          content: documentDraft.content.trim(),
+          jobId: documentDraft.jobId || null,
+          ...(!isExisting && documentDraft.applicationId
+            ? { applicationId: documentDraft.applicationId }
+            : {}),
         },
       );
-      if (!response.ok) throw new Error("Document save failed");
-      let savedDocument = (await response.json()) as AssistantDocument;
 
       if (
         isExisting &&
         documentDraft.applicationId &&
         !savedDocument.applicationIds.includes(documentDraft.applicationId)
       ) {
-        const attachResponse = await fetch(
-          `${apiBaseUrl}/documents/${encodeURIComponent(savedDocument.id)}/attachments`,
-          {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ applicationId: documentDraft.applicationId }),
-          },
+        savedDocument = await attachAssistantDocument(
+          savedDocument.id,
+          documentDraft.applicationId,
         );
-        if (!attachResponse.ok) throw new Error("Document attachment failed");
-        savedDocument = (await attachResponse.json()) as AssistantDocument;
       }
 
       setDocuments((currentDocuments) => [
@@ -927,7 +610,7 @@ export function AssistantView({
           fileName: documentFileName(savedDocument),
           fileType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
           uploadedAt: savedDocument.updatedAt,
-          downloadUrl: `${apiBaseUrl}/documents/${encodeURIComponent(savedDocument.id)}/download`,
+          downloadUrl: assistantDocumentDownloadUrl(savedDocument.id),
         });
       }
       setDocumentDraft(null);
@@ -942,16 +625,7 @@ export function AssistantView({
     setIsDocumentSaving(true);
     setDocumentError("");
     try {
-      const response = await fetch(
-        `${apiBaseUrl}/documents/${encodeURIComponent(documentId)}/restore`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ version }),
-        },
-      );
-      if (!response.ok) throw new Error("Version restore failed");
-      const restored = (await response.json()) as AssistantDocument;
+      const restored = await restoreAssistantDocumentVersion(documentId, version);
       setDocuments((currentDocuments) => [
         restored,
         ...currentDocuments.filter((document) => document.id !== restored.id),
@@ -969,11 +643,7 @@ export function AssistantView({
   async function deleteDocumentArtifact(documentId: string) {
     if (!window.confirm("Delete this document and all its versions?")) return;
     try {
-      const response = await fetch(
-        `${apiBaseUrl}/documents/${encodeURIComponent(documentId)}`,
-        { method: "DELETE" },
-      );
-      if (!response.ok) throw new Error("Document deletion failed");
+      await deleteAssistantDocument(documentId);
       setDocuments((currentDocuments) => currentDocuments.filter((document) => document.id !== documentId));
       setDocumentDraft(null);
     } catch (error) {
@@ -1013,23 +683,7 @@ export function AssistantView({
     setMessageActionState(threadId, message.id, action.id, "applying");
 
     try {
-      const response = await fetch(`${apiBaseUrl}/assistant/actions/apply`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: {
-            ...action,
-            status: "preview",
-            resultMessage: "",
-          },
-        }),
-      });
-      const value = await response.json().catch(() => null) as AssistantAppliedAction | { detail?: string } | null;
-      if (!response.ok || !value || !("resourceKind" in value)) {
-        throw new Error(value && "detail" in value && typeof value.detail === "string" ? value.detail : "Action could not be applied");
-      }
-
-      const result = value as AssistantAppliedAction;
+      const result = await applyAssistantActionRequest(action);
       const completedMessage: AssistantMessage = {
         ...message,
         actions: message.actions?.map((item) =>
@@ -1058,7 +712,7 @@ export function AssistantView({
               fileName: documentFileName(savedDocument),
               fileType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
               uploadedAt: savedDocument.updatedAt,
-              downloadUrl: `${apiBaseUrl}/documents/${encodeURIComponent(savedDocument.id)}/download`,
+              downloadUrl: assistantDocumentDownloadUrl(savedDocument.id),
             });
           }
         }
@@ -1135,7 +789,6 @@ export function AssistantView({
     const abortController = new AbortController();
     streamAbortControllerRef.current = abortController;
     let streamedContent = "";
-    let offset = 0;
     let completed = false;
     let terminalError = "";
     let completedActions: AssistantActionPreview[] = [];
@@ -1189,71 +842,49 @@ export function AssistantView({
     };
 
     try {
-      for (let attempt = 0; attempt < 4 && !completed; attempt += 1) {
-        if (attempt > 0) {
-          setConnectionStatus("reconnecting");
-          await wait(Math.min(400 * (2 ** (attempt - 1)), 1600));
-        }
-
-        try {
-          const apiResponse = await fetch(`${apiBaseUrl}/assistant/chat/stream`, {
-            method: "POST",
-            headers: {
-              Accept: "text/event-stream",
-              "Content-Type": "application/json",
-            },
-            body: JSON.stringify({ ...requestPayload, offset }),
-            signal: abortController.signal,
-          });
-          if (!apiResponse.ok) {
-            throw new Error(await readAssistantApiError(apiResponse));
+      const terminalEvent = await streamAssistantMessage(
+        { ...requestPayload, offset: 0 },
+        abortController.signal,
+        ({ event, data }) => {
+          if (event === "connected") {
+            setConnectionStatus("connected");
+            return;
           }
-
-          const terminalEvent = await consumeAssistantSse(apiResponse, ({ event, data }) => {
-            if (event === "connected") {
-              setConnectionStatus("connected");
-              return;
-            }
-            if (event === "delta" && typeof data.text === "string" && typeof data.offset === "number") {
-              streamedContent += data.text;
-              offset = data.offset;
-              updateAssistantMessage(streamedContent, streamBackend);
-              return;
-            }
-            if (event === "error") {
-              terminalError = typeof data.message === "string" ? data.message : "Assistant generation failed";
-              return;
-            }
-            if (event === "done" && data.metadata && typeof data.metadata === "object") {
-              const metadata = data.metadata as Record<string, unknown>;
-              if (metadata.backend === "openclaw_codex" || metadata.backend === "openai_api") {
-                streamBackend = metadata.backend;
-              }
-              if (typeof metadata.sessionKey === "string") {
-                setThreads((currentThreads) => currentThreads.map((thread) =>
-                  thread.id === threadId
-                    ? { ...thread, providerSessionId: metadata.sessionKey as string }
-                    : thread,
-                ));
-              }
-              completedActions = normalizeAssistantActions(metadata.actions);
-            }
-          });
-
-          if (terminalEvent === "done") {
-            completed = true;
-            updateAssistantMessage(streamedContent.trim(), streamBackend, completedActions);
-          } else if (terminalEvent === "stopped") {
-            completed = true;
-          } else if (terminalEvent === "error") {
-            throw new Error(terminalError || "Assistant generation failed");
-          } else {
-            throw new Error("Assistant stream disconnected");
+          if (event === "delta" && typeof data.text === "string") {
+            streamedContent += data.text;
+            updateAssistantMessage(streamedContent, streamBackend);
+            return;
           }
-        } catch (error) {
-          if (stopRequestedRef.current || abortController.signal.aborted) throw error;
-          if (attempt === 3 || terminalError) throw error;
-        }
+          if (event === "error") {
+            terminalError = typeof data.message === "string" ? data.message : "Assistant generation failed";
+            return;
+          }
+          if (event === "done" && data.metadata && typeof data.metadata === "object") {
+            const metadata = data.metadata as Record<string, unknown>;
+            if (metadata.backend === "openclaw_codex" || metadata.backend === "openai_api") {
+              streamBackend = metadata.backend;
+            }
+            if (typeof metadata.sessionKey === "string") {
+              setThreads((currentThreads) => currentThreads.map((thread) =>
+                thread.id === threadId
+                  ? { ...thread, providerSessionId: metadata.sessionKey as string }
+                  : thread,
+              ));
+            }
+            completedActions = normalizeAssistantActions(metadata.actions);
+          }
+        },
+      );
+
+      if (terminalEvent === "done") {
+        completed = true;
+        updateAssistantMessage(streamedContent.trim(), streamBackend, completedActions);
+      } else if (terminalEvent === "stopped") {
+        completed = true;
+      } else if (terminalEvent === "error") {
+        throw new Error(terminalError || "Assistant generation failed");
+      } else {
+        throw new Error("Assistant stream disconnected");
       }
     } catch (error) {
       if (stopRequestedRef.current) {
@@ -1294,9 +925,7 @@ export function AssistantView({
     streamAbortControllerRef.current?.abort();
     setConnectionStatus("idle");
     try {
-      await fetch(`${apiBaseUrl}/assistant/chat/stream/${encodeURIComponent(requestId)}`, {
-        method: "DELETE",
-      });
+      await stopAssistantStream(requestId);
     } catch {
       // The local abort already stopped rendering; the server expires orphaned streams.
     }
@@ -1313,12 +942,8 @@ export function AssistantView({
         ? { ...thread, messages: thread.messages.filter((message) => message.id !== messageId) }
         : thread,
     ));
-    void fetch(
-      `${apiBaseUrl}/assistant/conversations/${encodeURIComponent(activeThread.id)}/messages/${encodeURIComponent(messageId)}`,
-      { method: "DELETE" },
-    ).then((response) => {
-      if (!response.ok) throw new Error("Message deletion failed");
-    }).catch(() => setConnectionStatus("disconnected"));
+    void deleteAssistantMessage(activeThread.id, messageId)
+      .catch(() => setConnectionStatus("disconnected"));
     setDraft(previousUserMessage.content);
   }
 
@@ -1761,7 +1386,7 @@ export function AssistantView({
                           )}
                         </div>
                         <p className="mt-1 text-[9px] text-muted">{formatThreadDate(version.createdAt)}</p>
-                        <a href={`${apiBaseUrl}/documents/${encodeURIComponent(documentDraft.id)}/download?version=${version.version}`} className="mt-2 inline-flex items-center gap-1 text-[9px] font-semibold text-muted hover:text-foreground">
+                        <a href={assistantDocumentDownloadUrl(documentDraft.id, version.version)} className="mt-2 inline-flex items-center gap-1 text-[9px] font-semibold text-muted hover:text-foreground">
                           <Download className="h-3 w-3" /> Download
                         </a>
                       </div>
@@ -1783,7 +1408,7 @@ export function AssistantView({
             </div>
             <div className="flex items-center gap-2">
               {documentDraft.id ? (
-                <a href={`${apiBaseUrl}/documents/${encodeURIComponent(documentDraft.id)}/download`} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[10px] font-bold text-muted hover:bg-[#fff3e8] hover:text-foreground">
+                <a href={assistantDocumentDownloadUrl(documentDraft.id)} className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-2.5 text-[10px] font-bold text-muted hover:bg-[#fff3e8] hover:text-foreground">
                   <Download className="h-3.5 w-3.5" /> Download DOCX
                 </a>
               ) : null}

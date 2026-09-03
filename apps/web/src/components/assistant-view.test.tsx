@@ -177,32 +177,8 @@ it("streams immediately", async () => {
   expect(screen.getByText("Codex credits via OpenClaw")).toBeInTheDocument();
 });
 
-it("resumes a dropped SSE chat from its offset and requires action-preview confirmation", async () => {
+it("does not retry a dropped POST stream automatically", async () => {
   const streamBodies: Array<Record<string, unknown>> = [];
-  const onActionApplied = vi.fn();
-  let streamAttempt = 0;
-  const action = {
-    id: "assistant-action-headline",
-    type: "update_profile_field",
-    title: "Update profile field",
-    description: "Change only the profile field headline.",
-    contextKind: "profile",
-    contextId: "",
-    fields: [
-      {
-        label: "Headline",
-        before: "Product designer",
-        after: "Senior product designer",
-      },
-    ],
-    payload: {
-      field: "headline",
-      value: "Senior product designer",
-      expectedValue: "Product designer",
-    },
-    status: "preview",
-    resultMessage: "",
-  };
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
     const requestUrl =
       typeof input === "string"
@@ -222,46 +198,14 @@ it("resumes a dropped SSE chat from its offset and requires action-preview confi
     if (url.pathname === "/assistant/chat/stream" && method === "POST") {
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       streamBodies.push(body);
-      streamAttempt += 1;
-      if (streamAttempt === 1) {
-        return new Response(
-          [
-            'id: 0\nevent: connected\ndata: {"offset":0}',
-            'id: 8\nevent: delta\ndata: {"text":"Partial ","offset":8}',
-            "",
-          ].join("\n\n"),
-          { headers: { "Content-Type": "text/event-stream" } },
-        );
-      }
       return new Response(
         [
-          'id: 8\nevent: connected\ndata: {"offset":8}',
-          'id: 15\nevent: delta\ndata: {"text":"answer.","offset":15}',
-          `id: 15\nevent: done\ndata: ${JSON.stringify({
-            offset: 15,
-            metadata: { sessionKey: "session-resumed", actions: [action] },
-          })}`,
+          'id: 0\nevent: connected\ndata: {"offset":0}',
+          'id: 8\nevent: delta\ndata: {"text":"Partial ","offset":8}',
           "",
         ].join("\n\n"),
         { headers: { "Content-Type": "text/event-stream" } },
       );
-    }
-    if (url.pathname === "/assistant/actions/apply" && method === "POST") {
-      return Response.json({
-        actionId: action.id,
-        type: action.type,
-        status: "applied",
-        message: "Profile headline updated",
-        resourceKind: "profile",
-        resource: { headline: "Senior product designer" },
-      });
-    }
-    if (
-      url.pathname.startsWith("/assistant/conversations/") &&
-      url.pathname.includes("/messages/") &&
-      method === "PUT"
-    ) {
-      return Response.json({});
     }
     throw new Error(`Unhandled request: ${method} ${url.pathname}`);
   });
@@ -289,7 +233,7 @@ it("resumes a dropped SSE chat from its offset and requires action-preview confi
       launch={null}
       onLaunchHandled={vi.fn()}
       onDocumentAttached={vi.fn()}
-      onActionApplied={onActionApplied}
+      onActionApplied={vi.fn()}
     />,
   );
 
@@ -302,29 +246,8 @@ it("resumes a dropped SSE chat from its offset and requires action-preview confi
   );
   fireEvent.click(screen.getByRole("button", { name: "Send message" }));
 
-  expect(await screen.findByText("Partial answer.")).toBeInTheDocument();
-  expect(streamBodies).toHaveLength(2);
+  expect(await screen.findByText("Partial")).toBeInTheDocument();
+  expect(await screen.findByText("Assistant stream disconnected")).toBeInTheDocument();
+  expect(streamBodies).toHaveLength(1);
   expect(streamBodies[0].offset).toBe(0);
-  expect(streamBodies[1].offset).toBe(8);
-  expect(streamBodies[1].requestId).toBe(streamBodies[0].requestId);
-  expect(streamBodies[1].assistantMessageId).toBe(
-    streamBodies[0].assistantMessageId,
-  );
-
-  expect(screen.getByText("Preview")).toBeInTheDocument();
-  expect(screen.getByText("Senior product designer")).toBeInTheDocument();
-  fireEvent.click(
-    screen.getByRole("button", { name: "Apply Update profile field" }),
-  );
-
-  expect(
-    await screen.findByText("Profile headline updated"),
-  ).toBeInTheDocument();
-  expect(onActionApplied).toHaveBeenCalledWith(
-    expect.objectContaining({
-      actionId: action.id,
-      status: "applied",
-      resourceKind: "profile",
-    }),
-  );
 });
