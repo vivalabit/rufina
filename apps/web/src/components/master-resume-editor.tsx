@@ -38,15 +38,6 @@ export { MASTER_RESUME_REVIEW_SECTIONS } from "@/features/profile/api/master-res
 export type { MasterResume } from "@/features/profile/api/master-resume-client";
 
 type ResumeSectionName = MasterResume["sectionOrder"][number];
-type EvidenceBackedText = NonNullable<MasterResume["summary"]>;
-type ResumeBullet = MasterResume["experiences"][number]["bullets"][number];
-type MasterExperience = MasterResume["experiences"][number];
-type MasterSkill = MasterResume["skills"][number];
-type MasterEducation = MasterResume["education"][number];
-type MasterProject = MasterResume["projects"][number];
-type MasterCertification = MasterResume["certifications"][number];
-type MasterLanguage = MasterResume["languages"][number];
-type AdditionalSection = MasterResume["additionalSections"][number];
 
 type RequestState = "idle" | "loading" | "error";
 

@@ -5,8 +5,8 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { defaultCandidateProfile } from "@/features/profile/model/defaults";
 
 vi.mock("@/components/critical-notifications-bell", () => ({
-  CriticalNotificationsBell: ({ apiBaseUrl }: { apiBaseUrl: string }) => (
-    <button type="button" data-api-base-url={apiBaseUrl}>
+  CriticalNotificationsBell: () => (
+    <button type="button">
       Critical notifications
     </button>
   ),
@@ -32,10 +32,7 @@ it("shows optional logs and treats the application workspace as Applications", (
     "text-accent",
     "after:scale-x-100",
   );
-  expect(screen.getByRole("button", { name: "Critical notifications" })).toHaveAttribute(
-    "data-api-base-url",
-    expect.stringContaining("http"),
-  );
+  expect(screen.getByRole("button", { name: "Critical notifications" })).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("link", { name: "Jobs" }));
   expect(onChangeView).toHaveBeenCalledWith("Jobs");

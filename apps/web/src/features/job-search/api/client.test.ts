@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { API_REQUEST_TIMEOUT_MS } from "@/lib/api-client";
+import { API_REQUEST_TIMEOUT_MS } from "@/shared/api/client";
 
 import { runJobSearch } from "./client";
 

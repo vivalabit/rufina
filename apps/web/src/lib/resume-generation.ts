@@ -57,18 +57,6 @@ export function resumeArtifactGenerationMode(
   return "recruiter_xyz_ats";
 }
 
-export function resumeRenderUrl(
-  apiBaseUrl: string,
-  source: ResumeRenderSource,
-  format: "pdf" | "docx",
-  templateId: string,
-): string {
-  const sourcePath = source.kind === "imaginator"
-    ? `/resume-tailoring/imaginator/${encodeURIComponent(source.id)}`
-    : `/resume-tailoring/ats-final-review/${encodeURIComponent(source.id)}`;
-  return `${apiBaseUrl}${sourcePath}/${format}?templateId=${encodeURIComponent(templateId)}`;
-}
-
 export function canReuseResumeRenderSource(
   artifact: ResumeRenderArtifactLike | null | undefined,
   {

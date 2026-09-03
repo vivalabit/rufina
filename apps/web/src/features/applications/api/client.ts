@@ -172,3 +172,15 @@ export async function deleteApplicationAttachment(
     errorMessage: "Document could not be deleted",
   });
 }
+
+export async function downloadApplicationDocumentSource(
+  downloadUrl: string,
+  signal?: AbortSignal,
+) {
+  return (await apiClient.blob({
+    path: downloadUrl,
+    cache: "no-store",
+    signal,
+    errorMessage: "Selected resume could not be loaded",
+  })).data;
+}

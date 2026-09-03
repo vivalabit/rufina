@@ -44,6 +44,20 @@ export function hydrateProfileFiles(profile: CandidateProfile, files: ProfileFil
   });
 }
 
+export function applyUploadedPrimaryResume(
+  profile: CandidateProfile,
+  file: Pick<ProfileFilePayload, "id" | "fileName" | "sizeBytes" | "updatedAt" | "downloadUrl">,
+): CandidateProfile {
+  return normalizeCandidateProfile({
+    ...profile,
+    resume_file_id: file.id,
+    resume_file_name: file.fileName,
+    resume_file_size: formatFileSize(file.sizeBytes),
+    resume_updated_at: file.updatedAt,
+    resume_download_url: resolveApiUrl(file.downloadUrl),
+  });
+}
+
 export function mergeHydratedProfileMetadata(savedProfile: Partial<CandidateProfile>, currentProfile: CandidateProfile): CandidateProfile {
   return normalizeCandidateProfile({
     ...savedProfile,

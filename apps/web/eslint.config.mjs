@@ -13,6 +13,8 @@ const featureNames = [
   "dashboard",
   "settings",
   "activity",
+  "assistant",
+  "notifications",
 ];
 
 const aggregationFeatures = new Set(["app-shell", "dashboard"]);
@@ -65,6 +67,48 @@ export default defineConfig([
       "react-hooks/preserve-manual-memoization": "off",
       "react-hooks/purity": "off",
       "react-hooks/set-state-in-effect": "off",
+    },
+  },
+  {
+    files: [
+      "src/components/**/*.{ts,tsx}",
+      "src/features/**/components/**/*.{ts,tsx}",
+      "src/features/**/hooks/**/*.{ts,tsx}",
+    ],
+    ignores: ["**/*.test.{ts,tsx}"],
+    rules: {
+      "no-restricted-syntax": [
+        "error",
+        {
+          selector: "CallExpression[callee.name='fetch']",
+          message:
+            "Feature UI must call an endpoint client instead of using fetch directly.",
+        },
+        {
+          selector:
+            "MemberExpression[property.name='ok'][object.name=/[Rr]esponse$/]",
+          message:
+            "Feature UI must not inspect Response.ok; response handling belongs in the shared API transport.",
+        },
+        {
+          selector:
+            "ImportDeclaration[source.value='@/shared/api/client'] > ImportSpecifier[imported.name='apiClient']",
+          message:
+            "Feature UI must call a feature endpoint client instead of the shared transport directly.",
+        },
+      ],
+      "no-restricted-imports": [
+        "error",
+        {
+          patterns: [
+            {
+              group: ["@/shared/api/config", "@/lib/api-client"],
+              message:
+                "Feature UI must not construct API URLs or use the removed legacy client.",
+            },
+          ],
+        },
+      ],
     },
   },
   globalIgnores([

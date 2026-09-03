@@ -51,6 +51,20 @@ describe("shared API client", () => {
       .toBe(false);
   });
 
+  it("keeps data URLs outside the API origin", async () => {
+    const fetch = vi.fn(async () => new Response("resume"));
+    const api = client(fetch);
+
+    await api.blob({ path: "data:text/plain,resume" });
+
+    const [url, init] = (fetch.mock.calls as unknown as Array<[
+      RequestInfo | URL,
+      RequestInit | undefined,
+    ]>)[0];
+    expect(String(url)).toBe("data:text/plain,resume");
+    expect(new Headers(init?.headers).has("X-Rufina-Owner-Id")).toBe(false);
+  });
+
   it("parses JSON once and exposes an opaque ETag", async () => {
     const api = client(vi.fn(async () => Response.json(
       { name: "Alice" },

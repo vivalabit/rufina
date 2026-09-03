@@ -77,12 +77,13 @@ import {
   type JobSearchProgressPhase,
 } from "@/lib/job-search-progress";
 import { createClientId } from "@/lib/client-id";
-import { ApiResponseError } from "@/lib/api-client";
+import { downloadApplicationDocumentSource } from "@/features/applications/api/client";
 import { cn } from "@/lib/utils";
 import { useActivityFeed } from "@/features/activity/hooks/use-activity-feed";
 import { useApplicationEvents } from "@/features/applications/hooks/use-application-events";
 import { useApplications } from "@/features/applications/hooks/use-applications";
 import { useProfile } from "@/features/profile/hooks/use-profile";
+import { applyUploadedPrimaryResume } from "@/features/profile/api/mappers";
 import { useAppSettings } from "@/features/settings/hooks/use-app-settings";
 import { useUiSettings } from "@/features/settings/components/ui-settings-provider";
 import { screenshotSessionStorageKey } from "@/features/app-shell/browser-storage/keys";
@@ -170,8 +171,7 @@ import type {
 import type {
   AppSettingsUpdate,
 } from "@/features/settings/model/types";
-import { resolveApiUrl } from "@/shared/api/config";
-import { readApiErrorMessage } from "@/shared/api/error";
+import { ApiResponseError } from "@/shared/api/client";
 import {
   browserStorageNamespacePrefix,
 } from "@/shared/browser-storage/constants";
@@ -928,11 +928,7 @@ export function AppWorkspaceRoot({
       for (const document of draft.documents) {
         let body: Blob | null = document.pendingFile ?? null;
         if (!body && document.downloadUrl) {
-          const sourceResponse = await fetch(document.downloadUrl, { cache: "no-store" });
-          if (!sourceResponse.ok) {
-            throw new Error(await readApiErrorMessage(sourceResponse, "Selected resume could not be loaded"));
-          }
-          body = await sourceResponse.blob();
+          body = await downloadApplicationDocumentSource(document.downloadUrl);
         }
         if (!body) throw new Error("Selected resume could not be loaded");
         uploadedDocuments.push(await applicationState.uploadAttachment(application.id, body, {
@@ -1120,14 +1116,8 @@ export function AppWorkspaceRoot({
     updatedAt: string;
     downloadUrl: string;
   }) {
-    const apply = (current: CandidateProfile): CandidateProfile => normalizeCandidateProfile({
-      ...current,
-      resume_file_id: file.id,
-      resume_file_name: file.fileName,
-      resume_file_size: formatFileSize(file.sizeBytes),
-      resume_updated_at: file.updatedAt,
-      resume_download_url: resolveApiUrl(file.downloadUrl),
-    });
+    const apply = (current: CandidateProfile): CandidateProfile =>
+      applyUploadedPrimaryResume(current, file);
     setProfile(apply);
     setProfileDraft(apply);
   }

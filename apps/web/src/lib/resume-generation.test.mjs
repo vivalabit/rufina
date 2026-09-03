@@ -5,7 +5,6 @@ import {
   canReuseResumeRenderSource,
   resumeArtifactGenerationMode,
   resumeRenderSource,
-  resumeRenderUrl,
 } from "./resume-generation.ts";
 
 test("resolves legacy ATS and Imaginator render sources", () => {
@@ -22,27 +21,6 @@ test("resolves legacy ATS and Imaginator render sources", () => {
   });
   assert.equal(resumeArtifactGenerationMode(ats), "recruiter_xyz_ats");
   assert.equal(resumeArtifactGenerationMode(imaginator), "imaginator");
-});
-
-test("builds mode-specific PDF and DOCX render URLs", () => {
-  assert.equal(
-    resumeRenderUrl(
-      "http://localhost:8000",
-      { kind: "ats_final_review", id: "ats 1" },
-      "pdf",
-      "classic_single",
-    ),
-    "http://localhost:8000/resume-tailoring/ats-final-review/ats%201/pdf?templateId=classic_single",
-  );
-  assert.equal(
-    resumeRenderUrl(
-      "http://localhost:8000",
-      { kind: "imaginator", id: "imag 1" },
-      "docx",
-      "my template",
-    ),
-    "http://localhost:8000/resume-tailoring/imaginator/imag%201/docx?templateId=my%20template",
-  );
 });
 
 test("reuses only a current render source from the selected mode", () => {

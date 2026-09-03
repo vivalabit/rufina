@@ -7,7 +7,6 @@ import {
   createLegacyWorkspaceApplication,
   createV3WorkspaceApplication,
   createWorkspaceApplicationWithoutGuide,
-  createWorkspaceProfile,
   installApplicationWorkspaceApiMock,
   renderApplicationWorkspace,
 } from "@/test/application-workspace-harness";

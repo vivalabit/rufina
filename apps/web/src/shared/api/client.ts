@@ -181,7 +181,7 @@ export function createApiClient(options: ApiClientOptions) {
   const sleep = options.sleep ?? defaultSleep;
 
   function url(path: string, query?: ApiQuery | URLSearchParams) {
-    const resolved = /^https?:\/\//i.test(path)
+    const resolved = /^[a-z][a-z\d+.-]*:/i.test(path)
       ? new URL(path)
       : new URL(`${normalizedBaseUrl}${path.startsWith("/") ? path : `/${path}`}`);
     appendQuery(resolved, query);
