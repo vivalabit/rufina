@@ -39,7 +39,14 @@ export async function importLegacyJobStates(
   return (await apiClient.json<JobStatePayload[]>({
     path: "/jobs/state/import",
     method: "POST",
-    json: { jobs },
+    json: {
+      jobs: jobs.map((job) => ({
+        jobId: job.jobId,
+        saved: job.saved,
+        archived: job.archived,
+        dismissed: job.dismissed,
+      })),
+    },
     signal,
     errorMessage: "Legacy job state could not be imported",
   })).data;

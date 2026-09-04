@@ -1254,19 +1254,16 @@ export function AppWorkspaceRoot({
   }
 
   function updateJobArchiveState(job: Job, archived: boolean) {
-    const archivedAt = archived ? new Date().toISOString() : undefined;
-    setJobList((currentJobs) => {
-      return currentJobs.map((item) =>
-        item.id === job.id
-          ? {
-              ...item,
-              archived,
-              archivedAt,
-            }
-          : item,
-      );
+    void jobsState.patchState(job.id, { archived }).catch((error) => {
+      appendAppLog({
+        level: "error",
+        area: "Jobs",
+        message:
+          error instanceof Error
+            ? error.message
+            : "Vacancy archive state could not be saved",
+      });
     });
-    void jobsState.patchState(job.id, { archived }).catch(() => undefined);
 
     setSelectedJobId("");
   }

@@ -80,6 +80,37 @@ function mergeInitialJobs(serverJobs: Job[], initialJobs: Job[]) {
   return mergeJobs(serverJobs, initialJobs);
 }
 
+function mergeJobStates(
+  current: JobStatePayload[],
+  incoming: JobStatePayload[],
+) {
+  const states = new Map(current.map((state) => [state.jobId, state]));
+  for (const state of incoming) states.set(state.jobId, state);
+  return Array.from(states.values());
+}
+
+function mergeLocalStateFallback(
+  current: JobStatePayload[],
+  local: JobStatePayload[],
+) {
+  const states = new Map(current.map((state) => [state.jobId, state]));
+  for (const state of local) {
+    const serverState = states.get(state.jobId);
+    states.set(
+      state.jobId,
+      serverState
+        ? {
+            ...serverState,
+            saved: serverState.saved || state.saved,
+            archived: serverState.archived || state.archived,
+            dismissed: serverState.dismissed || state.dismissed,
+          }
+        : state,
+    );
+  }
+  return Array.from(states.values());
+}
+
 export function useJobs(initialJobs: Job[] = []) {
   const queryClient = useQueryClient();
   const controllerRef = useRef<AbortController | null>(null);
@@ -101,18 +132,25 @@ export function useJobs(initialJobs: Job[] = []) {
         window.localStorage.setItem(jobsStorageMigrationKey, jobsSignature);
       }
       const normalizedJobs = normalizeStoredJobs(storedJobs.map((job) => job.data));
-      let states: JobStatePayload[] = Object.values(localState);
+      const localStates = Object.values(localState);
+      let states: JobStatePayload[] = localStates;
       try {
-        const stateSignature = JSON.stringify(Object.keys(localState).sort());
-        states = Object.keys(localState).length > 0
-          && window.localStorage.getItem(jobStateStorageMigrationKey) !== stateSignature
-          ? await importLegacyJobStates(Object.values(localState), signal)
-          : await fetchJobStates(signal);
-        if (Object.keys(localState).length > 0) {
-          window.localStorage.setItem(jobStateStorageMigrationKey, stateSignature);
-        }
+        states = await fetchJobStates(signal);
       } catch {
         // Older/offline APIs still render the browser snapshot until state can be synchronized.
+      }
+      const stateSignature = JSON.stringify(Object.keys(localState).sort());
+      if (
+        localStates.length > 0
+        && window.localStorage.getItem(jobStateStorageMigrationKey) !== stateSignature
+      ) {
+        try {
+          const importedStates = await importLegacyJobStates(localStates, signal);
+          states = mergeJobStates(states, importedStates);
+          window.localStorage.setItem(jobStateStorageMigrationKey, stateSignature);
+        } catch {
+          states = mergeLocalStateFallback(states, localStates);
+        }
       }
       return {
         jobs: mergeInitialJobs(normalizedJobs, initialJobs),
@@ -248,8 +286,19 @@ export function useJobs(initialJobs: Job[] = []) {
     }));
   }, [initialJobs, queryClient]);
 
-  const jobs = query.data?.jobs ?? placeholder.jobs;
   const states = query.data?.states ?? placeholder.states;
+  const jobs = useMemo(
+    () => (query.data?.jobs ?? placeholder.jobs).map((job) => {
+      const state = states[job.id];
+      if (!state) return job;
+      return {
+        ...job,
+        archived: state.archived,
+        archivedAt: state.archivedAt ?? undefined,
+      };
+    }),
+    [placeholder.jobs, query.data?.jobs, states],
+  );
   const savedJobIds = Object.values(states).filter((state) => state.saved).map((state) => state.jobId);
   const archivedJobIds = Object.values(states).filter((state) => state.archived).map((state) => state.jobId);
   const deletedJobIds = Object.values(states).filter((state) => state.dismissed).map((state) => state.jobId);
