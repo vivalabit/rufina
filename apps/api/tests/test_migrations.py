@@ -9,7 +9,7 @@ import pytest
 from alembic import command
 from docx import Document
 from sqlalchemy import create_engine, inspect, text
-from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app import main as main_module
 from app.core.database import Base
@@ -234,7 +234,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260830_0047"
+            assert revision == "20260831_0049"
             entry_it = connection.execute(
                 text(
                     "SELECT id, owner_id, name, filters "
@@ -1201,6 +1201,149 @@ def test_inline_file_migration_extracts_deduplicates_and_scrubs_legacy_data(
         engine.dispose()
 
 
+def test_profile_file_schema_reconciliation_repairs_earlier_0047_shape(
+    tmp_path,
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'profile-file-reconciliation.sqlite'}"
+    config = get_alembic_config(database_url)
+    command.upgrade(config, "20260830_0046")
+
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "CREATE TABLE profile_files ("
+                    "id VARCHAR(36) NOT NULL, "
+                    "owner_id VARCHAR(160) NOT NULL, "
+                    "kind VARCHAR(32) NOT NULL, "
+                    "singleton_key VARCHAR(32), "
+                    "title VARCHAR(240) NOT NULL, "
+                    "category VARCHAR(80) NOT NULL, "
+                    "language VARCHAR(40) NOT NULL, "
+                    "issuer VARCHAR(240) NOT NULL, "
+                    "notes VARCHAR(2000) NOT NULL, "
+                    "file_name VARCHAR(240) NOT NULL, "
+                    "content_type VARCHAR(160) NOT NULL, "
+                    "content_sha256 VARCHAR(64) NOT NULL, "
+                    "size_bytes INTEGER NOT NULL, "
+                    "content BLOB NOT NULL, "
+                    "extracted_text TEXT NOT NULL, "
+                    "created_at DATETIME NOT NULL, "
+                    "updated_at DATETIME NOT NULL, "
+                    "CONSTRAINT ck_profile_files_kind CHECK ("
+                    "kind IN ('primary_resume', 'supporting_document', 'avatar')), "
+                    "CONSTRAINT ck_profile_files_size_positive CHECK (size_bytes > 0), "
+                    "CONSTRAINT ck_profile_files_singleton_key CHECK ("
+                    "(kind = 'supporting_document' AND singleton_key IS NULL) OR "
+                    "(kind IN ('primary_resume', 'avatar') AND singleton_key = kind)), "
+                    "PRIMARY KEY (id), "
+                    "CONSTRAINT uq_profile_files_owner_kind_sha256 "
+                    "UNIQUE (owner_id, kind, content_sha256), "
+                    "CONSTRAINT uq_profile_files_owner_singleton "
+                    "UNIQUE (owner_id, singleton_key)"
+                    ")"
+                )
+            )
+            for index_name, column_name in (
+                ("ix_profile_files_kind", "kind"),
+                ("ix_profile_files_owner_id", "owner_id"),
+                ("ix_profile_files_updated_at", "updated_at"),
+            ):
+                connection.execute(
+                    text(
+                        f"CREATE INDEX {index_name} ON profile_files ({column_name})"
+                    )
+                )
+            connection.execute(
+                text(
+                    "INSERT INTO profile_files ("
+                    "id, owner_id, kind, singleton_key, title, category, language, "
+                    "issuer, notes, file_name, content_type, content_sha256, "
+                    "size_bytes, content, extracted_text, created_at, updated_at"
+                    ") VALUES ("
+                    "'legacy-file', 'local-owner', 'supporting_document', NULL, "
+                    "'Certificate', 'Certificate', '', '', '', 'certificate.pdf', "
+                    "'application/pdf', 'same-content', 3, :content, '', :now, :now"
+                    ")"
+                ),
+                {"content": b"pdf", "now": datetime(2026, 8, 31, tzinfo=UTC)},
+            )
+    finally:
+        engine.dispose()
+
+    command.stamp(config, "20260830_0047")
+    command.upgrade(config, "head")
+
+    engine = create_engine(database_url)
+    try:
+        inspector = inspect(engine)
+        assert "legacy_document_id" in {
+            column["name"] for column in inspector.get_columns("profile_files")
+        }
+        assert {
+            constraint["name"]
+            for constraint in inspector.get_unique_constraints("profile_files")
+        } == {
+            "uq_profile_files_owner_kind_legacy",
+            "uq_profile_files_owner_singleton",
+        }
+        assert "ck_profile_files_legacy_id_kind" in {
+            constraint["name"]
+            for constraint in inspector.get_check_constraints("profile_files")
+        }
+        assert "ix_profile_files_content_sha256" in {
+            index["name"] for index in inspector.get_indexes("profile_files")
+        }
+
+        with engine.begin() as connection:
+            retained = connection.execute(
+                text(
+                    "SELECT id, legacy_document_id, content FROM profile_files "
+                    "WHERE id = 'legacy-file'"
+                )
+            ).mappings().one()
+            assert retained == {
+                "id": "legacy-file",
+                "legacy_document_id": None,
+                "content": b"pdf",
+            }
+            connection.execute(
+                text(
+                    "INSERT INTO profile_files ("
+                    "id, owner_id, kind, singleton_key, title, category, language, "
+                    "issuer, notes, file_name, content_type, content_sha256, "
+                    "legacy_document_id, size_bytes, content, extracted_text, "
+                    "created_at, updated_at"
+                    ") SELECT "
+                    "'same-content-new-id', owner_id, kind, singleton_key, title, "
+                    "category, language, issuer, notes, file_name, content_type, "
+                    "content_sha256, 'certificate-2', size_bytes, content, "
+                    "extracted_text, created_at, updated_at "
+                    "FROM profile_files WHERE id = 'legacy-file'"
+                )
+            )
+
+        with pytest.raises(IntegrityError), engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO profile_files ("
+                    "id, owner_id, kind, singleton_key, title, category, language, "
+                    "issuer, notes, file_name, content_type, content_sha256, "
+                    "legacy_document_id, size_bytes, content, extracted_text, "
+                    "created_at, updated_at"
+                    ") VALUES ("
+                    "'invalid-avatar', 'local-owner', 'avatar', 'avatar', 'Avatar', "
+                    "'Avatar', '', '', '', 'avatar.png', 'image/png', 'avatar-hash', "
+                    "'legacy-avatar', 3, :content, '', :now, :now"
+                    ")"
+                ),
+                {"content": b"png", "now": datetime(2026, 8, 31, tzinfo=UTC)},
+            )
+    finally:
+        engine.dispose()
+
+
 def test_file_extraction_preflight_keeps_failed_sqlite_upgrade_restartable(
     tmp_path,
 ) -> None:
@@ -1788,7 +1931,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260830_0047"
+            assert revision == "20260831_0049"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
@@ -1828,7 +1971,7 @@ def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> Non
                     "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
                 )
             ).scalar_one()
-        assert revision == "20260830_0047"
+        assert revision == "20260831_0049"
         assert entry_it_count == 1
         assert LEGACY_RECOVERABLE_MISSING_TABLES <= set(
             inspect(engine).get_table_names()
