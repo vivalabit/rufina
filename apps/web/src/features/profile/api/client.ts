@@ -1,23 +1,13 @@
 import { apiClient } from "@/shared/api/client";
 import type { CandidateProfile } from "@/shared/types/profile";
 
-import type { LegacyProfileFileUploadMetadata } from "../browser-storage/migrations";
 import type {
   ProfileFilePayload,
+  ProfileFileUploadMetadata,
   ResumeEducationImportResponse,
   ResumeExperienceImportResponse,
   ResumeSkillsImportResponse,
 } from "./dto";
-
-export class ProfileFileUploadError extends Error {
-  readonly status: number;
-
-  constructor(message: string, status: number) {
-    super(message);
-    this.name = "ProfileFileUploadError";
-    this.status = status;
-  }
-}
 
 export async function fetchProfile(signal?: AbortSignal) {
   const result = await apiClient.json<Partial<CandidateProfile>>({
@@ -56,14 +46,13 @@ export async function fetchProfileFiles(signal?: AbortSignal) {
 
 export async function uploadProfileFile(
   file: Blob,
-  metadata: LegacyProfileFileUploadMetadata,
+  metadata: ProfileFileUploadMetadata,
   signal?: AbortSignal,
 ) {
   const query = new URLSearchParams({
     kind: metadata.kind,
     file_name: metadata.fileName,
   });
-  if (metadata.legacyDocumentId) query.set("legacyDocumentId", metadata.legacyDocumentId);
   if (metadata.replaceExisting !== undefined) {
     query.set("replaceExisting", String(metadata.replaceExisting));
   }
@@ -77,25 +66,15 @@ export async function uploadProfileFile(
     if (value) query.set(key, value);
   }
 
-  try {
-    return (await apiClient.json<ProfileFilePayload>({
-      path: "/profile/files",
-      query,
-      method: "POST",
-      headers: { "Content-Type": file.type || "application/octet-stream" },
-      body: file,
-      signal,
-      errorMessage: "Profile file could not be uploaded",
-    })).data;
-  } catch (error) {
-    if (error && typeof error === "object" && "status" in error && typeof error.status === "number") {
-      throw new ProfileFileUploadError(
-        error instanceof Error ? error.message : "Profile file could not be uploaded",
-        error.status,
-      );
-    }
-    throw error;
-  }
+  return (await apiClient.json<ProfileFilePayload>({
+    path: "/profile/files",
+    query,
+    method: "POST",
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+    body: file,
+    signal,
+    errorMessage: "Profile file could not be uploaded",
+  })).data;
 }
 
 export async function patchProfileFile(

@@ -1,6 +1,6 @@
 import type { AiBackend } from "@/lib/ai-source";
 import type { CandidateConfirmation } from "@/lib/candidate-confirmations";
-import type { ResumeRenderSource } from "@/lib/resume-generation";
+import type { ResumeGenerationMode, ResumeRenderSource } from "@/lib/resume-generation";
 import type { ResumeTemplate } from "@/lib/resume-templates";
 import {
   AI_GENERATION_REQUEST_TIMEOUT_MS,
@@ -19,6 +19,14 @@ export type WorkspaceMasterResume = {
   version: number;
   createdAt: string;
   updatedAt: string;
+};
+
+export type WorkspaceApplicationPreferences = {
+  application_id: string;
+  resume_template_id: string | null;
+  resume_generation_mode: ResumeGenerationMode | null;
+  updated_at: string;
+  revision: number;
 };
 
 export type WorkspaceDocumentTemplate = {
@@ -124,6 +132,42 @@ export async function fetchWorkspaceMasterResume(signal?: AbortSignal) {
     if (error instanceof ApiResponseError && error.status === 404) return null;
     throw error;
   }
+}
+
+export async function fetchWorkspaceApplicationPreferences(
+  applicationId: string,
+  signal?: AbortSignal,
+) {
+  try {
+    return (await apiClient.json<WorkspaceApplicationPreferences>({
+      path: `/applications/${encodeURIComponent(applicationId)}/preferences`,
+      cache: "no-store",
+      signal,
+      errorMessage: "Application preferences could not be loaded",
+    })).data;
+  } catch (error) {
+    if (error instanceof ApiResponseError && error.status === 404) return null;
+    throw error;
+  }
+}
+
+export async function saveWorkspaceApplicationPreferences(
+  applicationId: string,
+  preferences: {
+    resume_template_id?: string | null;
+    resume_generation_mode?: ResumeGenerationMode | null;
+  },
+  revision: number | null,
+  signal?: AbortSignal,
+) {
+  return (await apiClient.json<WorkspaceApplicationPreferences>({
+    path: `/applications/${encodeURIComponent(applicationId)}/preferences`,
+    method: "PUT",
+    ifMatch: revision,
+    json: preferences,
+    signal,
+    errorMessage: "Application preferences could not be saved",
+  })).data;
 }
 
 export async function fetchCandidateConfirmations(

@@ -10,22 +10,13 @@ import {
   fetchAiMatchStatus,
   fetchJobs,
   fetchJobStates,
-  importLegacyJobStates,
   matchJobs,
   patchJobState,
   startAiMatch,
   upsertJobs,
 } from "../api/client";
 import type { JobStatePatch, JobStatePayload } from "../api/dto";
-import {
-  archivedJobIdsStorageKey,
-  deletedJobIdsStorageKey,
-  importedJobsStorageKey,
-  jobsStorageMigrationKey,
-  jobStateStorageMigrationKey,
-  savedJobIdsStorageKey,
-} from "../browser-storage/keys";
-import { normalizeStoredJobIds, normalizeStoredJobs } from "../browser-storage/normalizers";
+import { normalizeStoredJobs } from "../api/mappers";
 import { keepStoredUserJobs, mergeJobs } from "../model/selectors";
 
 const jobsQueryKey = ownerQueryKey(["jobs"] as const);
@@ -35,123 +26,27 @@ type JobsSnapshot = {
   states: Record<string, JobStatePayload>;
 };
 
-function readIds(key: string) {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(key);
-    return normalizeStoredJobIds(raw ? JSON.parse(raw) : []);
-  } catch {
-    window.localStorage.removeItem(key);
-    return [];
-  }
-}
-
-function readLocalJobs() {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(importedJobsStorageKey);
-    return keepStoredUserJobs(normalizeStoredJobs(raw ? JSON.parse(raw) : []));
-  } catch {
-    window.localStorage.removeItem(importedJobsStorageKey);
-    return [];
-  }
-}
-
-function localStates() {
-  const saved = new Set(readIds(savedJobIdsStorageKey));
-  const archived = new Set(readIds(archivedJobIdsStorageKey));
-  const dismissed = new Set(readIds(deletedJobIdsStorageKey));
-  return Object.fromEntries(
-    Array.from(new Set([...saved, ...archived, ...dismissed])).map((jobId) => [jobId, {
-      jobId,
-      saved: saved.has(jobId),
-      archived: archived.has(jobId),
-      dismissed: dismissed.has(jobId),
-      savedAt: null,
-      archivedAt: null,
-      dismissedAt: null,
-      updatedAt: "",
-      revision: 0,
-    } satisfies JobStatePayload]),
-  );
-}
-
 function mergeInitialJobs(serverJobs: Job[], initialJobs: Job[]) {
   return mergeJobs(serverJobs, initialJobs);
-}
-
-function mergeJobStates(
-  current: JobStatePayload[],
-  incoming: JobStatePayload[],
-) {
-  const states = new Map(current.map((state) => [state.jobId, state]));
-  for (const state of incoming) states.set(state.jobId, state);
-  return Array.from(states.values());
-}
-
-function mergeLocalStateFallback(
-  current: JobStatePayload[],
-  local: JobStatePayload[],
-) {
-  const states = new Map(current.map((state) => [state.jobId, state]));
-  for (const state of local) {
-    const serverState = states.get(state.jobId);
-    states.set(
-      state.jobId,
-      serverState
-        ? {
-            ...serverState,
-            saved: serverState.saved || state.saved,
-            archived: serverState.archived || state.archived,
-            dismissed: serverState.dismissed || state.dismissed,
-          }
-        : state,
-    );
-  }
-  return Array.from(states.values());
 }
 
 export function useJobs(initialJobs: Job[] = []) {
   const queryClient = useQueryClient();
   const controllerRef = useRef<AbortController | null>(null);
-  const localJobs = useMemo(() => readLocalJobs(), []);
-  const localState = useMemo(() => localStates(), []);
   const placeholder = useMemo<JobsSnapshot>(() => ({
-    jobs: mergeInitialJobs(localJobs, initialJobs),
-    states: localState,
-  }), [initialJobs, localJobs, localState]);
+    jobs: initialJobs,
+    states: {},
+  }), [initialJobs]);
 
   const query = useQuery<JobsSnapshot>({
     queryKey: jobsQueryKey,
     placeholderData: placeholder,
     queryFn: async ({ signal }) => {
-      let storedJobs = await fetchJobs(signal);
-      const jobsSignature = JSON.stringify(localJobs.map((job) => job.id).sort());
-      if (localJobs.length > 0 && window.localStorage.getItem(jobsStorageMigrationKey) !== jobsSignature) {
-        storedJobs = await upsertJobs(localJobs, signal);
-        window.localStorage.setItem(jobsStorageMigrationKey, jobsSignature);
-      }
+      const [storedJobs, states] = await Promise.all([
+        fetchJobs(signal),
+        fetchJobStates(signal),
+      ]);
       const normalizedJobs = normalizeStoredJobs(storedJobs.map((job) => job.data));
-      const localStates = Object.values(localState);
-      let states: JobStatePayload[] = localStates;
-      try {
-        states = await fetchJobStates(signal);
-      } catch {
-        // Older/offline APIs still render the browser snapshot until state can be synchronized.
-      }
-      const stateSignature = JSON.stringify(Object.keys(localState).sort());
-      if (
-        localStates.length > 0
-        && window.localStorage.getItem(jobStateStorageMigrationKey) !== stateSignature
-      ) {
-        try {
-          const importedStates = await importLegacyJobStates(localStates, signal);
-          states = mergeJobStates(states, importedStates);
-          window.localStorage.setItem(jobStateStorageMigrationKey, stateSignature);
-        } catch {
-          states = mergeLocalStateFallback(states, localStates);
-        }
-      }
       return {
         jobs: mergeInitialJobs(normalizedJobs, initialJobs),
         states: Object.fromEntries(states.map((state) => [state.jobId, state])),
@@ -175,7 +70,11 @@ export function useJobs(initialJobs: Job[] = []) {
     scope: { id: "jobs" },
     mutationFn: (jobs: Job[]) => withSignal(async (signal) => {
       const stored = await upsertJobs(keepStoredUserJobs(jobs), signal);
-      return mergeInitialJobs(normalizeStoredJobs(stored.map((job) => job.data)), initialJobs);
+      const states = await fetchJobStates(signal);
+      return {
+        jobs: mergeInitialJobs(normalizeStoredJobs(stored.map((job) => job.data)), initialJobs),
+        states: Object.fromEntries(states.map((state) => [state.jobId, state])),
+      } satisfies JobsSnapshot;
     }),
     onMutate(jobs) {
       const previous = queryClient.getQueryData<JobsSnapshot>(jobsQueryKey);
@@ -185,12 +84,8 @@ export function useJobs(initialJobs: Job[] = []) {
       }));
       return { previous };
     },
-    onSuccess(jobs) {
-      if (jobs.length === 0) return;
-      queryClient.setQueryData<JobsSnapshot>(jobsQueryKey, (current) => ({
-        jobs,
-        states: current?.states ?? {},
-      }));
+    onSuccess(snapshot) {
+      queryClient.setQueryData<JobsSnapshot>(jobsQueryKey, snapshot);
     },
     onError(_error, _jobs, context) {
       if (context?.previous) queryClient.setQueryData(jobsQueryKey, context.previous);
@@ -202,15 +97,7 @@ export function useJobs(initialJobs: Job[] = []) {
     mutationFn: ({ jobId, patch }: { jobId: string; patch: JobStatePatch }) => withSignal(async (signal) => {
       const current = queryClient.getQueryData<JobsSnapshot>(jobsQueryKey);
       const state = current?.states[jobId];
-      if (!state || state.revision < 1) {
-        const imported = await importLegacyJobStates([{
-          jobId,
-          saved: patch.saved ?? state?.saved ?? false,
-          archived: patch.archived ?? state?.archived ?? false,
-          dismissed: patch.dismissed ?? state?.dismissed ?? false,
-        }], signal);
-        return imported.find((item) => item.jobId === jobId) ?? null;
-      }
+      if (!state) throw new Error("Authoritative job state is not loaded");
       return patchJobState(jobId, patch, state.revision, signal);
     }),
     onMutate({ jobId, patch }) {
@@ -240,7 +127,6 @@ export function useJobs(initialJobs: Job[] = []) {
       return { previous };
     },
     onSuccess(state) {
-      if (!state) return;
       queryClient.setQueryData<JobsSnapshot>(jobsQueryKey, (current) => ({
         jobs: current?.jobs ?? initialJobs,
         states: { ...current?.states, [state.jobId]: state },
@@ -302,13 +188,6 @@ export function useJobs(initialJobs: Job[] = []) {
   const savedJobIds = Object.values(states).filter((state) => state.saved).map((state) => state.jobId);
   const archivedJobIds = Object.values(states).filter((state) => state.archived).map((state) => state.jobId);
   const deletedJobIds = Object.values(states).filter((state) => state.dismissed).map((state) => state.jobId);
-
-  useEffect(() => {
-    window.localStorage.setItem(importedJobsStorageKey, JSON.stringify(keepStoredUserJobs(jobs)));
-    window.localStorage.setItem(savedJobIdsStorageKey, JSON.stringify(savedJobIds));
-    window.localStorage.setItem(archivedJobIdsStorageKey, JSON.stringify(archivedJobIds));
-    window.localStorage.setItem(deletedJobIdsStorageKey, JSON.stringify(deletedJobIds));
-  }, [archivedJobIds, deletedJobIds, jobs, savedJobIds]);
 
   return {
     jobs,

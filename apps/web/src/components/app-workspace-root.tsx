@@ -91,7 +91,7 @@ import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
 import {
   normalizeStoredApplicationEvents,
   normalizeStoredApplications,
-} from "@/features/applications/browser-storage/normalizers";
+} from "@/features/applications/api/mappers";
 import {
   sortApplicationEvents,
 } from "@/features/applications/model/selectors";
@@ -127,7 +127,7 @@ import type { AiMatchJobStatus } from "@/features/jobs/api/dto";
 import { useJobs } from "@/features/jobs/hooks/use-jobs";
 import {
   normalizeStoredJobs,
-} from "@/features/jobs/browser-storage/normalizers";
+} from "@/features/jobs/api/mappers";
 import {
   formatJobLocationCompact,
   formatJobPostedCompact,
@@ -174,7 +174,10 @@ import type {
 import { ApiResponseError } from "@/shared/api/client";
 import {
   browserStorageNamespacePrefix,
-} from "@/shared/browser-storage/constants";
+  clearBrowserStorageNamespace,
+  readBrowserStorage,
+  writeBrowserStorage,
+} from "@/shared/browser-storage/storage";
 import { formatFileSize } from "@/shared/formatting/files";
 import {
   defaultCandidateProfile,
@@ -645,24 +648,6 @@ export function AppWorkspaceRoot({
     append: appendAppLog,
     clear: clearAppLogs,
   } = activityFeed;
-  const loggedProfileWarningsRef = useRef(new Set<string>());
-  const loggedApplicationWarningsRef = useRef(new Set<string>());
-
-  useEffect(() => {
-    for (const warning of profileState.warnings) {
-      if (loggedProfileWarningsRef.current.has(warning)) continue;
-      loggedProfileWarningsRef.current.add(warning);
-      appendAppLog({ level: "warning", area: "Profile", message: warning });
-    }
-  }, [appendAppLog, profileState.warnings]);
-
-  useEffect(() => {
-    for (const warning of applicationState.warnings) {
-      if (loggedApplicationWarningsRef.current.has(warning)) continue;
-      loggedApplicationWarningsRef.current.add(warning);
-      appendAppLog({ level: "warning", area: "Applications", message: warning });
-    }
-  }, [appendAppLog, applicationState.warnings]);
   const availableJobs = useMemo(
     () => selectAvailableJobs(jobList, archivedJobIds, deletedJobIds),
     [archivedJobIds, deletedJobIds, jobList],
@@ -788,18 +773,14 @@ export function AppWorkspaceRoot({
   useEffect(() => {
     if (!screenshotSessionId) return;
     if (
-      window.localStorage.getItem(screenshotSessionStorageKey) ===
+      readBrowserStorage(screenshotSessionStorageKey) ===
       screenshotSessionId
     ) {
       return;
     }
 
-    for (const key of Object.keys(window.localStorage)) {
-      if (key.startsWith(browserStorageNamespacePrefix)) {
-        window.localStorage.removeItem(key);
-      }
-    }
-    window.localStorage.setItem(screenshotSessionStorageKey, screenshotSessionId);
+    clearBrowserStorageNamespace(browserStorageNamespacePrefix);
+    writeBrowserStorage(screenshotSessionStorageKey, screenshotSessionId);
   }, []);
 
   useEffect(() => {
@@ -2354,14 +2335,10 @@ export function AppWorkspaceRoot({
 
   async function persistUserJobs(userJobs: Job[]) {
     const storedUserJobs = keepStoredUserJobs(userJobs);
-    try {
-      await jobsState.saveJobs([
-        ...storedUserJobs,
-        ...jobList.filter((job) => !isUserManagedJob(job)),
-      ]);
-    } catch {
-      // localStorage keeps imported and manually added jobs available when the API is offline.
-    }
+    await jobsState.saveJobs([
+      ...storedUserJobs,
+      ...jobList.filter((job) => !isUserManagedJob(job)),
+    ]);
   }
 
   function applyAiMatchStatus(status: AiMatchJobStatus) {

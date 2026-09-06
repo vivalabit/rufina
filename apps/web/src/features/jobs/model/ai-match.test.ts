@@ -4,7 +4,6 @@ import {
   buildRecommendationPlan,
   formatMatchValue,
   getDisplayMatch,
-  sanitizeLegacyLocalAiMatch,
 } from "@/features/jobs/model/ai-match";
 import type { Job } from "@/shared/types/job";
 
@@ -57,26 +56,6 @@ describe("job AI-match selectors", () => {
     });
 
     expect(formatMatchValue(matchedJob)).toBe("82%");
-  });
-
-  it("drops unsupported legacy local analysis", () => {
-    const normalized = sanitizeLegacyLocalAiMatch(
-      job({
-        aiMatch: {
-          version: "ai-match-v2",
-          cacheKey: "legacy",
-          source: "local",
-          score: 81,
-          confidence: "medium",
-          breakdown: {},
-          reasons: [],
-          gaps: [],
-        },
-      }),
-    );
-
-    expect(normalized.aiMatch).toBeUndefined();
-    expect(normalized.match).toBe(50);
   });
 
   it("builds recommendations only from source-backed evidence", () => {

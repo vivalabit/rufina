@@ -39,7 +39,6 @@ import {
   deleteAssistantThread,
   fetchAssistantDocuments,
   fetchAssistantThreads,
-  importLegacyAssistantThread,
   patchAssistantThread,
   persistAssistantMessage,
   restoreAssistantDocumentVersion,
@@ -50,7 +49,6 @@ import {
 import {
   normalizeAssistantActions,
   normalizeAssistantDocuments,
-  normalizeAssistantThreads,
 } from "@/features/assistant/api/dto";
 import type {
   AssistantActionPreview,
@@ -124,7 +122,6 @@ type AssistantViewProps = {
   onActionApplied: (result: AssistantAppliedAction) => void;
 };
 
-const legacyAssistantThreadsStorageKey = "tasko.assistantThreads.v1";
 const assistantMessageMaxChars = 6_000;
 
 const quickActions = [
@@ -241,122 +238,6 @@ function serializeAssistantJob(job: AssistantJob | null) {
   };
 }
 
-function getAssistantResponse({
-  prompt,
-  profile,
-  job,
-  application,
-}: {
-  prompt: string;
-  profile: AssistantProfile;
-  job: AssistantJob | null;
-  application: AssistantApplication | null;
-}) {
-  const normalizedPrompt = prompt.toLowerCase();
-  const candidateName = profile.name.trim() || "the candidate";
-  const desiredRole = profile.desired_role.trim() || profile.current_role.trim() || "your target role";
-  const roleLabel = job ? `${job.title} at ${job.company}` : desiredRole;
-  const skills = job?.skills.filter(Boolean).slice(0, 5) ?? [];
-  const reasons = job?.aiMatch?.reasons.filter(Boolean).slice(0, 3) ?? [];
-  const gaps = job?.aiMatch?.gaps.filter(Boolean).slice(0, 3) ?? [];
-  const evidence = profile.experience.trim() || profile.skills.trim();
-
-  if (normalizedPrompt.includes("cover letter") || normalizedPrompt.includes("сопровод")) {
-    return [
-      `Dear ${job?.company ? `${job.company} hiring team` : "Hiring Manager"},`,
-      "",
-      `I am applying for the ${job?.title ?? desiredRole} position. My background as ${profile.current_role || desiredRole} aligns with the role's focus${skills.length ? ` on ${skills.join(", ")}` : " and its core responsibilities"}.`,
-      "",
-      evidence
-        ? `The strongest evidence to develop in the final version is: ${evidence.slice(0, 280)}${evidence.length > 280 ? "…" : ""}`
-        : "Before sending, add one verified achievement with a measurable outcome. I have left this as guidance rather than inventing an example.",
-      "",
-      `I would welcome the opportunity to discuss how my experience could contribute to ${job?.company ?? "your team"}.`,
-      "",
-      `Best regards,\n${candidateName}`,
-      "",
-      "Review note: verify every claim and add one role-specific metric before sending.",
-    ].join("\n");
-  }
-
-  if (normalizedPrompt.includes("interview") || normalizedPrompt.includes("интервью")) {
-    const questions = [
-      `Why are you interested in ${roleLabel}?`,
-      `Which achievement best proves your ability to succeed in this role?`,
-      skills[0] ? `Tell me about a time you used ${skills[0]} to solve a difficult problem.` : "Tell me about a difficult problem you solved.",
-      gaps[0] ? `How would you address this potential gap: ${gaps[0]}?` : "What would you aim to accomplish in your first 90 days?",
-      `What questions do you have for ${job?.company ?? "the hiring team"}?`,
-    ];
-
-    return [
-      `Interview plan for ${roleLabel}`,
-      "",
-      ...questions.map((question, index) => `${index + 1}. ${question}\n   Answer with Situation → Action → Result, using only a real example from your experience.`),
-      "",
-      `Your strongest themes: ${reasons.length ? reasons.join("; ") : "connect your verified experience directly to the role requirements"}.`,
-      "Prepare two questions about team priorities and how success will be measured in the first six months.",
-    ].join("\n");
-  }
-
-  if (normalizedPrompt.includes("resume") || normalizedPrompt.includes("cv") || normalizedPrompt.includes("резюме")) {
-    return [
-      profile.name.trim() || "Candidate",
-      `${job?.title ?? desiredRole}${profile.location ? ` · ${profile.location}` : ""}`,
-      "",
-      "# Professional summary",
-      profile.headline.trim() || `${profile.current_role || desiredRole} targeting ${roleLabel}.`,
-      "",
-      "# Core skills",
-      ...(profile.skills.trim()
-        ? profile.skills.split(/[\n,;]+/).map((skill) => `- ${skill.trim()}`).filter((skill) => skill !== "- ")
-        : skills.map((skill) => `- ${skill}`)),
-      "",
-      "# Experience",
-      profile.experience.trim() || "Add verified experience entries from the candidate profile.",
-      "",
-      "# Education",
-      profile.education.trim() || "Add verified education from the candidate profile.",
-      "",
-      gaps.length ? `Review before sending: address these gaps honestly — ${gaps.join("; ")}.` : "Review every claim before sending.",
-    ].join("\n");
-  }
-
-  if (normalizedPrompt.includes("follow-up") || normalizedPrompt.includes("follow up") || normalizedPrompt.includes("recruiter")) {
-    return [
-      `Subject: Following up on the ${job?.title ?? desiredRole} application`,
-      "",
-      `Hi ${job?.company ? `${job.company} team` : "there"},`,
-      "",
-      `I wanted to follow up on my application for the ${job?.title ?? desiredRole} role. I remain very interested in the opportunity and would be happy to provide any additional information that would be helpful.`,
-      "",
-      `Thank you for your time,\n${candidateName}`,
-      "",
-      application?.nextStep ? `Pipeline note: current next step is “${application.nextStep}”.` : "Keep the message brief and send it only after an appropriate waiting period.",
-    ].join("\n");
-  }
-
-  if (job) {
-    return [
-      `Current assessment: ${roleLabel} has a ${job.match}% displayed match.`,
-      "",
-      reasons.length ? `Strong signals:\n${reasons.map((item) => `• ${item}`).join("\n")}` : "Strong signals: compare your verified achievements with the core requirements.",
-      gaps.length ? `\nGaps to review:\n${gaps.map((item) => `• ${item}`).join("\n")}` : "\nNo major gaps are recorded in the current AI match.",
-      "",
-      "Recommended next step: tailor the top third of the resume, verify the source vacancy, then prepare a short role-specific note.",
-    ].join("\n");
-  }
-
-  return [
-    `A focused plan for ${candidateName}:`,
-    "",
-    "1. Complete the profile and attach the latest resume.",
-    "2. Prioritize a small set of roles that match your target and constraints.",
-    "3. Tailor each application using verified achievements, not generic claims.",
-    "4. Track follow-ups and interview preparation in the application pipeline.",
-    "",
-    `Current target: ${desiredRole}. Select a vacancy or application above for a more specific answer.`,
-  ].join("\n");
-}
 
 export function AssistantView({
   profile,
@@ -411,23 +292,7 @@ export function AssistantView({
     async function loadHistory() {
       setIsLoaded(false);
       try {
-        let serverThreads = await fetchAssistantThreads(showArchived);
-        if (!showArchived) {
-          const rawThreads = window.localStorage.getItem(legacyAssistantThreadsStorageKey);
-          const legacyThreads = normalizeAssistantThreads(rawThreads ? JSON.parse(rawThreads) : []);
-          if (legacyThreads.length) {
-            const archivedThreads = await fetchAssistantThreads(true);
-            const serverIds = new Set(
-              [...serverThreads, ...archivedThreads].map((thread) => thread.id),
-            );
-            const threadsToImport = legacyThreads.filter((thread) => !serverIds.has(thread.id));
-            await Promise.all(
-              threadsToImport.map((thread) => importLegacyAssistantThread(thread)),
-            );
-            window.localStorage.removeItem(legacyAssistantThreadsStorageKey);
-            if (threadsToImport.length) serverThreads = await fetchAssistantThreads(false);
-          }
-        }
+        const serverThreads = await fetchAssistantThreads(showArchived);
         if (cancelled) return;
         setThreads(serverThreads);
         setActiveThreadId(serverThreads[0]?.id ?? "");

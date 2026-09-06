@@ -3,7 +3,6 @@ import { useCallback, useEffect, useMemo, useRef } from "react";
 
 import { ApiResponseError } from "@/shared/api/client";
 import { ownerQueryKey } from "@/shared/api/query-key";
-import { completedBrowserStorageMigrationValue } from "@/shared/browser-storage/constants";
 import type { ApplicationDocument, TrackedApplication } from "@/shared/types/application";
 
 import {
@@ -13,25 +12,11 @@ import {
   fetchApplicationDocuments,
   fetchApplicationAnalysis,
   fetchApplications,
-  importLegacyApplications,
   patchApplication,
   uploadApplicationAttachment,
 } from "../api/client";
 import type { StoredApplicationPayload } from "../api/dto";
-import {
-  applicationFileStorageMigrationKey,
-  applicationsStorageMigrationKey,
-  applicationsStorageKey,
-} from "../browser-storage/keys";
-import {
-  extractLegacyApplicationDocuments,
-  migrateLegacyApplicationDocuments,
-} from "../browser-storage/migrations";
-import {
-  normalizeStoredApplications,
-  removeLegacyDemoApplications,
-} from "../browser-storage/normalizers";
-import { applicationPayloadForStorage } from "../browser-storage/serialization";
+import { normalizeStoredApplications } from "../api/mappers";
 
 const applicationsQueryKey = ownerQueryKey(["applications"] as const);
 
@@ -42,7 +27,6 @@ type VersionedApplication = {
 
 type ApplicationsSnapshot = {
   items: VersionedApplication[];
-  warnings: string[];
 };
 
 function normalizePayload(payload: StoredApplicationPayload) {
@@ -50,60 +34,12 @@ function normalizePayload(payload: StoredApplicationPayload) {
   return application ? { application, revision: payload.revision ?? 0 } : null;
 }
 
-function readLocalApplications() {
-  if (typeof window === "undefined") {
-    return { applications: [], legacyDocuments: new Map<string, ApplicationDocument[]>() };
-  }
-  let parsedLocal: unknown = [];
-  try {
-    const raw = window.localStorage.getItem(applicationsStorageKey);
-    parsedLocal = raw ? JSON.parse(raw) as unknown : [];
-  } catch {
-    window.localStorage.removeItem(applicationsStorageKey);
-  }
-  return {
-    applications: removeLegacyDemoApplications(normalizeStoredApplications(parsedLocal)),
-    legacyDocuments: extractLegacyApplicationDocuments(parsedLocal),
-  };
-}
-
-function localApplicationsSnapshot(): ApplicationsSnapshot {
-  const { applications } = readLocalApplications();
-  return {
-    items: applications.map((application) => ({ application, revision: 0 })),
-    warnings: [],
-  };
-}
-
 async function loadApplicationsSnapshot(signal: AbortSignal): Promise<ApplicationsSnapshot> {
-  const { applications: localApplications, legacyDocuments } = readLocalApplications();
-  const localSignature = JSON.stringify(
-    localApplications.map((application) => application.id).sort(),
-  );
-  const shouldImportLocal = localApplications.length > 0
-    && window.localStorage.getItem(applicationsStorageMigrationKey) !== localSignature;
-  const payloads = shouldImportLocal
-    ? await importLegacyApplications(localApplications, signal)
-    : await fetchApplications(signal);
-  if (shouldImportLocal) {
-    window.localStorage.setItem(applicationsStorageMigrationKey, localSignature);
-  }
-  const warnings: string[] = [];
-  let migratedDocuments = new Map<string, ApplicationDocument[]>();
-  if (legacyDocuments.size > 0) {
-    const migration = await migrateLegacyApplicationDocuments(legacyDocuments, {
-      uploadAttachment: (applicationId, file, metadata) =>
-        uploadApplicationAttachment(applicationId, file, metadata, signal),
-      isPermanentUploadError: (error) =>
-        error instanceof ApiResponseError && [400, 413, 415, 422].includes(error.status),
-    });
-    migratedDocuments = migration.documents;
-    warnings.push(...migration.warnings);
-  }
+  const payloads = await fetchApplications(signal);
   const items = (await Promise.all(payloads.map(async (payload) => {
     const normalized = normalizePayload(payload);
     if (!normalized) return null;
-    let documents = migratedDocuments.get(normalized.application.id) ?? [];
+    let documents: ApplicationDocument[] = [];
     try {
       documents = [
         ...await fetchApplicationDocuments(normalized.application.id, signal),
@@ -117,12 +53,7 @@ async function loadApplicationsSnapshot(signal: AbortSignal): Promise<Applicatio
       application: { ...normalized.application, documents },
     };
   }))).filter((item): item is VersionedApplication => item !== null);
-
-  window.localStorage.setItem(
-    applicationFileStorageMigrationKey,
-    completedBrowserStorageMigrationValue,
-  );
-  return { items, warnings };
+  return { items };
 }
 
 export function useApplications() {
@@ -132,7 +63,6 @@ export function useApplications() {
   const hydrationPromiseRef = useRef<Promise<ApplicationsSnapshot> | null>(null);
   const query = useQuery<ApplicationsSnapshot>({
     queryKey: applicationsQueryKey,
-    placeholderData: localApplicationsSnapshot(),
     queryFn: ({ signal }) => {
       const cacheRevision = cacheRevisionRef.current;
       const promise = loadApplicationsSnapshot(signal).then((snapshot) => {
@@ -143,7 +73,6 @@ export function useApplications() {
           snapshot.items.map((item) => [item.application.id, item.revision]),
         );
         return {
-          warnings: snapshot.warnings,
           items: current.items.map((item) => ({
             ...item,
             revision: serverRevisions.get(item.application.id) ?? item.revision,
@@ -184,14 +113,7 @@ export function useApplications() {
       } else if (existing && existing.revision > 0) {
         payload = await patchApplication(application, existing.revision, signal);
       } else {
-        const applications = (current?.items ?? [])
-          .map((item) => item.application)
-          .filter((item) => item.id !== application.id);
-        const imported = await importLegacyApplications([application, ...applications], signal);
-        payload = imported.find((item) => item.id === application.id) ?? {
-          id: application.id,
-          data: application,
-        };
+        throw new Error("Authoritative application revision is not loaded");
       }
       const normalized = normalizePayload(payload);
       if (!normalized) throw new Error("Application API returned an invalid payload");
@@ -207,7 +129,6 @@ export function useApplications() {
         const items = current?.items ?? [];
         const existing = items.find((item) => item.application.id === application.id);
         return {
-          warnings: current?.warnings ?? [],
           items: existing
             ? items.map((item) => item.application.id === application.id
               ? { ...item, application }
@@ -219,7 +140,6 @@ export function useApplications() {
     },
     onSuccess(saved) {
       queryClient.setQueryData<ApplicationsSnapshot>(applicationsQueryKey, (current) => ({
-        warnings: current?.warnings ?? [],
         items: (current?.items ?? []).map((item) =>
           item.application.id === saved.application.id ? saved : item),
       }));
@@ -234,27 +154,26 @@ export function useApplications() {
 
   const removeMutation = useMutation({
     scope: { id: "applications" },
-    mutationFn: (applicationId: string) => withSignal(async (signal) => {
-      await hydrationPromiseRef.current?.catch(() => undefined);
-      const current = queryClient.getQueryData<ApplicationsSnapshot>(applicationsQueryKey);
-      const existing = current?.items.find((item) => item.application.id === applicationId);
-      await deleteApplication(
-        applicationId,
-        existing && existing.revision > 0 ? existing.revision : null,
-        signal,
-      );
+    mutationFn: ({ applicationId, revision }: { applicationId: string; revision: number }) => withSignal(async (signal) => {
+      await deleteApplication(applicationId, revision, signal);
       return applicationId;
     }),
-    onMutate(applicationId) {
+    onMutate({ applicationId }) {
       cacheRevisionRef.current += 1;
       const previous = queryClient.getQueryData<ApplicationsSnapshot>(applicationsQueryKey);
       queryClient.setQueryData<ApplicationsSnapshot>(applicationsQueryKey, (current) => ({
-        warnings: current?.warnings ?? [],
         items: (current?.items ?? []).filter((item) => item.application.id !== applicationId),
       }));
       return { previous };
     },
-    onError(error, _applicationId, context) {
+    onSuccess(applicationId) {
+      queryClient.setQueryData<ApplicationsSnapshot>(applicationsQueryKey, (current) => ({
+        items: (current?.items ?? []).filter(
+          (item) => item.application.id !== applicationId,
+        ),
+      }));
+    },
+    onError(error, _variables, context) {
       if (context?.previous) queryClient.setQueryData(applicationsQueryKey, context.previous);
       if (error instanceof ApiResponseError && error.status === 412) {
         void queryClient.invalidateQueries({ queryKey: applicationsQueryKey });
@@ -271,7 +190,6 @@ export function useApplications() {
       const next = typeof update === "function" ? update(applications) : update;
       const revisions = new Map((current?.items ?? []).map((item) => [item.application.id, item.revision]));
       return {
-        warnings: current?.warnings ?? [],
         items: next.map((application) => ({
           application,
           revision: revisions.get(application.id) ?? 0,
@@ -296,7 +214,6 @@ export function useApplications() {
       },
     };
     queryClient.setQueryData<ApplicationsSnapshot>(applicationsQueryKey, (snapshot) => ({
-      warnings: snapshot?.warnings ?? [],
       items: (snapshot?.items ?? []).map((item) =>
         item.application.id === applicationId ? saved : item),
     }));
@@ -308,29 +225,28 @@ export function useApplications() {
     [query.data?.items],
   );
 
-  useEffect(() => {
-    if (query.isPlaceholderData && applications.length === 0) return;
-    window.localStorage.setItem(
-      applicationsStorageKey,
-      JSON.stringify(applications.map(applicationPayloadForStorage)),
-    );
-  }, [applications, query.isPlaceholderData]);
-
   const upsert = useCallback((application: TrackedApplication) => {
     return upsertMutation.mutateAsync({
       application,
       existed: Boolean(query.data?.items.some((item) => item.application.id === application.id)),
     });
   }, [query.data?.items, upsertMutation]);
+  const remove = useCallback((applicationId: string) => {
+    const current = queryClient.getQueryData<ApplicationsSnapshot>(applicationsQueryKey);
+    const existing = current?.items.find((item) => item.application.id === applicationId);
+    if (!existing) {
+      return Promise.reject(new Error("Authoritative application revision is not loaded"));
+    }
+    return removeMutation.mutateAsync({ applicationId, revision: existing.revision });
+  }, [queryClient, removeMutation]);
 
   return {
     applications,
     isLoading: query.isLoading,
     error: query.error instanceof Error ? query.error : null,
-    warnings: query.data?.warnings ?? [],
     refetch: query.refetch,
     upsert,
-    remove: removeMutation.mutateAsync,
+    remove,
     isMutating: upsertMutation.isPending || removeMutation.isPending,
     mutationError: (upsertMutation.error ?? removeMutation.error) instanceof Error
       ? upsertMutation.error ?? removeMutation.error as Error

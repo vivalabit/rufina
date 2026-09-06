@@ -286,10 +286,7 @@ describe("ApplicationWorkspace", () => {
   });
 
   it("offers personal and built-in templates and persists a custom UUID", async () => {
-    window.localStorage.removeItem(
-      "tasko.resume-template.v1.application-v3",
-    );
-    installApplicationWorkspaceApiMock({
+    const fetchMock = installApplicationWorkspaceApiMock({
       resumeTemplates: generationResumeTemplates,
     });
     renderApplicationWorkspace(createV3WorkspaceApplication());
@@ -326,22 +323,27 @@ describe("ApplicationWorkspace", () => {
       within(screen.getByRole("region", { name: "Resume template" }))
         .getByText("My Swiss CV"),
     ).toBeInTheDocument();
-    expect(
-      window.localStorage.getItem(
-        "tasko.resume-template.v1.application-v3",
-      ),
-    ).toBe("4ce57ea1-74a2-44cb-90c2-bfe24c549233");
-    window.localStorage.removeItem(
-      "tasko.resume-template.v1.application-v3",
-    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/applications/application-v3/preferences"),
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({
+          resume_template_id: "4ce57ea1-74a2-44cb-90c2-bfe24c549233",
+        }),
+      }),
+    ));
   });
 
   it("falls back when the persisted custom template was deleted", async () => {
-    window.localStorage.setItem(
-      "tasko.resume-template.v1.application-v3",
-      "deleted-custom-template",
-    );
-    installApplicationWorkspaceApiMock();
+    const fetchMock = installApplicationWorkspaceApiMock({
+      applicationPreferences: {
+        application_id: "application-v3",
+        resume_template_id: "deleted-custom-template",
+        resume_generation_mode: "recruiter_xyz_ats",
+        updated_at: "2026-09-06T09:00:00.000Z",
+        revision: 4,
+      },
+    });
     renderApplicationWorkspace(createV3WorkspaceApplication());
 
     await screen.findByTestId("resume-template-thumbnail-classic_single");
@@ -350,14 +352,13 @@ describe("ApplicationWorkspace", () => {
         "Your previously selected resume template is no longer available. An available built-in template was selected.",
       ),
     ).toBeInTheDocument();
-    expect(
-      window.localStorage.getItem(
-        "tasko.resume-template.v1.application-v3",
-      ),
-    ).toBe("classic_single");
-    window.localStorage.removeItem(
-      "tasko.resume-template.v1.application-v3",
-    );
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/applications/application-v3/preferences"),
+      expect.objectContaining({
+        method: "PUT",
+        body: JSON.stringify({ resume_template_id: "classic_single" }),
+      }),
+    ));
   });
 
   it("runs exactly three sequential server stages before rendering finalResume as PDF", async () => {
@@ -686,10 +687,6 @@ describe("ApplicationWorkspace", () => {
 
   it("re-renders a ready FinalResume with a custom UUID without rerunning AI", async () => {
     const customTemplateId = generationResumeTemplates[0].id;
-    window.localStorage.setItem(
-      "tasko.resume-template.v1.application-v3",
-      customTemplateId,
-    );
     const classic = generatedPdfDocument("classic_single");
     const custom = {
       ...generatedPdfDocument(customTemplateId),
@@ -697,6 +694,13 @@ describe("ApplicationWorkspace", () => {
     };
     const requestOrder: string[] = [];
     const fetchMock = installApplicationWorkspaceApiMock({
+      applicationPreferences: {
+        application_id: "application-v3",
+        resume_template_id: customTemplateId,
+        resume_generation_mode: "recruiter_xyz_ats",
+        updated_at: "2026-09-06T09:00:00.000Z",
+        revision: 2,
+      },
       documents: [classic],
       resumeTemplates: generationResumeTemplates,
       requestHandler: async (url, method, init) => {
@@ -785,21 +789,10 @@ describe("ApplicationWorkspace", () => {
         "Saved finalResume rendered with the selected template",
       ),
     ).toBeInTheDocument();
-    window.localStorage.removeItem(
-      "tasko.resume-template.v1.application-v3",
-    );
   });
 
   it("re-renders a saved Imaginator resume without rerunning AI", async () => {
     const customTemplateId = generationResumeTemplates[0].id;
-    window.localStorage.setItem(
-      "tasko.resume-template.v1.application-v3",
-      customTemplateId,
-    );
-    window.localStorage.setItem(
-      "tasko.resume-generation-mode.v1.application-v3",
-      "imaginator",
-    );
     const detailedClassic = generatedImaginatorPdfDocument("classic_single");
     const classic = {
       ...detailedClassic,
@@ -819,6 +812,13 @@ describe("ApplicationWorkspace", () => {
     };
     const requestOrder: string[] = [];
     const fetchMock = installApplicationWorkspaceApiMock({
+      applicationPreferences: {
+        application_id: "application-v3",
+        resume_template_id: customTemplateId,
+        resume_generation_mode: "imaginator",
+        updated_at: "2026-09-06T09:00:00.000Z",
+        revision: 2,
+      },
       documents: [classic],
       resumeTemplates: generationResumeTemplates,
       requestHandler: async (url, method) => {
@@ -884,12 +884,6 @@ describe("ApplicationWorkspace", () => {
     expect(
       screen.queryByRole("dialog", { name: /AI data disclosure/i }),
     ).not.toBeInTheDocument();
-    window.localStorage.removeItem(
-      "tasko.resume-template.v1.application-v3",
-    );
-    window.localStorage.removeItem(
-      "tasko.resume-generation-mode.v1.application-v3",
-    );
   });
 
   it("keeps historical DOCX resumes available for download", async () => {

@@ -30,11 +30,11 @@ function profileFile(
 }
 
 describe("profile API mappers", () => {
-  it("strips hydrated metadata and inline avatar data from API payloads", () => {
+  it("strips hydrated metadata and file-backed avatar URLs from API payloads", () => {
     const payload = profilePayloadForApi({
       ...defaultCandidateProfile,
       name: "Candidate",
-      avatar_url: "data:image/png;base64,iVBORw0KGgo=",
+      avatar_url: "/profile/files/avatar-id",
       documents: "[]",
       resume_file_id: "resume-id",
     });

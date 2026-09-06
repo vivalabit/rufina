@@ -24,18 +24,11 @@ function installHomeApiMock(handler?: HomeRequestHandler) {
         return Response.json([]);
       if (url.pathname === "/jobs" && method === "GET")
         return Response.json([]);
-      if (url.pathname === "/jobs/dismissed-ids" && method === "GET")
+      if (url.pathname === "/jobs/state" && method === "GET")
         return Response.json([]);
       if (url.pathname === "/applications" && method === "GET")
         return Response.json([]);
-      if (url.pathname === "/applications" && method === "PUT") {
-        return Response.json(
-          parseBody<{ applications: unknown[] }>(init).applications,
-        );
-      }
       if (url.pathname === "/applications/events" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/applications/events" && method === "PUT")
         return Response.json([]);
       if (url.pathname === "/profile" && method === "GET")
         return Response.json({});
@@ -142,241 +135,6 @@ async function fillManualApplication(file?: File) {
   }
 }
 
-it("migrates inline profile documents despite an old marker without replacing server singletons", async () => {
-  window.history.replaceState(null, "", "#profile");
-  window.localStorage.setItem("tasko.file-storage-migration.v1.profile", "complete");
-  window.localStorage.setItem(
-    "tasko.profile.v1",
-    JSON.stringify({
-      name: "Legacy Candidate",
-      resume_file_name: "legacy-resume.pdf",
-      resume_data_url: "data:application/pdf;base64,JVBERi0=",
-      avatar_url: "data:image/png;base64,iVBORw0KGgo=",
-      documents: JSON.stringify([
-        {
-          id: "legacy-certificate",
-          title: "Certificate",
-          category: "Certificate",
-          file_name: "certificate.pdf",
-          data_url: "data:application/pdf;base64,JVBERi0=",
-        },
-      ]),
-    }),
-  );
-  const uploads: Array<{ kind: string | null; legacyDocumentId: string | null }> = [];
-  const files = [
-    profileFile("server-resume", "primary_resume"),
-    profileFile("server-avatar", "avatar"),
-  ];
-
-  installHomeApiMock(async (url, method) => {
-    if (url.pathname === "/profile" && method === "GET")
-      return Response.json({ name: "Server Candidate" });
-    if (url.pathname === "/profile/files" && method === "GET")
-      return Response.json(files);
-    if (url.pathname === "/profile/files" && method === "POST") {
-      uploads.push({
-        kind: url.searchParams.get("kind"),
-        legacyDocumentId: url.searchParams.get("legacyDocumentId"),
-      });
-      const uploaded = profileFile("server-certificate", "supporting_document", {
-        title: "Certificate",
-        category: "Certificate",
-        fileName: "certificate.pdf",
-      });
-      files.push(uploaded);
-      return Response.json(uploaded, { status: 201 });
-    }
-    return undefined;
-  });
-
-  render(<HomePage />);
-
-  await waitFor(() => {
-    expect(uploads).toEqual([
-      { kind: "supporting_document", legacyDocumentId: "legacy-primary-resume" },
-      { kind: "supporting_document", legacyDocumentId: "legacy-profile-avatar" },
-      { kind: "supporting_document", legacyDocumentId: "legacy-certificate" },
-    ]);
-  });
-  await waitFor(() => {
-    expect(window.localStorage.getItem("tasko.profile.v1")).toBeNull();
-  });
-});
-
-it("migrates a legacy GIF avatar with the correct extension", async () => {
-  window.localStorage.setItem("tasko.file-storage-migration.v1.profile", "complete");
-  window.localStorage.setItem(
-    "tasko.profile.v1",
-    JSON.stringify({
-      name: "GIF Candidate",
-      avatar_url: "data:image/gif;base64,R0lGODlh",
-    }),
-  );
-  const uploads: Array<{ fileName: string | null; replaceExisting: string | null; type: string }> = [];
-  const files: Array<ReturnType<typeof profileFile>> = [];
-
-  installHomeApiMock(async (url, method, init) => {
-    if (url.pathname === "/profile" && method === "GET")
-      return Response.json({ name: "GIF Candidate" });
-    if (url.pathname === "/profile/files" && method === "GET")
-      return Response.json(files);
-    if (url.pathname === "/profile/files" && method === "POST") {
-      uploads.push({
-        fileName: url.searchParams.get("file_name"),
-        replaceExisting: url.searchParams.get("replaceExisting"),
-        type: (init?.body as Blob).type,
-      });
-      const uploaded = profileFile("gif-avatar", "avatar", {
-        fileName: "avatar.gif",
-        contentType: "image/gif",
-      });
-      files.push(uploaded);
-      return Response.json(uploaded, { status: 201 });
-    }
-    return undefined;
-  });
-
-  render(<HomePage />);
-
-  await waitFor(() => {
-    expect(uploads).toEqual([
-      { fileName: "avatar.gif", replaceExisting: "false", type: "image/gif" },
-    ]);
-  });
-  expect(window.localStorage.getItem("tasko.profile.v1")).toBeNull();
-});
-
-it("scrubs an unsupported legacy SVG avatar and completes migration", async () => {
-  window.localStorage.setItem("tasko.file-storage-migration.v1.profile", "complete");
-  window.localStorage.setItem(
-    "tasko.profile.v1",
-    JSON.stringify({
-      name: "SVG Candidate",
-      avatar_url: "data:image/svg+xml,%3Csvg%3E%3C/svg%3E",
-    }),
-  );
-  let uploadCount = 0;
-
-  installHomeApiMock(async (url, method) => {
-    if (url.pathname === "/profile" && method === "GET")
-      return Response.json({ name: "SVG Candidate" });
-    if (url.pathname === "/profile/files" && method === "POST") {
-      uploadCount += 1;
-      return Response.json({}, { status: 500 });
-    }
-    return undefined;
-  });
-
-  render(<HomePage />);
-
-  await waitFor(() => {
-    expect(window.localStorage.getItem("tasko.profile.v1")).toBeNull();
-  });
-  expect(uploadCount).toBe(0);
-  await waitFor(() => {
-    expect(window.localStorage.getItem("tasko.appLogs.v1")).toContain(
-      "Unsupported legacy avatar type image/svg+xml was removed.",
-    );
-  });
-});
-
-it("replays application inline-file migration even when the old marker is present", async () => {
-  window.localStorage.setItem("tasko.file-storage-migration.v1.applications", "complete");
-  window.localStorage.setItem(
-    "tasko.applications.v1",
-    JSON.stringify([
-      {
-        ...storedApplication("application-legacy-inline"),
-        documents: [
-          {
-            id: "legacy-resume",
-            title: "Legacy Resume",
-            fileName: "legacy-resume.pdf",
-            fileSize: "1 KB",
-            fileType: "application/pdf",
-            uploadedAt: "2026-08-30T10:00:00Z",
-            dataUrl: "data:application/pdf;base64,JVBERi0=",
-          },
-        ],
-      },
-    ]),
-  );
-  const uploads: string[] = [];
-
-  installHomeApiMock(async (url, method) => {
-    if (url.pathname === "/documents/workspace-sources/upload" && method === "POST") {
-      uploads.push(url.searchParams.get("legacyDocumentId") ?? "");
-      return Response.json({
-        id: "source-legacy-resume",
-        applicationId: "application-legacy-inline",
-        category: "Application Attachment",
-        title: "Legacy Resume",
-        language: "",
-        fileName: "legacy-resume.pdf",
-        fileSize: "1 KB",
-        sizeBytes: 8,
-        fileType: "application/pdf",
-        uploadedAt: "2026-08-30T10:00:00Z",
-        downloadUrl: "/documents/workspace-sources/source-legacy-resume/download?applicationId=application-legacy-inline",
-      }, { status: 201 });
-    }
-    return undefined;
-  });
-
-  render(<HomePage />);
-
-  await waitFor(() => expect(uploads).toEqual(["legacy-resume"]));
-  await waitFor(() => {
-    const stored = JSON.parse(
-      window.localStorage.getItem("tasko.applications.v1") ?? "[]",
-    ) as Array<Record<string, unknown>>;
-    expect(stored[0]).not.toHaveProperty("documents");
-  });
-});
-
-it("scrubs a permanently unsupported legacy application file without blocking later migrations", async () => {
-  window.localStorage.setItem(
-    "tasko.applications.v1",
-    JSON.stringify([
-      {
-        ...storedApplication("application-unsupported-inline"),
-        documents: [
-          {
-            title: "Unsafe vector",
-            file_name: "unsafe.svg",
-            data_url: " DATA:image/svg+xml,%3Csvg%3E%3C/svg%3E",
-          },
-        ],
-      },
-    ]),
-  );
-  const uploadIds: string[] = [];
-
-  installHomeApiMock(async (url, method) => {
-    if (url.pathname === "/documents/workspace-sources/upload" && method === "POST") {
-      uploadIds.push(url.searchParams.get("legacyDocumentId") ?? "");
-      return Response.json({ detail: "Unsupported file type" }, { status: 422 });
-    }
-    return undefined;
-  });
-
-  render(<HomePage />);
-
-  await waitFor(() => {
-    expect(uploadIds).toEqual(["legacy-application-document-1"]);
-  });
-  await waitFor(() => {
-    const stored = JSON.parse(
-      window.localStorage.getItem("tasko.applications.v1") ?? "[]",
-    ) as Array<Record<string, unknown>>;
-    expect(stored[0]).not.toHaveProperty("documents");
-  });
-  expect(window.localStorage.getItem("tasko.appLogs.v1")).toContain(
-    "not a safe supported file",
-  );
-});
-
 it("keeps avatar changes pending until Save and deletes the stored avatar for Use Default", async () => {
   window.history.replaceState(null, "", "#profile");
   const files = [profileFile("avatar-existing", "avatar")];
@@ -430,7 +188,9 @@ it("keeps an application document visible when its DELETE request fails", async 
 
   installHomeApiMock(async (url, method) => {
     if (url.pathname === "/applications" && method === "GET")
-      return Response.json([{ id: application.id, data: application }]);
+      return Response.json([
+        { id: application.id, data: application, revision: 1 },
+      ]);
     if (url.pathname === "/documents/workspace-sources/library" && method === "GET") {
       return Response.json([{
         id: "source-proof",
@@ -469,7 +229,7 @@ it("keeps the manual application dialog and file draft after an upload failure",
     if (url.pathname === "/applications" && method === "POST") {
       requests.push("create");
       const payload = parseBody<{ id: string; data: unknown }>(init);
-      return Response.json(payload, { status: 201 });
+      return Response.json({ ...payload, revision: 1 }, { status: 201 });
     }
     if (url.pathname === "/documents/workspace-sources/upload" && method === "POST") {
       requests.push("upload");
@@ -506,7 +266,7 @@ it("retains uploaded documents when authoritative application analysis omits the
       const payload = parseBody<{ id: string; data: Record<string, unknown> }>(init);
       applicationId = payload.id;
       createdApplication = payload.data;
-      return Response.json(payload, { status: 201 });
+      return Response.json({ ...payload, revision: 1 }, { status: 201 });
     }
     if (url.pathname === "/documents/workspace-sources/upload" && method === "POST") {
       return Response.json({

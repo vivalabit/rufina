@@ -25,19 +25,6 @@ export async function fetchAssistantThreads(archived: boolean, signal?: AbortSig
   }, normalizeAssistantThreads)).data;
 }
 
-export async function importLegacyAssistantThread(
-  thread: AssistantThread,
-  signal?: AbortSignal,
-) {
-  await apiClient.empty({
-    path: `/assistant/conversations/${encodeURIComponent(thread.id)}`,
-    method: "PUT",
-    json: thread,
-    signal,
-    errorMessage: "Conversation import failed",
-  });
-}
-
 export async function persistAssistantMessage(
   threadId: string,
   message: AssistantMessage,

@@ -1,5 +1,4 @@
 import { resolveApiUrl } from "@/shared/api/config";
-import { isInlineDataUrl } from "@/shared/browser-storage/data-url";
 import { formatFileSize } from "@/shared/formatting/files";
 import type { CandidateProfile } from "@/shared/types/profile";
 
@@ -17,7 +16,7 @@ export function profilePayloadForApi(profile: CandidateProfile) {
   delete payload.resume_file_size;
   delete payload.resume_updated_at;
   delete payload.resume_download_url;
-  if (isInlineDataUrl(payload.avatar_url) || payload.avatar_url?.includes("/profile/files/")) payload.avatar_url = defaultCandidateProfile.avatar_url;
+  if (payload.avatar_url?.includes("/profile/files/")) payload.avatar_url = defaultCandidateProfile.avatar_url;
   return payload;
 }
 

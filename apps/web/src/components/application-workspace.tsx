@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -36,6 +36,7 @@ import {
   fetchGeneratedDocuments,
   fetchGeneratedDocumentVersions,
   fetchWorkspaceAiConfiguration,
+  fetchWorkspaceApplicationPreferences,
   fetchWorkspaceDocumentTemplates,
   fetchWorkspaceMasterResume,
   fetchWorkspaceResumeTemplates,
@@ -48,6 +49,7 @@ import {
   runResumeTailoringStage,
   saveCandidateConfirmations,
   saveGeneratedDocument,
+  saveWorkspaceApplicationPreferences,
   type WorkspaceAiConfiguration as AiConfiguration,
   type WorkspaceDocumentTemplate as DocumentTemplate,
   type WorkspaceMasterResume as CurrentMasterResume,
@@ -58,7 +60,6 @@ import {
   isLegacyAiMatch,
 } from "@/lib/ai-match";
 import {
-  importLegacyCandidateConfirmations,
   isCandidateConfirmationComplete,
   isMeaningfulCandidateConfirmation,
   type CandidateConfirmation,
@@ -352,8 +353,6 @@ const defaultAiConfiguration: AiConfiguration = {
 const confirmationAnswerMaxChars = 1_500;
 const documentRevisionMessageMaxChars = 7_000;
 const documentGenerationMessageMaxChars = 11_500;
-const resumeTemplateStorageKeyPrefix = "tasko.resume-template.v1";
-const resumeGenerationModeStorageKeyPrefix = "tasko.resume-generation-mode.v1";
 const resumeGenerationModes: ReadonlyArray<{
   id: ResumeGenerationMode;
   name: string;
@@ -408,10 +407,6 @@ const packStageDefinitions: Array<{ id: PackStageId; label: string }> = [
 
 function createId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function isResumeGenerationMode(value: string | null): value is ResumeGenerationMode {
-  return resumeGenerationModes.some((mode) => mode.id === value);
 }
 
 function documentFileName(document: GeneratedDocument, version = document.currentVersion) {
@@ -602,13 +597,6 @@ function CoverLetterTemplateCard({ template }: { template: DocumentTemplate | nu
       </p>
     </div>
   );
-}
-
-function inferSourceLanguage(fileName: string, title = "") {
-  const value = `${fileName} ${title}`.toLowerCase();
-  if (/(?:^|[\s_.-])(de|deu|ger)(?:[\s_.-]|$)|deutsch|german/.test(value)) return "German";
-  if (/(?:^|[\s_.-])(en|eng)(?:[\s_.-]|$)|english/.test(value)) return "English";
-  return "";
 }
 
 function detectLegacyJobLanguage(job: WorkspaceJob) {
@@ -815,26 +803,39 @@ export function ApplicationWorkspace({
   const [aiConfiguration, setAiConfiguration] = useState<AiConfiguration>(defaultAiConfiguration);
   const [apiHealth, setApiHealth] = useState<"checking" | "available" | "unavailable">("checking");
   const [apiRetryVersion, setApiRetryVersion] = useState(0);
+  const preferenceRevisionsRef = useRef(new Map<string, number | null>());
+  const preferenceSaveQueuesRef = useRef(new Map<string, Promise<void>>());
+
+  const persistPreferences = useCallback((
+    preferences: Parameters<typeof saveWorkspaceApplicationPreferences>[1],
+  ) => {
+    if (!application) return;
+    const applicationId = application.id;
+    const queuedSave = (preferenceSaveQueuesRef.current.get(applicationId) ?? Promise.resolve())
+      .catch(() => undefined)
+      .then(async () => {
+        const saved = await saveWorkspaceApplicationPreferences(
+          applicationId,
+          preferences,
+          preferenceRevisionsRef.current.get(applicationId) ?? null,
+        );
+        preferenceRevisionsRef.current.set(applicationId, saved.revision);
+      })
+      .catch((error) => {
+        setDocumentError(apiUnavailableMessage(error, "Application preferences could not be saved"));
+      });
+    preferenceSaveQueuesRef.current.set(applicationId, queuedSave);
+  }, [application]);
 
   function selectResumeTemplate(templateId: ResumeTemplateId) {
     setSelectedResumeTemplateId(templateId);
     setResumeTemplateNotice("");
-    if (application) {
-      window.localStorage.setItem(
-        `${resumeTemplateStorageKeyPrefix}.${application.id}`,
-        templateId,
-      );
-    }
+    persistPreferences({ resume_template_id: templateId });
   }
 
   function selectResumeGenerationMode(mode: ResumeGenerationMode) {
     setSelectedResumeGenerationMode(mode);
-    if (application) {
-      window.localStorage.setItem(
-        `${resumeGenerationModeStorageKeyPrefix}.${application.id}`,
-        mode,
-      );
-    }
+    persistPreferences({ resume_generation_mode: mode });
   }
 
   function handleResumeTemplateUnavailable(templateId: ResumeTemplateId) {
@@ -852,13 +853,7 @@ export function ApplicationWorkspace({
     setResumeTemplateNotice(
       "The selected resume template was deleted or is no longer available. Choose another template and render again.",
     );
-    if (!application) return;
-    const storageKey = `${resumeTemplateStorageKeyPrefix}.${application.id}`;
-    if (fallbackTemplate) {
-      window.localStorage.setItem(storageKey, fallbackTemplate.id);
-    } else {
-      window.localStorage.removeItem(storageKey);
-    }
+    persistPreferences({ resume_template_id: fallbackTemplate?.id ?? null });
   }
 
   function retryApiRequests() {
@@ -882,18 +877,9 @@ export function ApplicationWorkspace({
 
   useEffect(() => {
     if (!application) return;
-    const savedTemplateId = window.localStorage.getItem(
-      `${resumeTemplateStorageKeyPrefix}.${application.id}`,
-    );
-    const savedGenerationMode = window.localStorage.getItem(
-      `${resumeGenerationModeStorageKeyPrefix}.${application.id}`,
-    );
-    setSelectedResumeTemplateId(savedTemplateId || "classic_single");
-    setSelectedResumeGenerationMode(
-      isResumeGenerationMode(savedGenerationMode)
-        ? savedGenerationMode
-        : defaultResumeGenerationMode,
-    );
+    preferenceRevisionsRef.current.delete(application.id);
+    setSelectedResumeTemplateId("classic_single");
+    setSelectedResumeGenerationMode(defaultResumeGenerationMode);
     setResumeTemplateNotice("");
     setDocumentsLoaded(false);
     setMasterResumeLoaded(false);
@@ -908,39 +894,44 @@ export function ApplicationWorkspace({
       fetchWorkspaceResumeTemplates(controller.signal),
       fetchWorkspaceAiConfiguration(controller.signal),
       fetchWorkspaceMasterResume(controller.signal),
+      fetchWorkspaceApplicationPreferences(application.id, controller.signal)
+        .catch(() => null),
     ])
-      .then(([loadedDocuments, loadedTemplates, loadedResumeTemplates, loadedAiConfiguration, loadedMasterResume]) => {
+      .then(([
+        loadedDocuments,
+        loadedTemplates,
+        loadedResumeTemplates,
+        loadedAiConfiguration,
+        loadedMasterResume,
+        loadedPreferences,
+      ]) => {
         setDocuments(loadedDocuments);
         setTemplates(loadedTemplates.filter((template) => template.type === "cover_letter"));
         setResumeTemplates(loadedResumeTemplates);
         const preferredResumeTemplate =
           loadedResumeTemplates.find(
-            (template) => template.id === savedTemplateId,
+            (template) => template.id === loadedPreferences?.resume_template_id,
           ) ??
-          loadedResumeTemplates.find(
-            (template) => template.id === "classic_single",
-          ) ??
+          loadedResumeTemplates.find((template) => template.id === "classic_single") ??
           loadedResumeTemplates[0];
         setSelectedResumeTemplateId(preferredResumeTemplate?.id ?? "");
+        setSelectedResumeGenerationMode(
+          loadedPreferences?.resume_generation_mode ?? defaultResumeGenerationMode,
+        );
+        preferenceRevisionsRef.current.set(
+          application.id,
+          loadedPreferences?.revision ?? null,
+        );
         if (
-          savedTemplateId &&
-          !loadedResumeTemplates.some(
-            (template) => template.id === savedTemplateId,
-          )
+          loadedPreferences?.resume_template_id
+          && loadedPreferences.resume_template_id !== preferredResumeTemplate?.id
         ) {
           setResumeTemplateNotice(
             "Your previously selected resume template is no longer available. An available built-in template was selected.",
           );
-          if (preferredResumeTemplate) {
-            window.localStorage.setItem(
-              `${resumeTemplateStorageKeyPrefix}.${application.id}`,
-              preferredResumeTemplate.id,
-            );
-          } else {
-            window.localStorage.removeItem(
-              `${resumeTemplateStorageKeyPrefix}.${application.id}`,
-            );
-          }
+          persistPreferences({
+            resume_template_id: preferredResumeTemplate?.id ?? null,
+          });
         }
         setAiConfiguration(loadedAiConfiguration);
         setCurrentMasterResume(loadedMasterResume);
@@ -954,7 +945,7 @@ export function ApplicationWorkspace({
         setDocumentError(apiUnavailableMessage(error, "Application documents are temporarily unavailable"));
       });
     return () => controller.abort();
-  }, [application, apiRetryVersion]);
+  }, [application, apiRetryVersion, persistPreferences]);
 
   const latestResume = useMemo(
     () => documents.find((document) => document.type === "tailored_resume"),
@@ -1002,7 +993,6 @@ export function ApplicationWorkspace({
   const unansweredBlockingQuestions = clarificationQuestions.filter(
     (question) => question.blocking && !isCandidateConfirmationComplete(question, candidateConfirmations[question.id]),
   );
-  const hasIncompleteBlockingConfirmations = unansweredBlockingQuestions.length > 0;
   const hasOversizedConfirmation = clarificationQuestions.some(
     (question) => (candidateConfirmations[question.id]?.exampleText.trim().length ?? 0) > confirmationAnswerMaxChars,
   );
@@ -1042,7 +1032,6 @@ export function ApplicationWorkspace({
     }
     const controller = new AbortController();
     const applicationId = application.id;
-    const legacyStorageKey = `tasko.application-confirmations.${applicationId}`;
     setCandidateConfirmations({});
     setConfirmationsDirty(false);
     setConfirmationSyncStatus("loading");
@@ -1068,28 +1057,12 @@ export function ApplicationWorkspace({
             blocking: question.blocking,
           }]];
         }));
-        let legacyById: Record<string, CandidateConfirmation> = {};
-        try {
-          const storedLegacyAnswers = window.localStorage.getItem(legacyStorageKey);
-          legacyById = importLegacyCandidateConfirmations(
-            storedLegacyAnswers ? JSON.parse(storedLegacyAnswers) : null,
-            clarificationQuestions,
-          );
-        } catch {
-          legacyById = {};
-        }
-
-        const missingLegacyConfirmations = Object.fromEntries(
-          Object.entries(legacyById).filter(([questionId]) => !backendById[questionId]),
+        setCandidateConfirmations(backendById);
+        setConfirmationsDirty(backendNeedsSync);
+        setConfirmationSyncStatus(backendNeedsSync ? "unsaved" : "saved");
+        setConfirmationSyncMessage(
+          backendNeedsSync ? "Requirements changed — updating saved answers" : "",
         );
-        const shouldSync = Object.keys(missingLegacyConfirmations).length > 0 || backendNeedsSync;
-        setCandidateConfirmations({ ...missingLegacyConfirmations, ...backendById });
-        setConfirmationsDirty(shouldSync);
-        setConfirmationSyncStatus(shouldSync ? "unsaved" : "saved");
-        setConfirmationSyncMessage(Object.keys(missingLegacyConfirmations).length > 0 ? "Legacy answers imported — checking before backend save" : backendNeedsSync ? "Requirements changed — updating saved answers" : "");
-        if (Object.keys(legacyById).length > 0 && Object.keys(missingLegacyConfirmations).length === 0) {
-          window.localStorage.removeItem(legacyStorageKey);
-        }
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setApiHealth("unavailable");
@@ -1135,7 +1108,6 @@ export function ApplicationWorkspace({
         setConfirmationsDirty(false);
         setConfirmationSyncStatus("saved");
         setConfirmationSyncMessage("");
-        window.localStorage.removeItem(`tasko.application-confirmations.${application.id}`);
       } catch (error) {
         if (error instanceof DOMException && error.name === "AbortError") return;
         setApiHealth("unavailable");

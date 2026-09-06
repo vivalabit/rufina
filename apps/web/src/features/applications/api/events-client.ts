@@ -13,19 +13,6 @@ export async function fetchApplicationEvents(signal?: AbortSignal) {
   })).data;
 }
 
-export async function importLegacyApplicationEvents(
-  events: ApplicationEvent[],
-  signal?: AbortSignal,
-) {
-  return (await apiClient.json<StoredApplicationEventPayload[]>({
-    path: "/applications/events",
-    method: "PUT",
-    json: { events: events.map(applicationEventToApiPayload) },
-    signal,
-    errorMessage: "Legacy application events could not be imported",
-  })).data;
-}
-
 export async function createApplicationEvent(
   event: ApplicationEvent,
   signal?: AbortSignal,

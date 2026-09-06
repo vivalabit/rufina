@@ -4,8 +4,6 @@ import { useCallback, useEffect, useRef } from "react";
 import { createClientId } from "@/lib/client-id";
 import { ApiResponseError } from "@/shared/api/client";
 import { ownerQueryKey } from "@/shared/api/query-key";
-import { completedBrowserStorageMigrationValue } from "@/shared/browser-storage/constants";
-import { isInlineDataUrl } from "@/shared/browser-storage/data-url";
 import type { CandidateProfile } from "@/shared/types/profile";
 
 import {
@@ -16,52 +14,26 @@ import {
   importProfileExperience,
   importProfileSkills,
   patchProfileFile,
-  ProfileFileUploadError,
   putProfile,
   uploadProfileFile,
 } from "../api/client";
+import type { ProfileFileUploadMetadata } from "../api/dto";
 import {
   hydrateProfileFiles,
   mergeHydratedProfileMetadata,
   profilePayloadForApi,
 } from "../api/mappers";
-import {
-  profileFileStorageMigrationKey,
-  profileStorageKey,
-} from "../browser-storage/keys";
-import {
-  hasLegacyProfileInlineFiles,
-  migrateLegacyProfileFiles,
-  readLegacyStoredCandidateProfile,
-  type LegacyProfileFileUploadMetadata,
-} from "../browser-storage/migrations";
 import { defaultCandidateProfile } from "../model/defaults";
 import { normalizeCandidateProfile } from "../model/normalizers";
-import { hasCandidateProfileData } from "../model/selectors";
 
 const profileQueryKey = ownerQueryKey(["profile"] as const);
-const permanentLegacyFileStatuses = new Set([400, 413, 415, 422]);
 
 type ProfileSnapshot = {
   profile: CandidateProfile;
   etag: string | null;
-  warnings: string[];
 };
 
-function isPermanentLegacyFileUploadError(error: unknown) {
-  return error instanceof ProfileFileUploadError && permanentLegacyFileStatuses.has(error.status);
-}
-
 async function loadProfileSnapshot(signal: AbortSignal): Promise<ProfileSnapshot> {
-  const legacyProfile = readLegacyStoredCandidateProfile(window.localStorage);
-  const storedProfile = legacyProfile
-    ? normalizeCandidateProfile({
-        ...legacyProfile,
-        avatar_url: isInlineDataUrl(legacyProfile.avatar_url)
-          ? defaultCandidateProfile.avatar_url
-          : legacyProfile.avatar_url,
-      } as Partial<CandidateProfile>)
-    : null;
   const profileResource = await fetchProfile(signal);
   let initialFiles = null;
   try {
@@ -69,69 +41,12 @@ async function loadProfileSnapshot(signal: AbortSignal): Promise<ProfileSnapshot
   } catch {
     // File metadata is independently recoverable; keep the text profile usable.
   }
-  let loadedProfile = hydrateProfileFiles(
+  const loadedProfile = hydrateProfileFiles(
     normalizeCandidateProfile(profileResource.profile),
     initialFiles ?? [],
     createClientId,
   );
-  let etag = profileResource.etag;
-  let legacyProfileTextSaved = !storedProfile || hasCandidateProfileData(loadedProfile);
-  const warnings: string[] = [];
-
-  if (!hasCandidateProfileData(loadedProfile) && storedProfile) {
-    try {
-      const saved = await putProfile(profilePayloadForApi(storedProfile), etag, signal);
-      etag = saved.etag;
-      legacyProfileTextSaved = true;
-      loadedProfile = hydrateProfileFiles(
-        normalizeCandidateProfile(saved.profile),
-        initialFiles ?? [],
-        createClientId,
-      );
-    } catch {
-      legacyProfileTextSaved = false;
-    }
-  }
-
-  const finalizeLegacyStorage = () => {
-    window.localStorage.setItem(
-      profileFileStorageMigrationKey,
-      completedBrowserStorageMigrationValue,
-    );
-    if (!storedProfile || legacyProfileTextSaved) {
-      window.localStorage.removeItem(profileStorageKey);
-    } else {
-      window.localStorage.setItem(
-        profileStorageKey,
-        JSON.stringify(profilePayloadForApi(storedProfile)),
-      );
-      warnings.push("Legacy profile text was kept locally for retry; inline files were removed.");
-    }
-  };
-
-  const hasLegacyInlineFiles = legacyProfile
-    ? hasLegacyProfileInlineFiles(legacyProfile)
-    : false;
-  if (legacyProfile && hasLegacyInlineFiles && initialFiles !== null) {
-    warnings.push(...await migrateLegacyProfileFiles(
-      legacyProfile,
-      initialFiles,
-      {
-        uploadFile: (file, metadata) => uploadProfileFile(file, metadata, signal),
-        isPermanentUploadError: isPermanentLegacyFileUploadError,
-      },
-    ));
-    loadedProfile = hydrateProfileFiles(
-      loadedProfile,
-      await fetchProfileFiles(signal),
-      createClientId,
-    );
-    finalizeLegacyStorage();
-  } else if (legacyProfile && !hasLegacyInlineFiles) {
-    finalizeLegacyStorage();
-  }
-
-  return { profile: loadedProfile, etag, warnings };
+  return { profile: loadedProfile, etag: profileResource.etag };
 }
 
 export function useProfile() {
@@ -169,10 +84,9 @@ export function useProfile() {
       };
     }),
     onSuccess(saved) {
-      queryClient.setQueryData<ProfileSnapshot>(profileQueryKey, (current) => ({
+      queryClient.setQueryData<ProfileSnapshot>(profileQueryKey, () => ({
         profile: saved.profile,
         etag: saved.etag,
-        warnings: current?.warnings ?? [],
       }));
     },
     onError(error) {
@@ -192,7 +106,7 @@ export function useProfile() {
   }, [queryClient]);
 
   const uploadFile = useCallback(
-    (file: Blob, metadata: LegacyProfileFileUploadMetadata) =>
+    (file: Blob, metadata: ProfileFileUploadMetadata) =>
       withMutationSignal((signal) => uploadProfileFile(file, metadata, signal)),
     [withMutationSignal],
   );
@@ -210,7 +124,6 @@ export function useProfile() {
     queryClient.setQueryData<ProfileSnapshot>(profileQueryKey, (current) => ({
       profile: mergeHydratedProfileMetadata(profile, current?.profile ?? defaultCandidateProfile),
       etag: current?.etag ?? null,
-      warnings: current?.warnings ?? [],
     }));
   }, [queryClient]);
 
@@ -224,7 +137,6 @@ export function useProfile() {
           typeof update === "function" ? update(currentProfile) : update,
         ),
         etag: current?.etag ?? null,
-        warnings: current?.warnings ?? [],
       };
     });
   }, [queryClient]);
@@ -233,7 +145,6 @@ export function useProfile() {
     profile: query.data?.profile ?? defaultCandidateProfile,
     isLoading: query.isLoading,
     error: query.error instanceof Error ? query.error : null,
-    warnings: query.data?.warnings ?? [],
     refetch: refreshFiles,
     save: saveMutation.mutateAsync,
     isSaving: saveMutation.isPending,

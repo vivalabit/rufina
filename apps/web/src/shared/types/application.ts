@@ -16,7 +16,6 @@ export type ApplicationDocument = {
   fileType: string;
   uploadedAt: string;
   downloadUrl: string;
-  legacyDataUrl?: string;
   pendingFile?: File;
 };
 

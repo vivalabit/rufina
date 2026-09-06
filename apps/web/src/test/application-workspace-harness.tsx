@@ -15,6 +15,13 @@ type ApplicationOverrides = Omit<Partial<WorkspaceApplication>, "job"> & {
 };
 
 type WorkspaceApiOptions = {
+  applicationPreferences?: {
+    application_id: string;
+    resume_template_id: string | null;
+    resume_generation_mode: "recruiter_xyz_ats" | "imaginator" | null;
+    updated_at: string;
+    revision: number;
+  } | null;
   confirmationPutResponse?: unknown[];
   confirmations?: unknown[];
   currentMasterResume?: unknown | null;
@@ -189,6 +196,7 @@ function createWorkspaceApplication(
 }
 
 export function installApplicationWorkspaceApiMock({
+  applicationPreferences = null,
   confirmationPutResponse = [],
   confirmations = [],
   currentMasterResume = {
@@ -274,6 +282,7 @@ export function installApplicationWorkspaceApiMock({
   ],
   requestHandler,
 }: WorkspaceApiOptions = {}) {
+  let savedApplicationPreferences = applicationPreferences;
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
     const requestUrl =
       typeof input === "string"
@@ -370,6 +379,32 @@ export function installApplicationWorkspaceApiMock({
       method === "PUT"
     ) {
       return Response.json(confirmationPutResponse);
+    }
+    if (/^\/applications\/[^/]+\/preferences$/.test(url.pathname) && method === "GET") {
+      return savedApplicationPreferences
+        ? Response.json(savedApplicationPreferences)
+        : Response.json(
+            { detail: "Application preferences not found" },
+            { status: 404 },
+          );
+    }
+    if (/^\/applications\/[^/]+\/preferences$/.test(url.pathname) && method === "PUT") {
+      const preferences = JSON.parse(String(init?.body)) as Record<string, unknown>;
+      savedApplicationPreferences = {
+        application_id: url.pathname.split("/")[2],
+        resume_template_id:
+          typeof preferences.resume_template_id === "string"
+            ? preferences.resume_template_id
+            : savedApplicationPreferences?.resume_template_id ?? null,
+        resume_generation_mode:
+          preferences.resume_generation_mode === "recruiter_xyz_ats"
+            || preferences.resume_generation_mode === "imaginator"
+            ? preferences.resume_generation_mode
+            : savedApplicationPreferences?.resume_generation_mode ?? null,
+        updated_at: "2026-09-06T10:00:00.000Z",
+        revision: (savedApplicationPreferences?.revision ?? 0) + 1,
+      };
+      return Response.json(savedApplicationPreferences);
     }
 
     throw new Error(

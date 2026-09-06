@@ -1,4 +1,3 @@
-import { sanitizeLegacyLocalAiMatch } from "@/features/jobs/model/ai-match";
 import { isDirectCompanyJobId } from "@/features/jobs/model/sources";
 import type { Job } from "@/shared/types/job";
 
@@ -32,18 +31,7 @@ export function normalizeStoredJobs(value: unknown) {
       Array.isArray(candidate.skills);
 
     if (!isValidJob) return [];
-
-    return [
-      sanitizeLegacyLocalAiMatch({
-        ...(candidate as Job),
-        logo: normalizeStoredJobLogo(candidate as Job),
-        archived: Boolean(candidate.archived),
-        archivedAt:
-          typeof candidate.archivedAt === "string"
-            ? candidate.archivedAt
-            : undefined,
-      }),
-    ];
+    return [{ ...(candidate as Job), logo: normalizeStoredJobLogo(candidate as Job) }];
   });
 }
 
@@ -53,17 +41,4 @@ export function normalizeStoredJobLogo(job: Job): Job["logo"] {
   if (job.id.startsWith("jobs_ch-")) return "jobs_ch";
   if (isDirectCompanyJobId(job.id)) return "company";
   return job.logo;
-}
-
-export function normalizeStoredJobIds(value: unknown) {
-  if (!Array.isArray(value)) return [];
-
-  return Array.from(
-    new Set(
-      value.filter(
-        (id): id is string =>
-          typeof id === "string" && id.trim().length > 0,
-      ),
-    ),
-  );
 }

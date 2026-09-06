@@ -1242,13 +1242,6 @@ it("deletes a stored supporting document and hides cover letters", async () => {
     }
     if (url.pathname === "/settings" && method === "GET")
       return Response.json(configuredAppSettings);
-    if (
-      (url.pathname === "/applications" ||
-        url.pathname === "/applications/events") &&
-      method === "PUT"
-    ) {
-      return Response.json([]);
-    }
     throw new Error(`Unhandled request: ${method} ${url.pathname}`);
   });
   vi.stubGlobal("fetch", fetchMock);
@@ -1293,14 +1286,6 @@ it("offers CV / Resume as a supporting document type", async () => {
     }
     if (url.pathname === "/settings" && method === "GET") {
       return Response.json(configuredAppSettings);
-    }
-    if (
-      (url.pathname === "/applications" ||
-        url.pathname === "/applications/events" ||
-        url.pathname === "/jobs/dismissed-ids") &&
-      method === "PUT"
-    ) {
-      return Response.json([]);
     }
     throw new Error(`Unhandled request: ${method} ${url.pathname}`);
   });
@@ -1629,7 +1614,13 @@ it("adds a manual vacancy to Jobs, persists it, and starts AI analysis", async (
     if (url.pathname === "/job-search/configs" && method === "GET")
       return Response.json([]);
     if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
-    if (url.pathname === "/jobs" && method === "PUT") return Response.json([]);
+    if (url.pathname === "/jobs/state" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/jobs" && method === "PUT") {
+      return Response.json(
+        (body as { jobs: Array<{ id: string; data: unknown }> }).jobs,
+      );
+    }
     if (url.pathname === "/applications" && method === "GET")
       return Response.json([]);
     if (url.pathname === "/applications/events" && method === "GET")
@@ -1739,12 +1730,6 @@ it("adds a manual vacancy to Jobs, persists it, and starts AI analysis", async (
       .jobs[0].data.overview,
   ).toContain("Python services");
 
-  const locallyStoredJobs = JSON.parse(
-    window.localStorage.getItem("tasko.importedJobs.v1") ?? "[]",
-  ) as Array<{ title: string }>;
-  expect(
-    locallyStoredJobs.some((job) => job.title === "Backend Engineer"),
-  ).toBe(true);
 });
 
 it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selected", async () => {
@@ -1769,6 +1754,8 @@ it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selecte
       return Response.json([]);
     if (url.pathname === "/jobs" && method === "GET")
       return Response.json(storedJobs);
+    if (url.pathname === "/jobs/state" && method === "GET")
+      return Response.json([]);
     if (url.pathname === "/applications" && method === "GET")
       return Response.json([]);
     if (url.pathname === "/applications/events" && method === "GET")
@@ -1914,10 +1901,6 @@ it("starts the requested 24-hour analysis immediately", async () => {
     id: "linkedin-recent-direct-job",
     title: "Data Engineer",
   });
-  window.localStorage.setItem(
-    "tasko.importedJobs.v1",
-    JSON.stringify([recentJob]),
-  );
 
   let aiMatchAttempts = 0;
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
@@ -1934,6 +1917,8 @@ it("starts the requested 24-hour analysis immediately", async () => {
       return Response.json([]);
     if (url.pathname === "/jobs" && method === "GET")
       return Response.json([{ id: recentJob.id, data: recentJob }]);
+    if (url.pathname === "/jobs/state" && method === "GET")
+      return Response.json([]);
     if (url.pathname === "/jobs" && method === "PUT")
       return Response.json([{ id: recentJob.id, data: recentJob }]);
     if (url.pathname === "/applications" && method === "GET")
@@ -1976,10 +1961,6 @@ it("starts the requested 24-hour analysis immediately", async () => {
 it("does not re-add a vacancy whose deleted id was synchronized with the server", async () => {
   window.history.replaceState(null, "", "#jobs");
   const dismissedId = "linkedin-https-www-linkedin-com-jobs-view-123";
-  window.localStorage.setItem(
-    "tasko.deletedJobIds.v1",
-    JSON.stringify([dismissedId]),
-  );
   const requests: Array<{ path: string; method: string }> = [];
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
     const requestUrl =
@@ -1995,7 +1976,7 @@ it("does not re-add a vacancy whose deleted id was synchronized with the server"
     if (url.pathname === "/job-search/configs" && method === "GET")
       return Response.json([]);
     if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
-    if (url.pathname === "/jobs/state/import" && method === "POST") {
+    if (url.pathname === "/jobs/state" && method === "GET") {
       return Response.json([{
         jobId: dismissedId,
         saved: false,
@@ -2035,13 +2016,10 @@ it("does not re-add a vacancy whose deleted id was synchronized with the server"
   vi.stubGlobal("fetch", fetchMock);
 
   render(<HomePage />);
-
-  await waitFor(() => {
-    expect(requests).toContainEqual({
-      path: "/jobs/state/import",
-      method: "POST",
-    });
-  });
+  await waitFor(() => expect(requests).toContainEqual({
+    path: "/jobs/state",
+    method: "GET",
+  }));
   fireEvent.click(
     await screen.findByRole("button", { name: "Search vacancies" }),
   );
@@ -2129,6 +2107,8 @@ it("loads a server config and refreshes backend-persisted search results", async
     }
     if (url.pathname === "/jobs" && method === "GET")
       return Response.json(storedJobs);
+    if (url.pathname === "/jobs/state" && method === "GET")
+      return Response.json([]);
     if (url.pathname === "/applications" && method === "GET")
       return Response.json([]);
     if (url.pathname === "/applications/events" && method === "GET")
@@ -2279,7 +2259,7 @@ it("reports an unfinished provider snapshot without claiming zero results", asyn
     }
     if (
       (url.pathname === "/jobs" ||
-        url.pathname === "/jobs/dismissed-ids" ||
+        url.pathname === "/jobs/state" ||
         url.pathname === "/applications" ||
         url.pathname === "/applications/events") &&
       method === "GET"
@@ -2291,13 +2271,6 @@ it("reports an unfinished provider snapshot without claiming zero results", asyn
     }
     if (url.pathname === "/settings" && method === "GET") {
       return Response.json(configuredAppSettings);
-    }
-    if (
-      (url.pathname === "/applications" ||
-        url.pathname === "/applications/events") &&
-      method === "PUT"
-    ) {
-      return Response.json([]);
     }
     throw new Error(`Unhandled request: ${method} ${url.pathname}`);
   });
@@ -2587,7 +2560,7 @@ it("keeps each source config selected when profiles differ", async () => {
     }
     if (
       (url.pathname === "/jobs" ||
-        url.pathname === "/jobs/dismissed-ids" ||
+        url.pathname === "/jobs/state" ||
         url.pathname === "/applications" ||
         url.pathname === "/applications/events") &&
       method === "GET"
@@ -2599,13 +2572,6 @@ it("keeps each source config selected when profiles differ", async () => {
     }
     if (url.pathname === "/settings" && method === "GET") {
       return Response.json(configuredAppSettings);
-    }
-    if (
-      (url.pathname === "/applications" ||
-        url.pathname === "/applications/events") &&
-      method === "PUT"
-    ) {
-      return Response.json([]);
     }
     throw new Error(`Unhandled request: ${method} ${url.pathname}`);
   });
@@ -2660,134 +2626,6 @@ it("keeps each source config selected when profiles differ", async () => {
       jobs_ch: "senior-it-jobs-ch",
     },
   });
-});
-
-it("imports legacy local search configs to the server only once", async () => {
-  window.history.replaceState(null, "", "#jobs");
-  window.localStorage.setItem(
-    "tasko.parserSearchConfigs.v2",
-    JSON.stringify([
-      {
-        id: "legacy-zurich",
-        name: "Legacy Zurich",
-        updatedAt: "2026-07-20T09:00:00.000Z",
-        form: {
-          parsers: ["linkedin", "indeed"],
-          keywords: "Platform Engineer",
-          location: "Zurich",
-          remote: "Any",
-          experienceLevel: "Any",
-          jobType: "Full-time",
-          datePosted: "Past week",
-          resultsLimit: "25",
-          country: "Switzerland",
-          deduplicate: true,
-          searchName: "Legacy Zurich",
-          folder: "",
-        },
-      },
-    ]),
-  );
-  const configWrites: Array<Record<string, unknown>> = [];
-  const serverConfigs: Array<Record<string, unknown>> = [];
-  const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
-    const requestUrl =
-      typeof input === "string"
-        ? input
-        : input instanceof URL
-          ? input.href
-          : input.url;
-    const url = new URL(requestUrl, "http://localhost");
-    const method = init?.method ?? "GET";
-
-    if (url.pathname === "/job-search/configs" && method === "GET") {
-      return Response.json(serverConfigs);
-    }
-    if (url.pathname === "/job-search/configs" && method === "POST") {
-      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      configWrites.push(body);
-      const saved = {
-        id: "server-config-1",
-        ...body,
-        createdAt: "2026-07-23T10:00:00.000Z",
-        updatedAt: "2026-07-23T10:00:00.000Z",
-      };
-      serverConfigs.push(saved);
-      return Response.json(saved, { status: 201 });
-    }
-    if (url.pathname === "/jobs" && method === "GET") return Response.json([]);
-    if (url.pathname === "/jobs/dismissed-ids" && method === "GET") {
-      return Response.json([]);
-    }
-    if (url.pathname === "/applications" && method === "GET") {
-      return Response.json([]);
-    }
-    if (url.pathname === "/applications/events" && method === "GET") {
-      return Response.json([]);
-    }
-    if (url.pathname === "/profile" && method === "GET")
-      return Response.json({});
-    if (url.pathname === "/settings" && method === "GET") {
-      return Response.json(configuredAppSettings);
-    }
-    if (
-      (url.pathname === "/applications" ||
-        url.pathname === "/applications/events") &&
-      method === "PUT"
-    ) {
-      return Response.json([]);
-    }
-    throw new Error(`Unhandled request: ${method} ${url.pathname}`);
-  });
-  vi.stubGlobal("fetch", fetchMock);
-
-  const firstRender = render(<HomePage />);
-  await waitFor(() => expect(configWrites).toHaveLength(1));
-  expect(configWrites[0]).toMatchObject({
-    name: "Legacy Zurich",
-    filters: {
-      schemaVersion: 2,
-      search: {
-        keywords: "Platform Engineer",
-        location: "Zurich",
-        resultsLimit: 25,
-        deduplicate: true,
-      },
-      screening: {
-        enabled: true,
-        targetRoles: ["Platform Engineer"],
-      },
-    },
-  });
-  expect(
-    (configWrites[0].filters as Record<string, unknown>).search as Record<
-      string,
-      unknown
-    >,
-  ).not.toHaveProperty("sources");
-  expect(
-    window.localStorage.getItem("tasko.parserSearchConfigs.v2"),
-  ).toBeNull();
-
-  firstRender.unmount();
-  render(<HomePage />);
-  await waitFor(() => {
-    expect(
-      fetchMock.mock.calls.filter(([input, init]) => {
-        const requestUrl =
-          typeof input === "string"
-            ? input
-            : input instanceof URL
-              ? input.href
-              : input.url;
-        return (
-          new URL(requestUrl, "http://localhost").pathname ===
-            "/job-search/configs" && (init?.method ?? "GET") === "GET"
-        );
-      }).length,
-    ).toBeGreaterThanOrEqual(2);
-  });
-  expect(configWrites).toHaveLength(1);
 });
 
 it("adds and removes LinkedIn professions without dropping supporting queries", async () => {
@@ -2868,7 +2706,7 @@ it("adds and removes LinkedIn professions without dropping supporting queries", 
     }
     if (
       (url.pathname === "/jobs" ||
-        url.pathname === "/jobs/dismissed-ids" ||
+        url.pathname === "/jobs/state" ||
         url.pathname === "/applications" ||
         url.pathname === "/applications/events") &&
       method === "GET"
@@ -2880,13 +2718,6 @@ it("adds and removes LinkedIn professions without dropping supporting queries", 
     }
     if (url.pathname === "/settings" && method === "GET") {
       return Response.json(configuredAppSettings);
-    }
-    if (
-      (url.pathname === "/applications" ||
-        url.pathname === "/applications/events") &&
-      method === "PUT"
-    ) {
-      return Response.json([]);
     }
     throw new Error(`Unhandled request: ${method} ${url.pathname}`);
   });
@@ -2957,7 +2788,7 @@ it("keeps query configs in source settings and removes the legacy panels", async
       (url.pathname === "/job-search/configs" ||
         url.pathname === "/job-search/source-configs" ||
         url.pathname === "/jobs" ||
-        url.pathname === "/jobs/dismissed-ids" ||
+        url.pathname === "/jobs/state" ||
         url.pathname === "/applications" ||
         url.pathname === "/applications/events") &&
       method === "GET"
@@ -2969,13 +2800,6 @@ it("keeps query configs in source settings and removes the legacy panels", async
     }
     if (url.pathname === "/settings" && method === "GET") {
       return Response.json(configuredAppSettings);
-    }
-    if (
-      (url.pathname === "/applications" ||
-        url.pathname === "/applications/events") &&
-      method === "PUT"
-    ) {
-      return Response.json([]);
     }
     throw new Error(`Unhandled request: ${method} ${url.pathname}`);
   });
@@ -3065,7 +2889,7 @@ it("uses a broad direction and full-catalog filters for a direct-company-only se
     }
     if (
       (url.pathname === "/jobs" ||
-        url.pathname === "/jobs/dismissed-ids" ||
+        url.pathname === "/jobs/state" ||
         url.pathname === "/applications" ||
         url.pathname === "/applications/events") &&
       method === "GET"
@@ -3077,13 +2901,6 @@ it("uses a broad direction and full-catalog filters for a direct-company-only se
     }
     if (url.pathname === "/settings" && method === "GET") {
       return Response.json(configuredAppSettings);
-    }
-    if (
-      (url.pathname === "/applications" ||
-        url.pathname === "/applications/events") &&
-      method === "PUT"
-    ) {
-      return Response.json([]);
     }
     throw new Error(`Unhandled request: ${method} ${url.pathname}`);
   });
@@ -4049,7 +3866,7 @@ it("shows direct-company vacancies with their company logos", async () => {
     }
     if (url.pathname === "/jobs" && method === "GET")
       return Response.json(storedJobs);
-    if (url.pathname === "/jobs/dismissed-ids" && method === "GET") {
+    if (url.pathname === "/jobs/state" && method === "GET") {
       return Response.json([]);
     }
     if (url.pathname === "/applications" && method === "GET") {
@@ -4062,13 +3879,6 @@ it("shows direct-company vacancies with their company logos", async () => {
       return Response.json({});
     if (url.pathname === "/settings" && method === "GET") {
       return Response.json(configuredAppSettings);
-    }
-    if (
-      (url.pathname === "/applications" ||
-        url.pathname === "/applications/events") &&
-      method === "PUT"
-    ) {
-      return Response.json([]);
     }
     throw new Error(`Unhandled request: ${method} ${url.pathname}`);
   });
@@ -5160,7 +4970,7 @@ it("shows seeded vacancies and calendar events only in demo mode", async () => {
         return Response.json([]);
       if (url.pathname === "/jobs" && method === "GET")
         return Response.json([]);
-      if (url.pathname === "/jobs/dismissed-ids" && method === "GET")
+      if (url.pathname === "/jobs/state" && method === "GET")
         return Response.json([]);
       if (url.pathname === "/applications" && method === "GET")
         return Response.json([]);
@@ -5170,13 +4980,6 @@ it("shows seeded vacancies and calendar events only in demo mode", async () => {
         return Response.json({});
       if (url.pathname === "/settings" && method === "GET")
         return Response.json(configuredAppSettings);
-      if (
-        (url.pathname === "/applications" ||
-          url.pathname === "/applications/events") &&
-        method === "PUT"
-      ) {
-        return Response.json([]);
-      }
       return undefined;
     },
   });
@@ -5278,15 +5081,6 @@ it("keeps preparation drafts out of Applications until they are marked as applie
           brightdata_api_key_preview: "",
         });
       }
-      if (url.pathname === "/applications" && method === "PUT") {
-        const payload = JSON.parse(String(init?.body)) as {
-          applications: Array<{ data: { status: string } }>;
-        };
-        savedApplicationStatuses.push(
-          ...payload.applications.map((application) => application.data.status),
-        );
-        return Response.json(payload.applications);
-      }
       if (url.pathname === "/applications" && method === "POST") {
         const payload = JSON.parse(String(init?.body)) as {
           id: string;
@@ -5307,8 +5101,6 @@ it("keeps preparation drafts out of Applications until they are marked as applie
           revision: payload.revision + 1,
         });
       }
-      if (url.pathname === "/applications/events" && method === "PUT")
-        return Response.json([]);
       return undefined;
     },
   });
@@ -5359,383 +5151,6 @@ it("keeps preparation drafts out of Applications until they are marked as applie
   await waitFor(() => expect(savedApplicationStatuses).toContain("applied"));
 });
 
-it("does not apply a stale application save response over newer local changes", async () => {
-  window.history.replaceState(null, "", "#applications");
-  const application = trackedTestApplication({
-    id: "application-stale-save",
-    jobId: "job-stale-save",
-    title: "Stale Save Test Vacancy",
-  });
-  window.localStorage.setItem(
-    "tasko.applications.v1",
-    JSON.stringify([application]),
-  );
-
-  let putCount = 0;
-  let resolveFirstPut: ((response: Response) => void) | undefined;
-  let resolveSecondPut: ((response: Response) => void) | undefined;
-  const firstPutResponse = new Promise<Response>((resolve) => {
-    resolveFirstPut = resolve;
-  });
-  const secondPutResponse = new Promise<Response>((resolve) => {
-    resolveSecondPut = resolve;
-  });
-  let secondPutFinished = false;
-  const savedStatuses: string[] = [];
-
-  installApplicationWorkspaceApiMock({
-    requestHandler: async (url, method, init) => {
-      if (url.pathname === "/job-search/configs" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/jobs" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/jobs/dismissed-ids" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/applications" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/applications" && method === "PUT") {
-        const payload = JSON.parse(String(init?.body)) as {
-          applications: Array<{ id: string; data: typeof application }>;
-        };
-        putCount += 1;
-        savedStatuses.push(
-          ...payload.applications.map((item) => item.data.status),
-        );
-        if (putCount === 1) return firstPutResponse;
-        if (putCount === 2) {
-          const response = await secondPutResponse;
-          secondPutFinished = true;
-          return response;
-        }
-        return Response.json(payload.applications);
-      }
-      if (url.pathname === "/applications/events" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/applications/events" && method === "PUT")
-        return Response.json([]);
-      if (url.pathname === "/profile" && method === "GET")
-        return Response.json({});
-      if (url.pathname === "/settings" && method === "GET")
-        return Response.json(configuredAppSettings);
-      return undefined;
-    },
-  });
-
-  render(<HomePage />);
-
-  expect(
-    (await screen.findAllByText("Stale Save Test Vacancy")).length,
-  ).toBeGreaterThan(0);
-  await waitFor(() => expect(putCount).toBe(1));
-
-  fireEvent.click(screen.getByRole("button", { name: "Application actions" }));
-  const interviewButtons = screen.getAllByRole("button", { name: "Interview" });
-  fireEvent.click(interviewButtons[interviewButtons.length - 1]);
-  await waitFor(() => {
-    const stored = JSON.parse(
-      window.localStorage.getItem("tasko.applications.v1") ?? "[]",
-    ) as Array<{ status: string }>;
-    expect(stored[0]?.status).toBe("interview");
-  });
-
-  resolveFirstPut?.(Response.json([{ id: application.id, data: application }]));
-
-  await waitFor(() => expect(savedStatuses).toContain("interview"));
-  await waitFor(() => expect(putCount).toBe(2));
-  let stored = JSON.parse(
-    window.localStorage.getItem("tasko.applications.v1") ?? "[]",
-  ) as Array<{ status: string }>;
-  expect(stored[0]?.status).toBe("interview");
-
-  resolveSecondPut?.(
-    Response.json([
-      {
-        id: application.id,
-        data: { ...application, status: "interview" },
-      },
-    ]),
-  );
-  await waitFor(() => expect(secondPutFinished).toBe(true));
-  expect(putCount).toBe(2);
-  stored = JSON.parse(
-    window.localStorage.getItem("tasko.applications.v1") ?? "[]",
-  ) as Array<{ status: string }>;
-  expect(stored[0]?.status).toBe("interview");
-});
-
-it("serializes application saves and deletion without restoring a stale application", async () => {
-  window.history.replaceState(null, "", "#applications");
-  vi.spyOn(window, "confirm").mockReturnValue(true);
-  const application = trackedTestApplication({
-    id: "application-delete-race",
-    jobId: "job-delete-race",
-    title: "Delete Race Test Vacancy",
-  });
-  const applicationEvent = {
-    id: "event-delete-race",
-    applicationId: application.id,
-    type: "interview",
-    status: "scheduled",
-    title: "Delete race interview",
-    startsAt: "2026-08-25T10:00:00.000Z",
-    durationMinutes: 30,
-    timezone: "Europe/Zurich",
-    location: "Video call",
-    notes: "Test event",
-  };
-  window.localStorage.setItem(
-    "tasko.applications.v1",
-    JSON.stringify([application]),
-  );
-  window.localStorage.setItem(
-    "tasko.applicationEvents.v1",
-    JSON.stringify([applicationEvent]),
-  );
-
-  let storedApplications = [application];
-  let putCount = 0;
-  let resolveStalePut: ((response: Response) => void) | undefined;
-  let resolveStaleGet: ((response: Response) => void) | undefined;
-  let resolveStaleEventGet: ((response: Response) => void) | undefined;
-  const stalePutResponse = new Promise<Response>((resolve) => {
-    resolveStalePut = resolve;
-  });
-  const staleGetResponse = new Promise<Response>((resolve) => {
-    resolveStaleGet = resolve;
-  });
-  const staleEventGetResponse = new Promise<Response>((resolve) => {
-    resolveStaleEventGet = resolve;
-  });
-  const mutationOrder: string[] = [];
-
-  installApplicationWorkspaceApiMock({
-    requestHandler: async (url, method, init) => {
-      if (url.pathname === "/job-search/configs" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/jobs" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/jobs/dismissed-ids" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/applications" && method === "GET") {
-        return staleGetResponse;
-      }
-      if (url.pathname === "/applications" && method === "PUT") {
-        putCount += 1;
-        mutationOrder.push(`put-${putCount}-start`);
-        if (putCount === 1) {
-          const response = await stalePutResponse;
-          mutationOrder.push("put-1-end");
-          return response;
-        }
-        const request = JSON.parse(String(init?.body)) as {
-          applications: Array<{ data: typeof application }>;
-        };
-        for (const item of request.applications) {
-          const index = storedApplications.findIndex(
-            (stored) => stored.id === item.data.id,
-          );
-          if (index >= 0) storedApplications[index] = item.data;
-          else storedApplications.push(item.data);
-        }
-        mutationOrder.push(`put-${putCount}-end`);
-        return Response.json(
-          storedApplications.map((item) => ({ id: item.id, data: item })),
-        );
-      }
-      if (
-        url.pathname === "/applications/application-delete-race" &&
-        method === "DELETE"
-      ) {
-        mutationOrder.push("delete");
-        storedApplications = [];
-        return new Response(null, { status: 204 });
-      }
-      if (url.pathname === "/applications/events" && method === "GET")
-        return staleEventGetResponse;
-      if (url.pathname === "/applications/events" && method === "PUT") {
-        const payload = JSON.parse(String(init?.body)) as {
-          events: Array<{ application_id: string }>;
-        };
-        mutationOrder.push(
-          payload.events.some(
-            (event) => event.application_id === application.id,
-          )
-            ? "events-put-with-application"
-            : "events-put-without-application",
-        );
-        return Response.json([]);
-      }
-      if (url.pathname === "/profile" && method === "GET")
-        return Response.json({});
-      if (url.pathname === "/settings" && method === "GET")
-        return Response.json(configuredAppSettings);
-      return undefined;
-    },
-  });
-
-  render(<HomePage />);
-
-  expect(
-    (await screen.findAllByText("Delete Race Test Vacancy")).length,
-  ).toBeGreaterThan(0);
-  await waitFor(() => expect(mutationOrder).toContain("put-1-start"));
-
-  fireEvent.click(screen.getByRole("button", { name: "Application actions" }));
-  fireEvent.click(screen.getByRole("button", { name: "Delete application" }));
-
-  expect(await screen.findByText("No applications yet")).toBeInTheDocument();
-  expect(mutationOrder).not.toContain("delete");
-
-  resolveStalePut?.(Response.json([{ id: application.id, data: application }]));
-
-  await waitFor(() => expect(mutationOrder).toContain("delete"));
-  expect(mutationOrder.indexOf("put-1-end")).toBeLessThan(
-    mutationOrder.indexOf("delete"),
-  );
-  expect(mutationOrder.indexOf("events-put-with-application")).toBeLessThan(
-    mutationOrder.indexOf("delete"),
-  );
-  resolveStaleGet?.(Response.json([{ id: application.id, data: application }]));
-  resolveStaleEventGet?.(
-    Response.json([
-      {
-        id: applicationEvent.id,
-        application_id: application.id,
-        data: applicationEvent,
-      },
-    ]),
-  );
-
-  expect(mutationOrder.indexOf("put-1-end")).toBeLessThan(
-    mutationOrder.indexOf("delete"),
-  );
-  expect(screen.queryAllByText("Delete Race Test Vacancy")).toHaveLength(0);
-  expect(screen.getByText("No applications yet")).toBeInTheDocument();
-  await waitFor(() => {
-    const storedEvents = JSON.parse(
-      window.localStorage.getItem("tasko.applicationEvents.v1") ?? "[]",
-    ) as Array<{ applicationId: string }>;
-    expect(
-      storedEvents.some((event) => event.applicationId === application.id),
-    ).toBe(false);
-  });
-});
-
-it("orders an application event deletion after an older bulk save", async () => {
-  window.history.replaceState(null, "", "#applications");
-  const application = trackedTestApplication({
-    id: "application-event-delete-race",
-    jobId: "job-event-delete-race",
-    title: "Event Delete Race Test Vacancy",
-  });
-  const applicationEvent = {
-    id: "event-delete-after-bulk-save",
-    applicationId: application.id,
-    type: "interview",
-    status: "scheduled",
-    title: "Queued event deletion",
-    startsAt: "2026-08-25T10:00:00.000Z",
-    durationMinutes: 30,
-    timezone: "Europe/Zurich",
-    location: "Video call",
-    notes: "Must stay deleted",
-  };
-  window.localStorage.setItem(
-    "tasko.applications.v1",
-    JSON.stringify([application]),
-  );
-  window.localStorage.setItem(
-    "tasko.applicationEvents.v1",
-    JSON.stringify([applicationEvent]),
-  );
-
-  let resolveOldEventPut: ((response: Response) => void) | undefined;
-  const oldEventPutResponse = new Promise<Response>((resolve) => {
-    resolveOldEventPut = resolve;
-  });
-  let eventPutCount = 0;
-  let storedEventIds = [applicationEvent.id];
-  const mutationOrder: string[] = [];
-  const eventPutBodies: string[][] = [];
-
-  installApplicationWorkspaceApiMock({
-    requestHandler: async (url, method, init) => {
-      if (url.pathname === "/job-search/configs" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/jobs" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/jobs/dismissed-ids" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/applications" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/applications" && method === "PUT") {
-        const payload = JSON.parse(String(init?.body)) as {
-          applications: Array<{ id: string; data: unknown }>;
-        };
-        return Response.json(payload.applications);
-      }
-      if (url.pathname === "/applications/events" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/applications/events" && method === "PUT") {
-        const payload = JSON.parse(String(init?.body)) as {
-          events: Array<{ id: string }>;
-        };
-        const eventIds = payload.events.map((event) => event.id);
-        eventPutBodies.push(eventIds);
-        eventPutCount += 1;
-        if (eventPutCount === 1) {
-          mutationOrder.push("old-events-put-start");
-          const response = await oldEventPutResponse;
-          storedEventIds = Array.from(
-            new Set([...storedEventIds, ...eventIds]),
-          );
-          mutationOrder.push("old-events-put-end");
-          return response;
-        }
-        storedEventIds = Array.from(new Set([...storedEventIds, ...eventIds]));
-        mutationOrder.push("new-events-put");
-        return Response.json(payload.events);
-      }
-      if (
-        url.pathname === "/applications/events/event-delete-after-bulk-save" &&
-        method === "DELETE"
-      ) {
-        mutationOrder.push("event-delete");
-        storedEventIds = storedEventIds.filter(
-          (eventId) => eventId !== applicationEvent.id,
-        );
-        return new Response(null, { status: 204 });
-      }
-      if (url.pathname === "/profile" && method === "GET")
-        return Response.json({});
-      if (url.pathname === "/settings" && method === "GET")
-        return Response.json(configuredAppSettings);
-      return undefined;
-    },
-  });
-
-  render(<HomePage />);
-
-  expect(
-    (await screen.findAllByText("Event Delete Race Test Vacancy")).length,
-  ).toBeGreaterThan(0);
-  await waitFor(() => expect(mutationOrder).toContain("old-events-put-start"));
-  fireEvent.click(screen.getByRole("button", { name: "Event actions" }));
-  fireEvent.click(screen.getByRole("button", { name: "Delete" }));
-
-  expect(mutationOrder).not.toContain("event-delete");
-  resolveOldEventPut?.(Response.json([]));
-
-  await waitFor(() => expect(mutationOrder).toContain("event-delete"));
-  expect(mutationOrder.indexOf("old-events-put-end")).toBeLessThan(
-    mutationOrder.indexOf("event-delete"),
-  );
-  expect(storedEventIds).not.toContain(applicationEvent.id);
-  expect(
-    screen.queryByRole("button", { name: "Event actions" }),
-  ).not.toBeInTheDocument();
-});
-
 it("restores an application and reports a failed application deletion", async () => {
   window.history.replaceState(null, "", "#applications");
   vi.spyOn(window, "confirm").mockReturnValue(true);
@@ -5747,26 +5162,18 @@ it("restores an application and reports a failed application deletion", async ()
     jobId: "job-delete-failure",
     title: "Failed Delete Test Vacancy",
   });
-  window.localStorage.setItem(
-    "tasko.applications.v1",
-    JSON.stringify([application]),
-  );
-  let putCount = 0;
-
   installApplicationWorkspaceApiMock({
     requestHandler: async (url, method) => {
       if (url.pathname === "/job-search/configs" && method === "GET")
         return Response.json([]);
       if (url.pathname === "/jobs" && method === "GET")
         return Response.json([]);
-      if (url.pathname === "/jobs/dismissed-ids" && method === "GET")
+      if (url.pathname === "/jobs/state" && method === "GET")
         return Response.json([]);
       if (url.pathname === "/applications" && method === "GET") {
-        return Response.json([{ id: application.id, data: application }]);
-      }
-      if (url.pathname === "/applications" && method === "PUT") {
-        putCount += 1;
-        return Response.json([{ id: application.id, data: application }]);
+        return Response.json([
+          { id: application.id, data: application, revision: 1 },
+        ]);
       }
       if (
         url.pathname === "/applications/application-delete-failure" &&
@@ -5778,8 +5185,6 @@ it("restores an application and reports a failed application deletion", async ()
         );
       }
       if (url.pathname === "/applications/events" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/applications/events" && method === "PUT")
         return Response.json([]);
       if (url.pathname === "/profile" && method === "GET")
         return Response.json({});
@@ -5794,7 +5199,6 @@ it("restores an application and reports a failed application deletion", async ()
   expect(
     (await screen.findAllByText("Failed Delete Test Vacancy")).length,
   ).toBeGreaterThan(0);
-  await waitFor(() => expect(putCount).toBeGreaterThan(0));
 
   fireEvent.click(screen.getByRole("button", { name: "Application actions" }));
   fireEvent.click(screen.getByRole("button", { name: "Delete application" }));
@@ -5816,138 +5220,6 @@ it("restores an application and reports a failed application deletion", async ()
       }),
     );
   });
-});
-
-it("does not restore screenshot applications or events from browser storage", async () => {
-  window.history.replaceState(null, "", "#applications");
-  const screenshotApplicationIds = [
-    "application-manual-job-demo-novara",
-    "application-manual-job-demo-cirruspay",
-    "application-manual-job-demo-alpine-grid",
-    "application-manual-job-demo-luma-health",
-  ];
-  const screenshotApplications = screenshotApplicationIds.map((id, index) =>
-    trackedTestApplication({
-      id,
-      jobId: `manual-job-demo-${index}`,
-      title: `Screenshot Test Vacancy ${index + 1}`,
-    }),
-  );
-  const retainedApplication = trackedTestApplication({
-    id: "application-user-retained",
-    jobId: "job-user-retained",
-    title: "Retained User Vacancy",
-  });
-  const screenshotEvents = screenshotApplicationIds.map(
-    (applicationId, index) => ({
-      id: `screenshot-event-${index}`,
-      applicationId,
-      type: "interview",
-      status: "scheduled",
-      title: `Screenshot Event ${index + 1}`,
-      startsAt: "2026-08-25T10:00:00.000Z",
-      durationMinutes: 30,
-      timezone: "Europe/Zurich",
-      location: "Video call",
-      notes: "Screenshot fixture",
-    }),
-  );
-  const retainedEvent = {
-    id: "retained-event",
-    applicationId: retainedApplication.id,
-    type: "interview",
-    status: "scheduled",
-    title: "Retained User Interview",
-    startsAt: "2026-08-25T10:00:00.000Z",
-    durationMinutes: 30,
-    timezone: "Europe/Zurich",
-    location: "Video call",
-    notes: "User event",
-  };
-  window.localStorage.setItem(
-    "tasko.applications.v1",
-    JSON.stringify([...screenshotApplications, retainedApplication]),
-  );
-  window.localStorage.setItem(
-    "tasko.applicationEvents.v1",
-    JSON.stringify([...screenshotEvents, retainedEvent]),
-  );
-
-  const savedApplicationIds: string[][] = [];
-  const savedEventApplicationIds: string[][] = [];
-  installApplicationWorkspaceApiMock({
-    requestHandler: async (url, method, init) => {
-      if (url.pathname === "/job-search/configs" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/jobs" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/jobs/dismissed-ids" && method === "GET")
-        return Response.json([]);
-      if (url.pathname === "/applications" && method === "GET") {
-        return Response.json(
-          [...screenshotApplications, retainedApplication].map((item) => ({
-            id: item.id,
-            data: item,
-          })),
-        );
-      }
-      if (url.pathname === "/applications" && method === "PUT") {
-        const payload = JSON.parse(String(init?.body)) as {
-          applications: Array<{ id: string; data: unknown }>;
-        };
-        savedApplicationIds.push(payload.applications.map((item) => item.id));
-        return Response.json(payload.applications);
-      }
-      if (url.pathname === "/applications/events" && method === "GET") {
-        return Response.json(
-          [...screenshotEvents, retainedEvent].map((event) => ({
-            id: event.id,
-            application_id: event.applicationId,
-            data: event,
-          })),
-        );
-      }
-      if (url.pathname === "/applications/events" && method === "PUT") {
-        const payload = JSON.parse(String(init?.body)) as {
-          events: Array<{ application_id: string }>;
-        };
-        savedEventApplicationIds.push(
-          payload.events.map((event) => event.application_id),
-        );
-        return Response.json(payload.events);
-      }
-      if (url.pathname === "/profile" && method === "GET")
-        return Response.json({});
-      if (url.pathname === "/settings" && method === "GET")
-        return Response.json(configuredAppSettings);
-      return undefined;
-    },
-  });
-
-  render(<HomePage />);
-
-  expect(
-    (await screen.findAllByText("Retained User Vacancy")).length,
-  ).toBeGreaterThan(0);
-  await waitFor(() => expect(savedApplicationIds.length).toBeGreaterThan(0));
-  await waitFor(() =>
-    expect(savedEventApplicationIds.length).toBeGreaterThan(0),
-  );
-
-  for (const ids of savedApplicationIds) {
-    expect(ids.some((id) => screenshotApplicationIds.includes(id))).toBe(false);
-  }
-  for (const ids of savedEventApplicationIds) {
-    expect(ids.some((id) => screenshotApplicationIds.includes(id))).toBe(false);
-  }
-  for (let index = 0; index < screenshotApplicationIds.length; index += 1) {
-    expect(
-      screen.queryAllByText(`Screenshot Test Vacancy ${index + 1}`),
-    ).toHaveLength(0);
-    expect(screen.queryAllByText(`Screenshot Event ${index + 1}`)).toHaveLength(
-      0,
-    );
-  }
 });
 
 it("offers decision-focused assistant questions on the Jobs page", async () => {

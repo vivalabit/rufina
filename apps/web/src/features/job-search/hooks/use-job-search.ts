@@ -5,7 +5,6 @@ import { ownerQueryKey } from "@/shared/api/query-key";
 
 import type { JobSearchRunPayload, JobSourceConfigPayload } from "../api/dto";
 import {
-  createSearchConfig,
   fetchJobSearchRuns,
   fetchSearchConfigs,
   fetchSourceConfigs,
@@ -13,15 +12,6 @@ import {
   saveSourceConfig,
 } from "../api/client";
 import { parserSearchConfigFromApi } from "../api/mappers";
-import {
-  hasEquivalentServerSearchConfig,
-  normalizeParserSearchConfigs,
-} from "../browser-storage/migrations";
-import {
-  legacyParserSearchConfigsStorageKey,
-  parserSearchConfigsStorageKey,
-} from "../browser-storage/keys";
-import { parserSearchFiltersFromForm } from "../model/form-mappers";
 import type { ParserSearchConfig } from "../model/types";
 
 const configsQueryKey = ownerQueryKey(["job-search", "configs"] as const);
@@ -33,28 +23,7 @@ type SearchConfigsSnapshot = {
 };
 
 async function loadConfigs(signal: AbortSignal): Promise<SearchConfigsSnapshot> {
-  window.localStorage.removeItem(legacyParserSearchConfigsStorageKey);
   const serverConfigs = await fetchSearchConfigs(signal);
-  const rawLegacyConfigs = window.localStorage.getItem(parserSearchConfigsStorageKey);
-  if (rawLegacyConfigs) {
-    let legacyConfigs: ParserSearchConfig[] = [];
-    try {
-      const parsed = JSON.parse(rawLegacyConfigs) as unknown;
-      legacyConfigs = Array.isArray(parsed)
-        ? normalizeParserSearchConfigs(parsed as ParserSearchConfig[])
-        : [];
-    } catch {
-      window.localStorage.removeItem(parserSearchConfigsStorageKey);
-    }
-    for (const legacyConfig of legacyConfigs) {
-      if (hasEquivalentServerSearchConfig(legacyConfig, serverConfigs)) continue;
-      serverConfigs.push(await createSearchConfig({
-        name: legacyConfig.name,
-        filters: parserSearchFiltersFromForm(legacyConfig.form),
-      }, signal));
-    }
-    window.localStorage.removeItem(parserSearchConfigsStorageKey);
-  }
   let sourceConfigs: JobSourceConfigPayload[] = [];
   try {
     sourceConfigs = await fetchSourceConfigs(signal);

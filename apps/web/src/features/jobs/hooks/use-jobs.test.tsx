@@ -1,19 +1,14 @@
 import { QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import type { ReactNode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { createQueryClient } from "@/shared/api/query-client";
 
-import {
-  archivedJobIdsStorageKey,
-} from "../browser-storage/keys";
 import { demoJobs } from "../model/demo-jobs";
 import { useJobs } from "./use-jobs";
 
 afterEach(() => vi.unstubAllGlobals());
-beforeEach(() => window.localStorage.clear());
-
 function wrapper({ children }: { children: ReactNode }) {
   return <QueryClientProvider client={createQueryClient()}>{children}</QueryClientProvider>;
 }
@@ -54,14 +49,10 @@ describe("useJobs", () => {
     expect(patchCall?.[1]?.headers).toMatchObject({ "If-Match": '"2"' });
   });
 
-  it("normalizes legacy state imports and keeps server revisions for other jobs", async () => {
-    const [legacyJob, job] = demoJobs;
-    window.localStorage.setItem(
-      archivedJobIdsStorageKey,
-      JSON.stringify([legacyJob.id]),
-    );
-    const legacyState = {
-      jobId: legacyJob.id,
+  it("uses authoritative states and revisions for every job", async () => {
+    const [archivedJob, job] = demoJobs;
+    const archivedState = {
+      jobId: archivedJob.id,
       saved: false,
       archived: true,
       dismissed: false,
@@ -86,22 +77,12 @@ describe("useJobs", () => {
       const url = new URL(String(input));
       if (url.pathname === "/jobs" && !init?.method) {
         return Response.json([
-          { id: legacyJob.id, data: legacyJob },
+          { id: archivedJob.id, data: archivedJob },
           { id: job.id, data: job },
         ]);
       }
       if (url.pathname === "/jobs/state" && !init?.method) {
-        return Response.json([legacyState, state]);
-      }
-      if (url.pathname === "/jobs/state/import" && init?.method === "POST") {
-        const body = JSON.parse(String(init.body)) as { jobs: unknown[] };
-        expect(body.jobs).toEqual([{
-          jobId: legacyJob.id,
-          saved: false,
-          archived: true,
-          dismissed: false,
-        }]);
-        return Response.json([legacyState]);
+        return Response.json([archivedState, state]);
       }
       if (url.pathname === `/jobs/${job.id}/state` && init?.method === "PATCH") {
         expect(new Headers(init.headers).get("If-Match")).toBe('"4"');
@@ -123,7 +104,7 @@ describe("useJobs", () => {
     });
 
     await waitFor(() => expect(result.current.archivedJobIds).toEqual(
-      expect.arrayContaining([legacyJob.id, job.id]),
+      expect.arrayContaining([archivedJob.id, job.id]),
     ));
     expect(result.current.jobs.find((item) => item.id === job.id)?.archived).toBe(true);
     expect(fetchMock.mock.calls.some(([input, init]) => (
@@ -175,7 +156,6 @@ describe("useJobs", () => {
     await waitFor(() => expect(mounted.result.current.jobs[0]?.archived).toBe(true));
 
     mounted.unmount();
-    window.localStorage.clear();
     const reloaded = renderHook(() => useJobs(), { wrapper });
 
     await waitFor(() => expect(reloaded.result.current.jobs[0]?.archived).toBe(true));

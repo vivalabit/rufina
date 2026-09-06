@@ -10,7 +10,7 @@ import {
   generatedDocumentToApplicationDocument,
   workspaceSourceToApplicationDocument,
 } from "./mappers";
-import { applicationPayloadForStorage } from "../browser-storage/serialization";
+import { applicationPayloadForApi } from "./mappers";
 
 export async function fetchApplications(signal?: AbortSignal) {
   return (await apiClient.json<StoredApplicationPayload[]>({
@@ -18,24 +18,6 @@ export async function fetchApplications(signal?: AbortSignal) {
     cache: "no-store",
     signal,
     errorMessage: "Applications could not be loaded",
-  })).data;
-}
-
-export async function importLegacyApplications(
-  applications: TrackedApplication[],
-  signal?: AbortSignal,
-) {
-  return (await apiClient.json<StoredApplicationPayload[]>({
-    path: "/applications",
-    method: "PUT",
-    json: {
-      applications: applications.map((application) => ({
-        id: application.id,
-        data: applicationPayloadForStorage(application),
-      })),
-    },
-    signal,
-    errorMessage: "Legacy applications could not be imported",
   })).data;
 }
 
@@ -48,7 +30,7 @@ export async function createApplication(
     method: "POST",
     json: {
       id: application.id,
-      data: applicationPayloadForStorage(application),
+      data: applicationPayloadForApi(application),
     },
     signal,
     errorMessage: "Application could not be created",
@@ -65,7 +47,7 @@ export async function patchApplication(
     method: "PATCH",
     ifMatch: revision,
     json: {
-      data: applicationPayloadForStorage(application),
+      data: applicationPayloadForApi(application),
       revision,
     },
     signal,
@@ -132,7 +114,7 @@ export async function fetchApplicationDocuments(
 export async function uploadApplicationAttachment(
   applicationId: string,
   file: Blob,
-  metadata: { fileName: string; title: string; legacyDocumentId?: string },
+  metadata: { fileName: string; title: string },
   signal?: AbortSignal,
 ) {
   const query = new URLSearchParams({
@@ -141,7 +123,6 @@ export async function uploadApplicationAttachment(
     title: metadata.title,
     fileName: metadata.fileName,
   });
-  if (metadata.legacyDocumentId) query.set("legacyDocumentId", metadata.legacyDocumentId);
   const source = (await apiClient.json<WorkspaceSourceFilePayload>({
     path: "/documents/workspace-sources/upload",
     query,

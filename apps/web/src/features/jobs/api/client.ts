@@ -32,26 +32,6 @@ export async function fetchJobStates(signal?: AbortSignal) {
   })).data;
 }
 
-export async function importLegacyJobStates(
-  jobs: Array<{ jobId: string; saved: boolean; archived: boolean; dismissed: boolean }>,
-  signal?: AbortSignal,
-) {
-  return (await apiClient.json<JobStatePayload[]>({
-    path: "/jobs/state/import",
-    method: "POST",
-    json: {
-      jobs: jobs.map((job) => ({
-        jobId: job.jobId,
-        saved: job.saved,
-        archived: job.archived,
-        dismissed: job.dismissed,
-      })),
-    },
-    signal,
-    errorMessage: "Legacy job state could not be imported",
-  })).data;
-}
-
 export async function patchJobState(
   jobId: string,
   patch: JobStatePatch,

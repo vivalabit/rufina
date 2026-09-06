@@ -1,4 +1,3 @@
-import { legacyAiMatchVersion } from "@/lib/ai-match";
 import { getAiSourceLabel } from "@/lib/ai-source";
 import {
   isImportedJob,
@@ -138,20 +137,4 @@ export function buildRecommendationPlan(job: Job): JobRecommendation[] {
         .join(" · "),
     }))
     .slice(0, 9);
-}
-
-export function sanitizeLegacyLocalAiMatch(job: Job): Job {
-  if (
-    job.aiMatch?.source !== "local" ||
-    job.aiMatch.version === legacyAiMatchVersion
-  ) {
-    return job;
-  }
-
-  const { aiMatch: legacyAiMatch, ...jobWithoutLegacyAiMatch } = job;
-  void legacyAiMatch;
-  return {
-    ...jobWithoutLegacyAiMatch,
-    match: 50,
-  };
 }

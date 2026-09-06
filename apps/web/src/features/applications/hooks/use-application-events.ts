@@ -9,18 +9,10 @@ import {
   createApplicationEvent,
   deleteApplicationEvent,
   fetchApplicationEvents,
-  importLegacyApplicationEvents,
   patchApplicationEvent,
 } from "../api/events-client";
 import type { StoredApplicationEventPayload } from "../api/dto";
-import {
-  applicationEventsStorageKey,
-  applicationEventsStorageMigrationKey,
-} from "../browser-storage/keys";
-import {
-  normalizeStoredApplicationEvents,
-  removeLegacyDemoApplicationEvents,
-} from "../browser-storage/normalizers";
+import { normalizeStoredApplicationEvents } from "../api/mappers";
 import { sortApplicationEvents } from "../model/selectors";
 
 const applicationEventsQueryKey = ownerQueryKey(["application-events"] as const);
@@ -39,32 +31,8 @@ function normalizePayload(payload: StoredApplicationEventPayload) {
   return event ? { event, revision: payload.revision ?? 0 } : null;
 }
 
-function readLocalEvents() {
-  if (typeof window === "undefined") return [];
-  try {
-    const raw = window.localStorage.getItem(applicationEventsStorageKey);
-    return sortApplicationEvents(removeLegacyDemoApplicationEvents(
-      normalizeStoredApplicationEvents(raw ? JSON.parse(raw) : []),
-    ));
-  } catch {
-    window.localStorage.removeItem(applicationEventsStorageKey);
-    return [];
-  }
-}
-
-function localSnapshot(): ApplicationEventsSnapshot {
-  return { items: readLocalEvents().map((event) => ({ event, revision: 0 })) };
-}
-
 async function loadSnapshot(signal: AbortSignal): Promise<ApplicationEventsSnapshot> {
-  const localEvents = readLocalEvents();
-  const signature = JSON.stringify(localEvents.map((event) => event.id).sort());
-  const shouldImport = localEvents.length > 0
-    && window.localStorage.getItem(applicationEventsStorageMigrationKey) !== signature;
-  const payloads = shouldImport
-    ? await importLegacyApplicationEvents(localEvents, signal)
-    : await fetchApplicationEvents(signal);
-  if (shouldImport) window.localStorage.setItem(applicationEventsStorageMigrationKey, signature);
+  const payloads = await fetchApplicationEvents(signal);
   return {
     items: payloads
       .map(normalizePayload)
@@ -79,7 +47,6 @@ export function useApplicationEvents() {
   const hydrationPromiseRef = useRef<Promise<ApplicationEventsSnapshot> | null>(null);
   const query = useQuery<ApplicationEventsSnapshot>({
     queryKey: applicationEventsQueryKey,
-    placeholderData: localSnapshot(),
     queryFn: ({ signal }) => {
       const cacheRevision = cacheRevisionRef.current;
       const promise = loadSnapshot(signal).then((snapshot) => {
@@ -124,15 +91,7 @@ export function useApplicationEvents() {
       } else if (existing && existing.revision > 0) {
         payload = await patchApplicationEvent(event, existing.revision, signal);
       } else {
-        const events = (current?.items ?? [])
-          .map((item) => item.event)
-          .filter((item) => item.id !== event.id);
-        const imported = await importLegacyApplicationEvents([event, ...events], signal);
-        payload = imported.find((item) => item.id === event.id) ?? {
-          ...event,
-          application_id: event.applicationId,
-          data: event,
-        };
+        throw new Error("Authoritative application event revision is not loaded");
       }
       const normalized = normalizePayload(payload);
       if (!normalized) throw new Error("Application event API returned an invalid payload");
@@ -172,18 +131,11 @@ export function useApplicationEvents() {
 
   const removeMutation = useMutation({
     scope: { id: "application-events" },
-    mutationFn: (eventId: string) => withSignal(async (signal) => {
-      await hydrationPromiseRef.current?.catch(() => undefined);
-      const current = queryClient.getQueryData<ApplicationEventsSnapshot>(applicationEventsQueryKey);
-      const existing = current?.items.find((item) => item.event.id === eventId);
-      await deleteApplicationEvent(
-        eventId,
-        existing && existing.revision > 0 ? existing.revision : null,
-        signal,
-      );
+    mutationFn: ({ eventId, revision }: { eventId: string; revision: number }) => withSignal(async (signal) => {
+      await deleteApplicationEvent(eventId, revision, signal);
       return eventId;
     }),
-    onMutate(eventId) {
+    onMutate({ eventId }) {
       cacheRevisionRef.current += 1;
       const previous = queryClient.getQueryData<ApplicationEventsSnapshot>(applicationEventsQueryKey);
       queryClient.setQueryData<ApplicationEventsSnapshot>(applicationEventsQueryKey, (current) => ({
@@ -191,7 +143,12 @@ export function useApplicationEvents() {
       }));
       return { previous };
     },
-    onError(error, _eventId, context) {
+    onSuccess(eventId) {
+      queryClient.setQueryData<ApplicationEventsSnapshot>(applicationEventsQueryKey, (current) => ({
+        items: (current?.items ?? []).filter((item) => item.event.id !== eventId),
+      }));
+    },
+    onError(error, _variables, context) {
       if (context?.previous) queryClient.setQueryData(applicationEventsQueryKey, context.previous);
       if (error instanceof ApiResponseError && error.status === 412) {
         void queryClient.invalidateQueries({ queryKey: applicationEventsQueryKey });
@@ -217,15 +174,18 @@ export function useApplicationEvents() {
     () => query.data?.items.map((item) => item.event) ?? [],
     [query.data?.items],
   );
-  useEffect(() => {
-    if (query.isPlaceholderData && events.length === 0) return;
-    window.localStorage.setItem(applicationEventsStorageKey, JSON.stringify(events));
-  }, [events, query.isPlaceholderData]);
-
   const upsert = useCallback((event: ApplicationEvent) => upsertMutation.mutateAsync({
     event,
     existed: Boolean(query.data?.items.some((item) => item.event.id === event.id)),
   }), [query.data?.items, upsertMutation]);
+  const remove = useCallback((eventId: string) => {
+    const current = queryClient.getQueryData<ApplicationEventsSnapshot>(applicationEventsQueryKey);
+    const existing = current?.items.find((item) => item.event.id === eventId);
+    if (!existing) {
+      return Promise.reject(new Error("Authoritative application event revision is not loaded"));
+    }
+    return removeMutation.mutateAsync({ eventId, revision: existing.revision });
+  }, [queryClient, removeMutation]);
 
   return {
     events,
@@ -233,7 +193,7 @@ export function useApplicationEvents() {
     error: query.error instanceof Error ? query.error : null,
     refetch: query.refetch,
     upsert,
-    remove: removeMutation.mutateAsync,
+    remove,
     updateCached,
     removeForApplication: (applicationId: string) => updateCached((current) =>
       current.filter((event) => event.applicationId !== applicationId)),
