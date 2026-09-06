@@ -64,7 +64,7 @@ def iso_at(now: datetime, *, days: int = 0, hours: int = 0) -> str:
 
 def build_demo_resume_content() -> bytes:
     """Return a tiny valid one-page PDF without checking in personal files."""
-    text = "Maya Keller - Senior Product Designer - Demo Resume"
+    text = "Sofia - Senior Product Designer - Demo Resume"
     content = f"BT /F1 18 Tf 72 760 Td ({text}) Tj ET".encode("ascii")
     objects = [
         b"<< /Type /Catalog /Pages 2 0 R >>",
@@ -166,7 +166,7 @@ def build_profile(now: datetime) -> dict[str, Any]:
     }
     return {
         "avatar_url": "/avatars/default-pug.png",
-        "name": "Maya Keller",
+        "name": "Sofia",
         "current_role": "Lead Product Designer",
         "desired_role": "Product Design Lead",
         "location": "Zurich, Switzerland",
@@ -175,9 +175,9 @@ def build_profile(now: datetime) -> dict[str, Any]:
             "Product designer with 7+ years of experience turning complex workflows "
             "into clear, measurable customer outcomes."
         ),
-        "linkedin": "linkedin.com/in/maya-keller-demo",
+        "linkedin": "linkedin.com/in/sofia-demo",
         "github": "",
-        "portfolio": "maya-keller-demo.example",
+        "portfolio": "sofia-demo.example",
         "personal_site": "",
         "experience": json.dumps(experience, ensure_ascii=False),
         "skills": "\n".join(
@@ -616,10 +616,10 @@ def seed_database(
         store_profile_file(
             db,
             kind="primary_resume",
-            file_name="Maya_Keller_Demo_Resume.pdf",
+            file_name="Sofia_Demo_Resume.pdf",
             content_type="application/pdf",
             content=resume_content,
-            title="Maya Keller Resume",
+            title="Sofia Resume",
             category="CV / Resume",
         )
 
@@ -659,9 +659,9 @@ def seed_database(
                     id=f"demo-source-{application['id'].removeprefix(DEMO_APPLICATION_PREFIX)}",
                     application_id=application["id"],
                     category="Application Attachment",
-                    title="Maya Keller Resume",
+                    title="Sofia Resume",
                     language="English",
-                    file_name="Maya_Keller_Demo_Resume.pdf",
+                    file_name="Sofia_Demo_Resume.pdf",
                     content_type="application/pdf",
                     size_bytes=len(resume_content),
                     content_sha256=resume_hash,

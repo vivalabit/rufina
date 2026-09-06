@@ -5,8 +5,8 @@ services:
     command: uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
     environment:
       APP_ENV: local
-      AI_BACKEND: openclaw_codex
-      OPENAI_API_KEY: ""
+      AI_BACKEND: openai_api
+      OPENAI_API_KEY: screenshot-fixture-disabled
       BRIGHTDATA_API_KEY: ""
       DATABASE_URL: postgresql+psycopg://tasko:tasko@postgres:5432/tasko_screenshots
       TASKO_SETTINGS_FILE: /dev/null

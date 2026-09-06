@@ -42,7 +42,7 @@ def test_screenshot_fixture_is_valid_and_idempotent() -> None:
         profile_record = db.get(ProfileRecord, "default")
         assert profile_record is not None
         profile = ProfilePayload.model_validate(profile_record.data)
-        assert profile.name == "Maya Keller"
+        assert profile.name == "Sofia"
         assert "resume_data_url" not in profile_record.data
         assert "documents" not in profile_record.data
         profile_file = db.query(ProfileFileRecord).filter_by(kind="primary_resume").one()
@@ -69,7 +69,7 @@ def test_screenshot_fixture_is_valid_and_idempotent() -> None:
 
     assert first_summary == second_summary
     assert first_summary == {
-        "profile": "Maya Keller",
+        "profile": "Sofia",
         "jobs": 6,
         "applications": 4,
         "events": 4,
