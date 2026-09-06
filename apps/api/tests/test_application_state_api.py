@@ -119,42 +119,6 @@ def test_point_application_and_event_writes_use_revisions() -> None:
         assert stale_patch.status_code == 412
         assert stale_patch.json()["detail"]["current_revision"] == 2
 
-        rejected_put = client.put(
-            "/applications",
-            json={
-                "applications": [
-                    {
-                        "id": "application-point-api",
-                        "data": {
-                            "id": "application-point-api",
-                            "status": "interview",
-                            "documents": [{"id": "put-inline-document"}],
-                        },
-                    }
-                ]
-            },
-        )
-        assert rejected_put.status_code == 422
-
-        legacy_put = client.put(
-            "/applications",
-            json={
-                "applications": [
-                    {
-                        "id": "application-point-api",
-                        "data": {
-                            "id": "application-point-api",
-                            "status": "interview",
-                        },
-                    }
-                ]
-            },
-        )
-        assert legacy_put.status_code == 200
-        legacy_payload = next(
-            item for item in legacy_put.json() if item["id"] == "application-point-api"
-        )
-        assert "documents" not in legacy_payload["data"]
         fetched = client.get("/applications/application-point-api")
         assert fetched.status_code == 200
         assert "documents" not in fetched.json()["data"]
@@ -208,6 +172,21 @@ def test_point_application_and_event_writes_use_revisions() -> None:
             headers={"If-Match": '"2"'},
         )
         assert deleted.status_code == 204
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_legacy_bulk_application_writes_are_not_available() -> None:
+    client, _ = state_api_client()
+    try:
+        assert client.put(
+            "/applications",
+            json={"applications": []},
+        ).status_code == 405
+        assert client.put(
+            "/applications/events",
+            json={"events": []},
+        ).status_code == 405
     finally:
         app.dependency_overrides.clear()
 

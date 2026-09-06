@@ -198,10 +198,6 @@ class StoredJobsRequest(BaseModel):
     jobs: list[StoredJobPayload] = Field(default_factory=list)
 
 
-class DismissedJobIdsRequest(BaseModel):
-    job_ids: list[str] = Field(default_factory=list, max_length=10_000)
-
-
 class JobStatePayload(BaseModel):
     job_id: str = Field(alias="jobId")
     saved: bool
@@ -229,24 +225,6 @@ class JobStatePatchRequest(BaseModel):
         if self.saved is None and self.archived is None and self.dismissed is None:
             raise ValueError("At least one job state field must be provided")
         return self
-
-
-class LegacyJobStateImportItem(BaseModel):
-    job_id: str = Field(min_length=1, max_length=160, alias="jobId")
-    saved: bool | None = None
-    archived: bool | None = None
-    dismissed: bool | None = None
-    saved_at: datetime | None = Field(default=None, alias="savedAt")
-    archived_at: datetime | None = Field(default=None, alias="archivedAt")
-    dismissed_at: datetime | None = Field(default=None, alias="dismissedAt")
-
-    model_config = {"populate_by_name": True, "extra": "forbid"}
-
-
-class LegacyJobStateImportRequest(BaseModel):
-    jobs: list[LegacyJobStateImportItem] = Field(default_factory=list, max_length=10_000)
-
-    model_config = {"extra": "forbid"}
 
 
 class AiMatchJobFailure(BaseModel):

@@ -15,7 +15,7 @@ from app.services.generation_context import load_stored_application_guide
 from app.services.job_match_store import APPLICATION_GUIDE_STORAGE_KEY
 
 
-def test_applications_and_events_can_be_upserted_and_read() -> None:
+def test_applications_and_events_can_be_created_updated_and_read() -> None:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -36,57 +36,49 @@ def test_applications_and_events_can_be_upserted_and_read() -> None:
 
     try:
         application_payload = {
-            "applications": [
-                {
-                    "id": "application-linkedin-product-designer",
-                    "data": {
-                        "id": "application-linkedin-product-designer",
-                        "status": "applied",
-                        "appliedAt": "2026-07-06T10:00:00.000Z",
-                        "nextStep": "Follow up in 5 days",
-                        "notes": "Moved from Jobs after applying.",
-                        "job": {
-                            "id": "linkedin-product-designer",
-                            "company": "Stripe",
-                            "title": "Senior Product Designer",
-                            "location": "Remote",
-                            "type": "Full-time",
-                        },
-                    },
-                }
-            ]
+            "id": "application-linkedin-product-designer",
+            "data": {
+                "id": "application-linkedin-product-designer",
+                "status": "applied",
+                "appliedAt": "2026-07-06T10:00:00.000Z",
+                "nextStep": "Follow up in 5 days",
+                "notes": "Moved from Jobs after applying.",
+                "job": {
+                    "id": "linkedin-product-designer",
+                    "company": "Stripe",
+                    "title": "Senior Product Designer",
+                    "location": "Remote",
+                    "type": "Full-time",
+                },
+            },
         }
         event_payload = {
-            "events": [
-                {
-                    "id": "application-event-phone-screen",
-                    "application_id": "application-linkedin-product-designer",
-                    "data": {
-                        "id": "application-event-phone-screen",
-                        "applicationId": "application-linkedin-product-designer",
-                        "type": "screening",
-                        "title": "Phone screen",
-                        "startsAt": "2026-07-11T08:00:00.000Z",
-                        "durationMinutes": 30,
-                        "timezone": "Europe/Zurich",
-                        "location": "Google Meet",
-                        "notes": "",
-                    },
-                }
-            ]
+            "id": "application-event-phone-screen",
+            "application_id": "application-linkedin-product-designer",
+            "data": {
+                "id": "application-event-phone-screen",
+                "applicationId": "application-linkedin-product-designer",
+                "type": "screening",
+                "title": "Phone screen",
+                "startsAt": "2026-07-11T08:00:00.000Z",
+                "durationMinutes": 30,
+                "timezone": "Europe/Zurich",
+                "location": "Google Meet",
+                "notes": "",
+            },
         }
 
-        applications_upsert_response = client.put("/applications", json=application_payload)
+        application_create_response = client.post("/applications", json=application_payload)
         applications_read_response = client.get("/applications")
-        events_upsert_response = client.put("/applications/events", json=event_payload)
+        event_create_response = client.post("/applications/events", json=event_payload)
         events_read_response = client.get("/applications/events")
 
-        assert applications_upsert_response.status_code == 200
+        assert application_create_response.status_code == 201
         assert applications_read_response.status_code == 200
         assert applications_read_response.json()[0]["id"] == "application-linkedin-product-designer"
         assert applications_read_response.json()[0]["data"]["status"] == "applied"
 
-        assert events_upsert_response.status_code == 200
+        assert event_create_response.status_code == 201
         assert events_read_response.status_code == 200
         assert events_read_response.json()[0]["application_id"] == "application-linkedin-product-designer"
         assert events_read_response.json()[0]["data"]["type"] == "screening"
@@ -95,7 +87,7 @@ def test_applications_and_events_can_be_upserted_and_read() -> None:
             "id": "application-event-phone-screen",
             "application_id": "application-linkedin-product-designer",
             "data": {
-                **event_payload["events"][0]["data"],
+                **event_payload["data"],
                 "status": "completed",
                 "outcome": "positive",
             },
@@ -115,7 +107,7 @@ def test_applications_and_events_can_be_upserted_and_read() -> None:
         assert events_after_delete_response.status_code == 200
         assert events_after_delete_response.json() == []
 
-        client.put("/applications/events", json=event_payload)
+        client.post("/applications/events", json=event_payload)
         delete_application_response = client.delete("/applications/application-linkedin-product-designer")
         applications_after_delete_response = client.get("/applications")
         events_after_application_delete_response = client.get("/applications/events")
@@ -188,30 +180,26 @@ def test_applications_expose_the_generators_authoritative_analysis_revision() ->
     app.dependency_overrides[get_db] = override_get_db
     client = TestClient(app)
     try:
-        upsert_response = client.put(
+        create_response = client.post(
             "/applications",
             json={
-                "applications": [
-                    {
-                        "id": "application-revision",
-                        "data": {
-                            "id": "application-revision",
-                            "status": "draft",
-                            "job": {
-                                "id": "job-revision",
-                                "title": "Client snapshot",
-                                "aiMatch": {
-                                    "version": MATCHER_VERSION,
-                                    "revision": "client-spoof",
-                                    "fingerprint": "client-spoof",
-                                    "applicationGuide": {
-                                        "positioning": "Client positioning"
-                                    },
-                                },
+                "id": "application-revision",
+                "data": {
+                    "id": "application-revision",
+                    "status": "draft",
+                    "job": {
+                        "id": "job-revision",
+                        "title": "Client snapshot",
+                        "aiMatch": {
+                            "version": MATCHER_VERSION,
+                            "revision": "client-spoof",
+                            "fingerprint": "client-spoof",
+                            "applicationGuide": {
+                                "positioning": "Client positioning"
                             },
                         },
-                    }
-                ]
+                    },
+                },
             },
         )
         list_response = client.get("/applications")
@@ -219,7 +207,7 @@ def test_applications_expose_the_generators_authoritative_analysis_revision() ->
     finally:
         app.dependency_overrides.clear()
 
-    assert upsert_response.status_code == 200
+    assert create_response.status_code == 201
     assert list_response.status_code == 200
     assert analysis_response.status_code == 200
     listed_match = list_response.json()[0]["data"]["job"]["aiMatch"]
@@ -262,36 +250,32 @@ def test_candidate_confirmations_are_structured_validated_and_persisted() -> Non
     job_id = "job-confirmations"
 
     try:
-        create_response = client.put(
+        create_response = client.post(
             "/applications",
             json={
-                "applications": [
-                    {
-                        "id": application_id,
-                        "data": {
-                            "id": application_id,
-                            "status": "draft",
-                            "job": {
-                                "id": job_id,
-                                "aiMatch": {
-                                    "version": MATCHER_VERSION,
-                                    "applicationGuide": {
-                                        "clarificationQuestions": [
-                                            {
-                                                "id": "client-spoof",
-                                                "requirement": "Client-controlled requirement",
-                                                "blocking": False,
-                                            }
-                                        ]
-                                    },
-                                },
+                "id": application_id,
+                "data": {
+                    "id": application_id,
+                    "status": "draft",
+                    "job": {
+                        "id": job_id,
+                        "aiMatch": {
+                            "version": MATCHER_VERSION,
+                            "applicationGuide": {
+                                "clarificationQuestions": [
+                                    {
+                                        "id": "client-spoof",
+                                        "requirement": "Client-controlled requirement",
+                                        "blocking": False,
+                                    }
+                                ]
                             },
                         },
-                    }
-                ]
+                    },
+                },
             },
         )
-        assert create_response.status_code == 200
+        assert create_response.status_code == 201
 
         unavailable_response = client.put(
             f"/applications/{application_id}/confirmations",

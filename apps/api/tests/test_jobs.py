@@ -157,7 +157,9 @@ def test_job_can_be_deleted() -> None:
         repeated_upsert_response = client.put("/jobs", json=payload)
         assert repeated_upsert_response.status_code == 200
         assert repeated_upsert_response.json() == []
-        assert client.get("/jobs/dismissed-ids").json() == ["linkedin-product-designer"]
+        states = client.get("/jobs/state").json()
+        assert states[0]["jobId"] == "linkedin-product-designer"
+        assert states[0]["dismissed"] is True
     finally:
         app.dependency_overrides.clear()
 
@@ -188,12 +190,14 @@ def test_missing_job_delete_creates_a_tombstone_that_blocks_future_upserts() -> 
             "/jobs",
             json={"jobs": [{"id": job_id, "data": {"id": job_id, "title": "Hidden"}}]},
         ).json() == []
-        assert client.get("/jobs/dismissed-ids").json() == [job_id]
+        states = client.get("/jobs/state").json()
+        assert states[0]["jobId"] == job_id
+        assert states[0]["dismissed"] is True
     finally:
         app.dependency_overrides.clear()
 
 
-def test_local_deleted_job_ids_can_be_imported_as_server_tombstones() -> None:
+def test_legacy_job_state_import_and_dismissed_id_routes_are_not_available() -> None:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -203,23 +207,21 @@ def test_local_deleted_job_ids_can_be_imported_as_server_tombstones() -> None:
     testing_session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
     def override_get_db() -> Generator[Session, None, None]:
-        db = testing_session_local()
-        try:
+        with testing_session_local() as db:
             yield db
-        finally:
-            db.close()
 
     app.dependency_overrides[get_db] = override_get_db
     client = TestClient(app)
-
     try:
-        response = client.put(
+        assert client.post(
+            "/jobs/state/import",
+            json={"states": []},
+        ).status_code == 404
+        assert client.get("/jobs/dismissed-ids").status_code == 405
+        assert client.put(
             "/jobs/dismissed-ids",
-            json={"job_ids": ["linkedin-old-job", "linkedin-old-job", ""]},
-        )
-        assert response.status_code == 200
-        assert response.json() == ["linkedin-old-job"]
-        assert client.get("/jobs").json() == []
+            json={"job_ids": []},
+        ).status_code == 405
     finally:
         app.dependency_overrides.clear()
 
@@ -323,114 +325,5 @@ def test_job_state_patch_requires_and_advances_revision() -> None:
         collection_response = client.get("/jobs/state")
         assert collection_response.status_code == 200
         assert collection_response.json() == [restored_response.json()]
-    finally:
-        app.dependency_overrides.clear()
-
-
-def test_legacy_job_state_import_is_idempotent_and_monotonic() -> None:
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(bind=engine)
-    testing_session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-
-    def override_get_db() -> Generator[Session, None, None]:
-        db = testing_session_local()
-        try:
-            yield db
-        finally:
-            db.close()
-
-    app.dependency_overrides[get_db] = override_get_db
-    client = TestClient(app)
-
-    try:
-        with testing_session_local() as db:
-            db.add_all(
-                [
-                    StoredJobRecord(
-                        owner_id="local-owner",
-                        id="legacy-job",
-                        data={"id": "legacy-job", "title": "Legacy vacancy"},
-                    ),
-                    StoredJobRecord(
-                        owner_id="local-owner",
-                        id="server-newer-job",
-                        data={"id": "server-newer-job", "title": "Server vacancy"},
-                    ),
-                ]
-            )
-            db.commit()
-
-        assert (
-            client.patch(
-                "/jobs/server-newer-job/state",
-                json={"saved": True, "revision": 1},
-            ).json()["revision"]
-            == 2
-        )
-        assert (
-            client.patch(
-                "/jobs/server-newer-job/state",
-                json={"saved": False, "revision": 2},
-            ).json()["revision"]
-            == 3
-        )
-
-        import_request = {
-            "jobs": [
-                {
-                    "jobId": "legacy-job",
-                    "saved": True,
-                    "archivedAt": "2026-01-02T03:04:05Z",
-                },
-                {"jobId": "legacy-job", "saved": False, "archived": False},
-                {
-                    "jobId": "server-newer-job",
-                    "saved": True,
-                    "savedAt": "2020-01-02T03:04:05Z",
-                },
-                {"jobId": "missing-saved-job", "saved": True},
-                {"jobId": "missing-dismissed-job", "dismissed": True},
-            ]
-        }
-        first_response = client.post("/jobs/state/import", json=import_request)
-        assert first_response.status_code == 200
-        first_states = {item["jobId"]: item for item in first_response.json()}
-        assert list(first_states) == [
-            "legacy-job",
-            "server-newer-job",
-            "missing-saved-job",
-            "missing-dismissed-job",
-        ]
-        assert first_states["legacy-job"]["saved"] is True
-        assert first_states["legacy-job"]["archived"] is True
-        assert first_states["legacy-job"]["revision"] == 2
-        assert first_states["server-newer-job"]["saved"] is False
-        assert first_states["server-newer-job"]["revision"] == 3
-        assert first_states["missing-dismissed-job"]["dismissed"] is True
-        assert first_states["missing-dismissed-job"]["revision"] == 1
-        assert first_states["missing-saved-job"]["saved"] is True
-        assert first_states["missing-saved-job"]["revision"] == 1
-
-        # State-only placeholders are available through the state API but do not
-        # appear as incomplete vacancies in the regular jobs collection.
-        assert {job["id"] for job in client.get("/jobs").json()} == {
-            "legacy-job",
-            "server-newer-job",
-        }
-
-        repeated_response = client.post("/jobs/state/import", json=import_request)
-        assert repeated_response.status_code == 200
-        assert repeated_response.json() == first_response.json()
-
-        owner_b_response = client.get(
-            "/jobs/state",
-            headers={"X-Rufina-Owner-Id": "owner-b"},
-        )
-        assert owner_b_response.status_code == 200
-        assert owner_b_response.json() == []
     finally:
         app.dependency_overrides.clear()

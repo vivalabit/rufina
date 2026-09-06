@@ -15,13 +15,9 @@ from app.core.identity import (
 )
 from app.core.settings import Settings, get_settings
 from app.models.jobs import (
-    JOB_STATE_PLACEHOLDER_KEY,
     AiMatchJobStatus,
-    DismissedJobIdsRequest,
     JobStatePatchRequest,
     JobStatePayload,
-    LegacyJobStateImportItem,
-    LegacyJobStateImportRequest,
     StoredJobPayload,
     StoredJobRecord,
     StoredJobsRequest,
@@ -400,88 +396,6 @@ def job_state_conflict(
     )
 
 
-def normalize_utc(value: datetime) -> datetime:
-    if value.tzinfo is None:
-        return value.replace(tzinfo=UTC)
-    return value.astimezone(UTC)
-
-
-def merge_legacy_timestamp(
-    record: StoredJobRecord,
-    *,
-    attribute: str,
-    enabled: bool | None,
-    imported_at: datetime | None,
-    imported_now: datetime,
-) -> bool:
-    if enabled is not True and imported_at is None:
-        return False
-
-    current_at = getattr(record, attribute)
-    candidate_at = normalize_utc(imported_at) if imported_at is not None else imported_now
-    if current_at is not None:
-        if imported_at is not None and candidate_at > normalize_utc(current_at):
-            setattr(record, attribute, candidate_at)
-            return True
-        return False
-
-    # A timestamp-less browser snapshot is older than any explicit server-side
-    # mutation. Imported timestamps can still win when they are demonstrably newer.
-    if (record.revision or 1) > 1:
-        if imported_at is None:
-            return False
-        if record.updated_at is not None and candidate_at <= normalize_utc(record.updated_at):
-            return False
-
-    setattr(record, attribute, candidate_at)
-    return True
-
-
-def merge_legacy_job_state(
-    record: StoredJobRecord,
-    item: LegacyJobStateImportItem,
-    *,
-    imported_now: datetime,
-) -> None:
-    merge_legacy_timestamp(
-        record,
-        attribute="saved_at",
-        enabled=item.saved,
-        imported_at=item.saved_at,
-        imported_now=imported_now,
-    )
-    merge_legacy_timestamp(
-        record,
-        attribute="archived_at",
-        enabled=item.archived,
-        imported_at=item.archived_at,
-        imported_now=imported_now,
-    )
-    dismissed_requested = item.dismissed is True or item.dismissed_at is not None
-    merge_legacy_timestamp(
-        record,
-        attribute="dismissed_at",
-        enabled=item.dismissed,
-        imported_at=item.dismissed_at,
-        imported_now=imported_now,
-    )
-    if dismissed_requested and record.dismissed_at is not None:
-        record.status = DISMISSED_JOB_STATUS
-
-
-def has_positive_legacy_job_state(item: LegacyJobStateImportItem) -> bool:
-    return any(
-        (
-            item.saved is True,
-            item.archived is True,
-            item.dismissed is True,
-            item.saved_at is not None,
-            item.archived_at is not None,
-            item.dismissed_at is not None,
-        )
-    )
-
-
 @router.get("/state", response_model=list[JobStatePayload])
 def list_job_states(db: Session = Depends(get_db)) -> list[JobStatePayload]:
     try:
@@ -491,58 +405,6 @@ def list_job_states(db: Session = Depends(get_db)) -> list[JobStatePayload]:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Jobs database is unavailable",
-        ) from exc
-
-
-@router.post("/state/import", response_model=list[JobStatePayload])
-def import_legacy_job_states(
-    request: LegacyJobStateImportRequest,
-    db: Session = Depends(get_db),
-) -> list[JobStatePayload]:
-    try:
-        records_by_id: dict[str, StoredJobRecord] = {}
-        ordered_job_ids: list[str] = []
-        seen_job_ids: set[str] = set()
-        normalized_items: list[tuple[str, LegacyJobStateImportItem]] = []
-        for item in request.jobs:
-            job_id = item.job_id.strip()
-            if not job_id:
-                continue
-            normalized_items.append((job_id, item))
-            if job_id not in seen_job_ids:
-                seen_job_ids.add(job_id)
-                ordered_job_ids.append(job_id)
-
-        for offset in range(0, len(ordered_job_ids), 500):
-            job_id_chunk = ordered_job_ids[offset : offset + 500]
-            records = db.query(StoredJobRecord).filter(StoredJobRecord.id.in_(job_id_chunk)).all()
-            records_by_id.update({record.id: record for record in records})
-
-        imported_now = datetime.now(UTC)
-        for job_id, item in normalized_items:
-            record = records_by_id.get(job_id)
-            if record is None:
-                if not has_positive_legacy_job_state(item):
-                    continue
-                record = StoredJobRecord(
-                    id=job_id,
-                    data={"id": job_id, JOB_STATE_PLACEHOLDER_KEY: True},
-                    status=ACTIVE_JOB_STATUS,
-                )
-                db.add(record)
-                records_by_id[job_id] = record
-            merge_legacy_job_state(record, item, imported_now=imported_now)
-
-        db.commit()
-        imported_records = [
-            records_by_id[job_id] for job_id in ordered_job_ids if job_id in records_by_id
-        ]
-        return [job_state_payload(record) for record in imported_records]
-    except SQLAlchemyError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Legacy job state could not be imported",
         ) from exc
 
 
@@ -627,60 +489,6 @@ def patch_job_state(
         ) from exc
 
 
-@router.get("/dismissed-ids", response_model=list[str])
-def list_dismissed_job_ids(db: Session = Depends(get_db)) -> list[str]:
-    try:
-        return [
-            job_id
-            for (job_id,) in db.query(StoredJobRecord.id)
-            .filter(StoredJobRecord.status == DISMISSED_JOB_STATUS)
-            .order_by(StoredJobRecord.id.asc())
-            .all()
-        ]
-    except SQLAlchemyError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Jobs database is unavailable",
-        ) from exc
-
-
-@router.put("/dismissed-ids", response_model=list[str])
-def import_dismissed_job_ids(
-    request: DismissedJobIdsRequest,
-    db: Session = Depends(get_db),
-) -> list[str]:
-    try:
-        dismissed_at = datetime.now(UTC)
-        for job_id in dict.fromkeys(request.job_ids):
-            normalized_job_id = job_id.strip()
-            if not normalized_job_id or len(normalized_job_id) > 160:
-                continue
-            record = db.get(
-                StoredJobRecord,
-                (get_bound_owner_id(), normalized_job_id),
-            )
-            if not record:
-                db.add(
-                    StoredJobRecord(
-                        id=normalized_job_id,
-                        data={"id": normalized_job_id},
-                        status=DISMISSED_JOB_STATUS,
-                        dismissed_at=dismissed_at,
-                    )
-                )
-            elif record.status != DISMISSED_JOB_STATUS:
-                record.status = DISMISSED_JOB_STATUS
-                record.dismissed_at = dismissed_at
-        db.commit()
-        return list_dismissed_job_ids(db)
-    except SQLAlchemyError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Jobs database is unavailable",
-        ) from exc
-
-
 @router.delete("/{job_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_job(job_id: str, db: Session = Depends(get_db)) -> None:
     try:
@@ -697,7 +505,7 @@ def delete_job(job_id: str, db: Session = Depends(get_db)) -> None:
             record.status = DISMISSED_JOB_STATUS
             record.dismissed_at = datetime.now(UTC)
         db.commit()
-        return None
+        return
     except SQLAlchemyError as exc:
         db.rollback()
         raise HTTPException(

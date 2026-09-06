@@ -178,18 +178,15 @@ def test_application_data_is_scoped_to_request_owner() -> None:
             "/documents/packs/pack-a?applicationId=application-a",
             headers=owner_b,
         )
-        created_for_b = client.put(
+        created_for_b = client.post(
             "/applications",
             headers=owner_b,
             json={
-                "applications": [
-                    {
-                        "id": "created-for-b",
-                        "data": {"id": "created-for-b", "status": "draft"},
-                    }
-                ]
+                "id": "created-for-b",
+                "data": {"id": "created-for-b", "status": "draft"},
             },
         )
+        applications_b_after_create = client.get("/applications", headers=owner_b)
         jobs_a = client.get("/jobs", headers=owner_a)
         jobs_b = client.get("/jobs", headers=owner_b)
     finally:
@@ -227,7 +224,9 @@ def test_application_data_is_scoped_to_request_owner() -> None:
     assert foreign_download.status_code == 404
     assert own_pack.status_code == 410
     assert foreign_pack.status_code == 410
-    assert {item["id"] for item in created_for_b.json()} == {
+    assert created_for_b.status_code == 201
+    assert created_for_b.json()["id"] == "created-for-b"
+    assert {item["id"] for item in applications_b_after_create.json()} == {
         "application-b",
         "created-for-b",
     }

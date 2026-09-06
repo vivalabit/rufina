@@ -27,7 +27,7 @@ SERIALIZED_DATA_URL_PATTERN = re.compile(
 
 
 def sanitize_file_free_json(value: dict[str, Any]) -> dict[str, Any]:
-    """Reject inline bytes anywhere in application/event JSON and drop empty legacy keys."""
+    """Reject inline bytes anywhere in application/event JSON and drop empty file keys."""
 
     def sanitize(candidate: Any) -> Any:
         if isinstance(candidate, dict):
@@ -153,10 +153,6 @@ class StoredApplicationInput(BaseModel):
         return sanitize_file_free_json(value)
 
 
-class StoredApplicationsRequest(BaseModel):
-    applications: list[StoredApplicationInput] = Field(default_factory=list)
-
-
 class StoredApplicationPayload(StoredApplicationInput):
     created_at: datetime
     updated_at: datetime
@@ -184,10 +180,6 @@ class StoredApplicationEventInput(BaseModel):
     @classmethod
     def reject_inline_files(cls, value: dict[str, Any]) -> dict[str, Any]:
         return sanitize_file_free_json(value)
-
-
-class StoredApplicationEventsRequest(BaseModel):
-    events: list[StoredApplicationEventInput] = Field(default_factory=list)
 
 
 class StoredApplicationEventPayload(StoredApplicationEventInput):
