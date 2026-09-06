@@ -1137,7 +1137,6 @@ def list_workspace_source_documents(
                     WorkspaceSourceDocumentRecord.content_type,
                     WorkspaceSourceDocumentRecord.size_bytes,
                     WorkspaceSourceDocumentRecord.content_sha256,
-                    WorkspaceSourceDocumentRecord.legacy_document_id,
                     WorkspaceSourceDocumentRecord.updated_at,
                 )
             )
@@ -1165,12 +1164,6 @@ async def upload_workspace_source_document(
     title: str = Query(min_length=1, max_length=240),
     file_name: str = Query(min_length=1, max_length=240, alias="fileName"),
     language: str = Query(default="", max_length=40),
-    legacy_document_id: str | None = Query(
-        default=None,
-        min_length=1,
-        max_length=160,
-        alias="legacyDocumentId",
-    ),
     content_type_header: str | None = Header(default=None, alias="Content-Type"),
     db: Session = Depends(get_db),
 ) -> WorkspaceSourceDocumentPayload:
@@ -1258,23 +1251,6 @@ async def upload_workspace_source_document(
     content_sha256 = hashlib.sha256(content).hexdigest()
     try:
         require_stored_application(db, application_id)
-        if legacy_document_id is not None:
-            existing = db.scalar(
-                select(WorkspaceSourceDocumentRecord).where(
-                    WorkspaceSourceDocumentRecord.application_id == application_id,
-                    WorkspaceSourceDocumentRecord.legacy_document_id == legacy_document_id,
-                )
-            )
-            if existing is not None:
-                if existing.content_sha256 != content_sha256:
-                    raise HTTPException(
-                        status_code=status.HTTP_409_CONFLICT,
-                        detail=("legacyDocumentId already identifies a different application file"),
-                    )
-                response.status_code = status.HTTP_200_OK
-                response.headers.update(private_workspace_file_headers())
-                return workspace_source_document_payload(existing)
-
         now = utc_now()
         record = WorkspaceSourceDocumentRecord(
             id=str(uuid4()),
@@ -1286,7 +1262,6 @@ async def upload_workspace_source_document(
             content_type=content_type,
             size_bytes=len(content),
             content_sha256=content_sha256,
-            legacy_document_id=legacy_document_id,
             content=content,
             created_at=now,
             updated_at=now,
@@ -2358,7 +2333,6 @@ def workspace_source_document_payload(
         size_bytes=record.size_bytes,
         file_type=record.content_type,
         content_sha256=record.content_sha256,
-        legacy_document_id=record.legacy_document_id,
         uploaded_at=record.updated_at,
         download_url=(
             f"/documents/workspace-sources/{quote(record.id, safe='')}/download"

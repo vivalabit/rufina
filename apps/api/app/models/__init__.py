@@ -1,11 +1,6 @@
 """Domain model exports."""
 
 from app.models.job_screening import JobScreeningDecisionRecord
-from app.models.jobs import DiscoveredVacancyRecord
-from app.models.notifications import (
-    CriticalNotificationPayload,
-    CriticalNotificationRecord,
-)
 from app.models.job_search import (
     JobSearchConfigRecord,
     JobSearchConfigV2,
@@ -14,6 +9,11 @@ from app.models.job_search import (
     ScreeningConfig,
     ScreeningRule,
     SearchFilters,
+)
+from app.models.jobs import DiscoveredVacancyRecord
+from app.models.notifications import (
+    CriticalNotificationPayload,
+    CriticalNotificationRecord,
 )
 from app.models.resume import (
     AtsFinalReview,
@@ -43,7 +43,6 @@ from app.models.resume import (
     MasterResume,
     MasterResumeConfirmationRequest,
     MasterResumeConfirmationResponse,
-    MasterResumeImportRequest,
     MasterResumeImportResponse,
     MasterResumeReviewSection,
     ResumeEvidence,
@@ -83,6 +82,9 @@ __all__ = [
     "AtsFinalReviewResponse",
     "AtsScan",
     "AtsSkippedSection",
+    "CriticalNotificationPayload",
+    "CriticalNotificationRecord",
+    "DiscoveredVacancyRecord",
     "ExperienceBulletRewriteLink",
     "ExperienceRewrite",
     "ExperienceRewriteLink",
@@ -90,9 +92,6 @@ __all__ = [
     "ExperienceRewriteRecord",
     "ExperienceRewriteRequest",
     "ExperienceRewriteResponse",
-    "DiscoveredVacancyRecord",
-    "CriticalNotificationPayload",
-    "CriticalNotificationRecord",
     "FinalResume",
     "ImaginatorClaimLedgerEntry",
     "ImaginatorDraft",
@@ -111,7 +110,6 @@ __all__ = [
     "MasterResume",
     "MasterResumeConfirmationRequest",
     "MasterResumeConfirmationResponse",
-    "MasterResumeImportRequest",
     "MasterResumeImportResponse",
     "MasterResumeReviewSection",
     "ResumeEvidence",

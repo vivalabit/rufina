@@ -1923,19 +1923,6 @@ class CurrentMasterResumeResponse(StrictResumeModel):
     updated_at: datetime = Field(alias="updatedAt")
 
 
-class MasterResumeImportRequest(StrictResumeModel):
-    resume_file_name: str = Field(
-        alias="resumeFileName",
-        min_length=1,
-        max_length=240,
-    )
-    resume_data_url: str = Field(
-        alias="resumeDataUrl",
-        min_length=1,
-        max_length=20_000_000,
-    )
-
-
 def _require_unique(values: object, label: str) -> None:
     materialized = list(values)  # type: ignore[arg-type]
     if len(materialized) != len(set(materialized)):
@@ -2085,7 +2072,6 @@ __all__ = [
     "MasterResume",
     "MasterResumeConfirmationRequest",
     "MasterResumeConfirmationResponse",
-    "MasterResumeImportRequest",
     "MasterResumeImportResponse",
     "MasterResumeReviewSection",
     "MasterSkill",

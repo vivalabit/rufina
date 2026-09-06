@@ -665,7 +665,6 @@ def seed_database(
                     content_type="application/pdf",
                     size_bytes=len(resume_content),
                     content_sha256=resume_hash,
-                    legacy_document_id="demo-application-resume",
                     content=resume_content,
                     created_at=resolved_now,
                     updated_at=resolved_now,

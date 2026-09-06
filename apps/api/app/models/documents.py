@@ -336,12 +336,6 @@ class WorkspaceSourceDocumentRecord(OwnerScoped, Base):
             "size_bytes > 0",
             name="ck_workspace_source_documents_size_positive",
         ),
-        UniqueConstraint(
-            "owner_id",
-            "application_id",
-            "legacy_document_id",
-            name="uq_workspace_source_documents_owner_application_legacy",
-        ),
     )
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True)
@@ -358,10 +352,6 @@ class WorkspaceSourceDocumentRecord(OwnerScoped, Base):
     content_type: Mapped[str] = mapped_column(String(160), nullable=False)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     content_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    legacy_document_id: Mapped[str | None] = mapped_column(
-        String(160),
-        nullable=True,
-    )
     content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False, deferred=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(
@@ -746,7 +736,6 @@ class WorkspaceSourceDocumentPayload(BaseModel):
     size_bytes: int = Field(alias="sizeBytes")
     file_type: str = Field(alias="fileType")
     content_sha256: str = Field(alias="contentSha256")
-    legacy_document_id: str | None = Field(default=None, alias="legacyDocumentId")
     uploaded_at: datetime = Field(alias="uploadedAt")
     download_url: str = Field(alias="downloadUrl")
 

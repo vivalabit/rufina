@@ -1,4 +1,3 @@
-import base64
 import json
 import subprocess
 from collections.abc import Generator
@@ -9,8 +8,8 @@ from fastapi.testclient import TestClient
 
 from app.core.settings import Settings, get_settings
 from app.main import app
-from app.services.ai_privacy import record_ai_activity
 from app.services.ai_backend import AIRequest, AIResult, AIUsage
+from app.services.ai_privacy import record_ai_activity
 from app.services.resume_import import (
     OpenClawResumeImportError,
     ResumeExperienceStructuredOutput,
@@ -177,22 +176,21 @@ def test_import_experience_endpoint_reads_attached_resume_data() -> None:
     Skills
     Python, FastAPI
     """
-    encoded_resume = base64.b64encode(resume_text.encode()).decode()
     client = TestClient(app)
 
     app.dependency_overrides[get_settings] = lambda: Settings(openclaw_resume_import_enabled=True)
 
     try:
-        with patch(
-            "app.api.profile.parse_resume_experience_with_selected_backend",
-            return_value=parse_experience_from_text(resume_text),
+        with (
+            patch("app.api.profile.extract_resume_import_text", return_value=resume_text),
+            patch(
+                "app.api.profile.parse_resume_experience_with_selected_backend",
+                return_value=parse_experience_from_text(resume_text),
+            ),
         ):
             response = client.post(
                 "/profile/import-experience-from-resume",
-                json={
-                    "resume_file_name": "eduard-resume.pdf",
-                    "resume_data_url": f"data:application/pdf;base64,{encoded_resume}",
-                },
+                json={"profile_file_id": "profile-file-for-import"},
             )
     finally:
         app.dependency_overrides.clear()
@@ -212,22 +210,21 @@ def test_import_experience_reports_ai_failure_without_internal_details() -> None
     Skills
     Python, FastAPI
     """
-    encoded_resume = base64.b64encode(resume_text.encode()).decode()
     client = TestClient(app)
 
     app.dependency_overrides[get_settings] = lambda: Settings(openclaw_resume_import_enabled=True)
 
     try:
-        with patch(
-            "app.api.profile.parse_resume_experience_with_selected_backend",
-            side_effect=OpenClawResumeImportError("internal analyzer details"),
+        with (
+            patch("app.api.profile.extract_resume_import_text", return_value=resume_text),
+            patch(
+                "app.api.profile.parse_resume_experience_with_selected_backend",
+                side_effect=OpenClawResumeImportError("internal analyzer details"),
+            ),
         ):
             response = client.post(
                 "/profile/import-experience-from-resume",
-                json={
-                    "resume_file_name": "eduard-resume.pdf",
-                    "resume_data_url": f"data:application/pdf;base64,{encoded_resume}",
-                },
+                json={"profile_file_id": "profile-file-for-import"},
             )
     finally:
         app.dependency_overrides.clear()
@@ -254,20 +251,19 @@ def test_all_resume_import_endpoints_hide_openclaw_failure_details(
     endpoint: str,
     parser_path: str,
 ) -> None:
-    encoded_resume = base64.b64encode(b"Resume text").decode()
     app.dependency_overrides[get_settings] = lambda: Settings(openclaw_resume_import_enabled=True)
 
     try:
-        with patch(
-            parser_path,
-            side_effect=OpenClawResumeImportError("provider credentials and command details"),
+        with (
+            patch("app.api.profile.extract_resume_import_text", return_value="Resume text"),
+            patch(
+                parser_path,
+                side_effect=OpenClawResumeImportError("provider credentials and command details"),
+            ),
         ):
             response = TestClient(app).post(
                 endpoint,
-                json={
-                    "resume_file_name": "resume.txt",
-                    "resume_data_url": f"data:text/plain;base64,{encoded_resume}",
-                },
+                json={"profile_file_id": "profile-file-for-import"},
             )
     finally:
         app.dependency_overrides.clear()
@@ -284,19 +280,16 @@ def test_import_experience_does_not_use_local_parser_when_ai_is_disabled() -> No
     Work Experience
     Python Developer | Alpine Systems | 2022 - Present
     """
-    encoded_resume = base64.b64encode(resume_text.encode()).decode()
     client = TestClient(app)
 
     app.dependency_overrides[get_settings] = lambda: Settings(openclaw_resume_import_enabled=False)
 
     try:
-        response = client.post(
-            "/profile/import-experience-from-resume",
-            json={
-                "resume_file_name": "eduard-resume.pdf",
-                "resume_data_url": f"data:application/pdf;base64,{encoded_resume}",
-            },
-        )
+        with patch("app.api.profile.extract_resume_import_text", return_value=resume_text):
+            response = client.post(
+                "/profile/import-experience-from-resume",
+                json={"profile_file_id": "profile-file-for-import"},
+            )
     finally:
         app.dependency_overrides.clear()
 
@@ -314,22 +307,21 @@ def test_import_education_endpoint_reads_attached_resume_data() -> None:
     University of Zurich | Bachelor of Science | Informatics | 2018 - 2021
     Certificates
     """
-    encoded_resume = base64.b64encode(resume_text.encode()).decode()
     client = TestClient(app)
 
     app.dependency_overrides[get_settings] = lambda: Settings(openclaw_resume_import_enabled=True)
 
     try:
-        with patch(
-            "app.api.profile.parse_resume_education_with_selected_backend",
-            return_value=parse_education_from_text(resume_text),
+        with (
+            patch("app.api.profile.extract_resume_import_text", return_value=resume_text),
+            patch(
+                "app.api.profile.parse_resume_education_with_selected_backend",
+                return_value=parse_education_from_text(resume_text),
+            ),
         ):
             response = client.post(
                 "/profile/import-education-from-resume",
-                json={
-                    "resume_file_name": "eduard-resume.pdf",
-                    "resume_data_url": f"data:application/pdf;base64,{encoded_resume}",
-                },
+                json={"profile_file_id": "profile-file-for-import"},
             )
     finally:
         app.dependency_overrides.clear()
@@ -353,22 +345,21 @@ def test_import_skills_endpoint_reads_attached_resume_data() -> None:
     Education
     University of Zurich
     """
-    encoded_resume = base64.b64encode(resume_text.encode()).decode()
     client = TestClient(app)
 
     app.dependency_overrides[get_settings] = lambda: Settings(openclaw_resume_import_enabled=True)
 
     try:
-        with patch(
-            "app.api.profile.parse_resume_skills_with_selected_backend",
-            return_value=parse_skills_from_text(resume_text),
+        with (
+            patch("app.api.profile.extract_resume_import_text", return_value=resume_text),
+            patch(
+                "app.api.profile.parse_resume_skills_with_selected_backend",
+                return_value=parse_skills_from_text(resume_text),
+            ),
         ):
             response = client.post(
                 "/profile/import-skills-from-resume",
-                json={
-                    "resume_file_name": "eduard-resume.pdf",
-                    "resume_data_url": f"data:application/pdf;base64,{encoded_resume}",
-                },
+                json={"profile_file_id": "profile-file-for-import"},
             )
     finally:
         app.dependency_overrides.clear()

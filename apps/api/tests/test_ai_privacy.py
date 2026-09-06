@@ -75,7 +75,7 @@ def test_ai_calls_run_directly_and_track_retention(monkeypatch) -> None:
         resume_import = client.post(
             "/profile/import-experience-from-resume",
             headers=headers,
-            json={"resume_file_name": "resume.txt", "resume_data_url": ""},
+            json={"profile_file_id": "missing-profile-file"},
         )
         retention = client.put(
             "/privacy/ai-retention",

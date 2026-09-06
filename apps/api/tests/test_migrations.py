@@ -234,7 +234,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260831_0049"
+            assert revision == "20260906_0052"
             entry_it = connection.execute(
                 text(
                     "SELECT id, owner_id, name, filters "
@@ -1050,7 +1050,7 @@ def test_inline_file_migration_extracts_deduplicates_and_scrubs_legacy_data(
     finally:
         engine.dispose()
 
-    command.upgrade(config, "head")
+    command.upgrade(config, "20260831_0049")
 
     engine = create_engine(database_url)
     try:
@@ -1245,7 +1245,6 @@ def test_inline_file_migration_extracts_deduplicates_and_scrubs_legacy_data(
     finally:
         engine.dispose()
 
-    command.check(get_alembic_config(database_url))
     with pytest.raises(RuntimeError, match="migrated files remain"):
         command.downgrade(config, "20260830_0046")
 
@@ -1367,7 +1366,7 @@ def test_profile_file_schema_reconciliation_repairs_earlier_0047_shape(
         engine.dispose()
 
     command.stamp(config, "20260830_0047")
-    command.upgrade(config, "head")
+    command.upgrade(config, "20260831_0049")
 
     engine = create_engine(database_url)
     try:
@@ -1434,6 +1433,35 @@ def test_profile_file_schema_reconciliation_repairs_earlier_0047_shape(
                 ),
                 {"content": b"png", "now": datetime(2026, 8, 31, tzinfo=UTC)},
             )
+    finally:
+        engine.dispose()
+
+
+def test_legacy_file_identity_columns_are_removed_at_head(tmp_path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'removed-legacy-file-identity.sqlite'}"
+    config = get_alembic_config(database_url)
+    command.upgrade(config, "head")
+
+    engine = create_engine(database_url)
+    try:
+        inspector = inspect(engine)
+        assert "legacy_document_id" not in {
+            column["name"] for column in inspector.get_columns("profile_files")
+        }
+        assert "legacy_document_id" not in {
+            column["name"]
+            for column in inspector.get_columns("workspace_source_documents")
+        }
+        assert "uq_profile_files_owner_kind_legacy" not in {
+            constraint["name"]
+            for constraint in inspector.get_unique_constraints("profile_files")
+        }
+        assert "uq_workspace_source_documents_owner_application_legacy" not in {
+            constraint["name"]
+            for constraint in inspector.get_unique_constraints(
+                "workspace_source_documents"
+            )
+        }
     finally:
         engine.dispose()
 
@@ -2025,7 +2053,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260831_0049"
+            assert revision == "20260906_0052"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
@@ -2065,7 +2093,7 @@ def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> Non
                     "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
                 )
             ).scalar_one()
-        assert revision == "20260831_0049"
+        assert revision == "20260906_0052"
         assert entry_it_count == 1
         assert LEGACY_RECOVERABLE_MISSING_TABLES <= set(
             inspect(engine).get_table_names()

@@ -238,7 +238,7 @@ def test_workspace_sources_reject_resume_uploads_but_keep_cover_letters() -> Non
     assert listed_after_delete.json() == []
 
 
-def test_application_attachments_validate_type_size_and_legacy_identity() -> None:
+def test_application_attachments_validate_type_and_size() -> None:
     engine = create_engine(
         "sqlite://",
         connect_args={"check_same_thread": False},
@@ -281,7 +281,6 @@ def test_application_attachments_validate_type_size_and_legacy_identity() -> Non
     app.dependency_overrides[get_db] = override_get_db
     client = TestClient(app)
     try:
-        created_payloads: list[dict[str, object]] = []
         for index, (content_type, file_name, content) in enumerate(supported_files):
             response = client.post(
                 "/documents/workspace-sources/upload",
@@ -290,7 +289,6 @@ def test_application_attachments_validate_type_size_and_legacy_identity() -> Non
                     "category": "Application Attachment",
                     "title": f"Attachment {index}",
                     "fileName": file_name,
-                    **({"legacyDocumentId": "legacy-pdf"} if index == 0 else {}),
                 },
                 content=content,
                 headers={"Content-Type": content_type},
@@ -298,32 +296,7 @@ def test_application_attachments_validate_type_size_and_legacy_identity() -> Non
             assert response.status_code == 201
             assert response.json()["fileType"] == content_type
             assert response.json()["sizeBytes"] == len(content)
-            created_payloads.append(response.json())
 
-        retried = client.post(
-            "/documents/workspace-sources/upload",
-            params={
-                "applicationId": "application-attachments",
-                "category": "Application Attachment",
-                "title": "Retried PDF",
-                "fileName": "details.pdf",
-                "legacyDocumentId": "legacy-pdf",
-            },
-            content=supported_files[0][2],
-            headers={"Content-Type": "application/pdf"},
-        )
-        legacy_conflict = client.post(
-            "/documents/workspace-sources/upload",
-            params={
-                "applicationId": "application-attachments",
-                "category": "Application Attachment",
-                "title": "Changed PDF",
-                "fileName": "details.pdf",
-                "legacyDocumentId": "legacy-pdf",
-            },
-            content=b"%PDF-1.7 changed",
-            headers={"Content-Type": "application/pdf"},
-        )
         mismatched_type = client.post(
             "/documents/workspace-sources/upload",
             params={
@@ -386,9 +359,6 @@ def test_application_attachments_validate_type_size_and_legacy_identity() -> Non
     finally:
         app.dependency_overrides.clear()
 
-    assert retried.status_code == 200
-    assert retried.json()["id"] == created_payloads[0]["id"]
-    assert legacy_conflict.status_code == 409
     assert mismatched_type.status_code == 422
     assert unsupported_type.status_code == 422
     assert invalid_signature.status_code == 422

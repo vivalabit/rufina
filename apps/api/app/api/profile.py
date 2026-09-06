@@ -1,5 +1,4 @@
 import asyncio
-from binascii import Error as BinasciiError
 from typing import Annotated
 from uuid import uuid4
 
@@ -37,7 +36,6 @@ from app.models.resume import (
 from app.services.ai_privacy import record_ai_activity
 from app.services.profile_files import (
     ProfileFileAlreadyExistsError,
-    ProfileFileIdentityConflictError,
     ProfileFileValidationError,
     best_effort_extracted_text,
     extract_profile_resume_source,
@@ -59,12 +57,7 @@ from app.services.profile_versions import (
     profile_etag,
     update_profile_data,
 )
-from app.services.resume_import import (
-    ResumeImportError,
-    create_resume_import_ai_facade,
-    decode_resume_data_url,
-    extract_resume_text,
-)
+from app.services.resume_import import ResumeImportError, create_resume_import_ai_facade
 from app.services.resume_master_import import (
     MasterResumeImportError,
     MasterResumeImportOutcome,
@@ -76,32 +69,11 @@ from app.services.resume_master_review import (
     confirm_master_resume,
     persist_master_resume_import_source,
 )
-from app.services.resume_source_extraction import (
-    ResumeSourceExtractionError,
-    extract_resume_source,
-)
+from app.services.resume_source_extraction import ResumeSourceExtractionError
 
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
 
 default_profile = ProfilePayload()
-
-legacy_default_profile = {
-    "name": "Alex Johnson",
-    "current_role": "Senior Product Designer",
-    "desired_role": "Design Manager",
-    "location": "San Francisco, CA, USA",
-    "work_format": "Remote, open to hybrid",
-    "headline": (
-        "Product designer with 7+ years of experience crafting intuitive B2B and B2C "
-        "digital experiences. Combines user empathy with data-driven design to ship "
-        "impactful products."
-    ),
-    "linkedin": "linkedin.com/in/alexjohnson",
-    "github": "github.com/alexjohnson",
-    "portfolio": "alexjohnson.design",
-    "personal_site": "alexjohnson.com",
-}
-
 
 def parse_resume_experience_with_selected_backend(
     text: str,
@@ -135,30 +107,7 @@ def parse_master_resume_with_selected_backend(
     )
 
 
-def normalize_profile_record(profile: ProfileRecord, db: Session) -> ProfilePayload:
-    normalized_data = dict(profile.data)
-
-    for field, legacy_value in legacy_default_profile.items():
-        if normalized_data.get(field) == legacy_value:
-            normalized_data[field] = ""
-
-    if normalized_data != profile.data:
-        try:
-            update_profile_data(
-                db,
-                profile,
-                data=normalized_data,
-                reason="legacy_normalization",
-            )
-            db.commit()
-            db.refresh(profile)
-        except StaleProfileRevisionError:
-            db.rollback()
-            current_profile = get_profile_record(db)
-            if current_profile is None:
-                raise
-            return normalize_profile_record(current_profile, db)
-
+def normalize_profile_record(profile: ProfileRecord) -> ProfilePayload:
     return ProfilePayload.model_validate(profile.data)
 
 
@@ -237,9 +186,7 @@ def require_profile_file(db: Session, file_id: str) -> ProfileFileRecord:
 def require_import_profile_resume(
     db: Session,
     payload: ProfileFileImportRequest,
-) -> ProfileFileRecord | None:
-    if payload.profile_file_id is None:
-        return None
+) -> ProfileFileRecord:
     record = require_profile_file(db, payload.profile_file_id)
     if record.kind != "primary_resume":
         raise HTTPException(
@@ -254,8 +201,6 @@ def extract_resume_import_text(
     payload: ProfileFileImportRequest,
 ) -> str:
     record = require_import_profile_resume(db, payload)
-    if record is None:
-        return extract_resume_text(payload.resume_file_name, payload.resume_data_url)
     if record.extracted_text.strip():
         return record.extracted_text
     try:
@@ -285,7 +230,7 @@ def get_profile(
 ) -> ProfilePayload:
     try:
         profile = get_or_create_profile(db)
-        payload = normalize_profile_record(profile, db)
+        payload = normalize_profile_record(profile)
         response.headers["ETag"] = profile_etag(profile.revision)
         return payload
     except SQLAlchemyError as exc:
@@ -392,12 +337,6 @@ async def upload_profile_file(
     issuer: str = Query(default="", max_length=240),
     notes: str = Query(default="", max_length=2_000),
     replace_existing: bool = Query(default=True, alias="replaceExisting"),
-    legacy_document_id: str | None = Query(
-        default=None,
-        min_length=1,
-        max_length=160,
-        alias="legacyDocumentId",
-    ),
     db: Session = Depends(get_db),
 ) -> ProfileFilePayload:
     limit = profile_file_size_limit(kind)
@@ -457,7 +396,6 @@ async def upload_profile_file(
             issuer=issuer,
             notes=notes,
             replace_singleton=replace_existing,
-            legacy_document_id=legacy_document_id,
         )
         db.commit()
         db.refresh(record)
@@ -465,12 +403,6 @@ async def upload_profile_file(
         db.rollback()
         raise HTTPException(
             status_code=status.HTTP_412_PRECONDITION_FAILED,
-            detail=str(exc),
-        ) from exc
-    except ProfileFileIdentityConflictError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
             detail=str(exc),
         ) from exc
     except ProfileFileValidationError as exc:
@@ -707,19 +639,10 @@ def import_master_resume(
 
     profile_file = require_import_profile_resume(db, payload)
     try:
-        if profile_file is not None:
-            file_name = profile_file.file_name
-            content = profile_file.content
-            source = extract_profile_resume_source(profile_file)
-        else:
-            file_name = payload.resume_file_name
-            content_type, content = decode_resume_data_url(payload.resume_data_url)
-            source = extract_resume_source(
-                file_name=file_name,
-                content_type=content_type,
-                content=content,
-            )
-    except (BinasciiError, ResumeSourceExtractionError, ValueError) as exc:
+        file_name = profile_file.file_name
+        content = profile_file.content
+        source = extract_profile_resume_source(profile_file)
+    except (ResumeSourceExtractionError, ValueError) as exc:
         raise HTTPException(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Could not extract source fragments from the attached resume",

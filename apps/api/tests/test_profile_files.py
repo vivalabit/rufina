@@ -213,7 +213,7 @@ def test_profile_files_are_owner_scoped_and_singletons_are_replaced(
     assert client.delete(replacement.json()["downloadUrl"], headers=OWNER_B).status_code == 404
 
 
-def test_legacy_uploads_are_idempotent_without_overwriting_singletons_or_metadata(
+def test_uploads_do_not_overwrite_singletons_and_allow_duplicate_supporting_files(
     api_client: tuple[TestClient, sessionmaker[Session]],
 ) -> None:
     client, _sessions = api_client
@@ -240,7 +240,6 @@ def test_legacy_uploads_are_idempotent_without_overwriting_singletons_or_metadat
         params={
             "kind": "supporting_document",
             "file_name": "first.pdf",
-            "legacyDocumentId": "legacy-first",
             "title": "First metadata",
         },
         content=PDF_BYTES,
@@ -251,44 +250,18 @@ def test_legacy_uploads_are_idempotent_without_overwriting_singletons_or_metadat
         params={
             "kind": "supporting_document",
             "file_name": "second.pdf",
-            "legacyDocumentId": "legacy-second",
             "title": "Second metadata",
         },
         content=PDF_BYTES,
         headers={**OWNER_A, "Content-Type": "application/pdf"},
     )
-    retried = client.post(
-        "/profile/files",
-        params={
-            "kind": "supporting_document",
-            "file_name": "renamed.pdf",
-            "legacyDocumentId": "legacy-first",
-            "title": "Stale metadata",
-        },
-        content=PDF_BYTES,
-        headers={**OWNER_A, "Content-Type": "application/pdf"},
-    )
-    conflicted = client.post(
-        "/profile/files",
-        params={
-            "kind": "supporting_document",
-            "file_name": "changed.pdf",
-            "legacyDocumentId": "legacy-first",
-        },
-        content=b"%PDF-1.4\nchanged\n%%EOF",
-        headers={**OWNER_A, "Content-Type": "application/pdf"},
-    )
-
     assert avatar.status_code == 201
     assert blocked_avatar.status_code == 412
     downloaded_avatar = client.get(avatar.json()["downloadUrl"], headers=OWNER_A)
     assert downloaded_avatar.status_code == 200
     assert downloaded_avatar.headers["content-disposition"].startswith("inline;")
-    assert first.status_code == second.status_code == retried.status_code == 201
+    assert first.status_code == second.status_code == 201
     assert first.json()["id"] != second.json()["id"]
-    assert retried.json()["id"] == first.json()["id"]
-    assert retried.json()["title"] == "First metadata"
-    assert conflicted.status_code == 409
 
 
 @pytest.mark.parametrize(

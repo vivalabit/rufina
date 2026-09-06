@@ -390,8 +390,6 @@ def build_openclaw_candidate_snapshot_prompt(
     )
     profile_payload = profile.model_dump(
         exclude={
-            "documents",
-            "resume_data_url",
             "resume_file_name",
             "resume_file_size",
             "resume_updated_at",

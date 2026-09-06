@@ -657,8 +657,6 @@ def build_profile_context(profile: ProfilePayload) -> dict[str, Any]:
     profile_context = profile.model_dump(
         exclude={
             "avatar_url",
-            "documents",
-            "resume_data_url",
             "resume_file_name",
             "resume_file_size",
             "resume_updated_at",

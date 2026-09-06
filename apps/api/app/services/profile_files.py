@@ -69,10 +69,6 @@ class ProfileFileAlreadyExistsError(ProfileFileValidationError):
     pass
 
 
-class ProfileFileIdentityConflictError(ProfileFileValidationError):
-    pass
-
-
 def profile_file_size_limit(kind: ProfileFileKind) -> int:
     return PROFILE_FILE_LIMITS[kind]
 
@@ -178,7 +174,6 @@ def store_profile_file(
     issuer: str = "",
     notes: str = "",
     replace_singleton: bool = True,
-    legacy_document_id: str | None = None,
 ) -> ProfileFileRecord:
     safe_name, normalized_content_type = validate_profile_file_upload(
         kind=kind,
@@ -187,23 +182,6 @@ def store_profile_file(
         content=content,
     )
     content_sha256 = hashlib.sha256(content).hexdigest()
-    normalized_legacy_id = (legacy_document_id or "").strip()[:160] or None
-    if normalized_legacy_id is not None and kind != "supporting_document":
-        raise ProfileFileValidationError("legacyDocumentId is only valid for supporting documents")
-    if normalized_legacy_id is not None:
-        existing_legacy = db.scalar(
-            select(ProfileFileRecord).where(
-                ProfileFileRecord.kind == kind,
-                ProfileFileRecord.legacy_document_id == normalized_legacy_id,
-            )
-        )
-        if existing_legacy is not None:
-            if existing_legacy.content_sha256 != content_sha256:
-                raise ProfileFileIdentityConflictError(
-                    "legacyDocumentId already identifies a different profile file"
-                )
-            return existing_legacy
-
     existing = None
     if kind in {"primary_resume", "avatar"}:
         existing = db.scalar(
@@ -247,7 +225,6 @@ def store_profile_file(
         file_name=safe_name,
         content_type=normalized_content_type,
         content_sha256=content_sha256,
-        legacy_document_id=normalized_legacy_id,
         size_bytes=len(content),
         content=content,
         extracted_text=extracted_text[:MAX_EXTRACTED_TEXT_CHARACTERS],
@@ -276,7 +253,6 @@ def list_profile_files(
         ProfileFileRecord.file_name,
         ProfileFileRecord.content_type,
         ProfileFileRecord.content_sha256,
-        ProfileFileRecord.legacy_document_id,
         ProfileFileRecord.size_bytes,
         ProfileFileRecord.created_at,
         ProfileFileRecord.updated_at,
@@ -308,7 +284,6 @@ def enrich_profile_with_files(db: Session, profile: ProfilePayload) -> ProfilePa
         ProfileFileRecord.file_name,
         ProfileFileRecord.content_type,
         ProfileFileRecord.content_sha256,
-        ProfileFileRecord.legacy_document_id,
         ProfileFileRecord.size_bytes,
         ProfileFileRecord.created_at,
         ProfileFileRecord.updated_at,
@@ -421,7 +396,6 @@ def _runtime_profile_file_metadata(
         "size_bytes": record.size_bytes,
         "content_type": record.content_type,
         "content_sha256": record.content_sha256,
-        "legacy_document_id": record.legacy_document_id,
         "created_at": record.created_at.isoformat(),
         "updated_at": record.updated_at.isoformat(),
     }
@@ -454,7 +428,6 @@ def _content_signature_matches(content_type: str, content: bytes) -> bool:
 
 __all__ = [
     "ProfileFileAlreadyExistsError",
-    "ProfileFileIdentityConflictError",
     "ProfileFileValidationError",
     "best_effort_extracted_text",
     "enrich_profile_with_files",

@@ -1,4 +1,3 @@
-import base64
 import json
 from collections.abc import Generator
 from copy import deepcopy
@@ -273,86 +272,6 @@ def test_master_resume_import_normalizes_present_for_current_role() -> None:
 
     assert outcome.master_resume.experiences[0].is_current is True
     assert outcome.master_resume.experiences[0].end_date == ""
-
-
-def test_master_resume_import_endpoint_returns_typed_draft(
-    monkeypatch: pytest.MonkeyPatch,
-    api_sessions: sessionmaker[Session],
-) -> None:
-    source = source_extraction()
-    master_resume = MasterResume.model_validate(
-        master_resume_payload("master-import-endpoint")
-    )
-    calls: list[tuple[ResumeSourceExtraction, str]] = []
-
-    def fake_parse(
-        extracted_source: ResumeSourceExtraction,
-        master_resume_id: str,
-        _settings: Settings,
-    ) -> MasterResumeImportOutcome:
-        calls.append((extracted_source, master_resume_id))
-        return MasterResumeImportOutcome(
-            master_resume=master_resume,
-            model="gpt-5.6-terra",
-            backend="openai_api",
-        )
-
-    monkeypatch.setattr(
-        "app.api.profile.extract_resume_source",
-        lambda **_kwargs: source,
-    )
-    monkeypatch.setattr(
-        "app.api.profile.parse_master_resume_with_selected_backend",
-        fake_parse,
-    )
-    app.dependency_overrides[get_settings] = lambda: Settings(
-        openclaw_resume_import_enabled=True
-    )
-    encoded = base64.b64encode(b"fake-docx").decode()
-    try:
-        response = TestClient(app).post(
-            "/profile/import-master-resume",
-            json={
-                "resume_file_name": "resume.docx",
-                "resume_data_url": (
-                    "data:application/vnd.openxmlformats-officedocument."
-                    f"wordprocessingml.document;base64,{encoded}"
-                ),
-            },
-        )
-    finally:
-        app.dependency_overrides.pop(get_settings, None)
-
-    assert response.status_code == 200
-    assert len(calls) == 1
-    assert len(calls[0][1]) == 32
-    assert response.json()["masterResume"]["id"] == "master-import-endpoint"
-    assert response.json()["source"]["fragments"][0]["text"] == "Ada Lovelace"
-    assert response.json()["backend"] == "openai_api"
-    assert [section["name"] for section in response.json()["reviewSections"]] == [
-        "contacts",
-        "summary",
-        "skills",
-        "experience",
-        "education",
-        "projects",
-        "certifications",
-    ]
-    assert response.json()["reviewSections"][0]["itemCount"] == 2
-    assert response.json()["reviewSections"][1]["itemCount"] == 1
-
-    with api_sessions() as db:
-        source_file = db.get(
-            ResumeSourceFileRecord,
-            response.json()["sourceFileId"],
-        )
-        assert source_file is not None
-        assert source_file.resume_master_id is None
-        assert source_file.draft_resume_id == "master-import-endpoint"
-        assert source_file.content == b"fake-docx"
-        assert source_file.extraction["fragments"][0]["text"] == "Ada Lovelace"
-        assert db.scalars(select(ResumeMasterRecord)).all() == []
-        assert db.scalars(select(ResumeMasterVersionRecord)).all() == []
 
 
 def test_master_resume_import_reads_profile_file_and_copies_provenance(

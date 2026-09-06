@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import (
     JSON,
     CheckConstraint,
@@ -81,20 +81,10 @@ class ProfileFileRecord(OwnerScoped, Base):
             "(kind IN ('primary_resume', 'avatar') AND singleton_key = kind)",
             name="ck_profile_files_singleton_key",
         ),
-        CheckConstraint(
-            "kind = 'supporting_document' OR legacy_document_id IS NULL",
-            name="ck_profile_files_legacy_id_kind",
-        ),
         UniqueConstraint(
             "owner_id",
             "singleton_key",
             name="uq_profile_files_owner_singleton",
-        ),
-        UniqueConstraint(
-            "owner_id",
-            "kind",
-            "legacy_document_id",
-            name="uq_profile_files_owner_kind_legacy",
         ),
     )
 
@@ -109,7 +99,6 @@ class ProfileFileRecord(OwnerScoped, Base):
     file_name: Mapped[str] = mapped_column(String(240), nullable=False)
     content_type: Mapped[str] = mapped_column(String(160), nullable=False)
     content_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    legacy_document_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
     size_bytes: Mapped[int] = mapped_column(Integer, nullable=False)
     content: Mapped[bytes] = mapped_column(LargeBinary, nullable=False, deferred=True)
     extracted_text: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -172,18 +161,9 @@ class ProfilePayload(BaseModel):
     job_preferences: str = Field(default="", max_length=12000)
     dealbreakers: str = Field(default="", max_length=2000)
     additional_notes: str = Field(default="", max_length=2000)
-    # Legacy file-bearing fields remain readable by old callers, but are never
-    # serialized or persisted by the profile API. Files belong in profile_files.
-    documents: str = Field(default="", max_length=20_000_000, exclude=True, repr=False)
     resume_file_name: str = Field(default="", max_length=240)
     resume_file_size: str = Field(default="", max_length=40)
     resume_updated_at: str = Field(default="", max_length=80)
-    resume_data_url: str = Field(
-        default="",
-        max_length=10_000_000,
-        exclude=True,
-        repr=False,
-    )
     # Hydrated from profile_files for server-side AI calls only. These fields
     # are deliberately excluded so file-derived text and metadata can never
     # leak back into ProfileRecord/ProfileVersionRecord JSON.
@@ -198,19 +178,14 @@ class ProfilePayload(BaseModel):
         repr=False,
     )
 
-    @field_validator("documents", "resume_data_url", mode="before")
-    @classmethod
-    def reject_legacy_file_payloads(cls, value: object) -> str:
-        if value not in (None, "", [], {}):
-            raise ValueError("Profile files must be uploaded through the binary profile file API")
-        return ""
-
     @field_validator("avatar_url", mode="before")
     @classmethod
     def discard_inline_avatar(cls, value: object) -> object:
         if isinstance(value, str) and value.strip().casefold().startswith("data:"):
             raise ValueError("Profile avatars must be uploaded through the binary profile file API")
         return value
+
+    model_config = ConfigDict(extra="forbid")
 
 
 class ProfileFilePayload(BaseModel):
@@ -244,39 +219,12 @@ class ProfileFileMetadataUpdateRequest(BaseModel):
 
 
 class ProfileFileImportRequest(BaseModel):
-    profile_file_id: str | None = Field(
-        default=None,
+    profile_file_id: str = Field(
         alias="profileFileId",
         min_length=1,
         max_length=36,
     )
-    # Transitional request-only compatibility. These bytes are decoded in
-    # memory and are never written into ProfileRecord/ProfileVersionRecord.
-    resume_file_name: str = Field(default="", alias="resumeFileName", max_length=240)
-    resume_data_url: str = Field(
-        default="",
-        alias="resumeDataUrl",
-        max_length=20_000_000,
-        repr=False,
-    )
-
     model_config = ConfigDict(extra="forbid", populate_by_name=True)
-
-    @model_validator(mode="after")
-    def require_exactly_one_source(self) -> "ProfileFileImportRequest":
-        has_profile_file = bool(self.profile_file_id)
-        has_legacy_file = bool(self.resume_file_name and self.resume_data_url)
-        if has_profile_file == has_legacy_file:
-            raise ValueError(
-                "Provide either profile_file_id or resume_file_name with resume_data_url"
-            )
-        if bool(self.resume_file_name) != bool(self.resume_data_url):
-            raise ValueError("resume_file_name and resume_data_url must be provided together")
-        return self
-
-
-# Backwards-compatible import name for existing internal callers.
-ResumeExperienceImportRequest = ProfileFileImportRequest
 
 
 class ImportedExperienceEntry(BaseModel):
