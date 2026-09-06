@@ -70,6 +70,31 @@ export default defineConfig([
     },
   },
   {
+    files: ["src/**/*.{ts,tsx}"],
+    ignores: [
+      "src/**/browser-storage/**",
+      "src/**/*.test.{ts,tsx}",
+      "src/test/**",
+    ],
+    rules: {
+      "no-restricted-globals": [
+        "error",
+        {
+          name: "localStorage",
+          message: "Use the browser-storage module instead of direct localStorage access.",
+        },
+      ],
+      "no-restricted-properties": [
+        "error",
+        {
+          object: "window",
+          property: "localStorage",
+          message: "Use the browser-storage module instead of direct window.localStorage access.",
+        },
+      ],
+    },
+  },
+  {
     files: [
       "src/components/**/*.{ts,tsx}",
       "src/features/**/components/**/*.{ts,tsx}",

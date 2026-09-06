@@ -9,6 +9,12 @@ import {
   type ReactNode,
 } from "react";
 
+import {
+  readBrowserStorage,
+  removeBrowserStorage,
+  writeBrowserStorage,
+} from "@/shared/browser-storage/storage";
+
 import { uiSettingsStorageKey } from "../browser-storage/keys";
 import { defaultUiSettings } from "../model/defaults";
 import type { UiSettings } from "../model/types";
@@ -27,13 +33,13 @@ export function UiSettingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     try {
-      const rawSettings = window.localStorage.getItem(uiSettingsStorageKey);
+      const rawSettings = readBrowserStorage(uiSettingsStorageKey);
       const storedSettings = rawSettings
         ? JSON.parse(rawSettings) as Partial<UiSettings>
         : {};
       setSettings({ ...defaultUiSettings, ...storedSettings });
     } catch {
-      window.localStorage.removeItem(uiSettingsStorageKey);
+      removeBrowserStorage(uiSettingsStorageKey);
     } finally {
       setIsLoaded(true);
     }
@@ -41,7 +47,7 @@ export function UiSettingsProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (!isLoaded) return;
-    window.localStorage.setItem(uiSettingsStorageKey, JSON.stringify(settings));
+    writeBrowserStorage(uiSettingsStorageKey, JSON.stringify(settings));
   }, [isLoaded, settings]);
 
   const value = useMemo<UiSettingsContextValue>(() => ({

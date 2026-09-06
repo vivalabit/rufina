@@ -1,6 +1,11 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { createClientId } from "@/lib/client-id";
+import {
+  readBrowserStorage,
+  removeBrowserStorage,
+  writeBrowserStorage,
+} from "@/shared/browser-storage/storage";
 
 import { appLogsStorageKey, maxStoredAppLogs } from "../model/constants";
 import { normalizeStoredLogs } from "../model/normalizers";
@@ -13,13 +18,13 @@ export function useActivityFeed() {
 
   useEffect(() => {
     try {
-      const rawLogs = window.localStorage.getItem(appLogsStorageKey);
+      const rawLogs = readBrowserStorage(appLogsStorageKey);
       setEntries(normalizeStoredLogs(rawLogs ? JSON.parse(rawLogs) : [], {
         createId: createClientId,
         now: () => new Date().toISOString(),
       }));
     } catch {
-      window.localStorage.removeItem(appLogsStorageKey);
+      removeBrowserStorage(appLogsStorageKey);
       setError(new Error("Stored activity could not be loaded"));
     } finally {
       setIsLoaded(true);
@@ -29,7 +34,7 @@ export function useActivityFeed() {
   useEffect(() => {
     if (!isLoaded) return;
     try {
-      window.localStorage.setItem(
+      writeBrowserStorage(
         appLogsStorageKey,
         JSON.stringify(entries.slice(0, maxStoredAppLogs)),
       );
