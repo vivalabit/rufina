@@ -22,7 +22,7 @@ def hydrate_job_data(
     job_data: dict[str, Any],
     profile_hash: str,
 ) -> dict[str, Any]:
-    next_job_data = dict(job_data)
+    next_job_data = strip_job_state(job_data)
     match_record = latest_match_record(db, job_id=job_id, profile_hash=profile_hash)
     if match_record:
         next_job_data["match"] = match_record.score
@@ -111,12 +111,17 @@ def authoritative_match_to_ai_match(record: JobMatchRecord) -> dict[str, Any]:
     }
 
 
-def strip_ai_match(job_data: dict[str, Any]) -> dict[str, Any]:
+def strip_job_state(job_data: dict[str, Any]) -> dict[str, Any]:
     next_job_data = dict(job_data)
-    next_job_data.pop("aiMatch", None)
     next_job_data.pop("archived", None)
     next_job_data.pop("archivedAt", None)
     next_job_data.pop("archived_at", None)
+    return next_job_data
+
+
+def strip_ai_match(job_data: dict[str, Any]) -> dict[str, Any]:
+    next_job_data = strip_job_state(job_data)
+    next_job_data.pop("aiMatch", None)
     return next_job_data
 
 

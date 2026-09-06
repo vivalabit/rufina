@@ -823,7 +823,7 @@ def test_job_archive_backfill_preserves_authoritative_state(tmp_path) -> None:
     finally:
         engine.dispose()
 
-    command.upgrade(config, "head")
+    command.upgrade(config, "20260906_0050")
 
     engine = create_engine(database_url)
     try:
@@ -839,6 +839,22 @@ def test_job_archive_backfill_preserves_authoritative_state(tmp_path) -> None:
         assert rows["legacy-false"].archived_at is None
         assert rows["authoritative"].archived_at.startswith("2026-09-01 09:00:00")
         assert json.loads(rows["legacy-dated"].data)["archived"] is True
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            rows = connection.execute(
+                text("SELECT data, archived_at FROM stored_jobs ORDER BY id")
+            ).all()
+        assert all(
+            {"archived", "archivedAt", "archived_at"}.isdisjoint(json.loads(row.data))
+            for row in rows
+        )
+        assert sum(row.archived_at is not None for row in rows) == 3
     finally:
         engine.dispose()
 
