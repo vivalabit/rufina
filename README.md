@@ -4,8 +4,6 @@
 
 Rufina is a personal AI assistant for job hunting. It finds suitable job openings, assesses how well they match your profile, and tailors your resume and cover letters. The app also helps you store your documents and track the entire application process in one place.
 
-The canonical product design system lives in [DESIGN.md](DESIGN.md). It supersedes any older visual conventions.
-
 ![Rufina](images/scr_1.png)
 
 ## Key Features
