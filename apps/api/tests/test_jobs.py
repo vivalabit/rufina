@@ -62,6 +62,8 @@ def test_manual_jobs_can_be_upserted_but_parser_imports_require_screening() -> N
                         "department": "Manual",
                         "match": 0,
                         "logo": "manual",
+                        "archived": True,
+                        "archivedAt": "2026-09-01T12:00:00Z",
                     },
                 }
             ]
@@ -78,6 +80,8 @@ def test_manual_jobs_can_be_upserted_but_parser_imports_require_screening() -> N
         assert read_response.json()[0]["data"]["title"] == (
             "Manually added Product Designer"
         )
+        assert "archived" not in read_response.json()[0]["data"]
+        assert "archivedAt" not in read_response.json()[0]["data"]
     finally:
         app.dependency_overrides.clear()
 

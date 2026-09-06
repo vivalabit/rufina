@@ -114,6 +114,9 @@ def authoritative_match_to_ai_match(record: JobMatchRecord) -> dict[str, Any]:
 def strip_ai_match(job_data: dict[str, Any]) -> dict[str, Any]:
     next_job_data = dict(job_data)
     next_job_data.pop("aiMatch", None)
+    next_job_data.pop("archived", None)
+    next_job_data.pop("archivedAt", None)
+    next_job_data.pop("archived_at", None)
     return next_job_data
 
 
@@ -248,7 +251,7 @@ def parse_match_updated_at(ai_match: dict[str, Any]) -> datetime | None:
     if not isinstance(value, str) or not value.strip():
         return None
     try:
-        parsed = datetime.fromisoformat(value.strip().replace("Z", "+00:00"))
+        parsed = datetime.fromisoformat(value.strip())
     except ValueError:
         return None
     if parsed.tzinfo is None:
@@ -270,7 +273,7 @@ def normalize_string_list(value: Any) -> list[str]:
 
 def clamp_int(value: Any, default: int) -> int:
     try:
-        number = int(round(float(value)))
+        number = round(float(value))
     except (TypeError, ValueError):
         number = default
     return max(0, min(100, number))

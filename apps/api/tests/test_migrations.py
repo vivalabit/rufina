@@ -765,6 +765,84 @@ def test_state_ownership_migration_backfills_legacy_profile_revisions(tmp_path) 
         engine.dispose()
 
 
+def test_job_archive_backfill_preserves_authoritative_state(tmp_path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'job-archive-backfill.sqlite'}"
+    config = get_alembic_config(database_url)
+    command.upgrade(config, "20260831_0049")
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            for job_id, data, archived_at in (
+                (
+                    "legacy-dated",
+                    {
+                        "id": "legacy-dated",
+                        "archived": True,
+                        "archivedAt": "2026-08-01T10:30:00Z",
+                    },
+                    None,
+                ),
+                (
+                    "legacy-undated",
+                    {
+                        "id": "legacy-undated",
+                        "archived": True,
+                        "archivedAt": "invalid",
+                    },
+                    None,
+                ),
+                (
+                    "legacy-false",
+                    {"id": "legacy-false", "archived": False},
+                    None,
+                ),
+                (
+                    "authoritative",
+                    {
+                        "id": "authoritative",
+                        "archived": True,
+                        "archivedAt": "2020-01-01T00:00:00Z",
+                    },
+                    "2026-09-01 09:00:00+00:00",
+                ),
+            ):
+                connection.execute(
+                    text(
+                        "INSERT INTO stored_jobs "
+                        "(owner_id, id, data, status, archived_at, updated_at, revision) "
+                        "VALUES (:owner_id, :id, :data, 'active', :archived_at, :updated_at, 1)"
+                    ),
+                    {
+                        "owner_id": "local-owner",
+                        "id": job_id,
+                        "data": json.dumps(data),
+                        "archived_at": archived_at,
+                        "updated_at": "2026-08-15 08:00:00+00:00",
+                    },
+                )
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+
+    engine = create_engine(database_url)
+    try:
+        with engine.connect() as connection:
+            rows = {
+                row.id: row
+                for row in connection.execute(
+                    text("SELECT id, data, archived_at FROM stored_jobs ORDER BY id")
+                )
+            }
+        assert rows["legacy-dated"].archived_at.startswith("2026-08-01 10:30:00")
+        assert rows["legacy-undated"].archived_at.startswith("2026-08-15 08:00:00")
+        assert rows["legacy-false"].archived_at is None
+        assert rows["authoritative"].archived_at.startswith("2026-09-01 09:00:00")
+        assert json.loads(rows["legacy-dated"].data)["archived"] is True
+    finally:
+        engine.dispose()
+
+
 def test_inline_file_migration_extracts_deduplicates_and_scrubs_legacy_data(
     tmp_path,
 ) -> None:
