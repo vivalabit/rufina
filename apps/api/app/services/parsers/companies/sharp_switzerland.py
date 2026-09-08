@@ -27,7 +27,7 @@ SHARP_HEADERS = {
         "Chrome/127.0 Safari/537.36"
     ),
 }
-JOB_PATH_PATTERN = re.compile(r"^/de/([a-z0-9][a-z0-9-]*)/?$")
+JOB_PATH_PATTERN = re.compile(r"^/de/([a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*)/?$")
 WORKLOAD_PATTERN = re.compile(r"^100\s*%$")
 
 
@@ -219,7 +219,7 @@ def parse_listing_html(
     page = Selector(page_html)
     canonical = canonical_url(optional_text(page.css('link[rel="canonical"]::attr(href)').get()))
     language = optional_text(page.css("html::attr(lang)").get())
-    page_title = selector_text(page, "main h1.h2")
+    page_title = selector_text(page, "main h1")
     og_title = optional_text(page.css('meta[property="og:title"]::attr(content)').get())
     if (
         canonical != canonical_url(expected_url)
@@ -231,12 +231,12 @@ def parse_listing_html(
 
     catalogs = [
         node
-        for node in page.css("main .shp-full-width-text")
-        if selector_text(node, "h3") == "Karriere bei Sharp"
+        for node in page.css("main .shp-full-width-text, main section.paragraph--text")
+        if selector_text(node, "h2, h3") == "Karriere bei Sharp"
     ]
     if len(catalogs) != 1:
         raise SharpSwitzerlandParseError("Sharp careers page is missing its vacancy catalog")
-    bodies = catalogs[0].css(":scope .shp-content-wysiwyg")
+    bodies = catalogs[0].css(":scope .shp-content-wysiwyg, :scope .section-inner > .text")
     if len(bodies) != 1:
         raise SharpSwitzerlandParseError("Sharp careers page has an invalid vacancy catalog")
     body = bodies[0]
@@ -305,7 +305,7 @@ def parse_detail_html(
     canonical = canonical_url(optional_text(page.css('link[rel="canonical"]::attr(href)').get()))
     og_titles = unique_attribute_values(page, 'meta[property="og:title"]', "content")
     dcterms_titles = unique_attribute_values(page, 'meta[name="dcterms.title"]', "content")
-    heroes = page.css("main .shp-hero__content")
+    heroes = page.css("main .shp-hero__content, main .media__content")
     if (
         canonical != canonical_url(expected_url)
         or len(og_titles) != 1
@@ -320,15 +320,17 @@ def parse_detail_html(
     if not title or role_signature(title) != role_signature(expected_title):
         raise SharpSwitzerlandParseError("Sharp detail page returned a different vacancy title")
     location, workload, starts_at = parse_summary(summary)
-    if not location or not workload or starts_at != "ab sofort":
+    if not location or not workload:
         raise SharpSwitzerlandParseError("Sharp detail page has invalid vacancy metadata")
 
     blocks: list[str] = []
     headings: set[str] = set()
-    for block in page.css("main .shp-landing-page__content .shp-text-media__text-block"):
+    for block in page.css(
+        "main .shp-landing-page__content .shp-text-media__text-block, main article .text"
+    ):
         heading = selector_text(block, "h2")
         bodies = block.css(":scope .shp-content-wysiwyg")
-        body_text = selector_text(bodies[0]) if len(bodies) == 1 else None
+        body_text = selector_text(bodies[0]) if len(bodies) == 1 else selector_text(block)
         if not heading or not body_text:
             continue
         headings.add(heading.casefold())
@@ -380,7 +382,7 @@ def parse_summary(value: Any) -> tuple[str | None, str | None, str | None]:
 def role_signature(value: Any) -> str:
     text = optional_text(value) or ""
     text = re.sub(r"\((?:[mwd]/){2}[mwd]\)", "", text, flags=re.IGNORECASE)
-    text = re.split(r"[,|]", text, maxsplit=1)[0]
+    text = re.split(r"[,|]|\s+[–-]\s+", text, maxsplit=1)[0]
     text = re.sub(r"\b100\s*%", "", text)
     return re.sub(r"[^a-z0-9]+", "", text.casefold())
 

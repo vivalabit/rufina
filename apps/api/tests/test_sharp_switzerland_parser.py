@@ -315,3 +315,12 @@ def test_sharp_is_registered_and_renders_as_direct_company() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Sharp Switzerland import"
     assert stored["company"] == "Sharp Electronics (Schweiz) AG"
+
+
+def test_sharp_reads_current_catalog_and_nested_job_slug() -> None:
+    from app.services.parsers.companies.sharp_switzerland import parse_listing_html
+
+    page = listing_html(vacancy_link("account-manager/unterwallis-100", "Account Manager"))
+    page = page.replace('h1 class="h2"', "h1").replace("<h3>", "<h2>").replace("</h3>", "</h2>")
+    records = parse_listing_html(page, page_url=JOBS_URL, expected_url=JOBS_URL, max_jobs=100)
+    assert records[0]["url"].endswith("/account-manager/unterwallis-100")
