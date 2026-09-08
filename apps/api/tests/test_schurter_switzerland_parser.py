@@ -38,14 +38,10 @@ def contentful_system(
         "type": "Entry",
         "createdAt": created_at,
         "updatedAt": updated_at,
-        "environment": {
-            "sys": {"id": "master", "type": "Link", "linkType": "Environment"}
-        },
+        "environment": {"sys": {"id": "master", "type": "Link", "linkType": "Environment"}},
         "publishedVersion": 12,
         "revision": 2,
-        "contentType": {
-            "sys": {"type": "Link", "linkType": "ContentType", "id": content_type}
-        },
+        "contentType": {"sys": {"type": "Link", "linkType": "ContentType", "id": content_type}},
         "locale": "de",
     }
 
@@ -55,9 +51,7 @@ def rich_text(*paragraphs: str, bullets: list[str] | None = None) -> dict[str, o
         {
             "nodeType": "paragraph",
             "data": {},
-            "content": [
-                {"nodeType": "text", "value": paragraph, "marks": [], "data": {}}
-            ],
+            "content": [{"nodeType": "text", "value": paragraph, "marks": [], "data": {}}],
         }
         for paragraph in paragraphs
     ]
@@ -157,9 +151,7 @@ def job_record(
             "SCHURTER ist ein weltweit tätiges Schweizer Technologieunternehmen."
         ),
         "contactTitle": "Kontakt",
-        "motivationAndContact": rich_text(
-            f"Wir freuen uns auf Ihre Bewerbung an {contact_email}."
-        ),
+        "motivationAndContact": rich_text(f"Wir freuen uns auf Ihre Bewerbung an {contact_email}."),
         "addressTitle": "Adresse",
         "address": rich_text(
             "SCHURTER AG\nElectronic Components\nWerkhofstrasse 8 - 12\n6002 Luzern"
@@ -224,9 +216,9 @@ def test_schurter_scans_complete_swiss_catalog() -> None:
             payload = {"total": 2, "data": records}
         return httpx.Response(200, json=payload, request=request)
 
-    result = SchurterSwitzerlandJobsParser(
-        transport=httpx.MockTransport(handler)
-    ).search(LinkedInSearchRequest(results_limit=1))
+    result = SchurterSwitzerlandJobsParser(transport=httpx.MockTransport(handler)).search(
+        LinkedInSearchRequest(results_limit=1)
+    )
 
     assert calls == [
         (
@@ -252,10 +244,7 @@ def test_schurter_scans_complete_swiss_catalog() -> None:
     assert first.title == "Lead Global Workplace & Service Experience (100%)"
     assert first.company == "SCHURTER AG"
     assert first.location == "Switzerland"
-    assert first.url == (
-        "https://www.schurter.com/de/jobs/"
-        "senior-systems-engineer-1-80-100"
-    )
+    assert first.url == ("https://www.schurter.com/de/jobs/senior-systems-engineer-1-80-100")
     assert first.apply_url == application_email_url(
         first.title,
         public_url=first.url,
@@ -289,9 +278,9 @@ def test_schurter_paginates_until_the_declared_total() -> None:
             request=request,
         )
 
-    result = SchurterSwitzerlandJobsParser(
-        transport=httpx.MockTransport(handler)
-    ).search(LinkedInSearchRequest())
+    result = SchurterSwitzerlandJobsParser(transport=httpx.MockTransport(handler)).search(
+        LinkedInSearchRequest()
+    )
 
     assert pages == [1, 2]
     assert len(result.jobs) == 10
@@ -340,9 +329,9 @@ def test_schurter_rejects_duplicate_records_and_configured_limit() -> None:
         return httpx.Response(200, json=payload, request=request)
 
     with pytest.raises(DirectCompanyRequestError, match="duplicate vacancies"):
-        SchurterSwitzerlandJobsParser(
-            transport=httpx.MockTransport(duplicate_handler)
-        ).search(LinkedInSearchRequest())
+        SchurterSwitzerlandJobsParser(transport=httpx.MockTransport(duplicate_handler)).search(
+            LinkedInSearchRequest()
+        )
 
     def limit_handler(request: httpx.Request) -> httpx.Response:
         payload = (
@@ -375,16 +364,14 @@ def test_schurter_rejects_unstable_pagination_total() -> None:
         return httpx.Response(200, json=payload, request=request)
 
     with pytest.raises(DirectCompanyRequestError, match="changed its total"):
-        SchurterSwitzerlandJobsParser(
-            transport=httpx.MockTransport(handler)
-        ).search(LinkedInSearchRequest())
+        SchurterSwitzerlandJobsParser(transport=httpx.MockTransport(handler)).search(
+            LinkedInSearchRequest()
+        )
 
 
 def test_schurter_wraps_api_request_failures() -> None:
     parser = SchurterSwitzerlandJobsParser(
-        transport=httpx.MockTransport(
-            lambda request: httpx.Response(503, request=request)
-        )
+        transport=httpx.MockTransport(lambda request: httpx.Response(503, request=request))
     )
     with pytest.raises(DirectCompanyRequestError, match="vacancy request failed"):
         parser.search(LinkedInSearchRequest())
@@ -421,3 +408,20 @@ def test_schurter_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "SCHURTER AG import"
     assert stored["id"] == f"schurter_switzerland-{record['id']}"
+
+
+def test_schurter_accepts_localized_gender_suffix_but_not_other_job() -> None:
+    record = job_record(1, title="IMS & Documentation Manager (w/m/d)")
+    record["fields"]["jobsCHMetadata"]["fields"]["title"] = "IMS & Documentation Manager (f/m/d)"
+    assert parse_catalog_record(record, catalog_index=0)["title"] == record["fields"]["title"]
+    record["fields"]["jobsCHMetadata"]["fields"]["title"] = "Different role (f/m/d)"
+    with pytest.raises(DirectCompanyRequestError):
+        parse_catalog_record(record, catalog_index=0)
+
+
+def test_schurter_accepts_legacy_careers_parent_for_swiss_job() -> None:
+    record = job_record(1)
+    record["fields"]["parentPage"]["fields"].update(
+        title="Offene Stellen", slug="ueber-uns/karriere/offene-stellen"
+    )
+    assert parse_catalog_record(record, catalog_index=0)["country"] == "CH"

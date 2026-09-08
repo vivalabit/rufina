@@ -11,9 +11,7 @@ import httpx
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
 
-SCHURTER_CAREERS_URL = (
-    "https://www.schurter.com/de/karriere/offene-stellen?country=CH"
-)
+SCHURTER_CAREERS_URL = "https://www.schurter.com/de/karriere/offene-stellen?country=CH"
 SCHURTER_JOBS_API_URL = "https://www.schurter.com/api/website/v1/jobs"
 SCHURTER_COMPANY = "SCHURTER AG"
 SCHURTER_COUNTRY = "CH"
@@ -79,13 +77,9 @@ class SchurterSwitzerlandJobsParser:
         except SchurterSwitzerlandParseError:
             raise
         except httpx.HTTPError as exc:
-            raise DirectCompanyRequestError(
-                "SCHURTER Switzerland vacancy request failed"
-            ) from exc
+            raise DirectCompanyRequestError("SCHURTER Switzerland vacancy request failed") from exc
         except (KeyError, TypeError, ValueError) as exc:
-            raise DirectCompanyRequestError(
-                "SCHURTER Switzerland vacancy parsing failed"
-            ) from exc
+            raise DirectCompanyRequestError("SCHURTER Switzerland vacancy parsing failed") from exc
 
         jobs = [normalize_job(record) for record in records]
         if request.deduplicate:
@@ -151,9 +145,7 @@ class SchurterSwitzerlandJobsParser:
                 max(0, (expected_total or 0) - len(records)),
             )
             if len(values) != expected_page_size:
-                raise SchurterSwitzerlandParseError(
-                    "SCHURTER jobs API returned an incomplete page"
-                )
+                raise SchurterSwitzerlandParseError("SCHURTER jobs API returned an incomplete page")
             for value in values:
                 record = parse_catalog_record(value, catalog_index=len(records))
                 job_id = record["id"]
@@ -176,9 +168,7 @@ class SchurterSwitzerlandJobsParser:
 
 def parse_country_filters(value: Any) -> list[str]:
     if not isinstance(value, dict) or set(value) != {"values"}:
-        raise SchurterSwitzerlandParseError(
-            "SCHURTER jobs API returned malformed country filters"
-        )
+        raise SchurterSwitzerlandParseError("SCHURTER jobs API returned malformed country filters")
     values = value.get("values")
     if (
         not isinstance(values, list)
@@ -192,17 +182,13 @@ def parse_country_filters(value: Any) -> list[str]:
             for country in values
         )
     ):
-        raise SchurterSwitzerlandParseError(
-            "SCHURTER jobs API returned malformed country filters"
-        )
+        raise SchurterSwitzerlandParseError("SCHURTER jobs API returned malformed country filters")
     return values
 
 
 def parse_catalog_page(value: Any) -> tuple[int, list[dict[str, Any]]]:
     if not isinstance(value, dict) or set(value) != {"total", "data"}:
-        raise SchurterSwitzerlandParseError(
-            "SCHURTER jobs API returned a malformed catalog page"
-        )
+        raise SchurterSwitzerlandParseError("SCHURTER jobs API returned a malformed catalog page")
     total = value.get("total")
     data = value.get("data")
     if (
@@ -212,9 +198,7 @@ def parse_catalog_page(value: Any) -> tuple[int, list[dict[str, Any]]]:
         or not isinstance(data, list)
         or any(not isinstance(record, dict) for record in data)
     ):
-        raise SchurterSwitzerlandParseError(
-            "SCHURTER jobs API returned a malformed catalog page"
-        )
+        raise SchurterSwitzerlandParseError("SCHURTER jobs API returned a malformed catalog page")
     return total, data
 
 
@@ -223,9 +207,7 @@ def parse_catalog_record(value: dict[str, Any], *, catalog_index: int) -> dict[s
     fields = value.get("fields")
     metadata = value.get("metadata")
     if not isinstance(system, dict) or not isinstance(fields, dict):
-        raise SchurterSwitzerlandParseError(
-            "SCHURTER jobs API returned a malformed vacancy"
-        )
+        raise SchurterSwitzerlandParseError("SCHURTER jobs API returned a malformed vacancy")
 
     job_id = optional_text(system.get("id"))
     created_at = optional_text(system.get("createdAt"))
@@ -258,12 +240,7 @@ def parse_catalog_record(value: dict[str, Any], *, catalog_index: int) -> dict[s
 
     description = compose_description(fields)
     address = contentful_to_text(fields.get("address"))
-    if (
-        not description
-        or len(description) < 200
-        or not address
-        or SCHURTER_COMPANY not in address
-    ):
+    if not description or len(description) < 200 or not address or SCHURTER_COMPANY not in address:
         raise SchurterSwitzerlandParseError(
             "SCHURTER jobs API returned an incomplete vacancy description"
         )
@@ -314,9 +291,7 @@ def valid_global_tag(value: Any) -> bool:
     if not isinstance(tags, list):
         return False
     tag_ids = {
-        optional_text(nested_value(tag, "sys", "id"))
-        for tag in tags
-        if isinstance(tag, dict)
+        optional_text(nested_value(tag, "sys", "id")) for tag in tags if isinstance(tag, dict)
     }
     return GLOBAL_WEBSITE_TAG in tag_ids
 
@@ -329,8 +304,8 @@ def valid_parent_page(value: Any) -> bool:
     return (
         valid_contentful_system(system, PARENT_CONTENT_TYPE_ID)
         and isinstance(fields, dict)
-        and optional_text(fields.get("title")) == PARENT_TITLE
-        and optional_text(fields.get("slug")) == PARENT_SLUG
+        and optional_text(fields.get("title")) in {PARENT_TITLE, "Offene Stellen"}
+        and optional_text(fields.get("slug")) in {PARENT_SLUG, "ueber-uns/karriere/offene-stellen"}
     )
 
 
@@ -347,23 +322,25 @@ def valid_page_metadata(value: Any) -> bool:
     )
 
 
+def comparable_job_title(value: Any) -> str:
+    # The Swiss feed localizes only the gender suffix on some otherwise identical titles.
+    text = optional_text(value) or ""
+    return re.sub(r"\((?:w|f)/m/d\)", "(m/w/d)", text, flags=re.IGNORECASE).casefold()
+
+
 def swiss_metadata_fields(value: Any, *, title: str) -> dict[str, Any]:
     if value is None:
         return {}
     if not isinstance(value, dict):
-        raise SchurterSwitzerlandParseError(
-            "SCHURTER vacancy contains malformed Swiss metadata"
-        )
+        raise SchurterSwitzerlandParseError("SCHURTER vacancy contains malformed Swiss metadata")
     system = value.get("sys")
     fields = value.get("fields")
     if (
         not valid_contentful_system(system, JOB_METADATA_CONTENT_TYPE_ID)
         or not isinstance(fields, dict)
-        or optional_text(fields.get("title")) != title
+        or comparable_job_title(fields.get("title")) != comparable_job_title(title)
     ):
-        raise SchurterSwitzerlandParseError(
-            "SCHURTER vacancy contains malformed Swiss metadata"
-        )
+        raise SchurterSwitzerlandParseError("SCHURTER vacancy contains malformed Swiss metadata")
     return dict(fields)
 
 
@@ -379,9 +356,7 @@ def workload_from_metadata(value: dict[str, Any]) -> str | None:
         or not isinstance(maximum, int)
         or not 1 <= minimum <= maximum <= 100
     ):
-        raise SchurterSwitzerlandParseError(
-            "SCHURTER vacancy contains an invalid workload"
-        )
+        raise SchurterSwitzerlandParseError("SCHURTER vacancy contains an invalid workload")
     return f"{minimum}%" if minimum == maximum else f"{minimum}–{maximum}%"
 
 
@@ -444,9 +419,7 @@ def render_contentful_node(value: Any, *, list_item: bool = False) -> str:
     if not isinstance(children, list):
         return ""
     if node_type in {"unordered-list", "ordered-list"}:
-        return "\n".join(
-            render_contentful_node(child, list_item=True) for child in children
-        )
+        return "\n".join(render_contentful_node(child, list_item=True) for child in children)
     rendered = "".join(render_contentful_node(child) for child in children)
     if node_type == "list-item" or list_item:
         return f"- {optional_text(rendered) or ''}"
