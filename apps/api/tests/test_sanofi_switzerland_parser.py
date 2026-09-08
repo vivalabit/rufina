@@ -52,12 +52,12 @@ def results_html(
     cards = "".join(
         f"""
         <li>
-          <button class="js-save-job-btn" data-job-id="{record['job_id']}"
+          <button class="js-save-job-btn" data-job-id="{record["job_id"]}"
             data-org-id="2649">Save for Later</button>
-          <a href="{httpx.URL(record['url']).path}" data-job-id="{record['job_id']}">
-            <h2>{record['title']}</h2>
-            <span class="job-location"><strong>Location: </strong>{record['location']}</span>
-            <span class="job-category"><strong>Category: </strong>{record['category']}</span>
+          <a href="{httpx.URL(record["url"]).path}" data-job-id="{record["job_id"]}">
+            <h2>{record["title"]}</h2>
+            <span class="job-location"><strong>Location: </strong>{record["location"]}</span>
+            <span class="job-category"><strong>Category: </strong>{record["category"]}</span>
           </a>
         </li>
         """
@@ -128,8 +128,8 @@ def detail_html(record: dict[str, str], *, apply_url: str | None = None) -> str:
     )
     return f"""
     <html><head>
-      <link rel="canonical" href="{record['url']}" />
-      <meta name="search-analytics-currentJobId" content="{record['job_id']}" />
+      <link rel="canonical" href="{record["url"]}" />
+      <meta name="search-analytics-currentJobId" content="{record["job_id"]}" />
       <meta name="search-job-apply-url" content="{direct_apply}" />
       <script type="application/ld+json">{json.dumps(posting)}</script>
     </head></html>
@@ -206,9 +206,7 @@ def test_sanofi_preserves_listing_when_detail_fails() -> None:
             )
         return httpx.Response(503, request=request)
 
-    job = parser_with(httpx.MockTransport(handler)).search(
-        LinkedInSearchRequest()
-    ).jobs[0]
+    job = parser_with(httpx.MockTransport(handler)).search(LinkedInSearchRequest()).jobs[0]
 
     assert job.title == record["title"]
     assert job.location == "Rotkreuz, Switzerland"
@@ -227,9 +225,7 @@ def test_sanofi_preserves_listing_when_detail_fails() -> None:
             "did not preserve",
         ),
         (
-            listing_response(
-                [listing_record(1)], total=1, page=1, organization_id="999"
-            ),
+            listing_response([listing_record(1)], total=1, page=1, organization_id="999"),
             "invalid catalog metadata",
         ),
         (
@@ -265,9 +261,7 @@ def test_sanofi_rejects_invalid_detail_but_keeps_verified_listing() -> None:
             request=request,
         )
 
-    job = parser_with(httpx.MockTransport(handler)).search(
-        LinkedInSearchRequest()
-    ).jobs[0]
+    job = parser_with(httpx.MockTransport(handler)).search(LinkedInSearchRequest()).jobs[0]
 
     assert job.apply_url == record["url"]
     assert "invalid apply URL" in str(job.raw["detail_error"])
@@ -293,9 +287,7 @@ def test_sanofi_rejects_catalog_above_page_limit() -> None:
         return httpx.Response(200, json=payload, request=request)
 
     with pytest.raises(DirectCompanyRequestError, match="configured limit of 2"):
-        parser_with(httpx.MockTransport(handler), max_pages=2).search(
-            LinkedInSearchRequest()
-        )
+        parser_with(httpx.MockTransport(handler), max_pages=2).search(LinkedInSearchRequest())
 
 
 def test_sanofi_is_registered_and_renders_as_direct_company() -> None:
@@ -331,3 +323,25 @@ def test_sanofi_is_registered_and_renders_as_direct_company() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Sanofi Switzerland import"
     assert stored["company"] == "Sanofi"
+
+
+def test_sanofi_accepts_one_empty_page_but_rejects_multiple_empty_pages() -> None:
+    from app.services.parsers.companies.sanofi_switzerland import parse_listing_response
+
+    payload = listing_response([], total=0, page=1)
+    payload["results"] = payload["results"].replace('data-total-pages="0"', 'data-total-pages="1"')
+    assert parse_listing_response(payload, expected_page=1) == (0, 1, [])
+    payload["results"] = payload["results"].replace('data-total-pages="1"', 'data-total-pages="2"')
+    with pytest.raises(DirectCompanyRequestError):
+        parse_listing_response(payload, expected_page=1)
+
+
+def test_sanofi_accepts_explicit_no_results_without_facets() -> None:
+    from app.services.parsers.companies.sanofi_switzerland import parse_listing_response
+
+    payload = listing_response([], total=0, page=1)
+    payload["results"] = payload["results"].replace(
+        'data-total-pages="0"', 'data-total-pages="1" data-no-results="true"'
+    )
+    payload["filters"] = '<section id="search-filters"></section>'
+    assert parse_listing_response(payload, expected_page=1) == (0, 1, [])

@@ -16,8 +16,7 @@ from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchRes
 from app.services.parsers.companies.base import DirectCompanyRequestError
 
 SANOFI_SWITZERLAND_JOBS_BASE_URL = (
-    "https://jobs.sanofi.com/en/search-jobs/Switzerland/2649/2/2658434/"
-    "47x00016/8x01427/50/2"
+    "https://jobs.sanofi.com/en/search-jobs/Switzerland/2649/2/2658434/47x00016/8x01427/50/2"
 )
 SANOFI_ORGANIZATION_ID = "2649"
 SANOFI_SWITZERLAND_FACET_ID = 2658434
@@ -81,20 +80,14 @@ class SanofiSwitzerlandJobsParser:
                 follow_redirects=True,
                 transport=self.transport,
             ) as client:
-                records, total, pages_fetched, catalog_passes = (
-                    self.collect_listing_records(client)
-                )
+                records, total, pages_fetched, catalog_passes = self.collect_listing_records(client)
                 self.enrich_records(client, records)
         except SanofiSwitzerlandParseError:
             raise
         except httpx.HTTPError as exc:
-            raise DirectCompanyRequestError(
-                "Sanofi Switzerland vacancy request failed"
-            ) from exc
+            raise DirectCompanyRequestError("Sanofi Switzerland vacancy request failed") from exc
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
-            raise DirectCompanyRequestError(
-                "Sanofi Switzerland vacancy parsing failed"
-            ) from exc
+            raise DirectCompanyRequestError("Sanofi Switzerland vacancy parsing failed") from exc
 
         jobs = [self.normalize_job(record) for record in records]
         if request.deduplicate:
@@ -170,9 +163,7 @@ class SanofiSwitzerlandJobsParser:
                         )
                         for page in remaining_pages
                     ]
-                    page_results.extend(
-                        future.result() for future in as_completed(futures)
-                    )
+                    page_results.extend(future.result() for future in as_completed(futures))
                 pages_fetched += len(remaining_pages)
 
             records_by_id: dict[str, dict[str, Any]] = {}
@@ -244,8 +235,7 @@ class SanofiSwitzerlandJobsParser:
             apply_url=optional_text(detail.get("apply_url")) or public_url,
             posted_at=optional_text(detail.get("datePosted")),
             employment_type=(
-                optional_text(detail.get("employmentType"))
-                or optional_text(record.get("category"))
+                optional_text(detail.get("employmentType")) or optional_text(record.get("category"))
             ),
             description=html_to_text(description_html) if description_html else None,
             raw=raw,
@@ -336,10 +326,11 @@ def parse_listing_response(
     ):
         raise SanofiSwitzerlandParseError("Sanofi listing has invalid catalog metadata")
     expected_pages = ceil(total / SANOFI_RESULTS_PER_PAGE)
-    if total_pages != expected_pages:
+    if total_pages not in ({0, 1} if total == 0 else {expected_pages}):
         raise SanofiSwitzerlandParseError("Sanofi listing has invalid pagination metadata")
 
-    validate_switzerland_filter(filters_html, expected_total=total)
+    if not (total == 0 and section.css("::attr(data-no-results)").get() == "true"):
+        validate_switzerland_filter(filters_html, expected_total=total)
     records: list[dict[str, Any]] = []
     for card in section.css("#search-results-list > ul > li"):
         links = card.css("a[data-job-id]")
@@ -419,9 +410,7 @@ def parse_detail_html(page_html: str, *, expected_job_id: str) -> dict[str, Any]
         page.css('meta[name="search-analytics-currentJobId"]::attr(content)').get()
     )
     canonical = optional_text(page.css('link[rel="canonical"]::attr(href)').get())
-    apply_url = optional_text(
-        page.css('meta[name="search-job-apply-url"]::attr(content)').get()
-    )
+    apply_url = optional_text(page.css('meta[name="search-job-apply-url"]::attr(content)').get())
     if current_job_id != expected_job_id or not valid_public_job_url(
         canonical, expected_job_id=expected_job_id
     ):
@@ -439,9 +428,7 @@ def parse_detail_html(page_html: str, *, expected_job_id: str) -> dict[str, Any]
             ) from exc
         postings.extend(job_postings(value))
     if len(postings) != 1:
-        raise SanofiSwitzerlandParseError(
-            "Sanofi detail page must contain one JobPosting"
-        )
+        raise SanofiSwitzerlandParseError("Sanofi detail page must contain one JobPosting")
     posting = postings[0]
     organization = posting.get("hiringOrganization")
     organization_name = (
@@ -474,9 +461,7 @@ def job_postings(value: Any) -> list[dict[str, Any]]:
     graph = value.get("@graph") if isinstance(value, dict) else None
     if isinstance(graph, list):
         return [
-            item
-            for item in graph
-            if isinstance(item, dict) and item.get("@type") == "JobPosting"
+            item for item in graph if isinstance(item, dict) and item.get("@type") == "JobPosting"
         ]
     return []
 
