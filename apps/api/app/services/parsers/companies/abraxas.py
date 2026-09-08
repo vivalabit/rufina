@@ -27,6 +27,7 @@ EXPECTED_COMPANY = "Abraxas Informatik AG"
 JOB_PATH_PATTERN = re.compile(r"^/de/karriere/offene-stellen/[a-z0-9]+(?:-[a-z0-9]+)*-(\d+)/?$")
 APPLY_PATH_PATTERN = re.compile(r"^/215876/(\d+)/index\.html$")
 SWISS_LOCATIONS = {
+    "Frauenfeld",
     "Bern",
     "Kloten",
     "Münchenstein",

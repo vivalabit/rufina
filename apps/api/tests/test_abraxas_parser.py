@@ -341,3 +341,18 @@ def test_abraxas_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Abraxas Informatik AG import"
     assert stored["id"] == "abraxas-9876"
+
+
+def test_abraxas_accepts_frauenfeld_without_accepting_unknown_cities() -> None:
+    from app.services.parsers.companies.abraxas import normalize_location, parse_listing_html
+
+    page = listing_html(
+        [
+            listing_card(
+                "2625", slug="business-analyst", title="Business Analyst", location="Frauenfeld"
+            )
+        ]
+    )
+    records = parse_listing_html(page, page_url=BASE_URL, expected_url=BASE_URL)
+    assert records[0]["location"] == "Frauenfeld, Switzerland"
+    assert normalize_location("London") is None
