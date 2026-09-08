@@ -179,7 +179,7 @@ def parse_catalog_payload(
 
 
 def valid_attributes(attributes: dict[str, Any]) -> bool:
-    return all(all_text(attributes.get(key)) for key in ("20", "50", "60", "90"))
+    return all(all_text(attributes.get(key)) for key in ("20", "50", "60"))
 
 
 def valid_directlink(value: str | None, *, viewkey: str) -> bool:

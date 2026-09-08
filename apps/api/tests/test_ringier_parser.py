@@ -228,3 +228,16 @@ def test_ringier_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Ringier import"
     assert stored["id"] == "ringier-10100001"
+
+
+def test_ringier_uses_workload_when_contract_facet_is_empty() -> None:
+    record = listing_record(1)
+    record["attributes"]["90"] = []
+    record["szas"]["sza_pensum"] = "Temps complet"
+    result = RingierJobsParser(
+        transport=httpx.MockTransport(
+            lambda request: httpx.Response(200, json=catalog_payload([record]))
+        )
+    ).search(LinkedInSearchRequest())
+    assert len(result.jobs) == 1
+    assert result.jobs[0].employment_type == "Temps complet"
