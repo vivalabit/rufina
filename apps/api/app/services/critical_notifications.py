@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.core.vacancy_sources import direct_company_definition
 from app.models.notifications import CriticalNotificationRecord
+from app.services.parser_validation import PARTIAL_PARSER_RESULT_PREFIX
 
 logger = logging.getLogger("uvicorn.error")
 
@@ -31,11 +32,14 @@ def create_parser_failure_notifications(
 
         attempts = max(1, source_attempts.get(source, 1))
         source_name = source_display_name(source)
+        partial = error.startswith(PARTIAL_PARSER_RESULT_PREFIX)
         record = CriticalNotificationRecord(
             severity="critical",
-            category="parser_failure",
+            category="parser_partial" if partial else "parser_failure",
             source=source,
-            title=f"{source_name} parser failed",
+            title=f"{source_name} parser returned partial results"
+            if partial
+            else f"{source_name} parser failed",
             description=error[:4_000],
             attempts=attempts,
             run_id=run_id,

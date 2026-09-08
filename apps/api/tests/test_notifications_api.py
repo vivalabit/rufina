@@ -146,10 +146,13 @@ def test_critical_notifications_are_owner_scoped_and_deleted_only_manually(
         ).status_code
         == 204
     )
-    assert client.get(
-        "/notifications/critical",
-        headers=owner_a_headers,
-    ).json() == []
+    assert (
+        client.get(
+            "/notifications/critical",
+            headers=owner_a_headers,
+        ).json()
+        == []
+    )
     assert [
         item["id"]
         for item in client.get(
@@ -157,3 +160,45 @@ def test_critical_notifications_are_owner_scoped_and_deleted_only_manually(
             headers={"X-Rufina-Owner-Id": "owner-b"},
         ).json()
     ] == ["notice-owner-b"]
+
+
+def test_partial_parser_result_creates_persistent_notification_through_api(
+    notification_api,
+) -> None:
+    from app.models.parsers import ParsedJob, ParserSearchResponse
+    from app.services.parser_validation import validate_parser_result
+
+    client, sessions = notification_api
+    result = ParserSearchResponse(
+        parser="sbb",
+        status="completed",
+        search_url="https://jobs.sbb.ch",
+        jobs=[
+            ParsedJob(
+                title="Engineer", url="https://jobs.sbb.ch/1", raw={"detail_error": "HTTP 503"}
+            )
+        ],
+    )
+    validated, error = validate_parser_result(result)
+    assert len(validated.jobs) == 1
+    token = current_owner_id.set("partial-owner")
+    try:
+        with sessions() as db:
+            create_parser_failure_notifications(
+                db, run_id="partial-run", source_errors={"sbb": error}, source_attempts={"sbb": 1}
+            )
+            db.commit()
+    finally:
+        current_owner_id.reset(token)
+    headers = {"X-Rufina-Owner-Id": "partial-owner"}
+    response = client.get("/notifications/critical", headers=headers)
+    assert response.status_code == 200
+    notice = response.json()[0]
+    assert notice["category"] == "parser_partial"
+    assert notice["title"] == "SBB CFF FFS parser returned partial results"
+    assert "HTTP 503" in notice["description"]
+    assert notice["attempts"] == 1
+    assert client.get("/notifications/critical", headers=headers).json()[0]["id"] == notice["id"]
+    assert (
+        client.delete(f"/notifications/critical/{notice['id']}", headers=headers).status_code == 204
+    )

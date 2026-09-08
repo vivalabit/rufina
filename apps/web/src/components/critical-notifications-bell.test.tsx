@@ -77,3 +77,18 @@ it("removes a critical notification only after explicit deletion", async () => {
     screen.getByRole("button", { name: "Critical notifications" }),
   ).toBeInTheDocument();
 });
+
+it("shows partial results without claiming that all parser attempts failed", async () => {
+  vi.stubGlobal("fetch", vi.fn(async () => Response.json([{
+    ...notification,
+    category: "parser_partial",
+    title: "SBB parser returned partial results",
+    attempts: 1,
+    description: "Kept 10 vacancies; one detail request returned HTTP 503",
+  }])));
+  render(<CriticalNotificationsBell />);
+  fireEvent.click(await screen.findByRole("button", { name: "Critical notifications (1)" }));
+  expect(screen.getByText("Completed with parser issues")).toBeInTheDocument();
+  expect(screen.getByText("SBB parser returned partial results")).toBeInTheDocument();
+  expect(screen.queryByText("Failed after 1 attempts")).not.toBeInTheDocument();
+});

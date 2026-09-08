@@ -142,7 +142,7 @@ export function CriticalNotificationsBell() {
                 </h2>
               </div>
               <p className="mt-1 text-xs leading-5 text-muted">
-                Parser failures stay here until you delete them.
+                Parser issues stay here until you delete them.
               </p>
             </div>
             <button
@@ -174,7 +174,7 @@ export function CriticalNotificationsBell() {
                     No critical notifications
                   </p>
                   <p className="mt-1 text-xs leading-5 text-muted">
-                    Parser failures will appear here after all retry attempts fail.
+                    Parser failures and incomplete results will appear here.
                   </p>
                 </div>
               </div>
@@ -195,7 +195,9 @@ export function CriticalNotificationsBell() {
                             {notification.title}
                           </h3>
                           <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.08em] text-[#d9480f]">
-                            Failed after {notification.attempts} attempts
+                            {notification.category === "parser_partial"
+                              ? "Completed with parser issues"
+                              : `Failed after ${notification.attempts} attempts`}
                           </p>
                         </div>
                         <button

@@ -1434,7 +1434,7 @@ def run_status(result: VacancySearchRunResult) -> str:
     if not result.source_errors:
         return "completed"
     successful_sources = set(result.source_results) - set(result.source_errors)
-    if successful_sources:
+    if successful_sources or any(source.jobs for source in result.source_results.values()):
         return "partial"
     return "failed"
 

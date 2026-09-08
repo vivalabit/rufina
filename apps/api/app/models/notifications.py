@@ -74,7 +74,7 @@ class CriticalNotificationRecord(OwnerScoped, Base):
 class CriticalNotificationPayload(BaseModel):
     id: str
     severity: Literal["critical"]
-    category: Literal["parser_failure"]
+    category: Literal["parser_failure", "parser_partial"]
     source: str
     title: str
     description: str

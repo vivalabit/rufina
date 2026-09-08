@@ -3,7 +3,7 @@ import { apiClient } from "@/shared/api/client";
 export type CriticalNotification = {
   id: string;
   severity: "critical";
-  category: "parser_failure";
+  category: "parser_failure" | "parser_partial";
   source: string;
   title: string;
   description: string;
@@ -20,7 +20,7 @@ function normalizeCriticalNotifications(value: unknown): CriticalNotification[] 
     return (
       typeof candidate.id === "string"
       && candidate.severity === "critical"
-      && candidate.category === "parser_failure"
+      && (candidate.category === "parser_failure" || candidate.category === "parser_partial")
       && typeof candidate.source === "string"
       && typeof candidate.title === "string"
       && typeof candidate.description === "string"

@@ -21,6 +21,7 @@ from app.models.parsers import (
     ParsedJob,
     ParserSearchResponse,
 )
+from app.services.parser_validation import validate_parser_result
 from app.services.parsers.companies import create_direct_company_parsers
 from app.services.parsers.companies.base import DirectCompanyRequestError
 from app.services.parsers.indeed import IndeedJobsParser
@@ -233,6 +234,10 @@ class VacancySearchRunner:
                         )
 
                     if not error and result is not None:
+                        if result.status == "completed" and is_direct_company_source(source):
+                            result, validation_error = validate_parser_result(result)
+                            if validation_error:
+                                source_errors[source] = validation_error
                         completed_results[source] = result
                         continue
 
@@ -264,6 +269,7 @@ class VacancySearchRunner:
                     error=source_errors[source],
                     attempts=source_attempts[source],
                     duration_seconds=source_durations[source],
+                    vacancies_parsed=len(result.jobs) if result is not None else 0,
                 )
             elif result is not None:
                 log_source_finished(
@@ -279,11 +285,7 @@ class VacancySearchRunner:
             source_requests=source_requests,
         )
         return VacancySearchRunResult(
-            jobs=(
-                deduplicate_jobs(filtered_jobs)
-                if request.deduplicate
-                else filtered_jobs
-            ),
+            jobs=(deduplicate_jobs(filtered_jobs) if request.deduplicate else filtered_jobs),
             source_results=source_results,
             source_errors=source_errors,
             source_attempts=source_attempts,
@@ -327,6 +329,7 @@ def log_source_failed(
     error: str,
     attempts: int,
     duration_seconds: float,
+    vacancies_parsed: int = 0,
 ) -> None:
     logger.error(
         json.dumps(
@@ -334,8 +337,8 @@ def log_source_failed(
                 "event": "vacancy_parser.failed",
                 "message": "Vacancy parsing failed",
                 "source": source,
-                "vacanciesParsed": 0,
-                "status": "failed",
+                "vacanciesParsed": vacancies_parsed,
+                "status": "partial" if vacancies_parsed else "failed",
                 "attempts": attempts,
                 "durationSeconds": round(duration_seconds, 3),
                 "error": error[:500],
@@ -381,6 +384,7 @@ def incomplete_source_error(
         f"{source} snapshot {result.snapshot_id or 'unknown'} is still "
         f"{result.status} after {timeout_seconds:g}s; no results were downloaded yet"
     )
+
 
 def create_vacancy_search_runner(settings: Settings) -> VacancySearchRunner:
     parsers = {
@@ -462,9 +466,7 @@ def filter_jobs_by_date_posted(
             filtered.append(job)
             continue
         selected_request = (
-            source_requests.get(job.source, request)
-            if source_requests is not None
-            else request
+            source_requests.get(job.source, request) if source_requests is not None else request
         )
         if selected_request.date_posted == "Any time":
             filtered.append(job)
@@ -473,10 +475,7 @@ def filter_jobs_by_date_posted(
         filter_date = job.posted_at
         if job.source == "jobs_ch":
             initial_publication_date = job.raw.get("initialPublicationDate")
-            if (
-                isinstance(initial_publication_date, str)
-                and initial_publication_date.strip()
-            ):
+            if isinstance(initial_publication_date, str) and initial_publication_date.strip():
                 filter_date = initial_publication_date
 
         if is_within_date_posted_window(
