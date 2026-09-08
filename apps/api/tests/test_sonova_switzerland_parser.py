@@ -243,3 +243,59 @@ def test_sonova_jobs_render_as_direct_company_imports() -> None:
     assert stored["department"] == "Sonova Group import"
     assert stored["company"] == "Sonova"
     assert stored["id"] == "sonova_switzerland-164409"
+
+
+def test_sonova_paginates_new_wordpress_catalog_and_preserves_country() -> None:
+    def page(job_id: int, *, next_page: str = "") -> str:
+        return f"""<select name="query-1-job-country"><option value="switzerland-en" selected>Switzerland</option></select>
+        <div class="wp-block-query"><div class="table__content table__row"><h3><a href="https://career5.successfactors.eu/sfcareer/jobreqcareer?company=Sonova&amp;jobId={job_id}&amp;locale=en_US">Engineer {job_id}</a></h3>
+        <p class="_sf_location">Staefa, Switzerland</p><p class="_sf_brand">Sonova</p></div></div>{next_page}"""
+
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        if request.url.host != "www.sonova.com":
+            return httpx.Response(503)
+        if request.url.params.get("query-1-page") == "2":
+            return httpx.Response(200, text=page(102))
+        return httpx.Response(
+            200,
+            text=page(
+                101,
+                next_page='<a class="wp-block-query-pagination-next" href="?query-1-job-country=switzerland-en&amp;query-1-page=2">Next</a>',
+            ),
+        )
+
+    parser = SonovaSwitzerlandJobsParser(transport=httpx.MockTransport(handler))
+    result = parser.search(LinkedInSearchRequest())
+    assert [job.raw["id"] for job in result.jobs] == ["101", "102"]
+    assert all("jobs_list" not in url for url in calls)
+    assert all(job.raw["detail_error"] for job in result.jobs)
+    with (
+        httpx.Client(
+            transport=httpx.MockTransport(
+                lambda request: httpx.Response(
+                    200, text=page(101).replace('value="switzerland-en"', 'value="germany-en"')
+                )
+            )
+        ) as client,
+        pytest.raises(DirectCompanyRequestError, match="Switzerland filter"),
+    ):
+        parser.collect_public_listing(client)
+
+
+def test_sonova_normalizes_typographical_dashes_in_detail_titles() -> None:
+    from app.services.parsers.companies.sonova_switzerland import parse_detail_html
+
+    page = detail_html(101).replace(
+        "Operator &amp; Specialist 101", "Practical Trainee - Power Management"
+    )
+    result = parse_detail_html(
+        page,
+        page_url="https://jobs.sonova.com/job/Staefa-Operator/1400000101/",
+        expected_job_id="101",
+        expected_title="Practical Trainee – Power Management",
+        expected_location="Staefa, Switzerland",
+    )
+    assert result["id"] == "101"

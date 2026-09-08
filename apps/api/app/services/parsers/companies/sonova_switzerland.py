@@ -14,7 +14,9 @@ from scrapling import Selector
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
 
-SONOVA_SWITZERLAND_JOBS_BASE_URL = "https://www.sonova.com/careers/?query-1-job-country=switzerland"
+SONOVA_SWITZERLAND_JOBS_BASE_URL = (
+    "https://www.sonova.com/careers/?query-1-job-country=switzerland-en"
+)
 SONOVA_JOBS_API_URL = "https://www.sonova.com/en/jobs_list/active?lang=en"
 SONOVA_HEADERS = {
     "Accept": "application/json",
@@ -45,7 +47,7 @@ class SonovaSwitzerlandJobsParser:
         self,
         *,
         base_url: str = SONOVA_SWITZERLAND_JOBS_BASE_URL,
-        api_url: str = SONOVA_JOBS_API_URL,
+        api_url: str | None = None,
         timeout_seconds: float = 30.0,
         max_catalog_records: int = 2_000,
         detail_workers: int = 8,
@@ -85,7 +87,11 @@ class SonovaSwitzerlandJobsParser:
             jobs=jobs,
             message=(
                 f"Scanned {len(jobs)} Sonova Switzerland vacancies from {total} "
-                "active group catalog records in 1 API request"
+                + (
+                    "active group catalog records in 1 API request"
+                    if self.api_url
+                    else "records in the official Swiss careers catalog"
+                )
             ),
         )
 
@@ -93,6 +99,8 @@ class SonovaSwitzerlandJobsParser:
         self,
         client: httpx.Client,
     ) -> tuple[list[dict[str, Any]], int]:
+        if self.api_url is None:
+            return self.collect_public_listing(client)
         response = client.get(self.api_url)
         response.raise_for_status()
         payload = response.json()
@@ -133,6 +141,77 @@ class SonovaSwitzerlandJobsParser:
             record["total_available"] = len(records)
             record["group_catalog_total"] = len(payload)
         return records, len(payload)
+
+    def collect_public_listing(self, client: httpx.Client) -> tuple[list[dict[str, Any]], int]:
+        url = self.base_url
+        seen_pages: set[str] = set()
+        records: list[dict[str, Any]] = []
+        seen_ids: set[str] = set()
+        while url:
+            if url in seen_pages:
+                raise SonovaSwitzerlandParseError("Sonova catalog pagination repeated a page")
+            seen_pages.add(url)
+            response = client.get(url, headers={"Accept": "text/html"})
+            response.raise_for_status()
+            if str(response.url) != url:
+                raise SonovaSwitzerlandParseError("Sonova catalog redirected unexpectedly")
+            page = Selector(response.text)
+            selected = page.css(
+                'select[name="query-1-job-country"] option[selected]::attr(value)'
+            ).getall()
+            if selected != ["switzerland-en"]:
+                raise SonovaSwitzerlandParseError("Sonova catalog lost its Switzerland filter")
+            rows = page.css(".wp-block-query .table__content.table__row")
+            if not rows and (records or not page.css(".wp-block-query-no-results")):
+                raise SonovaSwitzerlandParseError("Sonova catalog is missing its vacancy rows")
+            for row in rows:
+                links = row.css("h3 a[href]")
+                job_url = links[0].css("::attr(href)").get() if len(links) == 1 else None
+                job_id = successfactors_job_id(job_url)
+                title = optional_text(" ".join(links[0].css("::text").getall())) if links else None
+                location = optional_text(" ".join(row.css("._sf_location::text").getall()))
+                brand = optional_text(" ".join(row.css("._sf_brand::text").getall()))
+                if not job_id or not title or not brand or not is_swiss_location(location):
+                    raise SonovaSwitzerlandParseError(
+                        "Sonova catalog contains an incomplete or non-Swiss vacancy"
+                    )
+                if job_id in seen_ids:
+                    raise SonovaSwitzerlandParseError("Sonova catalog contains duplicate vacancies")
+                seen_ids.add(job_id)
+                records.append(
+                    {
+                        "id": job_id,
+                        "title": title,
+                        "location": location,
+                        "brand": brand,
+                        "url": job_url,
+                        "contract_type": None,
+                        "posted_at": None,
+                    }
+                )
+            if len(records) > self.max_catalog_records:
+                raise SonovaSwitzerlandParseError("Sonova catalog exceeds the configured limit")
+            next_links = page.css(".wp-block-query-pagination-next::attr(href)").getall()
+            if len(next_links) > 1:
+                raise SonovaSwitzerlandParseError("Sonova catalog has ambiguous pagination")
+            url = urljoin(url, next_links[0]) if next_links else ""
+            if url:
+                parts = urlsplit(url)
+                query = parse_qs(parts.query)
+                if (
+                    parts.scheme != "https"
+                    or parts.netloc != urlsplit(self.base_url).netloc
+                    or parts.path != "/careers/"
+                    or parts.fragment
+                    or query.get("query-1-job-country") != ["switzerland-en"]
+                    or query.get("query-1-page") != [str(len(seen_pages) + 1)]
+                    or set(query) != {"query-1-job-country", "query-1-page"}
+                ):
+                    raise SonovaSwitzerlandParseError("Sonova catalog has invalid pagination")
+        for record in records:
+            record["total_available"] = len(records)
+            record["group_catalog_total"] = len(records)
+        return records, len(records)
 
     def enrich_records(
         self,
@@ -236,6 +315,10 @@ def facet(value: Any) -> tuple[str, str] | None:
     return None
 
 
+def comparable_title(value: Any) -> str:
+    return re.sub(r"[–—−]", "-", optional_text(value) or "").casefold()
+
+
 def parse_detail_html(
     page_html: str,
     *,
@@ -263,7 +346,7 @@ def parse_detail_html(
     listing_city = optional_text(expected_location.split(",", maxsplit=1)[0])
     detail_city = optional_text(location.split(",", maxsplit=1)[0]) if location else None
     if (
-        title != optional_text(expected_title)
+        comparable_title(title) != comparable_title(expected_title)
         or not canonical
         or not public_id
         or urlsplit(page_url).netloc.casefold() != PUBLIC_JOBS_HOST
