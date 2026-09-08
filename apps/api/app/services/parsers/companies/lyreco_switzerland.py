@@ -41,6 +41,10 @@ class LyrecoSwitzerlandParseError(DirectCompanyRequestError):
     pass
 
 
+class LyrecoLocationMissingError(LyrecoSwitzerlandParseError):
+    """The global catalog provides no evidence to classify a vacancy's country."""
+
+
 class LyrecoSwitzerlandJobsParser:
     """Collect the complete Lyreco Dietikon vacancy catalog."""
 
@@ -64,6 +68,7 @@ class LyrecoSwitzerlandJobsParser:
         self.transport = transport
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
+        warnings: list[str] = []
         try:
             with httpx.Client(
                 headers=LYRECO_HEADERS,
@@ -71,7 +76,7 @@ class LyrecoSwitzerlandJobsParser:
                 follow_redirects=True,
                 transport=self.transport,
             ) as client:
-                records = self.collect_listing(client)
+                records = self.collect_listing(client, warnings=warnings)
                 self.enrich_records(client, records)
         except LyrecoSwitzerlandParseError:
             raise
@@ -88,13 +93,16 @@ class LyrecoSwitzerlandJobsParser:
             status="completed",
             search_url=self.base_url,
             jobs=jobs,
+            warnings=warnings,
             message=(
                 f"Scanned {len(jobs)} Lyreco Switzerland vacancies from the "
                 "complete Dietikon careers catalog"
             ),
         )
 
-    def collect_listing(self, client: httpx.Client) -> list[dict[str, Any]]:
+    def collect_listing(
+        self, client: httpx.Client, *, warnings: list[str] | None = None
+    ) -> list[dict[str, Any]]:
         first_url = build_page_url(self.base_url, 0)
         first_response = client.get(first_url, headers={"Referer": LYRECO_CANONICAL_JOBS_URL})
         first_response.raise_for_status()
@@ -145,7 +153,27 @@ class LyrecoSwitzerlandJobsParser:
             raise LyrecoSwitzerlandParseError(
                 "Lyreco catalog does not reconcile with its result total"
             )
-        return records
+        for record in records:
+            if not record["location_raw"]:
+                response = client.get(record["url"])
+                response.raise_for_status()
+                try:
+                    detail = parse_detail_html(
+                        response.text, page_url=str(response.url), expected_record=record
+                    )
+                except LyrecoLocationMissingError:
+                    if warnings is None:
+                        raise
+                    warnings.append(
+                        f"Skipped vacancy with unverified country/location: {record['url']}"
+                    )
+                    continue
+                record.update(
+                    location_raw="Dietikon ZH", location="Dietikon ZH, Switzerland", detail=detail
+                )
+        return [
+            record for record in records if comparable_text(record["location_raw"]) == "dietikon zh"
+        ]
 
     def enrich_records(
         self,
@@ -159,6 +187,8 @@ class LyrecoSwitzerlandJobsParser:
             record: dict[str, Any],
         ) -> tuple[dict[str, Any], dict[str, Any] | None]:
             try:
+                if record.get("detail"):
+                    return record, record["detail"]
                 response = client.get(record["url"], headers={"Referer": self.base_url})
                 response.raise_for_status()
                 detail = parse_detail_html(
@@ -216,21 +246,28 @@ def parse_listing_html(
         raise LyrecoSwitzerlandParseError("Lyreco careers page is missing its result total")
     total = total_values.pop()
 
+    legacy_facets = bool(page.css("a[data-drupal-facet-item-value]"))
     location_facets = page.css('a.is-active[data-drupal-facet-item-value="dietikon zh"]')
-    if len(location_facets) != 1 or not facet_matches(
-        location_facets[0],
-        value="dietikon zh",
-        filter_value="job_location:dietikon zh",
-        count=total,
+    if legacy_facets and (
+        len(location_facets) != 1
+        or not facet_matches(
+            location_facets[0],
+            value="dietikon zh",
+            filter_value="job_location:dietikon zh",
+            count=total,
+        )
     ):
         raise LyrecoSwitzerlandParseError("Lyreco careers page has an unexpected Dietikon filter")
 
     country_facets = page.css('a[data-drupal-facet-item-value="switzerland"]')
-    if len(country_facets) != 1 or not facet_matches(
-        country_facets[0],
-        value="switzerland",
-        filter_value="country:switzerland",
-        count=total,
+    if legacy_facets and (
+        len(country_facets) != 1
+        or not facet_matches(
+            country_facets[0],
+            value="switzerland",
+            filter_value="country:switzerland",
+            count=total,
+        )
     ):
         raise LyrecoSwitzerlandParseError(
             "Lyreco Switzerland facet does not match the result total"
@@ -251,9 +288,7 @@ def parse_listing_html(
         if (
             not title_value
             or not path_match
-            or comparable_text(location) != "dietikon zh"
-            or not family
-            or not employment_type
+            or (legacy_facets and comparable_text(location) != "dietikon zh")
         ):
             raise LyrecoSwitzerlandParseError(
                 "Lyreco catalog contains an incomplete or out-of-scope vacancy"
@@ -264,7 +299,9 @@ def parse_listing_html(
                 "internal_id": path_match.group(1),
                 "title": title_value,
                 "company": LYRECO_COMPANY,
-                "location": swiss_location(location),
+                "location": swiss_location(location)
+                if comparable_text(location) == "dietikon zh"
+                else location,
                 "location_raw": location,
                 "family": family,
                 "employment_type": employment_type,
@@ -325,6 +362,14 @@ def parse_detail_html(
     visible_family = selector_text(page, ".field--name-field-family")
     visible_employment_type = selector_text(page, ".field--name-field-time-type")
     posted_at = optional_text(posting.get("datePosted"))
+    explicit_dietikon = bool(
+        re.search(r"Arbeitsort:\s*Dietikon\b", visible_description or "", re.IGNORECASE)
+    )
+    locality = comparable_text(address.get("addressLocality"))
+    country = comparable_text(address.get("addressCountry"))
+    verified_location = (locality == "dietikon zh" and country == "switzerland") or (
+        not locality and not country and not visible_location and explicit_dietikon
+    )
     if (
         not identifier
         or not LYRECO_IDENTIFIER_PATTERN.fullmatch(identifier)
@@ -332,11 +377,13 @@ def parse_detail_html(
         or optional_text(organization.get("name")) != "Lyreco"
         or canonical_group_url(organization.get("url"))
         != "https://www.lyreco.com/group/switzerland/de"
-        or comparable_text(address.get("addressLocality")) != "dietikon zh"
-        or comparable_text(address.get("addressCountry")) != "switzerland"
         or comparable_text(posting.get("industry"))
         != comparable_text(expected_record.get("family"))
-        or comparable_text(visible_location) != comparable_text(expected_record.get("location_raw"))
+        or (
+            visible_location is not None
+            and comparable_text(visible_location)
+            != comparable_text(expected_record.get("location_raw"))
+        )
         or comparable_text(visible_family) != comparable_text(expected_record.get("family"))
         or comparable_text(visible_employment_type)
         != comparable_text(expected_record.get("employment_type"))
@@ -346,6 +393,11 @@ def parse_detail_html(
         or len(visible_description) < 100
         or (posted_at is not None and not re.fullmatch(r"\d{4}-\d{2}-\d{2}", posted_at))
     ):
+        raise LyrecoSwitzerlandParseError("Lyreco detail page has invalid JobPosting metadata")
+
+    if not verified_location:
+        if not locality and not country and not visible_location:
+            raise LyrecoLocationMissingError("Lyreco vacancy has no verifiable location")
         raise LyrecoSwitzerlandParseError("Lyreco detail page has invalid JobPosting metadata")
 
     apply_urls = {
@@ -367,7 +419,7 @@ def parse_detail_html(
         "internal_id": identifier,
         "title": title,
         "company": LYRECO_COMPANY,
-        "location": swiss_location(visible_location),
+        "location": swiss_location(visible_location or "Dietikon ZH"),
         "employment_type": visible_employment_type,
         "family": visible_family,
         "description": visible_description,
@@ -452,7 +504,8 @@ def canonical_jobs_url(value: Any) -> str | None:
     if (
         parts.scheme != "https"
         or parts.netloc.casefold() != "www.lyreco.com"
-        or parts.path.rstrip("/") != "/group/switzerland/en/jobs"
+        or parts.path.rstrip("/")
+        not in {"/group/switzerland/en/jobs", "/group/switzerland/de/jobs"}
         or parts.query
         or parts.fragment
     ):
@@ -519,7 +572,7 @@ def canonical_apply_url(value: Any) -> str | None:
     parts = urlsplit(text)
     path = unquote(parts.path).rstrip("/")
     match = re.fullmatch(
-        r"/Lyreco_Careers/job/Dietikon-ZH/[^/]+_(JR-\d+(?:-\d+)*)/apply",
+        r"/Lyreco_Careers/job/(?:Dietikon-ZH/)?[^/]+_(JR-\d+(?:-\d+)*)/apply",
         path,
     )
     if (

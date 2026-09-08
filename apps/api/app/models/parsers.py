@@ -77,5 +77,6 @@ class ParserSearchResponse(BaseModel):
     status: Literal["completed", "queued", "running"]
     search_url: str
     jobs: list[ParsedJob] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)
     snapshot_id: str | None = None
     message: str | None = None

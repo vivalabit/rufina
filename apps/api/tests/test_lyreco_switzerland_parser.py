@@ -335,3 +335,90 @@ def test_lyreco_is_registered_and_renders_as_direct_company() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Lyreco Switzerland import"
     assert stored["company"] == "Lyreco Switzerland AG"
+
+
+def test_lyreco_reconciles_global_catalog_before_selecting_dietikon() -> None:
+    import re
+
+    swiss = vacancy_record(1)
+    foreign = {**vacancy_record(2), "location": "London"}
+    page = listing_html([foreign, swiss], total=2)
+    page = re.sub(r'<a class="facet-item.*?</a>', "", page, flags=re.DOTALL)
+    page = page.replace("/switzerland/en/jobs", "/switzerland/de/jobs")
+    parser = LyrecoSwitzerlandJobsParser()
+    with httpx.Client(
+        transport=httpx.MockTransport(lambda request: httpx.Response(200, text=page))
+    ) as client:
+        records = parser.collect_listing(client)
+    assert len(records) == 1
+    assert records[0]["title"] == swiss["title"]
+    assert records[0]["location"] == "Dietikon ZH, Switzerland"
+
+
+def test_lyreco_resolves_missing_address_only_from_explicit_workplace() -> None:
+    import re
+
+    from scrapling import Selector
+
+    from app.services.parsers.companies.lyreco_switzerland import parse_detail_html
+
+    record = vacancy_record(1)
+    html = detail_html(record)
+    raw = Selector(html).css('script[type="application/ld+json"]::text').get()
+    payload = json.loads(raw)
+    del payload["@graph"][0]["jobLocation"]
+    html = html.replace(raw, json.dumps(payload))
+    html = re.sub(r'<div class="job__field-primary-location">.*?</div>', "", html)
+    html = html.replace(
+        '<div class="field--name-field-description">',
+        '<div class="field--name-field-description"><p>Arbeitsort: Dietikon</p>',
+    )
+    html = html.replace("/job/Dietikon-ZH/", "/job/")
+    expected = {
+        "url": job_url(record),
+        "title": record["title"],
+        "family": record["family"],
+        "employment_type": record["employment_type"],
+        "location_raw": None,
+    }
+    detail = parse_detail_html(html, page_url=job_url(record), expected_record=expected)
+    assert detail["location"] == "Dietikon ZH, Switzerland"
+    with pytest.raises(DirectCompanyRequestError):
+        parse_detail_html(
+            html.replace("Arbeitsort: Dietikon", "Arbeitsort: London"),
+            page_url=job_url(record),
+            expected_record=expected,
+        )
+
+
+def test_lyreco_reports_unclassifiable_location_without_discarding_swiss_jobs() -> None:
+    import re
+
+    from scrapling import Selector
+
+    swiss = vacancy_record(1)
+    unknown = vacancy_record(2)
+    listing = listing_html([swiss, unknown], total=2)
+    listing = re.sub(r'<a class="facet-item.*?</a>', "", listing, flags=re.DOTALL)
+    listing = listing.replace(
+        vacancy_card(unknown),
+        vacancy_card(unknown).replace('<div class="job__info__location">Dietikon ZH</div>', ""),
+    )
+    detail = detail_html(unknown)
+    raw = Selector(detail).css('script[type="application/ld+json"]::text').get()
+    payload = json.loads(raw)
+    del payload["@graph"][0]["jobLocation"]
+    detail = detail.replace(raw, json.dumps(payload))
+    detail = re.sub(r'<div class="job__field-primary-location">.*?</div>', "", detail)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200, text=detail if request.url.path.endswith(unknown["slug"]) else listing
+        )
+
+    warnings = []
+    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
+        records = LyrecoSwitzerlandJobsParser().collect_listing(client, warnings=warnings)
+    assert len(records) == 1
+    assert records[0]["title"] == swiss["title"]
+    assert len(warnings) == 1 and job_url(unknown) in warnings[0]
