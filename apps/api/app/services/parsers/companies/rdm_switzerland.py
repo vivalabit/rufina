@@ -7,6 +7,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
 from urllib.parse import parse_qs, urljoin, urlsplit, urlunsplit
 
+import httpx
+from scrapling import Selector
+
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import (
     DirectCompanyRequestError,
@@ -40,24 +43,28 @@ class RdmSwitzerlandJobsParser:
         max_jobs: int = 100,
         detail_workers: int = 6,
         fetch_page: Callable[[str], ScraplingResponse] | None = None,
+        transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.base_url = base_url
         self.timeout_seconds = timeout_seconds
         self.max_jobs = max(1, max_jobs)
         self.detail_workers = min(12, max(1, detail_workers))
         self.fetch_page = fetch_page
+        self.transport = transport
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
         try:
             records = (
                 self._collect_with_injected_fetcher()
                 if self.fetch_page is not None
-                else self._collect_with_browser()
+                else self._collect_public_catalog()
             )
         except RdmSwitzerlandParseError:
             raise
         except Exception as exc:
-            raise DirectCompanyRequestError("R&M Switzerland vacancy request failed") from exc
+            raise DirectCompanyRequestError(
+                f"R&M Switzerland vacancy request failed: {exc}"
+            ) from exc
 
         jobs = [normalize_job(record) for record in records]
         if request.deduplicate:
@@ -69,7 +76,7 @@ class RdmSwitzerlandJobsParser:
             jobs=jobs,
             message=(
                 f"Scanned {len(jobs)} R&M Switzerland vacancies from the complete "
-                "Cloudflare-protected Swiss careers catalog"
+                "verified public careers catalog"
             ),
         )
 
@@ -113,56 +120,44 @@ class RdmSwitzerlandJobsParser:
                     record["id"] = detail["id"]
                     record["detail"] = detail
 
-    def _collect_with_browser(self) -> list[dict[str, Any]]:
-        # Importing StealthySession initializes browser fingerprints. Keep that
-        # side effect out of parser discovery and tests that inject fetch_page.
-        from scrapling.fetchers import StealthySession
+    def _collect_public_catalog(self) -> list[dict[str, Any]]:
+        # The unfiltered public catalog is accessible without the protected query string.
+        # Reconcile every card with the global counter before selecting Swiss locations.
+        with httpx.Client(
+            timeout=self.timeout_seconds,
+            follow_redirects=True,
+            transport=self.transport,
+            headers={
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36"
+            },
+        ) as client:
+            # A challenge can be transient; retry only access/service failures, not parsing.
+            for attempt in range(3):
+                response = client.get(RDM_CAREERS_CANONICAL_URL)
+                if response.status_code not in {403, 429, 502, 503, 504} or attempt == 2:
+                    break
+            response.raise_for_status()
+            records = parse_listing_page(
+                Selector(response.text),
+                page_url=str(response.url),
+                expected_url=RDM_CAREERS_CANONICAL_URL,
+                max_jobs=self.max_jobs,
+                global_catalog=True,
+            )
 
-        options = {
-            "headless": True,
-            "disable_resources": True,
-            "timeout": round(self.timeout_seconds * 1000),
-            "wait_selector": "h1",
-            "locale": "en-CH",
-            "timezone_id": "Europe/Zurich",
-            "google_search": True,
-        }
-        first_error: Exception | None = None
-        for real_chrome in (False, True):
-            try:
-                with StealthySession(real_chrome=real_chrome, **options) as session:
-                    page = session.fetch(self.base_url)
-                    require_successful_response(page, context="catalog")
-                    page_url = response_url(page, self.base_url)
-                    records = parse_listing_page(
-                        page,
-                        page_url=page_url,
-                        expected_url=self.base_url,
-                        max_jobs=self.max_jobs,
-                    )
-                    for record in records:
-                        try:
-                            detail_page = session.fetch(record["url"])
-                            require_successful_response(detail_page, context="detail")
-                            detail = parse_detail_page(
-                                detail_page,
-                                page_url=response_url(detail_page, record["url"]),
-                                expected_url=record["url"],
-                                expected_title=record["title"],
-                            )
-                            record["id"] = detail["id"]
-                            record["detail"] = detail
-                        except Exception as exc:  # noqa: BLE001 - preserve verified listings
-                            record["detail_error"] = str(exc)
-                    return records
-            except Exception as exc:
-                if not real_chrome:
-                    first_error = exc
-                    continue
-                if isinstance(exc, RdmSwitzerlandParseError):
-                    raise
-                raise RdmSwitzerlandParseError("R&M browser fetch failed") from exc
-        raise RdmSwitzerlandParseError("R&M browser fetch failed") from first_error
+            def detail_fetch(url: str) -> ScraplingResponse:
+                detail = client.get(url)
+                detail.raise_for_status()
+                if canonical_job_url(str(detail.url)) != canonical_job_url(url):
+                    raise RdmSwitzerlandParseError("R&M detail returned an unexpected page")
+                return Selector(detail.text)
+
+            parser = RdmSwitzerlandJobsParser(
+                fetch_page=detail_fetch, detail_workers=self.detail_workers
+            )
+            parser._enrich_with_injected_fetcher(records)
+            return records
 
 
 def parse_listing_page(
@@ -171,8 +166,10 @@ def parse_listing_page(
     page_url: str,
     expected_url: str,
     max_jobs: int,
+    global_catalog: bool = False,
 ) -> list[dict[str, Any]]:
-    if canonical_filtered_catalog_url(page_url) != canonical_filtered_catalog_url(expected_url):
+    canonicalizer = canonical_careers_url if global_catalog else canonical_filtered_catalog_url
+    if not canonicalizer(page_url) or canonicalizer(page_url) != canonicalizer(expected_url):
         raise RdmSwitzerlandParseError("R&M catalog returned an unexpected page")
 
     canonical = canonical_careers_url(
@@ -196,7 +193,7 @@ def parse_listing_page(
         raise RdmSwitzerlandParseError("R&M careers page is missing its result counter")
     filtered_total = int(counters[0].group(1))
     global_total = int(counters[0].group(2))
-    if filtered_total > global_total:
+    if filtered_total > global_total or (global_catalog and filtered_total != global_total):
         raise RdmSwitzerlandParseError("R&M careers page has an invalid result counter")
     if filtered_total > max_jobs:
         raise RdmSwitzerlandParseError(
@@ -224,7 +221,8 @@ def parse_listing_page(
             or not job_id
             or not title
             or not category
-            or not is_swiss_location(location)
+            or not location
+            or (not global_catalog and not is_swiss_location(location))
         ):
             raise RdmSwitzerlandParseError(
                 "R&M careers catalog contains an incomplete or out-of-scope vacancy"
@@ -248,7 +246,7 @@ def parse_listing_page(
                 "global_total": global_total,
             }
         )
-    return records
+    return [record for record in records if is_swiss_location(record["location"])]
 
 
 def parse_detail_page(

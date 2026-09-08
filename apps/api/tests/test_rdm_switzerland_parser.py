@@ -174,8 +174,7 @@ def test_rdm_collects_complete_filtered_catalog_and_enriches_details() -> None:
     assert calls[0] == RDM_SWITZERLAND_JOBS_URL
     assert sorted(calls[1:]) == sorted([job_url(DEVELOPMENT_SLUG), job_url(WAREHOUSE_SLUG)])
     assert result.message == (
-        "Scanned 2 R&M Switzerland vacancies from the complete "
-        "Cloudflare-protected Swiss careers catalog"
+        "Scanned 2 R&M Switzerland vacancies from the complete verified public careers catalog"
     )
     assert len(result.jobs) == 2
     first = result.jobs[0]
@@ -341,3 +340,28 @@ def test_rdm_is_registered_and_renders_as_direct_company() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "R&M Switzerland import"
     assert stored["company"] == "Reichle & De-Massari AG"
+
+
+def test_rdm_reads_complete_public_catalog_without_browser() -> None:
+    import httpx
+
+    cards = [
+        vacancy_card("swiss-role", "Swiss Role"),
+        vacancy_card("foreign-role", "Foreign Role", location="Sofia, Bulgaria"),
+    ]
+    requests = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        requests.append(str(request.url))
+        if request.url.path == "/career/jobs/":
+            assert not request.url.query
+            return httpx.Response(200, text=listing_html(cards, global_total=2))
+        return httpx.Response(503)
+
+    result = RdmSwitzerlandJobsParser(transport=httpx.MockTransport(handler)).search(
+        LinkedInSearchRequest()
+    )
+    assert len(result.jobs) == 1
+    assert result.jobs[0].title == "Swiss Role"
+    assert result.jobs[0].raw["detail_error"]
+    assert len(requests) == 2
