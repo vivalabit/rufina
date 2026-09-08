@@ -18,7 +18,8 @@ from app.services.vacancy_search import create_vacancy_search_runner
 
 
 def listing_html(*, declared_count: int = 2, include_second: bool = True) -> str:
-    second = """
+    second = (
+        """
       <li>
         <a href="https://careers.huawei.test/jobs/1002-ai-research-intern">
           <span></span>AI Research Intern
@@ -27,7 +28,10 @@ def listing_html(*, declared_count: int = 2, include_second: bool = True) -> str
           <span>Computing Systems</span><span>Lausanne</span>
         </span>
       </li>
-    """ if include_second else ""
+    """
+        if include_second
+        else ""
+    )
     return f"""
     <html><body>
       <div class="jobs-list-container">
@@ -151,9 +155,7 @@ def test_huawei_switzerland_scans_and_enriches_full_catalog() -> None:
     result = parser.search(LinkedInSearchRequest(results_limit=1))
 
     assert result.status == "completed"
-    assert result.message == (
-        "Scanned 2 Huawei Switzerland vacancies from one page"
-    )
+    assert result.message == ("Scanned 2 Huawei Switzerland vacancies from one page")
     assert len(requests) == 3
     assert len(result.jobs) == 2
     first = result.jobs[0]
@@ -161,16 +163,13 @@ def test_huawei_switzerland_scans_and_enriches_full_catalog() -> None:
     assert first.title == "Senior Software Engineer"
     assert first.company == "Huawei Switzerland"
     assert first.location == "Zürich"
-    assert first.url == (
-        "https://careers.huawei.test/jobs/1001-senior-software-engineer"
-    )
+    assert first.url == ("https://careers.huawei.test/jobs/1001-senior-software-engineer")
     assert first.apply_url == f"{first.url}/applications/new"
     assert first.posted_at == "2026-08-01T10:03:20+02:00"
     assert first.employment_type == "Full-time"
     assert first.seniority == "Professionals"
     assert first.description == (
-        "Build advanced computing platforms.\nResponsibilities\n"
-        "Research reliable systems."
+        "Build advanced computing platforms.\nResponsibilities\nResearch reliable systems."
     )
     assert first.raw["id"] == "1001"
     assert first.raw["department"] == "Advance Computing & Storage"
@@ -252,9 +251,7 @@ def test_huawei_switzerland_jobs_render_as_direct_company_imports() -> None:
             "title": "Senior Software Engineer",
             "department": "Advance Computing & Storage",
             "location": "Zürich",
-            "url": (
-                "https://careers.huaweirc.ch/jobs/1001-senior-software-engineer"
-            ),
+            "url": ("https://careers.huaweirc.ch/jobs/1001-senior-software-engineer"),
         }
     )
     stored = parsed_job_to_stored_job(
@@ -266,3 +263,14 @@ def test_huawei_switzerland_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Huawei Switzerland import"
     assert stored["id"] == "huawei_switzerland-1001"
+
+
+def test_huawei_reads_heading_counter_and_still_detects_missing_cards() -> None:
+    from app.services.parsers.companies.huawei_switzerland import parse_listing_html
+
+    page = listing_html().replace("<p><span>2 jobs</span></p>", "<h2>2 jobs<span></span></h2>")
+    assert len(parse_listing_html(page, page_url="https://careers.huawei.test/jobs")) == 2
+    with pytest.raises(DirectCompanyRequestError):
+        parse_listing_html(
+            page.replace("<h2>2 jobs", "<h2>3 jobs"), page_url="https://careers.huawei.test/jobs"
+        )

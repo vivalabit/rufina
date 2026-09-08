@@ -65,13 +65,9 @@ class HuaweiSwitzerlandJobsParser:
         except HuaweiSwitzerlandParseError:
             raise
         except httpx.HTTPError as exc:
-            raise DirectCompanyRequestError(
-                "Huawei Switzerland vacancy request failed"
-            ) from exc
+            raise DirectCompanyRequestError("Huawei Switzerland vacancy request failed") from exc
         except Exception as exc:
-            raise DirectCompanyRequestError(
-                "Huawei Switzerland vacancy parsing failed"
-            ) from exc
+            raise DirectCompanyRequestError("Huawei Switzerland vacancy parsing failed") from exc
 
         jobs = [self.normalize_job(record) for record in records]
         if request.deduplicate:
@@ -81,9 +77,7 @@ class HuaweiSwitzerlandJobsParser:
             status="completed",
             search_url=self.base_url,
             jobs=jobs,
-            message=(
-                f"Scanned {len(jobs)} Huawei Switzerland vacancies from one page"
-            ),
+            message=(f"Scanned {len(jobs)} Huawei Switzerland vacancies from one page"),
         )
 
     def enrich_records(
@@ -128,9 +122,7 @@ class HuaweiSwitzerlandJobsParser:
         detail = detail if isinstance(detail, dict) else {}
         schema = detail.get("schema")
         schema = schema if isinstance(schema, dict) else {}
-        public_url = optional_text(detail.get("public_url")) or optional_text(
-            record.get("url")
-        )
+        public_url = optional_text(detail.get("public_url")) or optional_text(record.get("url"))
 
         raw = dict(record)
         raw["detail"] = detail
@@ -147,8 +139,7 @@ class HuaweiSwitzerlandJobsParser:
             apply_url=optional_text(detail.get("apply_url")) or public_url,
             posted_at=optional_text(schema.get("datePosted")),
             employment_type=(
-                optional_text(detail.get("employment_type"))
-                or extract_employment_type(schema)
+                optional_text(detail.get("employment_type")) or extract_employment_type(schema)
             ),
             seniority=optional_text(detail.get("seniority")),
             description=(
@@ -198,15 +189,14 @@ def parse_listing_html(page_html: str, *, page_url: str) -> list[dict[str, Any]]
 
     if len(records) != expected_count:
         raise HuaweiSwitzerlandParseError(
-            f"Huawei Switzerland listed {len(records)} vacancies but declared "
-            f"{expected_count} jobs"
+            f"Huawei Switzerland listed {len(records)} vacancies but declared {expected_count} jobs"
         )
     return records
 
 
 def extract_result_count(page: Selector) -> int:
     candidates = normalized_texts(
-        page.css(".jobs-list-container p span::text").getall()
+        page.css(".jobs-list-container p span::text, .jobs-list-container h2::text").getall()
     )
     for candidate in candidates:
         match = RESULT_COUNT_PATTERN.search(candidate)
@@ -215,9 +205,7 @@ def extract_result_count(page: Selector) -> int:
         digits = re.sub(r"\D", "", match.group(1))
         if digits:
             return int(digits)
-    raise HuaweiSwitzerlandParseError(
-        "Huawei Switzerland listing page is missing its result count"
-    )
+    raise HuaweiSwitzerlandParseError("Huawei Switzerland listing page is missing its result count")
 
 
 def parse_detail_html(
@@ -240,10 +228,7 @@ def parse_detail_html(
             "Huawei Switzerland detail page returned a different vacancy"
         )
 
-    public_url = (
-        optional_text(page.css('meta[property="og:url"]::attr(content)').get())
-        or page_url
-    )
+    public_url = optional_text(page.css('meta[property="og:url"]::attr(content)').get()) or page_url
     apply_url = optional_text(
         page.css(
             "main[data-careersite--jobs--form-overlay-job-application-url-value]"
@@ -284,9 +269,7 @@ def extract_job_posting_schemas(page: Selector) -> Iterator[dict[str, Any]]:
         except (json.JSONDecodeError, TypeError):
             continue
         yield from (
-            candidate
-            for candidate in walk_json(payload)
-            if candidate.get("@type") == "JobPosting"
+            candidate for candidate in walk_json(payload) if candidate.get("@type") == "JobPosting"
         )
 
 
@@ -343,9 +326,7 @@ def extract_employment_type(schema: dict[str, Any]) -> str | None:
     raw_value = schema.get("employmentType")
     values = raw_value if isinstance(raw_value, list) else [raw_value]
     normalized = [
-        text.replace("_", " ").title()
-        for value in values
-        if (text := optional_text(value))
+        text.replace("_", " ").title() for value in values if (text := optional_text(value))
     ]
     return ", ".join(dict.fromkeys(normalized)) if normalized else None
 
