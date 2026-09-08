@@ -80,22 +80,16 @@ class HuerlimannInformatikJobsParser:
                     expected_url=self.base_url,
                     expected_api_url=self.api_url,
                 )
-                catalog_response = client.get(
-                    self.api_url, headers={"Referer": self.base_url}
-                )
+                catalog_response = client.get(self.api_url, headers={"Referer": self.base_url})
                 catalog_response.raise_for_status()
                 records = parse_catalog_payload(catalog_response.json())
                 self.enrich_records(client, records)
         except HuerlimannInformatikParseError:
             raise
         except httpx.HTTPError as exc:
-            raise DirectCompanyRequestError(
-                "Hürlimann Informatik vacancy request failed"
-            ) from exc
+            raise DirectCompanyRequestError("Hürlimann Informatik vacancy request failed") from exc
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
-            raise DirectCompanyRequestError(
-                "Hürlimann Informatik vacancy parsing failed"
-            ) from exc
+            raise DirectCompanyRequestError("Hürlimann Informatik vacancy parsing failed") from exc
 
         jobs = [normalize_job(record) for record in records]
         if request.deduplicate:
@@ -191,15 +185,13 @@ def parse_careers_html(
 
 def parse_catalog_payload(payload: Any) -> list[dict[str, Any]]:
     if not isinstance(payload, dict) or not isinstance(payload.get("jobs"), list):
-        raise HuerlimannInformatikParseError(
-            "Hürlimann Informatik catalog payload is malformed"
-        )
+        raise HuerlimannInformatikParseError("Hürlimann Informatik catalog payload is malformed")
     error = payload.get("error")
     if not isinstance(error, dict):
-        raise HuerlimannInformatikParseError(
-            "Hürlimann Informatik catalog payload is malformed"
-        )
+        raise HuerlimannInformatikParseError("Hürlimann Informatik catalog payload is malformed")
     if error_message := optional_text(error.get("message")):
+        if error_message == "Aktuell sind keine offenen Stellen vorhanden." and not payload["jobs"]:
+            return []
         raise HuerlimannInformatikParseError(
             f"Hürlimann Informatik catalog returned an error: {error_message}"
         )
@@ -511,7 +503,8 @@ def deduplicate_huerlimann_jobs(jobs: Iterable[ParsedJob]) -> list[ParsedJob]:
 
 def unique_attribute_values(selector: Any, css: str, attribute: str) -> set[str]:
     return {
-        value for raw in selector.css(f"{css}::attr({attribute})").getall()
+        value
+        for raw in selector.css(f"{css}::attr({attribute})").getall()
         if (value := optional_text(raw))
     }
 

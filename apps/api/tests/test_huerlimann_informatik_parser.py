@@ -26,10 +26,7 @@ API_URL = (
 JOB_ID = "75877"
 TOKEN = "hh42bwq2i7ompweoc5gbh0kcccpi85krel4d3f3wtzayg0t2mji6rizbioz575ep"
 DETAIL_URL = f"https://link.ostendis.com/publication/abteilungsleiter-in-technik-support/{TOKEN}"
-APPLY_URL = (
-    "https://link.ostendis.com/cvdropper/445ea227dcd5479ca9345c40d8f6ed78/"
-    f"DE?src={TOKEN}"
-)
+APPLY_URL = f"https://link.ostendis.com/cvdropper/445ea227dcd5479ca9345c40d8f6ed78/DE?src={TOKEN}"
 SPONTANEOUS_URL = (
     "https://link.ostendis.com/cvdropper/cece2c7efba84a18a5ed04d1e5bb36a5/"
     "DE?src=xeewza360dx8i7yfpw3cyc2fapmheaccicop5m2xxiwwixnnvzrpxi2ke4myw1jq"
@@ -168,11 +165,15 @@ def test_huerlimann_preserves_safe_listing_when_detail_fails() -> None:
             return httpx.Response(200, json=catalog_payload([listing_record()]), request=request)
         return httpx.Response(503, request=request)
 
-    job = HuerlimannInformatikJobsParser(
-        base_url=BASE_URL,
-        api_url=API_URL,
-        transport=httpx.MockTransport(handler),
-    ).search(LinkedInSearchRequest()).jobs[0]
+    job = (
+        HuerlimannInformatikJobsParser(
+            base_url=BASE_URL,
+            api_url=API_URL,
+            transport=httpx.MockTransport(handler),
+        )
+        .search(LinkedInSearchRequest())
+        .jobs[0]
+    )
     assert job.apply_url == APPLY_URL
     assert job.description is None
     assert "503 Service Unavailable" in str(job.raw["detail_error"])
@@ -215,16 +216,20 @@ def test_huerlimann_rejects_invalid_catalog_records() -> None:
 
 
 def test_huerlimann_rejects_mismatched_detail_but_keeps_listing() -> None:
-    job = HuerlimannInformatikJobsParser(
-        base_url=BASE_URL,
-        api_url=API_URL,
-        transport=httpx.MockTransport(
-            handler_for(
-                [listing_record()],
-                details=detail_html(company="Attacker AG", country="DE"),
-            )
-        ),
-    ).search(LinkedInSearchRequest()).jobs[0]
+    job = (
+        HuerlimannInformatikJobsParser(
+            base_url=BASE_URL,
+            api_url=API_URL,
+            transport=httpx.MockTransport(
+                handler_for(
+                    [listing_record()],
+                    details=detail_html(company="Attacker AG", country="DE"),
+                )
+            ),
+        )
+        .search(LinkedInSearchRequest())
+        .jobs[0]
+    )
     assert job.location == "8912 Obfelden, Switzerland"
     assert job.apply_url == APPLY_URL
     assert job.description is None
@@ -282,3 +287,18 @@ def test_huerlimann_is_registered_and_renders_as_direct_company_source() -> None
     assert stored["logo"] == "company"
     assert stored["department"] == "Hürlimann Informatik AG import"
     assert stored["id"] == f"huerlimann_informatik-{JOB_ID}"
+
+
+def test_huerlimann_recognizes_no_open_positions_but_not_other_errors() -> None:
+    from app.services.parsers.companies.huerlimann_informatik import parse_catalog_payload
+
+    payload = catalog_payload([])
+    payload["error"] = {"message": "Aktuell sind keine offenen Stellen vorhanden."}
+    assert parse_catalog_payload(payload) == []
+    payload["jobs"] = [listing_record()]
+    with pytest.raises(DirectCompanyRequestError):
+        parse_catalog_payload(payload)
+    payload["jobs"] = []
+    payload["error"] = {"message": "Service unavailable"}
+    with pytest.raises(DirectCompanyRequestError):
+        parse_catalog_payload(payload)
