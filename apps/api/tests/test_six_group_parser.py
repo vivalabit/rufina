@@ -338,3 +338,20 @@ def test_six_group_jobs_render_as_direct_company_imports() -> None:
     assert stored["applyUrl"] == (
         "https://jobs.six-group.com/talentcommunity/apply/1415188733/?locale=en_US"
     )
+
+
+def test_six_group_resolves_swiss_secondary_location_before_returning_job() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/search/":
+            page = listing_html([101], start=1, end=1, total=1)
+            page = page.replace("Zurich, CH", 'London, GB<small class="nobr">+1 more…</small>')
+            return httpx.Response(200, text=page)
+        return httpx.Response(
+            200, text=detail_html(101, location="London, GB", additional_locations=("Zurich, CH",))
+        )
+
+    result = SixGroupJobsParser(transport=httpx.MockTransport(handler)).search(
+        LinkedInSearchRequest()
+    )
+    assert len(result.jobs) == 1
+    assert result.jobs[0].location == "Zurich, CH"

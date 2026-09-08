@@ -202,6 +202,10 @@ class SixGroupJobsParser:
                     expected_location=record["location"],
                 )
             except (httpx.HTTPError, SixGroupParseError, ValueError) as exc:
+                if record.get("needs_location_verification"):
+                    raise SixGroupParseError(
+                        f"SIX could not verify Swiss locations for {record['url']}: {exc}"
+                    ) from exc
                 record["detail_error"] = str(exc)
                 return record, None
 
@@ -211,6 +215,7 @@ class SixGroupJobsParser:
                 record, detail = future.result()
                 if detail is not None:
                     record["detail"] = detail
+                    record["location"] = detail["location"]
 
     def normalize_job(self, record: dict[str, Any]) -> ParsedJob:
         detail = record.get("detail")
@@ -275,7 +280,7 @@ def parse_listing_html(
             not job_id
             or not title
             or not location
-            or not is_swiss_location(location)
+            or (not is_swiss_location(location) and not row.css("td.colLocation small.nobr"))
             or not is_job_url(detail_url, expected_host=page_host)
         ):
             raise SixGroupParseError("SIX listing contains an incomplete or non-Swiss vacancy")
@@ -287,6 +292,7 @@ def parse_listing_html(
                 "id": job_id,
                 "title": title,
                 "location": location,
+                "needs_location_verification": not is_swiss_location(location),
                 "url": detail_url,
                 "listing_page_url": page_url,
             }
@@ -343,7 +349,12 @@ def parse_detail_html(
         or company != EXPECTED_COMPANY
         or not description
         or not listing_location
-        or not any(same_swiss_location(location, listing_location) for location in locations)
+        or not any(is_swiss_location(location) for location in locations)
+        or not any(
+            optional_text(location) == listing_location
+            or same_swiss_location(location, listing_location)
+            for location in locations
+        )
         or not apply_url
     ):
         raise SixGroupParseError("SIX detail page contains an incomplete or non-Swiss vacancy")
@@ -352,7 +363,7 @@ def parse_detail_html(
         "id": expected_job_id,
         "title": description_title,
         "company": company,
-        "location": listing_location,
+        "location": next(location for location in locations if is_swiss_location(location)),
         "locations": locations,
         "apply_url": apply_url,
         "posted_at": normalize_date(property_attribute(page, "datePosted", "content")),
