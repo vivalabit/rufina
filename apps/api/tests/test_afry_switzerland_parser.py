@@ -314,3 +314,51 @@ def test_afry_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "AFRY Switzerland import"
     assert stored["company"] == "AFRY"
+
+
+def test_afry_keeps_only_verified_swiss_cities_for_multicountry_role() -> None:
+    from app.services.parsers.companies.afry_switzerland import validate_listing_record
+
+    record = listing_record(0)
+    record["Countries"].append({"Id": "de", "Name": "Deutschland"})
+    record["Cities"].append({"Id": "Munich", "Name": "Munich", "CountryId": "de"})
+    parsed = validate_listing_record(record, page_url=BASE_URL, detail_api_url=DETAIL_API_URL)
+    assert parsed["city_names"] == ["Zürich"]
+    record["Cities"] = record["Cities"][1:]
+    with pytest.raises(DirectCompanyRequestError):
+        validate_listing_record(record, page_url=BASE_URL, detail_api_url=DETAIL_API_URL)
+
+
+def test_afry_enriches_multicountry_role_without_relabeling_foreign_detail_city() -> None:
+    from app.services.parsers.companies.afry_switzerland import (
+        parse_detail_payload,
+        validate_listing_record,
+    )
+
+    record = listing_record(0)
+    record["Countries"].append({"Id": "de", "Name": "Deutschland"})
+    record["Cities"].append({"Id": "Hamburg", "Name": "Hamburg", "CountryId": "de"})
+    listing = validate_listing_record(record, page_url=BASE_URL, detail_api_url=DETAIL_API_URL)
+    detail = detail_record(0)
+    detail["location"].update(country="de", city="Hamburg", fullLocation="Hamburg, Germany")
+    listing["detail"] = parse_detail_payload(
+        detail,
+        expected_job_id=listing["id"],
+        expected_title=listing["name"],
+        expected_reference=listing["reference"],
+        expected_cities=listing["city_names"],
+        listed_locations=listing["Cities"],
+    )
+    job = AfrySwitzerlandJobsParser().normalize_job(listing)
+    assert job.location == "Zürich, Switzerland"
+    assert job.description
+    detail["location"]["city"] = "London"
+    with pytest.raises(DirectCompanyRequestError):
+        parse_detail_payload(
+            detail,
+            expected_job_id=listing["id"],
+            expected_title=listing["name"],
+            expected_reference=listing["reference"],
+            expected_cities=listing["city_names"],
+            listed_locations=listing["Cities"],
+        )

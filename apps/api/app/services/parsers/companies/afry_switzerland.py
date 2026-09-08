@@ -120,6 +120,7 @@ class AfrySwitzerlandJobsParser:
                     expected_title=record["name"],
                     expected_reference=record["reference"],
                     expected_cities=record["city_names"],
+                    listed_locations=record.get("Cities"),
                 )
             except (httpx.HTTPError, AfrySwitzerlandParseError, TypeError, ValueError) as exc:
                 record["detail_error"] = str(exc)
@@ -151,7 +152,9 @@ class AfrySwitzerlandJobsParser:
             source=self.parser_id,
             title=optional_text(source_record.get("name")),
             company="AFRY",
-            location=extract_location(source_record),
+            location=extract_location(
+                detail if valid_swiss_location(detail.get("location")) else record
+            ),
             url=public_url,
             apply_url=apply_url or public_url,
             posted_at=optional_text(source_record.get("releasedDate")),
@@ -247,11 +250,22 @@ def validate_listing_record(
     detail_url = urljoin(page_url, detail_path) if detail_path else None
     reference = extract_reference(detail_url)
     released_date = optional_text(item.get("LastApplyDate"))
+    country_ids = country_ids_from_listing(countries)
+    if (
+        not isinstance(cities, list)
+        or not listing_city_names(cities)
+        or any(
+            not isinstance(city, dict) or city.get("CountryId") not in country_ids
+            for city in cities
+        )
+    ):
+        raise AfrySwitzerlandParseError("AFRY catalog contains an incomplete or non-Swiss vacancy")
+    cities = [city for city in cities if city.get("CountryId") == SWISS_COUNTRY_ID]
     city_names = listing_city_names(cities)
     if (
         not job_id
         or not title
-        or country_ids_from_listing(countries) != {SWISS_COUNTRY_ID}
+        or SWISS_COUNTRY_ID not in country_ids
         or not city_names
         or not valid_listing_cities(cities)
         or not reference
@@ -287,11 +301,19 @@ def parse_detail_payload(
     expected_title: str,
     expected_reference: str,
     expected_cities: Sequence[str],
+    listed_locations: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if not isinstance(payload, dict):
         raise AfrySwitzerlandParseError("AFRY vacancy detail response must be an object")
     job_id = extract_job_id(payload.get("id"))
     sections = nested_dict(payload, "jobAd", "sections")
+    location = payload.get("location")
+    listed_location = isinstance(location, dict) and any(
+        city.get("CountryId") == location.get("country")
+        and city.get("Name") == location.get("city")
+        for city in (listed_locations or [])
+        if isinstance(city, dict)
+    )
     if (
         job_id != expected_job_id
         or payload.get("active") is not True
@@ -299,8 +321,8 @@ def parse_detail_payload(
         or optional_text(payload.get("name")) != optional_text(expected_title)
         or optional_text(payload.get("refNumber")) != optional_text(expected_reference)
         or not valid_company(payload.get("company"))
-        or not valid_swiss_location(payload.get("location"))
-        or not detail_city_matches(payload.get("location"), expected_cities)
+        or not (valid_swiss_location(location) or listed_location)
+        or not (detail_city_matches(location, expected_cities) or listed_location)
         or not valid_posting_url(payload.get("postingUrl"), job_id=job_id)
         or not valid_posting_url(
             payload.get("applyUrl"),
