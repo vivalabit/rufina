@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import hashlib
 import html
 import re
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from io import BytesIO
 from typing import Any
 from urllib.parse import parse_qs, urljoin, urlsplit
 
 import httpx
+from pypdf import PdfReader
 from scrapling import Selector
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
@@ -102,6 +105,10 @@ class BedagJobsParser:
             try:
                 response = client.get(record["url"], headers={"Referer": self.base_url})
                 response.raise_for_status()
+                if record.get("format") == "pdf":
+                    return record, parse_pdf_vacancy(
+                        response.content, record=record, page_url=str(response.url)
+                    )
                 return record, parse_detail_html(
                     response.text,
                     page_url=str(response.url),
@@ -187,9 +194,29 @@ def parse_listing_html(
                 "workload": workload,
                 "url": detail_url,
                 "listing_page_url": page_url,
+                "format": "pdf" if urlsplit(detail_url).path.lower().endswith(".pdf") else "html",
             }
         )
     return records
+
+
+def parse_pdf_vacancy(content: bytes, *, record: dict[str, Any], page_url: str) -> dict[str, Any]:
+    if page_url != record["url"] or b"%PDF-" not in content[:4096]:
+        raise BedagParseError("Bedag PDF vacancy returned an unexpected document")
+    try:
+        reader = PdfReader(BytesIO(content))
+        description = "\n\n".join(page.extract_text() or "" for page in reader.pages)
+    except Exception as exc:
+        raise BedagParseError("Bedag PDF vacancy could not be read") from exc
+    if len(description.strip()) < 100 or "bedag" not in description.casefold():
+        raise BedagParseError("Bedag PDF vacancy is missing its description or company")
+    return {
+        "id": record["id"],
+        "title": record["title"],
+        "description": description,
+        "location": EXPECTED_COUNTRY,
+        "apply_url": record["url"],
+    }
 
 
 def parse_detail_html(
@@ -295,7 +322,10 @@ def extract_job_id(value: Any) -> str | None:
     text = optional_text(value)
     if not text:
         return None
-    match = JOB_PATH_PATTERN.fullmatch(urlsplit(text).path)
+    parts = urlsplit(text)
+    if re.fullmatch(r"/wAssets/docs/[A-Za-z0-9_-]+\.pdf", parts.path):
+        return "pdf-" + hashlib.sha256(parts.path.encode()).hexdigest()[:20]
+    match = JOB_PATH_PATTERN.fullmatch(parts.path)
     return match.group(1) if match else None
 
 

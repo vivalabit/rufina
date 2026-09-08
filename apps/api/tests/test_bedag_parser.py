@@ -292,3 +292,42 @@ def test_bedag_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Bedag import"
     assert stored["id"] == "bedag-1008"
+
+
+def test_bedag_parses_pdf_listing_and_document_with_php_warning_prefix() -> None:
+    from io import BytesIO
+
+    from pypdf import PdfWriter
+    from pypdf.generic import DecodedStreamObject, DictionaryObject, NameObject
+
+    from app.services.parsers.companies.bedag import parse_listing_html, parse_pdf_vacancy
+
+    path = "/wAssets/docs/CFO-LeiterIn-Services.pdf"
+    listing = listing_html([listing_card("", title="CFO & Leiter Services", data_path=path)])
+    record = parse_listing_html(listing, page_url=BASE_URL, expected_url=BASE_URL)[0]
+    assert record["id"].startswith("pdf-")
+    writer = PdfWriter()
+    page = writer.add_blank_page(width=600, height=800)
+    font = DictionaryObject(
+        {
+            NameObject("/Type"): NameObject("/Font"),
+            NameObject("/Subtype"): NameObject("/Type1"),
+            NameObject("/BaseFont"): NameObject("/Helvetica"),
+        }
+    )
+    page[NameObject("/Resources")] = DictionaryObject(
+        {NameObject("/Font"): DictionaryObject({NameObject("/F1"): writer._add_object(font)})}
+    )
+    stream = DecodedStreamObject()
+    stream.set_data(
+        b"BT /F1 12 Tf 50 700 Td (Bedag Informatik AG seeks a CFO and Leiter Services to lead finance, accounting and business operations in Switzerland.) Tj ET"
+    )
+    page[NameObject("/Contents")] = writer._add_object(stream)
+    output = BytesIO()
+    writer.write(output)
+    detail = parse_pdf_vacancy(
+        b"Warning: non-numeric value\n" + output.getvalue(), record=record, page_url=record["url"]
+    )
+    assert "Bedag Informatik AG" in detail["description"]
+    with pytest.raises(DirectCompanyRequestError):
+        parse_pdf_vacancy(b"<html>error</html>", record=record, page_url=record["url"])
