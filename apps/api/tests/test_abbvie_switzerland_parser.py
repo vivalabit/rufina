@@ -11,6 +11,7 @@ from app.models.job_search import JobSearchManualRunRequest
 from app.models.parsers import LinkedInSearchRequest
 from app.services.job_search_execution import parsed_job_to_stored_job
 from app.services.parsers.companies.abbvie_switzerland import (
+    ABBVIE_SWITZERLAND_JOBS_URL,
     AbbVieSwitzerlandJobsParser,
     normalize_job,
 )
@@ -359,3 +360,30 @@ def test_abbvie_is_registered_and_renders_as_direct_company() -> None:
 
 def url_path(value: str) -> str:
     return httpx.URL(value).path
+
+
+def test_abbvie_handles_real_empty_page_without_counter_or_facet() -> None:
+    import re
+
+    from app.services.parsers.companies.abbvie_switzerland import parse_listing_html
+
+    page = re.sub(
+        r'<span class="attrax-pagination__total-results">.*?</span>', "", listing_html([], total=0)
+    )
+    page = re.sub(r'<li data-option-id="17445">.*?</li>', "", page, flags=re.DOTALL)
+    empty_html = page.replace(
+        "</body>", "<p>We are sorry but your search has returned no results.</p></body>"
+    )
+    assert parse_listing_html(
+        empty_html,
+        page_url=ABBVIE_SWITZERLAND_JOBS_URL,
+        expected_url=ABBVIE_SWITZERLAND_JOBS_URL,
+        page_number=1,
+    ) == ([], 0)
+    with pytest.raises(DirectCompanyRequestError):
+        parse_listing_html(
+            page,
+            page_url=ABBVIE_SWITZERLAND_JOBS_URL,
+            expected_url=ABBVIE_SWITZERLAND_JOBS_URL,
+            page_number=1,
+        )

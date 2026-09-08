@@ -229,6 +229,17 @@ def parse_listing_html(
                 "AbbVie careers page has an unexpected Zürich-area filter"
             )
 
+    empty_message = "We are sorry but your search has returned no results."
+    visible_text = " ".join(page.css("body ::text").getall())
+    if empty_message in visible_text:
+        if page.css(".attrax-vacancy-tile") or any(
+            ABBVIE_TOTAL_PATTERN.fullmatch(optional_text(raw) or "")
+            and int(ABBVIE_TOTAL_PATTERN.fullmatch(optional_text(raw) or "").group(1)) > 0
+            for raw in page.css(".attrax-pagination__total-results::text").getall()
+        ):
+            raise AbbVieSwitzerlandParseError("AbbVie empty result contradicts its catalog")
+        return [], 0
+
     total_values = {
         int(match.group(1))
         for raw in page.css(".attrax-pagination__total-results::text").getall()
