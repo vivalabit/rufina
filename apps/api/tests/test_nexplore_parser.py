@@ -262,3 +262,16 @@ def test_nexplore_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Nexplore import"
     assert stored["id"] == "nexplore-bcff2b26-bae2-48e2-851d-f39ee1fbcb3d"
+
+
+def test_nexplore_preserves_vacancy_without_optional_category() -> None:
+    from app.services.parsers.companies.nexplore import normalize_record
+
+    record = catalog_fixture()[0]
+    record["job_categories"] = []
+    parsed = normalize_record(record)
+    assert parsed["title"] == record["title"]
+    assert parsed["description"]
+    record["content_items"] = []
+    with pytest.raises(DirectCompanyRequestError):
+        normalize_record(record)

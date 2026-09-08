@@ -166,7 +166,7 @@ def normalize_record(item: dict[str, Any]) -> dict[str, Any]:
     workload, locations = parse_summary(summary)
     content_items = item.get("content_items")
     categories = item.get("job_categories")
-    if not isinstance(content_items, list) or not isinstance(categories, list) or not categories:
+    if not isinstance(content_items, list) or not isinstance(categories, list):
         raise NexploreParseError("Nexplore vacancy is missing its content or categories")
     if not has_application_form(content_items):
         raise NexploreParseError("Nexplore vacancy is missing its application form")
