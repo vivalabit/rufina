@@ -81,8 +81,10 @@ def test_compose_overrides_declare_isolated_projects_and_databases() -> None:
     assert "/tasko_screenshots" in screenshot_compose
     assert "POSTGRES_DB: tasko_screenshots" in screenshot_compose
     assert "TASKO_SETTINGS_FILE: /dev/null" in screenshot_compose
-    assert "AI_BACKEND: openclaw_codex" in screenshot_compose
-    assert 'OPENAI_API_KEY: ""' in screenshot_compose
+    assert "AI_BACKEND: openai_api" in screenshot_compose
+    assert "OPENAI_API_KEY: screenshot-fixture-disabled" in screenshot_compose
+    for feature in ("AI_MATCH", "ASSISTANT", "RESUME_IMPORT", "RESUME_TAILORING"):
+        assert f'OPENCLAW_{feature}_ENABLED: "false"' in screenshot_compose
     assert 'BRIGHTDATA_API_KEY: ""' in screenshot_compose
 
     assert e2e_compose.startswith("name: tasko-workspace-e2e\n")

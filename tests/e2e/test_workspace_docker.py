@@ -171,10 +171,10 @@ class WorkspaceDockerE2E(unittest.TestCase):
             ) from error
 
     @classmethod
-    def upload_legacy_profile_document(cls, document: dict[str, object]) -> None:
+    def upload_profile_document(cls, document: dict[str, object]) -> dict[str, object]:
         header, separator, encoded = str(document["data_url"]).partition(",")
         if not separator or ";base64" not in header:
-            raise AssertionError("Legacy profile document must use a base64 data URL")
+            raise AssertionError("Profile document must use a base64 data URL")
         content = base64.b64decode(encoded, validate=True)
         content_type = str(
             document.get("file_type")
@@ -184,9 +184,8 @@ class WorkspaceDockerE2E(unittest.TestCase):
             {
                 key: str(value)
                 for key, value in {
-                    "kind": "supporting_document",
+                    "kind": document["kind"],
                     "file_name": document["file_name"],
-                    "legacyDocumentId": document["id"],
                     "title": document.get("title"),
                     "category": document.get("category"),
                     "language": document.get("language"),
@@ -208,6 +207,7 @@ class WorkspaceDockerE2E(unittest.TestCase):
                     raise AssertionError(
                         f"POST /profile/files: expected 201, got {response.status}"
                     )
+                return json.loads(response.read())
         except HTTPError as error:
             detail = error.read().decode(errors="replace")
             raise AssertionError(
@@ -216,16 +216,13 @@ class WorkspaceDockerE2E(unittest.TestCase):
 
     @classmethod
     def seed_authoritative_match(cls, profile: dict[str, object], job: dict[str, object]) -> None:
-        # Keep inline documents in the browser migration fixture, omit them from
-        # profile JSON, and seed the same files through the binary API so the
-        # authoritative match remains current after the idempotent migration.
+        # Persist the profile and binary files before computing the authoritative match.
         profile_payload = {
             key: value for key, value in profile.items() if key != "documents"
         }
         cls.api_request("PUT", "/profile", profile_payload)
         documents: list[dict[str, object]] = json.loads(str(profile["documents"]))
-        for document in documents:
-            cls.upload_legacy_profile_document(document)
+        uploaded_documents = [cls.upload_profile_document(document) for document in documents]
         cls.api_request("PUT", "/jobs", {"jobs": [{"id": JOB_ID, "data": job}]})
         cls.api_request(
             "PUT",
@@ -239,16 +236,13 @@ class WorkspaceDockerE2E(unittest.TestCase):
         )
         resume = next(
             document
-            for document in documents
-            if document["category"] == "CV / Resume"
+            for document in uploaded_documents
+            if document["kind"] == "primary_resume"
         )
         imported_resume = cls.api_request(
             "POST",
             "/profile/import-master-resume",
-            {
-                "resumeFileName": resume["file_name"],
-                "resumeDataUrl": resume["data_url"],
-            },
+            {"profileFileId": resume["id"]},
         )
         cls.api_request(
             "POST",
@@ -267,9 +261,8 @@ class WorkspaceDockerE2E(unittest.TestCase):
                 ],
             },
         )
-        cls.api_request("PUT", "/profile?allow_destructive=true", {})
 
-    def legacy_fixture(self) -> tuple[dict[str, object], dict[str, object]]:
+    def workspace_fixture(self) -> tuple[dict[str, object], dict[str, object]]:
         uploaded_at = "2026-07-19T10:00:00.000Z"
         resume = data_url(
             minimal_docx(
@@ -307,7 +300,7 @@ class WorkspaceDockerE2E(unittest.TestCase):
             "documents": json.dumps(
                 [
                     {
-                        "id": "legacy-resume-source",
+                        "kind": "primary_resume",
                         "title": "Lebenslauf Zürich",
                         "category": "CV / Resume",
                         "language": "English",
@@ -318,7 +311,7 @@ class WorkspaceDockerE2E(unittest.TestCase):
                         "data_url": resume,
                     },
                     {
-                        "id": "legacy-cover-source",
+                        "kind": "supporting_document",
                         "title": "Anschreiben Müller",
                         "category": "Cover Letter",
                         "language": "English",
@@ -381,36 +374,29 @@ class WorkspaceDockerE2E(unittest.TestCase):
         return download.suggested_filename
 
     def test_workspace_generation_survives_outage_retry_and_container_restart(self) -> None:
-        profile, job = self.legacy_fixture()
+        profile, job = self.workspace_fixture()
         self.seed_authoritative_match(profile, job)
-        legacy_application = {
+        application = {
             "id": APPLICATION_ID,
             "status": "draft",
             "appliedAt": "2026-07-19",
             "nextStep": "Prepare application pack",
-            "notes": "Migrated from legacy browser storage",
+            "notes": "Persisted workspace E2E fixture",
             "documents": [],
             "job": job,
         }
-        fixture = {"profile": profile, "applications": [legacy_application]}
+        self.api_request(
+            "POST",
+            "/applications",
+            {"id": APPLICATION_ID, "data": application},
+            expected_status=201,
+        )
 
         with sync_playwright() as playwright:
             browser = playwright.chromium.launch(headless=True)
             context = browser.new_context(
                 accept_downloads=True,
                 extra_http_headers=self.headers,
-            )
-            context.add_init_script(
-                script=f"""
-                (() => {{
-                  if (location.origin !== {json.dumps(self.web_url)} || sessionStorage.getItem('tasko-e2e-seeded')) return;
-                  const fixture = {json.dumps(fixture, ensure_ascii=False)};
-                  localStorage.clear();
-                  localStorage.setItem('tasko.profile.v1', JSON.stringify(fixture.profile));
-                  localStorage.setItem('tasko.applications.v1', JSON.stringify(fixture.applications));
-                  sessionStorage.setItem('tasko-e2e-seeded', '1');
-                }})();
-                """
             )
             page = context.new_page()
             page.on("dialog", lambda dialog: dialog.accept())
@@ -429,18 +415,19 @@ class WorkspaceDockerE2E(unittest.TestCase):
                 timeout=30_000
             )
 
-            deadline = time.monotonic() + 30
-            while time.monotonic() < deadline:
-                applications = self.api_request("GET", "/applications")
-                migrated_profile = self.api_request("GET", "/profile")
-                if applications and migrated_profile["name"] == "Alex Morgan":
-                    break
-                time.sleep(0.5)
-            else:
-                self.fail("Legacy profile/application data did not migrate to PostgreSQL")
+            stored_profile = self.api_request("GET", "/profile")
+            self.assertEqual(stored_profile["name"], "Alex Morgan")
+            stored_application = self.api_request("GET", f"/applications/{APPLICATION_ID}")
+            self.assertEqual(stored_application["id"], APPLICATION_ID)
 
             self.compose("stop", "api")
-            page.reload(wait_until="domcontentloaded")
+            # Reopen the loaded workspace through client-side navigation while the
+            # API is down. A full reload needs the server to load the application.
+            page.get_by_role("link", name="Applications", exact=True).click()
+            page.goto(
+                f"{self.web_url}/#application-workspace/{APPLICATION_ID}",
+                wait_until="domcontentloaded",
+            )
             expect(page.get_by_text("Services unavailable")).to_be_visible(timeout=30_000)
 
             self.compose("start", "api")
