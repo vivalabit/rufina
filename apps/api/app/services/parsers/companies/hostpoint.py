@@ -141,7 +141,8 @@ def parse_listing_html(
         len(lists) != len(EXPECTED_UNITS)
         or set(units) != EXPECTED_UNITS
         or len(set(units)) != len(units)
-        or any(optional_text(node.attrib.get("data-count")) != "8" for node in lists)
+        or any(not (optional_text(node.attrib.get("data-count")) or "").isdigit() for node in lists)
+        or len({node.attrib.get("data-count") for node in lists}) != 1
     ):
         raise HostpointParseError("Hostpoint listing is missing its complete vacancy catalog")
 
@@ -152,6 +153,15 @@ def parse_listing_html(
     for job_list in lists:
         unit = optional_text(job_list.attrib.get("data-unit"))
         for card in job_list.css(":scope > li.job"):
+            # The speculative-application form is also emitted as an empty list item.
+            if (
+                "-spontan" in card.attrib.get("class", "").split()
+                and not card.css(".header")
+                and card.css('.spontan-data[data-slug="spontanbewerbungen"]')
+            ):
+                continue
+            if card.css(".header.-nojobs") and not card.css(".header h5 a[href]"):
+                continue
             titles = unique_selector_texts(card, ".header h5")
             workloads = unique_selector_texts(card, ".header > p")
             links = card.css(".header h5 a::attr(href)").getall()
@@ -198,7 +208,10 @@ def parse_listing_html(
         value for raw in page.css('a[href="/en/jobs/"] .bluepill').getall()
         if (value := html_to_text(raw))
     }
-    if not records or badges != {str(ordinary_count)}:
+    if (
+        not records
+        or badges != {str(ordinary_count)}
+    ):
         raise HostpointParseError("Hostpoint listing has an inconsistent vacancy count")
     return records
 

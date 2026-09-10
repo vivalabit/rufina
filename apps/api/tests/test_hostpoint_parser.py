@@ -276,3 +276,13 @@ def test_hostpoint_is_registered_and_renders_as_direct_company_source() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Hostpoint AG import"
     assert stored["id"] == "hostpoint-system-engineer-unix"
+
+
+def test_hostpoint_dynamic_count_and_hidden_speculative_form() -> None:
+    from app.services.parsers.companies.hostpoint import parse_listing_html
+    page = listing_html(catalog_fixture()).replace('data-count="8"', 'data-count="7"')
+    page = page.replace('</ul>', '''<li class="job -spontan">
+      <div class="spontan-data" data-slug="spontanbewerbungen"></div>
+    </li></ul>''', 1)
+    records = parse_listing_html(page, page_url=BASE_URL, expected_url=BASE_URL)
+    assert len(records) == 4
