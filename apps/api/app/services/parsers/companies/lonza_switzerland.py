@@ -468,11 +468,11 @@ def parse_detail_page(
         for value in page.css(".cmp-job-posting a.btn.apply::attr(href)").getall()
     }
     apply_values.discard(None)
+    # Workday descriptions may wrap whole sections in divs rather than expose
+    # paragraphs directly. Select the outer blocks once to avoid duplicate text.
     description_parts = page.css(
-        ".cmp-job-posting .job-posting > .row > .col-md-8 > p, "
-        ".cmp-job-posting .job-posting > .row > .col-md-8 > ul, "
-        ".cmp-job-posting .job-posting > .row > .col-md-8 > ol"
-    ).getall()
+        ".cmp-job-posting .job-posting > .row > .col-md-8"
+    ).xpath("./p | ./ul | ./ol | ./h2 | ./h3 | ./div[.//p or .//ul or .//ol]").getall()
     description = html_to_text("".join(str(value) for value in description_parts))
     location = "; ".join(location_values)
     expected_url = canonical_job_url(page_url)
@@ -527,6 +527,17 @@ def canonical_apply_url(value: Any, *, expected_job_id: str) -> str | None:
     if not text:
         return None
     parts = urlsplit(html.unescape(text))
+    if (
+        parts.scheme == "https"
+        and parts.netloc == "lonza.wd3.myworkdayjobs.com"
+        and re.fullmatch(
+            rf"/Lonza_Careers/job/[^/]+/[^/]+_{re.escape(expected_job_id.upper())}/apply/?",
+            parts.path,
+        )
+        and not parts.query
+        and not parts.fragment
+    ):
+        return urlunsplit((parts.scheme, parts.netloc, parts.path, "", ""))
     expected_path = f"/projects/ext/{expected_job_id.upper()}/apply"
     params = parse_qsl(parts.query, keep_blank_values=True)
     allowed_params = {

@@ -383,3 +383,25 @@ def test_lonza_jobs_render_as_direct_company_imports() -> None:
     assert stored["department"] == "Lonza Switzerland import"
     assert stored["company"] == "Lonza"
     assert stored["id"] == "lonza_switzerland-R78588"
+
+
+def test_lonza_accepts_workday_application_with_matching_reference() -> None:
+    from app.services.parsers.companies.lonza_switzerland import canonical_apply_url
+    url = "https://lonza.wd3.myworkdayjobs.com/Lonza_Careers/job/CH---Basel/Senior-Vice-President--Corporate-Finance_R79385/apply"
+    assert canonical_apply_url(url, expected_job_id="R79385") == url
+    assert canonical_apply_url(url, expected_job_id="R99999") is None
+    assert canonical_apply_url(url.replace("lonza.wd3", "other.wd3"), expected_job_id="R79385") is None
+
+
+def test_lonza_reads_wrapped_description_blocks_once() -> None:
+    from app.services.parsers.companies.lonza_switzerland import parse_detail_page
+    page = detail_page("R79385", "Engineer").get()
+    page = page.replace("<p>Help", "<div><p>Help").replace(
+        "meaningful therapies.</p>", "meaningful therapies.</p></div>",
+    )
+    detail = parse_detail_page(
+        Selector(page), page_url="https://www.lonza.com/jobs/R79385",
+        expected_job_id="R79385", expected_title="Engineer",
+    )
+    assert detail["description"].count("Lead cross-functional projects.") == 1
+    assert "Reference:" not in detail["description"]
