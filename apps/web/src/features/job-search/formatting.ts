@@ -24,3 +24,16 @@ export function getSearchSourcesLabel(form: ParserSearchForm) {
   }
   return sources.join(" + ");
 }
+
+export function getSearchIssuesLabel(sourceErrors: Record<string, string>) {
+  const failed: string[] = [];
+  const partial: string[] = [];
+  for (const [source, error] of Object.entries(sourceErrors)) {
+    (error.startsWith("Parser returned partial results: ") ? partial : failed)
+      .push(getParserLabel(source));
+  }
+  return [
+    failed.length ? `Failed (${failed.length}): ${failed.join(", ")}` : "",
+    partial.length ? `Partial (${partial.length}): ${partial.join(", ")}` : "",
+  ].filter(Boolean).join("; ");
+}

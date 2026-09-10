@@ -2030,7 +2030,7 @@ it("does not re-add a vacancy whose deleted id was synchronized with the server"
 
   expect(
     await screen.findByText(
-      "Found 1 vacancies; all were already saved or deleted",
+      "Found 1 vacancies; 0 matched config, 0 rejected, 0 uncertain; 0 added",
     ),
   ).toBeInTheDocument();
   expect(requests).toContainEqual({ path: "/job-search/run", method: "POST" });
@@ -2297,7 +2297,7 @@ it("reports an unfinished provider snapshot without claiming zero results", asyn
     expect(logs).toContainEqual(
       expect.objectContaining({
         area: "Vacancy search",
-        message: "LinkedIn search incomplete: provider results were not ready",
+        message: "Search incomplete. Failed (1): LinkedIn",
       }),
     );
   });

@@ -71,7 +71,6 @@ import { findWorkspaceApplication, type AppRoute, type View } from "@/lib/app-ro
 import {
   directCompanyCatalog,
 } from "@/lib/direct-company-catalog";
-import { formatParserFailure } from "@/lib/parser-errors";
 import {
   getJobSearchProgress,
   type JobSearchProgressPhase,
@@ -99,7 +98,7 @@ import type { ManualApplicationDraft } from "@/features/applications/model/types
 import type {
   JobSearchRunPayload,
 } from "@/features/job-search/api/dto";
-import { getParserLabel } from "@/features/job-search/formatting";
+import { getParserLabel, getSearchIssuesLabel } from "@/features/job-search/formatting";
 import { useJobSearch } from "@/features/job-search/hooks/use-job-search";
 import {
   defaultLinkedInProfessionExperienceLevels,
@@ -2695,15 +2694,13 @@ export function AppWorkspaceRoot({
         setSelectedJobId(refreshedJobs[0].id);
         setActiveTab("Overview");
       }
-      const failedSources = Object.entries(sourceErrors).map(([source, error]) =>
-        formatParserFailure(getParserLabel(source), error),
-      );
-      const finalMessage = failedSources.length
-        ? `Added ${totals.jobsAdded} of ${totals.jobsFound} vacancies; failed: ${failedSources.join("; ")}`
+      const issuesLabel = getSearchIssuesLabel(sourceErrors);
+      const finalMessage = issuesLabel
+        ? `Added ${totals.jobsAdded} of ${totals.jobsFound} vacancies; ${issuesLabel}`
         : totals.jobsAdded > 0
           ? `Added ${totals.jobsAdded} of ${totals.jobsFound} vacancies from ${parsersLabel}`
           : totals.jobsFound > 0
-            ? `Found ${totals.jobsFound} vacancies; all were already saved or deleted`
+            ? `Found ${totals.jobsFound} vacancies; ${totals.jobsPassed} matched config, ${totals.jobsRejected} rejected, ${totals.jobsUncertain} uncertain; 0 added`
             : `No vacancies returned from ${parsersLabel}`;
       const warnings = Array.from(
         new Set(runs.flatMap((run) => (run.warning ? [run.warning] : []))),
@@ -2717,18 +2714,18 @@ export function AppWorkspaceRoot({
       setParserSearchMessage(message);
       appendAppLog({
         level:
-          failedSources.length > 0
+          Boolean(issuesLabel)
             ? "warning"
             : totals.jobsAdded > 0
               ? "success"
               : "warning",
         area: "Vacancy search",
         message:
-          failedSources.length > 0
-            ? `${parsersLabel} search incomplete: provider results were not ready`
+          Boolean(issuesLabel)
+            ? `Search incomplete. ${issuesLabel}`
             : `${parsersLabel} search finished: ${totals.jobsFound} found, ${totals.jobsPassed} matched config, ${totals.jobsAdded} added`,
         details:
-          failedSources.length > 0
+          Boolean(issuesLabel)
             ? Object.entries(sourceErrors)
                 .map(([source, error]) => `${getParserLabel(source)}: ${error}`)
                 .join("\n")
