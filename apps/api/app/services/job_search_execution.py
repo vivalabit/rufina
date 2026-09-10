@@ -93,6 +93,11 @@ EXPERIENCE_LEVEL_SENIORITY = {
     "Director": ["director", "executive"],
 }
 JOB_FILTER_SNAPSHOT_KEY = "jobFilter"
+SEARCH_DATE_WINDOW_DAYS = {
+    "Past 24 hours": 1,
+    "Past week": 7,
+    "Past month": 30,
+}
 
 
 class JobSearchExecutionError(RuntimeError):
@@ -415,6 +420,18 @@ def execute_job_search(
         source_requests = source_requests_from_snapshot(
             run.config_snapshot,
         )
+        max_posting_age_days = normalized_config.screening.max_posting_age_days
+        request = tighten_request_posting_age(
+            request,
+            max_posting_age_days=max_posting_age_days,
+        )
+        source_requests = {
+            source: tighten_request_posting_age(
+                source_request,
+                max_posting_age_days=max_posting_age_days,
+            )
+            for source, source_request in source_requests.items()
+        }
         search_result = runner.run(
             sources=list(run.sources),
             request=request,
@@ -755,6 +772,31 @@ def search_request_from_config(
         if key in LinkedInSearchRequest.model_fields
     }
     return LinkedInSearchRequest.model_validate(parser_fields)
+
+
+def tighten_request_posting_age(
+    request: LinkedInSearchRequest,
+    *,
+    max_posting_age_days: int | None,
+) -> LinkedInSearchRequest:
+    """Push a global posting-age limit into providers with fixed date windows."""
+    if max_posting_age_days is None:
+        return request
+
+    if max_posting_age_days <= 1:
+        global_window = "Past 24 hours"
+    elif max_posting_age_days <= 7:
+        global_window = "Past week"
+    elif max_posting_age_days <= 30:
+        global_window = "Past month"
+    else:
+        return request
+
+    configured_days = SEARCH_DATE_WINDOW_DAYS.get(request.date_posted)
+    global_days = SEARCH_DATE_WINDOW_DAYS[global_window]
+    if configured_days is not None and configured_days <= global_days:
+        return request
+    return request.model_copy(update={"date_posted": global_window})
 
 
 def build_config_snapshot(

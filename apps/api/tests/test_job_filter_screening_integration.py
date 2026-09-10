@@ -16,7 +16,7 @@ from app.models.job_search import (
     ScreeningConfig,
     normalize_job_search_config,
 )
-from app.models.parsers import ParserSearchResponse
+from app.models.parsers import LinkedInSearchRequest, ParserSearchResponse
 from app.services.job_screening import (
     CompactScreeningJob,
     build_job_screening_prompt,
@@ -28,6 +28,7 @@ from app.services.job_search_execution import (
     ScreeningConfigConflict,
     effective_screening_config,
     execute_job_search,
+    tighten_request_posting_age,
 )
 from app.services.vacancy_search import VacancySearchRunResult
 
@@ -35,9 +36,13 @@ from app.services.vacancy_search import VacancySearchRunResult
 class EmptyRunner:
     def __init__(self) -> None:
         self.calls = 0
+        self.last_request = None
+        self.last_run = None
 
-    def run(self, **_kwargs) -> VacancySearchRunResult:
+    def run(self, **kwargs) -> VacancySearchRunResult:
         self.calls += 1
+        self.last_request = kwargs["request"]
+        self.last_run = kwargs
         return VacancySearchRunResult(
             jobs=[],
             source_results={
@@ -165,6 +170,66 @@ def test_posting_age_filter_rejects_old_vacancies_and_keeps_recent_ones() -> Non
     assert old.reason_code == "posting_too_old"
     assert recent is not None and recent.decision == "keep"
     assert recent.reason_code == "posting_age_match"
+
+
+def test_provider_date_window_is_tightened_by_global_posting_age() -> None:
+    request = tighten_request_posting_age(
+        LinkedInSearchRequest(date_posted="Any time"),
+        max_posting_age_days=1,
+    )
+    already_narrower = tighten_request_posting_age(
+        LinkedInSearchRequest(
+            date_posted="Past 24 hours",
+        ),
+        max_posting_age_days=7,
+    )
+
+    assert request.date_posted == "Past 24 hours"
+    assert already_narrower.date_posted == "Past 24 hours"
+
+
+def test_global_posting_age_tightens_source_specific_request(tmp_path) -> None:
+    sessions = create_sessions(tmp_path / "provider-posting-age.sqlite")
+    runner = EmptyRunner()
+    owner_token = current_owner_id.set("provider-posting-age-owner")
+    try:
+        with sessions() as db:
+            execute_job_search(
+                db,
+                schedule=None,
+                config=None,
+                config_snapshot={
+                    "name": "Recent jobs",
+                    "filters": {
+                        "schemaVersion": 2,
+                        "search": {"keywords": "fallback"},
+                        "screening": {"enabled": True},
+                    },
+                    "sourceConfigs": {
+                        "jobs_ch": {
+                            "source": "jobs_ch",
+                            "filters": {
+                                "keywords": "Lager OR Logistik",
+                                "datePosted": "Any time",
+                            },
+                        }
+                    },
+                    "jobFilter": filter_snapshot(
+                        posting_age_enabled=True,
+                        max_posting_age_days=1,
+                    ),
+                },
+                runner=runner,
+                settings=filter_test_settings(),
+                run_type="manual",
+                sources=["jobs_ch"],
+            )
+    finally:
+        current_owner_id.reset(owner_token)
+
+    assert runner.last_run is not None
+    source_request = runner.last_run["source_requests"]["jobs_ch"]
+    assert source_request.date_posted == "Past 24 hours"
 
 
 def test_non_overlapping_allowed_seniority_is_an_explicit_conflict() -> None:
@@ -358,8 +423,10 @@ def filter_snapshot(
     allowed_seniority: list[str] | None = None,
     target_technologies: list[str] | None = None,
     excluded_technologies: list[str] | None = None,
+    posting_age_enabled: bool | None = None,
+    max_posting_age_days: int | None = None,
 ) -> dict[str, object]:
-    return {
+    snapshot: dict[str, object] = {
         "schemaVersion": 1,
         "enabled": True,
         "allowedSeniority": allowed_seniority or [],
@@ -367,6 +434,11 @@ def filter_snapshot(
         "targetTechnologies": target_technologies or [],
         "excludedTechnologies": excluded_technologies or [],
     }
+    if posting_age_enabled is not None:
+        snapshot["postingAgeEnabled"] = posting_age_enabled
+    if max_posting_age_days is not None:
+        snapshot["maxPostingAgeDays"] = max_posting_age_days
+    return snapshot
 
 
 def filter_test_settings() -> Settings:
