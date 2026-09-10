@@ -434,7 +434,7 @@ def parse_detail_html(
         or employment_type != expected_employment_type
         or posted_at != expected_posted_at
         or not description
-        or description != descriptions[0]
+        or comparable_description(description) != comparable_description(descriptions[0])
         or not apply_url
     ):
         raise CslSwitzerlandParseError("CSL detail page is incomplete or inconsistent")
@@ -447,8 +447,13 @@ def parse_detail_html(
         "apply_url": apply_url,
         "posted_at": posted_at,
         "employment_type": employment_type,
-        "description": description,
+        "description": descriptions[0],
     }
+
+
+def comparable_description(value: str | None) -> str:
+    # CSL's JSON-LD omits double quotes that are present in the visible text.
+    return (value or "").translate(str.maketrans("", "", '"“”'))
 
 
 def job_id_from_url(value: Any) -> str | None:

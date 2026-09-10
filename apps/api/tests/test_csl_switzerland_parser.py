@@ -344,3 +344,25 @@ def test_csl_jobs_render_as_direct_company_imports() -> None:
     assert stored["department"] == "CSL Switzerland import"
     assert stored["company"] == "CSL Behring"
     assert stored["id"] == "csl_switzerland-283348"
+
+
+@pytest.mark.parametrize("visible,valid", [('Lead "digital quality" systems.', True), ("Lead unrelated systems.", False)])
+def test_csl_allows_quote_only_description_differences(visible, valid) -> None:
+    from app.services.parsers.companies.csl_switzerland import parse_detail_html
+    page = detail_page("283348", title="Senior-Scientist").replace(
+        '<div class="description"><p>Lead digital quality systems.</p>',
+        f'<div class="description"><p>{visible}</p>',
+    )
+    kwargs = {
+        "page_url": "https://jobs.csl.com/en/jobs/senior-scientist-en-r-283348",
+        "expected_url": "https://jobs.csl.com/en/jobs/senior-scientist-en-r-283348",
+        "expected_reference": "R-283348", "expected_title": "Senior-Scientist",
+        "expected_company": "CSL Behring", "expected_location": "Bern, Berne, Switzerland",
+        "expected_employment_type": "Full Time", "expected_posted_at": "2026-08-14",
+    }
+    if valid:
+        result = parse_detail_html(page, **kwargs)
+        assert '"digital quality"' in result["description"]
+    else:
+        with pytest.raises(DirectCompanyRequestError, match="inconsistent"):
+            parse_detail_html(page, **kwargs)
