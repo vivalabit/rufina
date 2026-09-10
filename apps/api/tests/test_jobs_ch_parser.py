@@ -214,6 +214,51 @@ def test_jobs_ch_searches_each_or_term_separately_and_deduplicates() -> None:
     assert response.search_url == "https://jobs.example.test/en/vacancies/?term=Lager"
 
 
+def test_jobs_ch_stops_pagination_when_first_pages_fill_limit() -> None:
+    requested_pages: list[tuple[str, int]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/en/vacancies/":
+            term = request.url.params["term"]
+            page = int(request.url.params.get("page", "1"))
+            requested_pages.append((term, page))
+            return httpx.Response(
+                200,
+                text=search_html(
+                    {"id": f"{term}-{page}", "title": f"{term} job"},
+                    num_pages=10,
+                ),
+            )
+        if request.url.path.startswith("/en/vacancies/detail/"):
+            return httpx.Response(503)
+        return httpx.Response(404)
+
+    parser = JobsChParser(
+        base_url="https://jobs.example.test",
+        detail_workers=2,
+        transport=httpx.MockTransport(handler),
+    )
+
+    response = parser.search(
+        JobsChSearchRequest(
+            keywords="Lager OR Logistik OR Produktion OR Verpackung",
+            results_limit=3,
+        )
+    )
+
+    assert sorted(requested_pages) == [
+        ("Lager", 1),
+        ("Logistik", 1),
+        ("Produktion", 1),
+        ("Verpackung", 1),
+    ]
+    assert [job.raw["id"] for job in response.jobs] == [
+        "Lager-1",
+        "Logistik-1",
+        "Produktion-1",
+    ]
+
+
 def test_jobs_ch_normalizes_broken_apply_suffix_only_for_jobs_ch() -> None:
     assert normalize_jobs_ch_url(
         "https://www.jobs.ch/en/vacancies/detail/vac-1/apply/"
@@ -259,6 +304,7 @@ def test_jobs_ch_keeps_listing_when_detail_request_fails() -> None:
 def test_jobs_ch_strictly_excludes_results_older_than_24_hours() -> None:
     fresh_date = (datetime.now(UTC) - timedelta(hours=2)).isoformat()
     old_date = (datetime.now(UTC) - timedelta(days=2)).isoformat()
+    requested_details: list[str] = []
 
     def detail_html(date_posted: str, vacancy_id: str) -> str:
         return DETAIL_HTML.replace(
@@ -282,10 +328,13 @@ def test_jobs_ch_strictly_excludes_results_older_than_24_hours() -> None:
                 ),
             )
         if request.url.path == "/en/vacancies/detail/fresh/":
+            requested_details.append("fresh")
             return httpx.Response(200, text=detail_html(fresh_date, "fresh"))
         if request.url.path == "/en/vacancies/detail/old/":
+            requested_details.append("old")
             return httpx.Response(200, text=detail_html(old_date, "old"))
         if request.url.path == "/en/vacancies/detail/relisted/":
+            requested_details.append("relisted")
             return httpx.Response(200, text=detail_html(fresh_date, "relisted"))
         return httpx.Response(404)
 
@@ -300,6 +349,7 @@ def test_jobs_ch_strictly_excludes_results_older_than_24_hours() -> None:
     )
 
     assert [job.raw["id"] for job in response.jobs] == ["fresh"]
+    assert requested_details == ["fresh", "old"]
 
 
 def test_jobs_ch_date_window_rejects_missing_invalid_and_future_dates() -> None:

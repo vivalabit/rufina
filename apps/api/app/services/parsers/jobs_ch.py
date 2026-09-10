@@ -61,10 +61,6 @@ class JobsChParser:
         search_terms = split_search_terms(request.keywords)
         query_terms: list[str | None] = search_terms or [None]
         search_url = self.build_search_url(request, keyword=query_terms[0])
-        records_by_term: list[list[dict[str, Any]]] = []
-        seen_ids: set[str] = set()
-        completed_query = False
-        last_error: Exception | None = None
 
         with httpx.Client(
             headers=JOBS_CH_HEADERS,
@@ -72,52 +68,23 @@ class JobsChParser:
             follow_redirects=True,
             transport=self.transport,
         ) as client:
-            for keyword in query_terms:
-                term_records: list[dict[str, Any]] = []
-                for page in range(1, self.max_pages + 1):
-                    params = self.build_search_params(request, page=page, keyword=keyword)
-                    try:
-                        response = client.get(f"{self.base_url}/en/vacancies/", params=params)
-                        response.raise_for_status()
-                        init_state = extract_js_object(response.text, "__INIT__ =")
-                        bucket = get_results_bucket(init_state)
-                        completed_query = True
-                    except (httpx.HTTPError, JobsChParseError, json.JSONDecodeError) as exc:
-                        last_error = exc
-                        break
-
-                    rows = bucket.get("results", []) if isinstance(bucket, dict) else []
-                    if not isinstance(rows, list) or not rows:
-                        break
-
-                    for row in rows:
-                        if not isinstance(row, dict):
-                            continue
-                        vacancy_id = str(row.get("id") or "").strip()
-                        if not vacancy_id or vacancy_id in seen_ids:
-                            continue
-                        seen_ids.add(vacancy_id)
-                        record = dict(row)
-                        record["search_url"] = str(response.url)
-                        record["search_term"] = keyword
-                        term_records.append(record)
-                        if len(term_records) >= request.results_limit:
-                            break
-
-                    if len(term_records) >= request.results_limit:
-                        break
-
-                    meta = bucket.get("meta", {}) if isinstance(bucket, dict) else {}
-                    num_pages = meta.get("numPages") if isinstance(meta, dict) else None
-                    if not isinstance(num_pages, int) or page >= num_pages:
-                        break
-
-                records_by_term.append(term_records)
-
+            records_by_term, completed_query, last_error = self.fetch_search_records(
+                client,
+                request,
+                query_terms,
+            )
             if not completed_query and last_error is not None:
                 raise JobsChRequestError("jobs.ch search request failed") from last_error
 
             selected_records = interleave_records(records_by_term, request.results_limit)
+            selected_records = [
+                record
+                for record in selected_records
+                if not has_known_out_of_window_initial_date(
+                    record,
+                    request.date_posted,
+                )
+            ]
             self.enrich_records(client, selected_records)
 
         jobs: list[ParsedJob] = []
@@ -141,6 +108,107 @@ class JobsChParser:
             message=self.unsupported_filters_message(request),
         )
 
+    def fetch_search_records(
+        self,
+        client: httpx.Client,
+        request: JobsChSearchRequest,
+        query_terms: list[str | None],
+    ) -> tuple[list[list[dict[str, Any]]], bool, Exception | None]:
+        """Fetch OR terms concurrently and stop once the limit is reachable."""
+        records_by_term: list[list[dict[str, Any]]] = [[] for _keyword in query_terms]
+        next_pages = [1 for _keyword in query_terms]
+        active_indices = list(range(len(query_terms)))
+        completed_query = False
+        last_error: Exception | None = None
+
+        with ThreadPoolExecutor(
+            max_workers=min(self.detail_workers, len(query_terms)),
+            thread_name_prefix="jobs-ch-search",
+        ) as executor:
+            while active_indices:
+                futures = {
+                    executor.submit(
+                        self.fetch_search_page,
+                        client,
+                        request,
+                        keyword=query_terms[index],
+                        page=next_pages[index],
+                    ): index
+                    for index in active_indices
+                }
+                page_results: dict[
+                    int,
+                    tuple[list[dict[str, Any]], int | None],
+                ] = {}
+                for future in as_completed(futures):
+                    index = futures[future]
+                    try:
+                        page_results[index] = future.result()
+                        completed_query = True
+                    except (
+                        httpx.HTTPError,
+                        JobsChParseError,
+                        json.JSONDecodeError,
+                    ) as exc:
+                        last_error = exc
+
+                next_active_indices: list[int] = []
+                for index in active_indices:
+                    page_result = page_results.get(index)
+                    if page_result is None:
+                        continue
+                    rows, num_pages = page_result
+                    records_by_term[index].extend(rows)
+                    page = next_pages[index]
+                    next_pages[index] += 1
+                    if rows and num_pages is not None and page < num_pages:
+                        next_active_indices.append(index)
+
+                unique_groups = deduplicate_record_groups(records_by_term)
+                selected = interleave_records(unique_groups, request.results_limit)
+                if len(selected) >= request.results_limit:
+                    return unique_groups, completed_query, last_error
+
+                active_indices = [
+                    index
+                    for index in next_active_indices
+                    if next_pages[index] <= self.max_pages
+                    and len(unique_groups[index]) < request.results_limit
+                ]
+
+        return deduplicate_record_groups(records_by_term), completed_query, last_error
+
+    def fetch_search_page(
+        self,
+        client: httpx.Client,
+        request: JobsChSearchRequest,
+        *,
+        keyword: str | None,
+        page: int,
+    ) -> tuple[list[dict[str, Any]], int | None]:
+        params = self.build_search_params(request, page=page, keyword=keyword)
+        response = client.get(f"{self.base_url}/en/vacancies/", params=params)
+        response.raise_for_status()
+        init_state = extract_js_object(response.text, "__INIT__ =")
+        bucket = get_results_bucket(init_state)
+        raw_rows = bucket.get("results", []) if isinstance(bucket, dict) else []
+        rows: list[dict[str, Any]] = []
+        if isinstance(raw_rows, list):
+            for row in raw_rows:
+                if not isinstance(row, dict):
+                    continue
+                vacancy_id = str(row.get("id") or "").strip()
+                if not vacancy_id:
+                    continue
+                record = dict(row)
+                record["search_url"] = str(response.url)
+                record["search_term"] = keyword
+                rows.append(record)
+
+        meta = bucket.get("meta", {}) if isinstance(bucket, dict) else {}
+        num_pages = meta.get("numPages") if isinstance(meta, dict) else None
+        return rows, num_pages if isinstance(num_pages, int) else None
+
     def enrich_records(
         self,
         client: httpx.Client,
@@ -152,7 +220,11 @@ class JobsChParser:
         def fetch_detail(record: dict[str, Any]) -> tuple[dict[str, Any], str | None]:
             vacancy_id = str(record.get("id") or "").strip()
             detail_url = self.build_detail_url(vacancy_id)
-            headers = {"Referer": str(record.get("search_url") or "")} if record.get("search_url") else None
+            headers = (
+                {"Referer": str(record.get("search_url") or "")}
+                if record.get("search_url")
+                else None
+            )
             try:
                 response = client.get(detail_url, headers=headers)
                 response.raise_for_status()
@@ -297,6 +369,37 @@ def interleave_records(
             if len(selected) >= limit:
                 return selected
     return selected
+
+
+def deduplicate_record_groups(
+    records_by_term: list[list[dict[str, Any]]],
+) -> list[list[dict[str, Any]]]:
+    """Deduplicate in stable query order before fair result interleaving."""
+    seen_ids: set[str] = set()
+    unique_groups: list[list[dict[str, Any]]] = []
+    for records in records_by_term:
+        unique_records: list[dict[str, Any]] = []
+        for record in records:
+            vacancy_id = str(record.get("id") or "").strip()
+            if not vacancy_id or vacancy_id in seen_ids:
+                continue
+            seen_ids.add(vacancy_id)
+            unique_records.append(record)
+        unique_groups.append(unique_records)
+    return unique_groups
+
+
+def has_known_out_of_window_initial_date(
+    record: dict[str, Any],
+    date_posted: str,
+) -> bool:
+    """Skip detail requests when jobs.ch already exposes a definitive old date."""
+    initial_date = first_string(record.get("initialPublicationDate"))
+    return bool(
+        initial_date
+        and date_posted != "Any time"
+        and not is_within_date_posted_window(initial_date, date_posted)
+    )
 
 
 def extract_js_object(text: str, marker: str) -> dict[str, Any]:
