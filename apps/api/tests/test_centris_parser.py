@@ -309,3 +309,14 @@ def test_centris_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Centris import"
     assert stored["id"] == "centris-1085"
+
+
+@pytest.mark.parametrize("metadata,location", [("80 - 100% in", None), ("100% in Solothurn vor Ort", "Solothurn vor Ort")])
+def test_centris_missing_location_is_not_invented(metadata, location) -> None:
+    from app.services.parsers.companies.centris import parse_listing_html
+    records = parse_listing_html(
+        listing_html([listing_card("1092", title="Engineer", listing_meta=metadata)]),
+        page_url=BASE_URL, expected_url=BASE_URL,
+    )
+    assert records[0]["location"] == location
+    assert records[0]["workload"] in {"80–100%", "100%"}

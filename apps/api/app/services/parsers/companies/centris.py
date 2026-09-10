@@ -30,7 +30,7 @@ APPLY_PATH_PATTERN = re.compile(
     re.IGNORECASE,
 )
 LISTING_META_PATTERN = re.compile(
-    r"^(\d{1,3}(?:\s*[-–]\s*\d{1,3})?\s*%)\s+in\s+(.+)$",
+    r"^(\d{1,3}(?:\s*[-–]\s*\d{1,3})?\s*%)\s+in(?:\s+(.*))?$",
     re.IGNORECASE,
 )
 POSTED_LABEL_PATTERN = re.compile(
@@ -193,7 +193,7 @@ def parse_listing_html(
             not job_id
             or not posted_at
             or not workload
-            or location != EXPECTED_LOCATION
+            or location not in {None, EXPECTED_LOCATION, "Solothurn vor Ort"}
             or not is_job_url(detail_url, expected_host=expected_host)
         ):
             raise CentrisParseError("Centris listing contains incomplete or non-Swiss vacancy data")
@@ -255,7 +255,7 @@ def parse_detail_html(
         titles != {optional_text(expected_title)}
         or listing_meta != optional_text(expected_listing_meta)
         or not workload
-        or location != EXPECTED_LOCATION
+        or location not in {None, EXPECTED_LOCATION, "Solothurn vor Ort"}
         or optional_text(website.get("name")) != optional_text(expected_title)
         or not same_url(website.get("url"), expected_url)
         or posted_at != expected_posted_at
