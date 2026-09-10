@@ -88,7 +88,7 @@ class BkwSwitzerlandJobsParser:
                     expected_url=self.api_url,
                     max_jobs=self.max_jobs,
                 )
-                self.enrich_records(client, records)
+                warnings = self.enrich_records(client, records)
         except BkwSwitzerlandParseError:
             raise
         except httpx.HTTPError as exc:
@@ -104,6 +104,7 @@ class BkwSwitzerlandJobsParser:
             status="completed",
             search_url=self.base_url,
             jobs=jobs,
+            warnings=warnings,
             message=(
                 f"Scanned {len(jobs)} BKW Switzerland vacancies from "
                 f"{catalog_count} global BKW catalog records"
@@ -114,9 +115,9 @@ class BkwSwitzerlandJobsParser:
         self,
         client: CareerHttpClient,
         records: list[dict[str, Any]],
-    ) -> None:
+    ) -> list[str]:
         if not records:
-            return
+            return []
 
         def fetch_detail(
             record: dict[str, Any],
@@ -161,7 +162,13 @@ class BkwSwitzerlandJobsParser:
         verified = [record for record in records if record.get("parsed_locations")]
         enrich_batch(unverified, workers=min(2, self.detail_workers))
         enrich_batch(verified, workers=self.detail_workers)
+        warnings = [
+            f"Skipped vacancy with unverified country/location: {record['url']}: "
+            f"{record.get('detail_error', 'detail unavailable')}"
+            for record in records if record.get("exclude_unverified")
+        ]
         records[:] = [record for record in records if not record.get("exclude_unverified")]
+        return warnings
 
 
 def parse_catalog_payload(

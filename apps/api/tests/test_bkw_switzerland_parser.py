@@ -342,3 +342,17 @@ def test_bkw_is_registered_and_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "BKW Switzerland import"
     assert stored["company"] == "BKW Energie AG"
+
+
+def test_bkw_reports_omitted_unverified_country_without_closing_inventory() -> None:
+    from app.services.parser_validation import validate_parser_result
+    record = listing_record(0, location_country=None)
+    def handler(request):
+        if request.url.host == "jobs.bkw.com":
+            return httpx.Response(200, json={"data": [record], "meta": country_filter()})
+        return httpx.Response(404)
+    result = BkwSwitzerlandJobsParser(transport=httpx.MockTransport(handler)).search(LinkedInSearchRequest())
+    assert not result.jobs
+    assert "unverified country/location" in result.warnings[0]
+    assert "404" in result.warnings[0]
+    assert validate_parser_result(result)[1].startswith("Parser returned partial results:")
