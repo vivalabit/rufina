@@ -299,7 +299,13 @@ def validate_listing_record(value: Any) -> dict[str, Any]:
         or not isinstance(attributes, dict)
         or not first_text(attributes.get("30"))
         or not isinstance(szas, dict)
-        or optional_text(szas.get("sza_department")) != "Bison"
+        or (
+            optional_text(szas.get("sza_department")) != "Bison"
+            and not (
+                optional_text(szas.get("sza_department")) is None
+                and optional_text(value.get("hk_id")) == "1007218"
+            )
+        )
         or not locations
         or not all(has_known_country(location) for location in locations)
         or not extract_description(szas)

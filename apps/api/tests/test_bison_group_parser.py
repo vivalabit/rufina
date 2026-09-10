@@ -354,3 +354,14 @@ def test_bison_group_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Bison Group import"
     assert stored["company"] == "Bison Schweiz AG"
+
+
+def test_bison_missing_department_requires_verified_employer_id() -> None:
+    from app.services.parsers.companies.bison_group import validate_listing_record
+    record = listing_record(1, country="Schweiz")
+    record["szas"].pop("sza_department")
+    record["hk_id"] = "1007218"
+    assert validate_listing_record(record)["id"] == record["id"]
+    record["hk_id"] = "other"
+    with pytest.raises(DirectCompanyRequestError):
+        validate_listing_record(record)
