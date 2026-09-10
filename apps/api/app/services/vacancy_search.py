@@ -65,6 +65,7 @@ class VacancySearchRunner:
         snapshot_poll_timeout_seconds: float = 30.0,
         max_source_workers: int = 6,
         max_source_attempts: int = 3,
+        source_retry_backoff_seconds: float = 1.0,
         clock: Callable[[], float] = time.monotonic,
         sleep: Callable[[float], None] = time.sleep,
     ) -> None:
@@ -73,6 +74,7 @@ class VacancySearchRunner:
         self.snapshot_poll_timeout_seconds = max(0.0, snapshot_poll_timeout_seconds)
         self.max_source_workers = max(1, max_source_workers)
         self.max_source_attempts = max(1, max_source_attempts)
+        self.source_retry_backoff_seconds = max(0.0, source_retry_backoff_seconds)
         self.clock = clock
         self.sleep = sleep
 
@@ -100,6 +102,14 @@ class VacancySearchRunner:
                 search_url=initial.search_url,
             )
         return initial
+
+    def search_source_attempt(
+        self, source: str, request: LinkedInSearchRequest, *,
+        attempt: int, wait_for_snapshot: bool,
+    ) -> ParserSearchResponse:
+        if attempt > 1 and self.source_retry_backoff_seconds:
+            self.sleep(min(30.0, self.source_retry_backoff_seconds * 2 ** (attempt - 2)))
+        return self.search_source(source, request, wait_for_snapshot=wait_for_snapshot)
 
     def get_snapshot(
         self,
@@ -188,9 +198,10 @@ class VacancySearchRunner:
                         else request
                     )
                     future = executor.submit(
-                        self.search_source,
+                        self.search_source_attempt,
                         source,
                         selected_request,
+                        attempt=attempt,
                         wait_for_snapshot=wait_for_snapshots,
                     )
                     in_flight[future] = (

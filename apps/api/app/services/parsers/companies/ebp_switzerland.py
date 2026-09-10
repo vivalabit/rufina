@@ -13,6 +13,7 @@ from scrapling import Selector
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
+from app.services.parsers.companies.http import CareerHttpClient
 
 EBP_SWITZERLAND_JOBS_URL = "https://www.ebp.global/ch-de/karriere/offene-stellen/stellenangebote"
 EBP_SWITZERLAND_CATALOG_URL = "https://jobs.ebp.ch/?lang=de&filter_30=64650&filter_10=42976"
@@ -54,19 +55,19 @@ class EbpSwitzerlandJobsParser:
         base_url: str = EBP_SWITZERLAND_JOBS_URL,
         catalog_url: str = EBP_SWITZERLAND_CATALOG_URL,
         timeout_seconds: float = 30.0,
-        detail_workers: int = 8,
+        detail_workers: int = 2,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.base_url = base_url
         self.catalog_url = catalog_url
         self.timeout_seconds = timeout_seconds
-        self.detail_workers = min(8, max(1, detail_workers))
+        self.detail_workers = min(2, max(1, detail_workers))
         self.transport = transport
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
         validate_catalog_url(self.catalog_url)
         try:
-            with httpx.Client(
+            with CareerHttpClient(
                 headers={**EBP_HEADERS, "Referer": self.base_url},
                 timeout=self.timeout_seconds,
                 follow_redirects=True,
@@ -82,7 +83,7 @@ class EbpSwitzerlandJobsParser:
         except EbpSwitzerlandParseError:
             raise
         except httpx.HTTPError as exc:
-            raise DirectCompanyRequestError("EBP Switzerland vacancy request failed") from exc
+            raise DirectCompanyRequestError(f"EBP Switzerland vacancy request failed: {exc}") from exc
         except (TypeError, ValueError) as exc:
             raise DirectCompanyRequestError("EBP Switzerland vacancy parsing failed") from exc
 
@@ -102,7 +103,7 @@ class EbpSwitzerlandJobsParser:
 
     def enrich_records(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
         records: list[dict[str, Any]],
     ) -> None:
         if not records:

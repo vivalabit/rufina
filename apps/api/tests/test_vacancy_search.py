@@ -294,12 +294,14 @@ def test_runner_merges_deduplicates_and_preserves_partial_results(
 
 def test_runner_moves_failed_source_to_queue_tail_and_stops_after_three_attempts() -> None:
     calls: list[str] = []
+    delays: list[float] = []
     linkedin = QueueRecordingParser("linkedin", failures=3, calls=calls)
     indeed = QueueRecordingParser("indeed", failures=0, calls=calls)
     runner = VacancySearchRunner(
         {"linkedin": linkedin, "indeed": indeed},
         max_source_workers=1,
         max_source_attempts=3,
+        sleep=delays.append,
     )
 
     result = runner.run(
@@ -308,6 +310,7 @@ def test_runner_moves_failed_source_to_queue_tail_and_stops_after_three_attempts
         wait_for_snapshots=False,
     )
 
+    assert delays == [1.0, 2.0]
     assert calls == ["linkedin", "indeed", "linkedin", "linkedin"]
     assert result.source_attempts == {"linkedin": 3, "indeed": 1}
     assert result.source_errors == {"linkedin": "linkedin temporary failure"}

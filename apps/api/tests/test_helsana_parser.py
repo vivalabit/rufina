@@ -436,3 +436,26 @@ def test_helsana_jobs_render_as_direct_company_imports() -> None:
     assert stored["department"] == "Helsana import"
     assert stored["company"] == "Helsana Versicherungen AG"
     assert stored["id"] == f"helsana-{record['id']}"
+
+
+def test_helsana_retries_failed_details_before_partial_validation(monkeypatch) -> None:
+    from app.services.parser_validation import validate_parser_result
+    monkeypatch.setattr("app.services.parsers.companies.http.time.sleep", lambda _: None)
+    records = [vacancy_record(0), vacancy_record(1)]
+    calls: list[str] = []
+    def handler(request):
+        calls.append(str(request.url))
+        if request.url.host == "www.helsana.ch":
+            return httpx.Response(200, text=parent_html())
+        if request.method == "POST":
+            return httpx.Response(200, text=listing_html(records, offset=0, total=2))
+        record = next(record for record in records if job_url(record) == str(request.url))
+        if record == records[1] and calls.count(str(request.url)) == 1:
+            return httpx.Response(503)
+        return httpx.Response(200, text=detail_html(record))
+    result = HelsanaJobsParser(transport=httpx.MockTransport(handler)).search(LinkedInSearchRequest())
+    assert validate_parser_result(result)[1] is None
+    assert all(job.description and "detail_error" not in job.raw for job in result.jobs)
+    assert calls.count(job_url(records[0])) == 1
+    assert calls.count(job_url(records[1])) == 2
+    assert len(calls) == 5  # Corporate page, catalog, two details and one retry.

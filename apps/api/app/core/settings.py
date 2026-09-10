@@ -470,7 +470,7 @@ class Settings(BaseSettings):
         le=20,
     )
     stadler_it_switzerland_jobs_detail_workers: int = Field(
-        default=8,
+        default=2,
         ge=1,
         le=20,
     )
@@ -486,7 +486,7 @@ class Settings(BaseSettings):
         le=120,
     )
     ebp_switzerland_jobs_detail_workers: int = Field(
-        default=8,
+        default=2,
         ge=1,
         le=20,
     )
@@ -505,7 +505,7 @@ class Settings(BaseSettings):
         le=20,
     )
     ruag_switzerland_jobs_detail_workers: int = Field(
-        default=8,
+        default=2,
         ge=1,
         le=20,
     )
@@ -559,7 +559,7 @@ class Settings(BaseSettings):
     )
     baloise_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     baloise_jobs_max_jobs: int = Field(default=1000, ge=1, le=5000)
-    baloise_jobs_detail_workers: int = Field(default=8, ge=1, le=8)
+    baloise_jobs_detail_workers: int = Field(default=2, ge=1, le=8)
     elca_jobs_base_url: str = (
         "https://iaaras.fa.ocs.oraclecloud.com/"
         "hcmUI/CandidateExperience/en/sites/CX_1/jobs"
@@ -623,7 +623,7 @@ class Settings(BaseSettings):
         "?sub=1&srg=1&filter_10=1124107&lang=en"
     )
     srg_ssr_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
-    srg_ssr_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    srg_ssr_jobs_detail_workers: int = Field(default=2, ge=1, le=20)
     ibm_jobs_base_url: str = (
         "https://www.ibm.com/de-de/careers/search?"
         "field_keyword_05[0]=Switzerland"
@@ -722,7 +722,7 @@ class Settings(BaseSettings):
         le=20,
     )
     siemens_switzerland_jobs_detail_workers: int = Field(
-        default=8,
+        default=2,
         ge=1,
         le=20,
     )
@@ -1071,7 +1071,7 @@ class Settings(BaseSettings):
         le=200,
     )
     swiss_life_switzerland_jobs_detail_workers: int = Field(
-        default=8,
+        default=2,
         ge=1,
         le=20,
     )
@@ -1182,7 +1182,7 @@ class Settings(BaseSettings):
         default=30.0, ge=1, le=120
     )
     bkw_switzerland_jobs_max_jobs: int = Field(default=2000, ge=1, le=5000)
-    bkw_switzerland_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    bkw_switzerland_jobs_detail_workers: int = Field(default=2, ge=1, le=20)
     snb_jobs_base_url: str = "https://careers.snb.ch/search/?locale=de_DE"
     snb_jobs_api_url: str = "https://careers.snb.ch/services/recruiting/v1/jobs"
     snb_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
@@ -1389,7 +1389,7 @@ class Settings(BaseSettings):
     )
     vzug_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     vzug_jobs_max_jobs: int = Field(default=200, ge=1, le=1000)
-    vzug_jobs_detail_workers: int = Field(default=8, ge=1, le=20)
+    vzug_jobs_detail_workers: int = Field(default=2, ge=1, le=20)
     lindt_spruengli_switzerland_jobs_base_url: str = (
         "https://lindtspruengli.wd103.myworkdayjobs.com/"
         "LindtSpruengliGroupCareers?"
@@ -1627,7 +1627,7 @@ class Settings(BaseSettings):
         le=20_000,
     )
     sonova_switzerland_jobs_detail_workers: int = Field(
-        default=8,
+        default=2,
         ge=1,
         le=20,
     )
@@ -2243,7 +2243,7 @@ class Settings(BaseSettings):
         le=10,
     )
     helsana_jobs_detail_workers: int = Field(
-        default=8,
+        default=2,
         ge=1,
         le=12,
     )

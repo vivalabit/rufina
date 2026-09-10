@@ -259,7 +259,7 @@ def test_baloise_enforces_catalog_limit_before_detail_requests() -> None:
 
 
 def test_baloise_caps_detail_concurrency_for_scrapling_transport() -> None:
-    assert BaloiseJobsParser(detail_workers=20).detail_workers == 8
+    assert BaloiseJobsParser(detail_workers=20).detail_workers == 2
 
 
 def test_baloise_is_registered_as_direct_company_source() -> None:

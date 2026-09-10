@@ -14,6 +14,7 @@ from scrapling import Selector
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
+from app.services.parsers.companies.http import CareerHttpClient
 
 HELSANA_JOBS_URL = (
     "https://www.helsana.ch/de/helsana-gruppe/jobs/stellenangebote.html"
@@ -60,7 +61,7 @@ class HelsanaJobsParser:
         timeout_seconds: float = 30.0,
         max_pages: int = 20,
         max_catalog_passes: int = 3,
-        detail_workers: int = 8,
+        detail_workers: int = 2,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.base_url = base_url
@@ -68,12 +69,12 @@ class HelsanaJobsParser:
         self.timeout_seconds = timeout_seconds
         self.max_pages = max(1, max_pages)
         self.max_catalog_passes = max(1, max_catalog_passes)
-        self.detail_workers = min(12, max(1, detail_workers))
+        self.detail_workers = min(2, max(1, detail_workers))
         self.transport = transport
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
         try:
-            with httpx.Client(
+            with CareerHttpClient(
                 headers=HELSANA_HEADERS,
                 timeout=self.timeout_seconds,
                 follow_redirects=True,
@@ -95,7 +96,7 @@ class HelsanaJobsParser:
         except HelsanaParseError:
             raise
         except httpx.HTTPError as exc:
-            raise DirectCompanyRequestError("Helsana vacancy request failed") from exc
+            raise DirectCompanyRequestError(f"Helsana vacancy request failed: {exc}") from exc
         except (TypeError, ValueError) as exc:
             raise DirectCompanyRequestError("Helsana vacancy parsing failed") from exc
 
@@ -116,13 +117,13 @@ class HelsanaJobsParser:
 
     def fetch_listing_page(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
         *,
         career_center_url: str,
         offset: int,
         limit: int,
     ) -> tuple[list[dict[str, Any]], dict[str, int]]:
-        response = client.post(
+        response = client.post_catalog(
             career_center_url,
             data={"offset": str(offset), "limit": str(limit), "lang": "de"},
             headers={"Referer": self.base_url},
@@ -141,7 +142,7 @@ class HelsanaJobsParser:
 
     def collect_listing_records(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
         *,
         career_center_url: str,
     ) -> tuple[list[dict[str, Any]], int, int]:
@@ -211,7 +212,7 @@ class HelsanaJobsParser:
 
     def enrich_records(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
         records: list[dict[str, Any]],
     ) -> None:
         if not records:

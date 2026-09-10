@@ -14,6 +14,7 @@ from scrapling import Selector
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
+from app.services.parsers.companies.http import CareerHttpClient
 
 SIEMENS_SWITZERLAND_JOBS_BASE_URL = (
     "https://jobs.siemens.com/de_DE/externaljobs/SearchJobs/"
@@ -55,19 +56,19 @@ class SiemensSwitzerlandJobsParser:
         timeout_seconds: float = 30.0,
         max_pages: int = 50,
         max_catalog_passes: int = 3,
-        detail_workers: int = 8,
+        detail_workers: int = 2,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.base_url = base_url
         self.timeout_seconds = timeout_seconds
         self.max_pages = max(1, max_pages)
         self.max_catalog_passes = max(1, max_catalog_passes)
-        self.detail_workers = max(1, detail_workers)
+        self.detail_workers = min(2, max(1, detail_workers))
         self.transport = transport
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
         try:
-            with httpx.Client(
+            with CareerHttpClient(
                 headers={**SIEMENS_SWITZERLAND_HEADERS, "Referer": self.base_url},
                 timeout=self.timeout_seconds,
                 follow_redirects=True,
@@ -106,7 +107,7 @@ class SiemensSwitzerlandJobsParser:
 
     def fetch_listing_page(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
         *,
         offset: int,
     ) -> tuple[list[dict[str, Any]], dict[str, int]]:
@@ -122,7 +123,7 @@ class SiemensSwitzerlandJobsParser:
 
     def collect_listing_records(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
     ) -> tuple[list[dict[str, Any]], int, int]:
         records_by_id: dict[str, dict[str, Any]] = {}
         expected_total: int | None = None
@@ -192,7 +193,7 @@ class SiemensSwitzerlandJobsParser:
 
     def enrich_records(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
         records: list[dict[str, Any]],
     ) -> None:
         if not records:

@@ -15,6 +15,7 @@ from app.services.parsers.companies.base import (
     DirectCompanyRequestError,
     ScraplingResponse,
 )
+from app.services.parsers.companies.http import fetch_with_retry
 
 BALOISE_JOBS_BASE_URL = "https://www.baloise.com/de/CH/jobs.html"
 BALOISE_JOBS_CATALOG_URL = (
@@ -56,7 +57,7 @@ class BaloiseJobsParser:
         catalog_url: str = BALOISE_JOBS_CATALOG_URL,
         timeout_seconds: float = 30.0,
         max_jobs: int = 1000,
-        detail_workers: int = 8,
+        detail_workers: int = 2,
         fetch_page: Callable[[str], ScraplingResponse] | None = None,
     ) -> None:
         self.base_url = base_url
@@ -65,7 +66,7 @@ class BaloiseJobsParser:
         self.max_jobs = max(1, max_jobs)
         # Scrapling's browser-like transport remains reliable with a modest
         # pool; higher fan-out causes incomplete concurrent response bodies.
-        self.detail_workers = min(8, max(1, detail_workers))
+        self.detail_workers = min(2, max(1, detail_workers))
         self.fetch_page = fetch_page or self._fetch_with_scrapling
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
@@ -98,15 +99,15 @@ class BaloiseJobsParser:
         )
 
     def _fetch_with_scrapling(self, url: str) -> ScraplingResponse:
-        response = Fetcher.get(
+        response = fetch_with_retry(lambda: Fetcher.get(
             url,
             headers={**BALOISE_HEADERS, "Referer": self.base_url},
             impersonate="chrome",
             timeout=self.timeout_seconds,
-        )
+        ))
         status = int(getattr(response, "status", 0) or 0)
         if status >= 400:
-            raise BaloiseParseError(f"Baloise returned HTTP {status}")
+            raise BaloiseParseError(f"Baloise returned HTTP {status} for {url}")
         return response
 
     def build_catalog_url(self) -> str:

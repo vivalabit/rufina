@@ -13,6 +13,7 @@ from scrapling import Selector
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
+from app.services.parsers.companies.http import CareerHttpClient
 
 SONOVA_SWITZERLAND_JOBS_BASE_URL = (
     "https://www.sonova.com/careers/?query-1-job-country=switzerland-en"
@@ -50,19 +51,19 @@ class SonovaSwitzerlandJobsParser:
         api_url: str | None = None,
         timeout_seconds: float = 30.0,
         max_catalog_records: int = 2_000,
-        detail_workers: int = 8,
+        detail_workers: int = 2,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.base_url = base_url
         self.api_url = api_url
         self.timeout_seconds = timeout_seconds
         self.max_catalog_records = max(1, max_catalog_records)
-        self.detail_workers = min(12, max(1, detail_workers))
+        self.detail_workers = min(2, max(1, detail_workers))
         self.transport = transport
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
         try:
-            with httpx.Client(
+            with CareerHttpClient(
                 headers={**SONOVA_HEADERS, "Referer": self.base_url},
                 timeout=self.timeout_seconds,
                 follow_redirects=True,
@@ -73,7 +74,7 @@ class SonovaSwitzerlandJobsParser:
         except SonovaSwitzerlandParseError:
             raise
         except httpx.HTTPError as exc:
-            raise DirectCompanyRequestError("Sonova vacancy request failed") from exc
+            raise DirectCompanyRequestError(f"Sonova vacancy request failed: {exc}") from exc
         except (TypeError, ValueError) as exc:
             raise DirectCompanyRequestError("Sonova vacancy parsing failed") from exc
 
@@ -97,7 +98,7 @@ class SonovaSwitzerlandJobsParser:
 
     def collect_listing_records(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
     ) -> tuple[list[dict[str, Any]], int]:
         if self.api_url is None:
             return self.collect_public_listing(client)
@@ -142,7 +143,7 @@ class SonovaSwitzerlandJobsParser:
             record["group_catalog_total"] = len(payload)
         return records, len(payload)
 
-    def collect_public_listing(self, client: httpx.Client) -> tuple[list[dict[str, Any]], int]:
+    def collect_public_listing(self, client: CareerHttpClient) -> tuple[list[dict[str, Any]], int]:
         url = self.base_url
         seen_pages: set[str] = set()
         records: list[dict[str, Any]] = []
@@ -215,7 +216,7 @@ class SonovaSwitzerlandJobsParser:
 
     def enrich_records(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
         records: list[dict[str, Any]],
     ) -> None:
         def fetch_detail(

@@ -14,6 +14,7 @@ from scrapling import Selector
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
+from app.services.parsers.companies.http import CareerHttpClient
 
 STADLER_IT_SWITZERLAND_JOBS_URL = (
     "https://www.stadlerrail.com/de/karriere/offene-stellen?10=1077445&25=1098730&"
@@ -58,7 +59,7 @@ class StadlerItSwitzerlandJobsParser:
         timeout_seconds: float = 30.0,
         max_pages: int = 20,
         max_catalog_passes: int = 3,
-        detail_workers: int = 8,
+        detail_workers: int = 2,
         page_size: int = 200,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
@@ -67,13 +68,13 @@ class StadlerItSwitzerlandJobsParser:
         self.timeout_seconds = timeout_seconds
         self.max_pages = max(1, max_pages)
         self.max_catalog_passes = max(1, max_catalog_passes)
-        self.detail_workers = min(8, max(1, detail_workers))
+        self.detail_workers = min(2, max(1, detail_workers))
         self.page_size = max(1, page_size)
         self.transport = transport
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
         try:
-            with httpx.Client(
+            with CareerHttpClient(
                 headers={**STADLER_HEADERS, "Referer": self.base_url},
                 timeout=self.timeout_seconds,
                 follow_redirects=True,
@@ -84,7 +85,7 @@ class StadlerItSwitzerlandJobsParser:
         except StadlerItSwitzerlandParseError:
             raise
         except httpx.HTTPError as exc:
-            raise DirectCompanyRequestError("Stadler vacancy request failed") from exc
+            raise DirectCompanyRequestError(f"Stadler vacancy request failed: {exc}") from exc
         except (TypeError, ValueError) as exc:
             raise DirectCompanyRequestError("Stadler vacancy parsing failed") from exc
 
@@ -104,7 +105,7 @@ class StadlerItSwitzerlandJobsParser:
 
     def collect_listing_records(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
     ) -> tuple[list[dict[str, Any]], int, int]:
         pages_fetched = 0
         last_count = 0
@@ -161,8 +162,8 @@ class StadlerItSwitzerlandJobsParser:
             f"{self.max_catalog_passes} passes (collected {last_count} of {last_total})"
         )
 
-    def fetch_listing_page(self, client: httpx.Client, *, offset: int) -> httpx.Response:
-        response = client.post(
+    def fetch_listing_page(self, client: CareerHttpClient, *, offset: int) -> httpx.Response:
+        response = client.post_catalog(
             self.catalog_url,
             data={
                 "offset": str(offset),
@@ -177,7 +178,7 @@ class StadlerItSwitzerlandJobsParser:
 
     def enrich_records(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
         records: list[dict[str, Any]],
     ) -> None:
         if not records:
