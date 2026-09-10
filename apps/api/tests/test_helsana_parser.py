@@ -459,3 +459,16 @@ def test_helsana_retries_failed_details_before_partial_validation(monkeypatch) -
     assert calls.count(job_url(records[0])) == 1
     assert calls.count(job_url(records[1])) == 2
     assert len(calls) == 5  # Corporate page, catalog, two details and one retry.
+
+
+def test_helsana_decodes_entities_before_comparing_schema_title() -> None:
+    from app.services.parsers.companies.helsana import parse_detail_html
+    record = vacancy_record(0)
+    record["title"] = "Platform & Security Engineer (a) 80-100%"
+    record["url"] = job_url(record)
+    page = detail_html(record).replace(
+        json.dumps(record["title"]), json.dumps(record["title"].replace("&", "&amp;")),
+    )
+    result = parse_detail_html(page, page_url=record["url"], expected_record=record)
+    assert result["description"]
+    assert result["title"] == record["title"]

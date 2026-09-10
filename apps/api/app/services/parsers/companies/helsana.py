@@ -423,7 +423,7 @@ def parse_detail_html(
     ):
         raise HelsanaParseError("Helsana vacancy has an unexpected identity")
 
-    schema_title = optional_text(posting.get("title"))
+    schema_title = optional_text(html.unescape(optional_text(posting.get("title")) or ""))
     organization = posting.get("hiringOrganization")
     organization_name = (
         optional_text(organization.get("name")) if isinstance(organization, dict) else None
