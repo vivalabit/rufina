@@ -270,3 +270,12 @@ def test_salt_mobile_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Salt Mobile SA import"
     assert stored["company"] == "Salt Mobile SA"
+
+
+def test_salt_reports_embedded_404_as_unavailable_not_empty() -> None:
+    from app.services.parsers.companies.salt_mobile import parse_listing_html
+    with pytest.raises(DirectCompanyRequestError, match="unavailable.*404"):
+        parse_listing_html(
+            '<title>JobCloud</title><script>"NEXT_HTTP_ERROR_FALLBACK;404"</script>',
+            page_url=BASE_URL, expected_page=1,
+        )

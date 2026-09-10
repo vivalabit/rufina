@@ -220,6 +220,11 @@ def parse_listing_html(
 ) -> tuple[int, list[dict[str, Any]]]:
     validate_listing_url(page_url, expected_page=expected_page)
     page = Selector(page_html)
+    if "NEXT_HTTP_ERROR_FALLBACK;404" in page_html:
+        raise SaltMobileParseError(
+            "Salt Mobile JobCloud catalog is unavailable (embedded page reports 404); "
+            "the official careers link must be restored by the provider"
+        )
     languages = unique_values(page, "html::attr(lang)")
     slugs = unique_values(page, "html::attr(data-wf-item-slug)")
     titles = unique_values(page, "title::text")
