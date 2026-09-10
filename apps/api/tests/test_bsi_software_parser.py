@@ -290,3 +290,19 @@ def test_bsi_software_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "BSI Software import"
     assert stored["id"] == "bsi_software-software-engineer"
+
+
+def test_bsi_related_job_application_does_not_hide_current_description() -> None:
+    from app.services.parsers.companies.bsi_software import parse_detail_html
+    title = "Software Engineer (all genders)"
+    slug = "software-engineer"
+    tags = ["senior", "baden"]
+    page = detail_html(slug, title=title, tags=tags).replace(
+        "</body>", '<a href="https://services.bsi-software.com/studio/public/e/l/jobs?lang=de&amp;position=Other&amp;id=2623755">Related</a></body>',
+    )
+    result = parse_detail_html(
+        page, page_url=f"{JOBS_URL}/{slug}", expected_url=f"{JOBS_URL}/{slug}",
+        expected_slug=slug, expected_title=title, expected_tags=tags,
+    )
+    assert result["description"]
+    assert "id=2595876" in result["apply_url"]

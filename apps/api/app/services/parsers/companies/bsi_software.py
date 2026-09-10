@@ -271,6 +271,15 @@ def parse_detail_html(
         if (value := optional_text(raw))
     }
     apply_urls = {value for value in apply_candidates if is_apply_url(value)}
+    if len(apply_urls) > 1:
+        # Related vacancies can include their own application link on this page.
+        position = expected_title.split(" (", 1)[0].casefold()
+        apply_urls = {
+            url for url in apply_urls
+            if parse_qs(urlsplit(url).query).get("position", [""])[0].casefold() == position
+        }
+        if len(apply_urls) != 1:
+            raise BsiSoftwareParseError("BSI Software detail has ambiguous application links")
     descriptions = [text for node in page.css(".flex-grow-1") if (text := html_to_text(node.get()))]
     description = max(descriptions, key=len) if descriptions else None
     created_values = unique_attribute_values(page, 'meta[name="x-create-date"]', "content")
