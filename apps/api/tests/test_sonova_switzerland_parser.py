@@ -299,3 +299,10 @@ def test_sonova_normalizes_typographical_dashes_in_detail_titles() -> None:
         expected_location="Staefa, Switzerland",
     )
     assert result["id"] == "101"
+
+
+def test_registered_sonova_uses_current_public_catalog_by_default() -> None:
+    settings = Settings()
+    parser = create_vacancy_search_runner(settings).parsers["sonova_switzerland"]
+    assert parser.api_url is None
+    assert "query-1-job-country=switzerland-en" in parser.base_url

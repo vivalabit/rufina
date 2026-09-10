@@ -1611,11 +1611,9 @@ class Settings(BaseSettings):
         le=20,
     )
     sonova_switzerland_jobs_base_url: str = (
-        "https://www.sonova.com/careers/?query-1-job-country=switzerland"
+        "https://www.sonova.com/careers/?query-1-job-country=switzerland-en"
     )
-    sonova_switzerland_jobs_api_url: str = (
-        "https://www.sonova.com/en/jobs_list/active?lang=en"
-    )
+    sonova_switzerland_jobs_api_url: str | None = None
     sonova_switzerland_jobs_timeout_seconds: float = Field(
         default=30.0,
         ge=1,
