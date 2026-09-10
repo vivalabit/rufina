@@ -335,3 +335,10 @@ def test_edorex_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Edorex import"
     assert stored["id"] == "edorex-senior-postgresql-consultant-mwd"
+
+
+def test_edorex_accepts_official_application_tracking_parameter() -> None:
+    from app.services.parsers.companies.edorex import normalize_apply_url
+    url = SENIOR_APPLY_URL + "?src=campaign"
+    assert normalize_apply_url(url) == url
+    assert normalize_apply_url(SENIOR_APPLY_URL + "?redirect=https://other.test") is None

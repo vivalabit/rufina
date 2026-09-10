@@ -6,7 +6,7 @@ import re
 from collections.abc import Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
-from urllib.parse import urljoin, urlsplit
+from urllib.parse import parse_qs, urljoin, urlsplit
 
 import httpx
 from scrapling import Selector
@@ -242,7 +242,7 @@ def parse_detail_html(
     hiring_organization = hiring_organization if isinstance(hiring_organization, dict) else {}
     apply_urls = {
         normalized
-        for raw in page.css("main a::attr(href)").getall()
+        for raw in page.css("a::attr(href)").getall()
         if (normalized := normalize_apply_url(urljoin(page_url, optional_text(raw) or "")))
     }
     description_nodes = page.css("main .prose.prose-lg")
@@ -349,7 +349,12 @@ def normalize_apply_url(value: Any) -> str | None:
         and parts.path == "/ojp/"
         and ODM_APPLY_FRAGMENT_PATTERN.fullmatch(parts.fragment)
     )
-    if parts.scheme != "https" or parts.query or not (is_link or is_odm):
+    tracking = parse_qs(parts.query, keep_blank_values=True)
+    valid_tracking = not parts.query or (
+        is_link and set(tracking) == {"src"}
+        and len(tracking["src"]) == 1 and bool(tracking["src"][0])
+    )
+    if parts.scheme != "https" or not valid_tracking or not (is_link or is_odm):
         return None
     return text
 
