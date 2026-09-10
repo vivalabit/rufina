@@ -287,3 +287,14 @@ def test_ntt_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "NTT Global Data Centers import"
     assert stored["id"] == "ntt_global_data_centers_switzerland-jr101121"
+
+
+def test_ntt_empty_catalog_can_omit_zero_facet_count() -> None:
+    from app.services.parsers.companies.ntt_global_data_centers_switzerland import (
+        validate_zurich_facet,
+    )
+    data = listing_payload([])
+    data["facets"][0]["values"][0]["values"][0].pop("count")
+    validate_zurich_facet(data, expected_total=0)
+    with pytest.raises(DirectCompanyRequestError):
+        validate_zurich_facet(data, expected_total=1)

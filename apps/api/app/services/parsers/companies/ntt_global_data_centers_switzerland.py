@@ -317,7 +317,7 @@ def validate_zurich_facet(payload: Any, *, expected_total: int) -> None:
     if (
         len(matches) != 1
         or optional_text(matches[0].get("descriptor")) != ZURICH_LOCATION
-        or matches[0].get("count") != expected_total
+        or matches[0].get("count", 0 if expected_total == 0 else None) != expected_total
     ):
         raise NttGlobalDataCentersSwitzerlandParseError(
             "NTT Workday response is missing its verified Zurich facet"
