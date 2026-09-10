@@ -297,3 +297,10 @@ def test_pwc_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "PwC Switzerland import"
     assert stored["company"] == "PwC Switzerland"
+
+
+def test_pwc_accepts_workday_job_landing_page_without_apply_suffix() -> None:
+    from app.services.parsers.companies.pwc_switzerland import validate_listing_record
+    record = listing_record(1)
+    record["szas"]["sza_apply_link"] = record["szas"]["sza_apply_link"].removesuffix("/apply")
+    validate_listing_record(record)

@@ -41,7 +41,7 @@ DIRECT_JOB_PATH_PATTERN = re.compile(
     re.IGNORECASE,
 )
 WORKDAY_APPLY_PATH_PATTERN = re.compile(
-    r"^/(?:Global_Experienced_Careers|Global_Campus_Careers)/job/.+/apply/?$",
+    r"^/(?:Global_Experienced_Careers|Global_Campus_Careers)/job/[^/]+/[^/]+(?:/apply)?/?$",
     re.IGNORECASE,
 )
 
