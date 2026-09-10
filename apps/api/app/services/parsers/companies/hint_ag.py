@@ -182,10 +182,6 @@ def parse_career_page(
         'meta[property="og:site_name"]',
         "content",
     )
-    logo_urls = {
-        urljoin(page_url, value)
-        for value in page.css('link[rel="preload"][as="image"]::attr(href)').getall()
-    }
     if (
         canonical_urls != {canonical_career_url(expected_url)}
         or site_names != {HINT_COMPANY}
@@ -196,8 +192,6 @@ def parse_career_page(
             selector_text(heading)
             for heading in page.css("h1.elementor-heading-title")
         }
-        or "https://hintag.ch/wp-content/uploads/2022/08/hintag-lenzburg-1.svg"
-        not in logo_urls
     ):
         raise HintAgParseError("HINT AG careers page has an invalid identity")
 

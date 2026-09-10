@@ -376,3 +376,15 @@ def test_hint_ag_jobs_render_as_direct_company_imports() -> None:
     assert stored["department"] == "HINT AG import"
     assert stored["company"] == "HINT AG"
     assert stored["id"] == f"hint_ag-{JOB_ONE}"
+
+
+def test_hint_career_identity_does_not_depend_on_preloaded_artwork() -> None:
+    from app.services.parsers.companies.hint_ag import parse_career_page
+    page = career_html().replace(
+        "https://hintag.ch/wp-content/uploads/2022/08/hintag-lenzburg-1.svg",
+        "https://hintag.ch/wp-content/uploads/2023/08/big-data-slider.jpeg",
+    )
+    assert parse_career_page(
+        page, page_url=BASE_URL, expected_url=BASE_URL,
+        expected_portal_url="https://jobs.dualoo.com/portal/t1jerlne?lang=DE",
+    ) == "https://jobs.dualoo.com/portal/t1jerlne?lang=DE"
