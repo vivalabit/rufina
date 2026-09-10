@@ -279,3 +279,16 @@ def test_switch_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Switch import"
     assert stored["id"] == "switch-557"
+
+
+def test_switch_recognizes_verified_empty_catalog_without_counter() -> None:
+    from scrapling import Selector
+
+    from app.services.parsers.companies.switch import extract_result_count
+    page = '''<title>Switch Bewerbermanagement Stellen</title>
+      <div id="connectortable_1"><span class="color-grey-m">
+      Es wurden noch keine Einträge erfasst, die hier angezeigt werden könnten.
+      </span></div>'''
+    assert extract_result_count(Selector(page)) == 0
+    with pytest.raises(DirectCompanyRequestError):
+        extract_result_count(Selector(page.replace("Switch", "Other")))

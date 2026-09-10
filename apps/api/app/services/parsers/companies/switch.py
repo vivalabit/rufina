@@ -262,6 +262,13 @@ def extract_result_count(page: Selector) -> int:
         if isinstance(total, str) and total.isdigit():
             return int(total)
 
+    if (
+        optional_text(page.css("title::text").get()) == "Switch Bewerbermanagement Stellen"
+        and optional_text(" ".join(page.css("#connectortable_1 .color-grey-m::text").getall()))
+        == "Es wurden noch keine Einträge erfasst, die hier angezeigt werden könnten."
+        and not page.css('a.HSTableLinkSubTitle[href*="/Vacancies/"]')
+    ):
+        return 0
     raise SwitchParseError("Switch Umantis page is missing its vacancy count")
 
 
