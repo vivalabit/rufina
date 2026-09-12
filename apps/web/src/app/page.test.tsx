@@ -5058,7 +5058,7 @@ it("shows seeded vacancies and calendar events only in demo mode", async () => {
   ).toBe(true);
 });
 
-it("keeps preparation drafts out of Applications until they are marked as applied", async () => {
+it("keeps preparation drafts out of Applications while showing the compact workspace", async () => {
   window.history.replaceState(null, "", "#jobs");
   vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "1");
   const savedApplicationStatuses: string[] = [];
@@ -5110,7 +5110,13 @@ it("keeps preparation drafts out of Applications until they are marked as applie
   fireEvent.click(
     await screen.findByRole("button", { name: "Prepare application" }),
   );
-  expect(await screen.findByText("Application prep")).toBeInTheDocument();
+  expect(
+    await screen.findByRole("region", { name: "Existing documents" }),
+  ).toBeInTheDocument();
+  expect(screen.getByText("Preparing")).toBeInTheDocument();
+  expect(
+    screen.queryByRole("button", { name: "Mark as applied" }),
+  ).not.toBeInTheDocument();
   expect(
     await screen.findByRole("button", { name: "Jobs" }),
   ).toBeInTheDocument();
@@ -5119,36 +5125,7 @@ it("keeps preparation drafts out of Applications until they are marked as applie
   fireEvent.click(screen.getByRole("button", { name: "Jobs" }));
   fireEvent.click(screen.getByRole("link", { name: "Applications" }));
   expect(await screen.findByText("No applications yet")).toBeInTheDocument();
-
-  fireEvent.click(screen.getByRole("link", { name: "Jobs" }));
-  const continuePreparation = await screen.findByRole("button", {
-    name: "Continue preparation",
-  });
-  fireEvent.click(continuePreparation);
-  fireEvent.click(
-    await screen.findByRole("button", { name: "Mark as applied" }),
-  );
-  fireEvent.click(await screen.findByRole("button", { name: "Applications" }));
-
-  expect(await screen.findByText("1 application")).toBeInTheDocument();
-  expect(screen.getByTestId("applications-layout")).toHaveClass(
-    "xl:grid-cols-[330px_minmax(0,1fr)]",
-  );
-  expect(screen.getByRole("searchbox", { name: "Search applications" })).toBeInTheDocument();
-  const applicationSort = screen.getByRole("combobox", { name: "Sort applications" });
-  expect(applicationSort).toHaveValue("Date applied");
-  fireEvent.change(applicationSort, { target: { value: "AI Match" } });
-  expect(applicationSort).toHaveValue("AI Match");
-  const appliedFilter = screen.getByRole("button", { name: "Applied applications: 1" });
-  fireEvent.click(appliedFilter);
-  expect(appliedFilter).toHaveAttribute("aria-pressed", "true");
-  expect(
-    screen.queryByRole("heading", { name: "Upcoming" }),
-  ).not.toBeInTheDocument();
-  expect(
-    screen.queryByRole("heading", { name: "AI Actions" }),
-  ).not.toBeInTheDocument();
-  await waitFor(() => expect(savedApplicationStatuses).toContain("applied"));
+  expect(savedApplicationStatuses).not.toContain("applied");
 });
 
 it("restores an application and reports a failed application deletion", async () => {
