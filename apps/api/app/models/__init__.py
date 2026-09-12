@@ -1,5 +1,15 @@
 """Domain model exports."""
 
+from app.models.generation import (
+    GeneratedFile,
+    GenerationApplicationSnapshot,
+    GenerationDocumentResult,
+    GenerationError,
+    GenerationMasterProfileVersion,
+    GenerationRequest,
+    GenerationResult,
+    GenerationVacancySnapshot,
+)
 from app.models.job_screening import JobScreeningDecisionRecord
 from app.models.job_search import (
     JobSearchConfigRecord,
@@ -47,6 +57,14 @@ __all__ = [
     "CriticalNotificationRecord",
     "DiscoveredVacancyRecord",
     "FinalResume",
+    "GeneratedFile",
+    "GenerationApplicationSnapshot",
+    "GenerationDocumentResult",
+    "GenerationError",
+    "GenerationMasterProfileVersion",
+    "GenerationRequest",
+    "GenerationResult",
+    "GenerationVacancySnapshot",
     "JobScreeningDecisionRecord",
     "JobSearchConfigRecord",
     "JobSearchConfigV2",
