@@ -13,6 +13,7 @@ from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
+from app.api import documents as documents_api
 from app.core.database import Base, get_db
 from app.main import app
 from app.models.applications import CandidateConfirmationRecord, StoredApplicationRecord
@@ -468,6 +469,151 @@ def test_document_versions_download_and_application_attachments() -> None:
     assert attachment_count == 0
     assert provenance_count == 0
     assert version_provenance_count == 0
+
+
+def test_file_access_does_not_load_preparation_analysis(monkeypatch) -> None:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+    testing_session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+    def override_get_db() -> Generator[Session, None, None]:
+        with testing_session_local() as db:
+            yield db
+
+    def fail_if_analysis_is_loaded(*_args, **_kwargs):
+        raise AssertionError("file access must not load generation context")
+
+    monkeypatch.setattr(
+        documents_api,
+        "load_authoritative_generation_context",
+        fail_if_analysis_is_loaded,
+    )
+    monkeypatch.setattr(
+        documents_api,
+        "render_docx_to_pdf",
+        lambda _content: b"%PDF-1.7 independent preview",
+    )
+
+    now = datetime.now(UTC)
+    document_id = "document-independent-access"
+    template_id = "template-independent-access"
+    with testing_session_local() as db:
+        db.add_all(
+            [
+                StoredApplicationRecord(
+                    id="application-file-access",
+                    data={"id": "application-file-access", "status": "draft"},
+                ),
+                StoredApplicationRecord(
+                    id="application-file-attachment",
+                    data={"id": "application-file-attachment", "status": "draft"},
+                ),
+                DocumentTemplateRecord(
+                    id=template_id,
+                    type="cover_letter",
+                    name="Historical template",
+                    file_name="historical-template.docx",
+                    content_type=(
+                        "application/vnd.openxmlformats-officedocument."
+                        "wordprocessingml.document"
+                    ),
+                    content_sha256="a" * 64,
+                    content=b"historical template",
+                    extracted_text="Historical template",
+                    created_at=now,
+                    updated_at=now,
+                ),
+            ]
+        )
+        document = DocumentRecord(
+            id=document_id,
+            type="cover_letter",
+            title="Historical cover letter",
+            job_id="job-without-current-match",
+            current_version=1,
+            created_at=now,
+            updated_at=now,
+        )
+        document.versions.append(
+            DocumentVersionRecord(
+                id="version-independent-access",
+                document_id=document_id,
+                version=1,
+                content="Historical document content",
+                created_at=now,
+            )
+        )
+        document.files.append(
+            DocumentFileRecord(
+                id="file-independent-access",
+                document_id=document_id,
+                version=1,
+                template_id=template_id,
+                file_name="historical-cover-letter.docx",
+                content_type=(
+                    "application/vnd.openxmlformats-officedocument."
+                    "wordprocessingml.document"
+                ),
+                content=b"historical rendered file",
+                created_at=now,
+            )
+        )
+        document.attachments.append(
+            DocumentAttachmentRecord(
+                id="attachment-independent-access",
+                document_id=document_id,
+                application_id="application-file-access",
+                created_at=now,
+            )
+        )
+        document.generation_provenance = DocumentGenerationProvenanceRecord(
+            document_id=document_id,
+            generation_fingerprint="b" * 64,
+            generation_model="historical-model",
+            input_versions={"documentLanguage": "English"},
+            created_at=now,
+        )
+        db.add(document)
+        db.commit()
+
+    app.dependency_overrides[get_db] = override_get_db
+    client = TestClient(app)
+    try:
+        listed = client.get(
+            "/documents",
+            params={"applicationId": "application-file-access"},
+        )
+        detail = client.get(f"/documents/{document_id}")
+        versions = client.get(f"/documents/{document_id}/versions")
+        downloaded = client.get(f"/documents/{document_id}/download")
+        previewed = client.get(f"/documents/{document_id}/pdf")
+        attached = client.post(
+            f"/documents/{document_id}/attachments",
+            json={"applicationId": "application-file-attachment"},
+        )
+    finally:
+        app.dependency_overrides.clear()
+
+    assert listed.status_code == 200
+    assert listed.json()[0]["currentGenerationFingerprint"] is None
+    assert detail.status_code == 200
+    assert detail.json()["currentGenerationFingerprint"] is None
+    assert versions.status_code == 200
+    assert [item["version"] for item in versions.json()["items"]] == [1]
+    assert downloaded.status_code == 200
+    assert downloaded.content == b"historical rendered file"
+    assert previewed.status_code == 200
+    assert previewed.content == b"%PDF-1.7 independent preview"
+    assert attached.status_code == 200
+    assert attached.json()["applicationIds"] == [
+        "application-file-access",
+        "application-file-attachment",
+    ]
+    assert attached.json()["currentGenerationFingerprint"] is None
 
 
 def test_document_download_preserves_unicode_filename_for_rendered_docx() -> None:
@@ -1188,10 +1334,7 @@ def test_generated_cover_letter_skips_blocking_validation(monkeypatch) -> None:
     assert listed.json()[0]["versions"][0]["diff"] == []
     assert refreshed.status_code == 200
     assert refreshed.json()[0]["generationFingerprint"] == created.json()["generationFingerprint"]
-    assert (
-        refreshed.json()[0]["currentGenerationFingerprint"]
-        != created.json()["generationFingerprint"]
-    )
+    assert refreshed.json()[0]["currentGenerationFingerprint"] is None
     assert foreign_update.status_code == 409
     assert foreign_update.json()["detail"] == (
         "Existing document is not attached to the application"

@@ -19,10 +19,12 @@ import {
 
 import { Button } from "@/components/ui/button";
 import {
-  attachGeneratedDocument,
-  downloadGeneratedDocument,
-  fetchGeneratedDocument,
-  generatedDocumentDownloadUrl,
+  attachDocument,
+  documentDownloadUrl,
+  downloadDocument,
+  fetchDocument,
+} from "@/features/applications/api/document-access-client";
+import {
   generatedResumeRenderUrl,
   renderResumePdf,
   ResumeTemplateUnavailableError,
@@ -582,11 +584,11 @@ export function ResumePdfReview({
 
     async function loadStoredArtifact() {
       const [detail, blob] = await Promise.all([
-        fetchGeneratedDocument<ResumePdfDocument>(
+        fetchDocument<ResumePdfDocument>(
           document!.id,
           controller.signal,
         ),
-        downloadGeneratedDocument(
+        downloadDocument(
           document!.id,
           document!.currentVersion,
           controller.signal,
@@ -627,7 +629,7 @@ export function ResumePdfReview({
       const rendered = await renderResumePdf(renderSource, selectedTemplateId);
       const documentId = rendered.documentId;
       if (!documentId) throw new Error("The renderer did not return a saved document ID.");
-      const detail = await attachGeneratedDocument<ResumePdfDocument>(
+      const detail = await attachDocument<ResumePdfDocument>(
         documentId,
         applicationId,
       );
@@ -653,7 +655,7 @@ export function ResumePdfReview({
   if (!hasPdf && !activeDocument) return null;
 
   const downloadHref = activeDocument
-    ? generatedDocumentDownloadUrl(activeDocument.id)
+    ? documentDownloadUrl(activeDocument.id)
     : "";
   const downloadName = artifact?.fileName ?? "resume.pdf";
   const docxHref = renderSource

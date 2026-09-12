@@ -1,12 +1,55 @@
-import { fireEvent, screen, within } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import {
   createV3WorkspaceApplication,
+  createWorkspaceApplicationWithoutGuide,
+  installApplicationWorkspaceApiMock,
   renderApplicationWorkspace,
 } from "@/test/application-workspace-harness";
 
+function storedDocument(overrides: Record<string, unknown> = {}) {
+  return {
+    id: "stored-document-1",
+    type: "cover_letter",
+    title: "Saved cover letter",
+    jobId: "job-product-designer",
+    applicationIds: ["application-without-guide"],
+    currentVersion: 2,
+    createdAt: "2026-07-24T10:00:00.000Z",
+    updatedAt: "2026-07-25T10:00:00.000Z",
+    generationFingerprint: "old-match-fingerprint",
+    currentGenerationFingerprint: null,
+    generationModel: "gpt-5",
+    inputVersions: {},
+    versionsTotal: 2,
+    versionsHasMore: false,
+    versions: [
+      {
+        id: "stored-version-2",
+        version: 2,
+        content: "Saved content",
+        createdAt: "2026-07-25T10:00:00.000Z",
+        hasRenderedArtifact: true,
+        artifact: {
+          fileName: "saved-cover-letter.docx",
+          contentType:
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        },
+        factualValidation: {},
+        visualValidation: {},
+        diff: [],
+      },
+    ],
+    ...overrides,
+  };
+}
+
 describe("ApplicationWorkspace", () => {
+  beforeEach(() => {
+    installApplicationWorkspaceApiMock();
+  });
+
   it("shows an empty state when no application is selected", () => {
     const { props } = renderApplicationWorkspace(null);
 
@@ -115,5 +158,154 @@ describe("ApplicationWorkspace", () => {
         "Do not imply unverified people-management experience",
       ),
     ).not.toBeInTheDocument();
+  });
+
+  it("loads saved files without requesting match or confirmation data", async () => {
+    const document = storedDocument();
+    const fetchMock = installApplicationWorkspaceApiMock({
+      documents: [document],
+      requestHandler: (url, method) => {
+        if (
+          url.pathname === "/documents/stored-document-1/pdf"
+          && method === "GET"
+        ) {
+          return new Response(new Blob(["%PDF-1.7"], {
+            type: "application/pdf",
+          }));
+        }
+        return undefined;
+      },
+    });
+    renderApplicationWorkspace(createWorkspaceApplicationWithoutGuide());
+
+    expect(await screen.findByText("Saved cover letter")).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Open Saved cover letter" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Download Saved cover letter" }),
+    ).toHaveAttribute(
+      "href",
+      expect.stringContaining("/documents/stored-document-1/download"),
+    );
+
+    fireEvent.click(screen.getByText("Version history · 2"));
+    expect(
+      screen.getByRole("button", {
+        name: "Open Saved cover letter version 2",
+      }),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Open Saved cover letter" }),
+    );
+    expect(
+      await screen.findByRole("region", {
+        name: "Cover letter PDF preview panel",
+      }),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/documents/stored-document-1/pdf?version=2"),
+      expect.objectContaining({ cache: "no-store" }),
+    ));
+
+    const requestedPaths = fetchMock.mock.calls.map(([input]) => String(input));
+    expect(requestedPaths.some((path) => path.includes("/confirmations"))).toBe(false);
+    expect(requestedPaths.some((path) => path.includes("/ai-match"))).toBe(false);
+    expect(requestedPaths.some((path) => path.includes("/profile/master-resume"))).toBe(false);
+  });
+
+  it("loads older document versions independently", async () => {
+    const document = storedDocument({ versionsHasMore: true });
+    installApplicationWorkspaceApiMock({
+      documents: [document],
+      requestHandler: (url, method) => {
+        if (
+          url.pathname === "/documents/stored-document-1/versions"
+          && method === "GET"
+        ) {
+          return Response.json({
+            items: [
+              {
+                id: "stored-version-1",
+                version: 1,
+                content: "Older content",
+                createdAt: "2026-07-24T10:00:00.000Z",
+                hasRenderedArtifact: true,
+                artifact: {
+                  fileName: "saved-cover-letter-v1.docx",
+                  contentType:
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                },
+                factualValidation: {},
+                visualValidation: {},
+                diff: [],
+              },
+            ],
+            total: 2,
+          });
+        }
+        return undefined;
+      },
+    });
+    renderApplicationWorkspace(createWorkspaceApplicationWithoutGuide());
+
+    fireEvent.click(await screen.findByText("Version history · 2"));
+    fireEvent.click(screen.getByRole("button", { name: "Load older versions" }));
+
+    expect(
+      await screen.findByRole("button", {
+        name: "Open Saved cover letter version 1",
+      }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", {
+        name: "Download Saved cover letter version 1",
+      }),
+    ).toHaveAttribute("href", expect.stringContaining("version=1"));
+  });
+
+  it("attaches a saved vacancy document without preparation analysis", async () => {
+    const document = storedDocument({ applicationIds: [] });
+    const fetchMock = installApplicationWorkspaceApiMock({
+      requestHandler: (url, method) => {
+        if (url.pathname === "/documents" && method === "GET") {
+          return Response.json(
+            url.searchParams.has("applicationId") ? [] : [document],
+          );
+        }
+        if (
+          url.pathname === "/documents/stored-document-1/attachments"
+          && method === "POST"
+        ) {
+          return Response.json({
+            ...document,
+            applicationIds: ["application-without-guide"],
+          });
+        }
+        return undefined;
+      },
+    });
+    const { props } = renderApplicationWorkspace(
+      createWorkspaceApplicationWithoutGuide(),
+    );
+
+    fireEvent.click(await screen.findByRole("button", { name: "Attach" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/documents/stored-document-1/attachments"),
+      expect.objectContaining({
+        method: "POST",
+        body: JSON.stringify({ applicationId: "application-without-guide" }),
+      }),
+    ));
+    expect(props.onDocumentAttached).toHaveBeenCalledWith(
+      "application-without-guide",
+      expect.objectContaining({
+        artifactId: "stored-document-1",
+        fileName: "saved-cover-letter.docx",
+      }),
+    );
+    expect(screen.queryByText("Required confirmations")).not.toBeInTheDocument();
   });
 });

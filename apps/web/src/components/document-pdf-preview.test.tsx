@@ -52,7 +52,7 @@ describe("DocumentPdfPreview", () => {
     );
     expect(screen.getByRole("link", { name: "Download PDF" })).toHaveAttribute(
       "href",
-      "http://localhost:8000/documents/cover-letter-1/pdf",
+      "http://localhost:8000/documents/cover-letter-1/pdf?version=3",
     );
     expect(screen.getByRole("link", { name: "Download PDF" })).toHaveAttribute(
       "download",
@@ -60,7 +60,7 @@ describe("DocumentPdfPreview", () => {
     );
     expect(screen.getByRole("link", { name: "Download DOCX" })).toHaveAttribute(
       "href",
-      "http://localhost:8000/documents/cover-letter-1/download",
+      "http://localhost:8000/documents/cover-letter-1/download?version=3",
     );
   });
 });

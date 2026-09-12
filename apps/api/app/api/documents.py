@@ -5,7 +5,7 @@ import re
 import unicodedata
 from collections import defaultdict
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import quote
 from uuid import uuid4
@@ -81,10 +81,8 @@ from app.services.document_validation import (
     validate_generated_document,
 )
 from app.services.generation_context import (
-    AuthoritativeApplicationGenerationContext,
     AuthoritativeGenerationContext,
     GenerationContextError,
-    load_authoritative_application_generation_context,
     load_authoritative_generation_context,
 )
 from app.services.profile_files import (
@@ -136,11 +134,7 @@ def list_documents(
                 DocumentAttachmentRecord.application_id == application_id
             )
         records = db.scalars(statement).unique().all()
-        return initial_document_payloads(
-            db,
-            records,
-            application_id=application_id,
-        )
+        return initial_document_payloads(db, records)
     except SQLAlchemyError as exc:
         raise database_unavailable(exc) from exc
 
@@ -352,13 +346,7 @@ def list_resume_templates_alias(
 def get_document(document_id: str, db: Session = Depends(get_db)) -> DocumentPayload:
     try:
         record = require_document(db, document_id)
-        return document_payload(
-            record,
-            current_generation_fingerprint=(
-                authoritative_current_generation_fingerprint(db, record)
-            ),
-            version_limit=DOCUMENT_VERSION_PAGE_SIZE,
-        )
+        return document_payload(record, version_limit=DOCUMENT_VERSION_PAGE_SIZE)
     except HTTPException:
         raise
     except SQLAlchemyError as exc:
@@ -627,18 +615,7 @@ def update_document(
         record.updated_at = utc_now()
         db.commit()
         updated = require_document(db, document_id)
-        return document_payload(
-            updated,
-            current_generation_fingerprint=authoritative_current_generation_fingerprint(
-                db,
-                updated,
-                application_id=(
-                    generation_artifact.application_id
-                    if generation_artifact
-                    else request.application_id
-                ),
-            ),
-        )
+        return document_payload(updated)
     except HTTPException:
         db.rollback()
         raise
@@ -754,13 +731,7 @@ def restore_document_version(
         record.updated_at = now
         db.commit()
         restored = require_document(db, document_id)
-        return document_payload(
-            restored,
-            current_generation_fingerprint=authoritative_current_generation_fingerprint(
-                db,
-                restored,
-            ),
-        )
+        return document_payload(restored)
     except HTTPException:
         db.rollback()
         raise
@@ -781,14 +752,7 @@ def attach_document(
         record.updated_at = utc_now()
         db.commit()
         attached = require_document(db, document_id)
-        return document_payload(
-            attached,
-            current_generation_fingerprint=authoritative_current_generation_fingerprint(
-                db,
-                attached,
-                application_id=request.application_id,
-            ),
-        )
+        return document_payload(attached)
     except HTTPException:
         db.rollback()
         raise
@@ -1696,13 +1660,6 @@ def load_generation_context_or_http(
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
 
-def single_attachment_application_id(record: DocumentRecord) -> str | None:
-    application_ids = {attachment.application_id for attachment in record.attachments}
-    if len(application_ids) != 1:
-        return None
-    return next(iter(application_ids))
-
-
 def require_document_application_ownership(
     record: DocumentRecord,
     application_id: str,
@@ -1783,27 +1740,17 @@ class DocumentPayloadRelations:
     artifacts_by_version: Mapping[int, DocumentFileRecord]
     artifact_details_loaded: bool
     validations_by_version: Mapping[int, DocumentVersionValidationRecord]
-    current_template_id: str | None
 
 
 def initial_document_payloads(
     db: Session,
     records: list[DocumentRecord],
-    *,
-    application_id: str | None = None,
 ) -> list[DocumentPayload]:
     relations_by_document = load_initial_document_relations(db, records)
-    current_fingerprints = batch_current_generation_fingerprints(
-        db,
-        records,
-        relations_by_document,
-        application_id=application_id,
-    )
     return [
         document_payload(
             record,
             relations=relations_by_document[record.id],
-            current_generation_fingerprint=current_fingerprints.get(record.id),
         )
         for record in records
     ]
@@ -1860,7 +1807,6 @@ def load_initial_document_relations(
         str,
         dict[int, DocumentFileRecord],
     ] = defaultdict(dict)
-    current_template_by_document: dict[str, str] = {}
     if versions:
         file_rows = db.scalars(
             select(DocumentFileRecord)
@@ -1886,12 +1832,9 @@ def load_initial_document_relations(
             )
             .where(ranked_version_ids.c.page_row <= DOCUMENT_VERSION_PAGE_SIZE)
         ).all()
-        current_versions = {record.id: record.current_version for record in records}
         for artifact in file_rows:
             rendered_versions_by_document[artifact.document_id].add(artifact.version)
             artifacts_by_document[artifact.document_id][artifact.version] = artifact
-            if artifact.version == current_versions[artifact.document_id] and artifact.template_id:
-                current_template_by_document[artifact.document_id] = artifact.template_id
 
     validations_by_document: dict[
         str,
@@ -1937,151 +1880,9 @@ def load_initial_document_relations(
             artifacts_by_version=artifacts_by_document[record.id],
             artifact_details_loaded=False,
             validations_by_version=validations_by_document[record.id],
-            current_template_id=current_template_by_document.get(record.id),
         )
         for record in records
     }
-
-
-def batch_current_generation_fingerprints(
-    db: Session,
-    records: list[DocumentRecord],
-    relations_by_document: Mapping[str, DocumentPayloadRelations],
-    *,
-    application_id: str | None,
-) -> dict[str, str]:
-    candidate_application_by_document: dict[str, str] = {}
-    template_ids: set[str] = set()
-    fingerprints: dict[str, str] = {}
-    for record in records:
-        relations = relations_by_document[record.id]
-        if relations.provenance is None:
-            continue
-        current_artifact = relations.artifacts_by_version.get(record.current_version)
-        if (
-            current_artifact is not None
-            and current_artifact.content_type == PDF_CONTENT_TYPE
-            and current_artifact.renderer_template_id
-        ):
-            fingerprints[record.id] = relations.provenance.generation_fingerprint
-            continue
-        if not relations.current_template_id:
-            continue
-        resolved_application_id = application_id
-        if resolved_application_id is None and len(relations.application_ids) == 1:
-            resolved_application_id = relations.application_ids[0]
-        if not resolved_application_id:
-            continue
-        candidate_application_by_document[record.id] = resolved_application_id
-        template_ids.add(relations.current_template_id)
-
-    template_metadata = (
-        {
-            row.id: {
-                "id": row.id,
-                "type": row.type,
-                "name": row.name,
-                "fileName": row.file_name,
-                "contentType": row.content_type,
-                "updatedAt": row.updated_at,
-                "contentSha256": row.content_sha256,
-            }
-            for row in db.execute(
-                select(
-                    DocumentTemplateRecord.id,
-                    DocumentTemplateRecord.type,
-                    DocumentTemplateRecord.name,
-                    DocumentTemplateRecord.file_name,
-                    DocumentTemplateRecord.content_type,
-                    DocumentTemplateRecord.updated_at,
-                    DocumentTemplateRecord.content_sha256,
-                ).where(DocumentTemplateRecord.id.in_(template_ids))
-            ).all()
-        }
-        if template_ids
-        else {}
-    )
-
-    application_contexts: dict[
-        str,
-        AuthoritativeApplicationGenerationContext | None,
-    ] = {}
-    for resolved_application_id in set(candidate_application_by_document.values()):
-        try:
-            application_contexts[resolved_application_id] = (
-                load_authoritative_application_generation_context(
-                    db,
-                    application_id=resolved_application_id,
-                )
-            )
-        except GenerationContextError:
-            application_contexts[resolved_application_id] = None
-
-    for record in records:
-        resolved_application_id = candidate_application_by_document.get(record.id)
-        if not resolved_application_id:
-            continue
-        context = application_contexts.get(resolved_application_id)
-        template_id = relations_by_document[record.id].current_template_id
-        source_document = template_metadata.get(template_id or "")
-        if (
-            context is None
-            or context.job_id != record.job_id
-            or source_document is None
-            or source_document["type"] != record.type
-        ):
-            continue
-        document_language = (
-            relations_by_document[record.id].provenance.input_versions.get("documentLanguage")
-            if relations_by_document[record.id].provenance is not None
-            else None
-        )
-        document_context = (
-            replace(context, language=document_language)
-            if document_language in {"English", "German"}
-            else context
-        )
-        fingerprints[record.id] = document_context.provenance_for_source_document(
-            {key: value for key, value in source_document.items() if key != "type"}
-        ).generation_fingerprint
-    return fingerprints
-
-
-def authoritative_current_generation_fingerprint(
-    db: Session,
-    record: DocumentRecord,
-    *,
-    application_id: str | None = None,
-) -> str | None:
-    if record.generation_provenance is None:
-        return None
-    current_file = document_file_record(db, record.id, record.current_version)
-    if current_file is None:
-        return None
-    if current_file.content_type == PDF_CONTENT_TYPE and current_file.renderer_template_id:
-        return record.generation_provenance.generation_fingerprint
-    if not current_file.template_id:
-        return None
-    resolved_application_id = application_id or single_attachment_application_id(record)
-    if not resolved_application_id:
-        return None
-    try:
-        context = load_authoritative_generation_context(
-            db,
-            application_id=resolved_application_id,
-            template_id=current_file.template_id,
-            document_type=record.type,
-            expected_job_id=record.job_id,
-        )
-    except GenerationContextError:
-        return None
-    document_language = record.generation_provenance.input_versions.get("documentLanguage")
-    document_context = (
-        replace(context, language=document_language)
-        if document_language in {"English", "German"}
-        else context
-    )
-    return document_context.provenance().generation_fingerprint
 
 
 def document_payload(

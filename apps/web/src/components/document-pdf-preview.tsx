@@ -9,10 +9,10 @@ import {
 } from "lucide-react";
 
 import {
-  downloadGeneratedDocumentPdf,
-  generatedDocumentDownloadUrl,
-  generatedDocumentPdfUrl,
-} from "@/features/applications/api/workspace-client";
+  documentDownloadUrl,
+  documentPdfUrl,
+  downloadDocumentPdf,
+} from "@/features/applications/api/document-access-client";
 
 type PreviewDocument = {
   id: string;
@@ -22,21 +22,37 @@ type PreviewDocument = {
     version: number;
     artifact?: {
       fileName?: string;
+      contentType?: string;
     } | null;
   }>;
 };
 
-function currentFileName(document: PreviewDocument) {
+function currentArtifact(document: PreviewDocument) {
   return document.versions.find(
     (version) => version.version === document.currentVersion,
-  )?.artifact?.fileName ?? "cover-letter.docx";
+  )?.artifact;
+}
+
+function currentFileName(document: PreviewDocument) {
+  return currentArtifact(document)?.fileName ?? "document.docx";
+}
+
+function currentFileLabel(document: PreviewDocument) {
+  const fileName = currentFileName(document);
+  const extension = fileName.split(".").pop()?.trim().toUpperCase();
+  if (extension && extension.length <= 5) return extension;
+  return currentArtifact(document)?.contentType === "application/pdf"
+    ? "PDF"
+    : "file";
 }
 
 function pdfFileName(document: PreviewDocument) {
   const sourceFileName = currentFileName(document);
   return sourceFileName.toLowerCase().endsWith(".docx")
     ? `${sourceFileName.slice(0, -5)}.pdf`
-    : `${sourceFileName}.pdf`;
+    : sourceFileName.toLowerCase().endsWith(".pdf")
+      ? sourceFileName
+      : `${sourceFileName}.pdf`;
 }
 
 export function DocumentPdfPreview({
@@ -57,7 +73,7 @@ export function DocumentPdfPreview({
     setError("");
 
     async function loadPreview() {
-      const blob = await downloadGeneratedDocumentPdf(
+      const blob = await downloadDocumentPdf(
         document.id,
         document.currentVersion,
         controller.signal,
@@ -107,7 +123,7 @@ export function DocumentPdfPreview({
         </div>
         <div className="flex flex-wrap gap-2">
           <a
-            href={generatedDocumentPdfUrl(document.id)}
+            href={documentPdfUrl(document.id, document.currentVersion)}
             download={pdfFileName(document)}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"
           >
@@ -115,12 +131,12 @@ export function DocumentPdfPreview({
             Download PDF
           </a>
           <a
-            href={generatedDocumentDownloadUrl(document.id)}
+            href={documentDownloadUrl(document.id, document.currentVersion)}
             download={currentFileName(document)}
             className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"
           >
             <FileText className="h-3.5 w-3.5" />
-            Download DOCX
+            Download {currentFileLabel(document)}
           </a>
         </div>
       </div>
