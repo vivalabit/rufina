@@ -2,9 +2,8 @@ import base64
 import hashlib
 import json
 from collections.abc import Generator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from io import BytesIO
-from uuid import uuid4
 
 from docx import Document
 from docx.oxml import OxmlElement
@@ -16,30 +15,14 @@ from sqlalchemy.pool import StaticPool
 from app.api import documents as documents_api
 from app.core.database import Base, get_db
 from app.main import app
-from app.models.applications import CandidateConfirmationRecord, StoredApplicationRecord
+from app.models.applications import StoredApplicationRecord
 from app.models.documents import (
     DocumentAttachmentRecord,
     DocumentFileRecord,
-    DocumentGenerationArtifactRecord,
-    DocumentGenerationProvenanceRecord,
     DocumentRecord,
     DocumentTemplateRecord,
-    DocumentVersionGenerationProvenanceRecord,
     DocumentVersionRecord,
-    DocumentVersionValidationRecord,
 )
-from app.models.jobs import JobMatchRecord, StoredJobRecord
-from app.models.profile import ProfilePayload, ProfileRecord
-from app.services.ai_match import (
-    DEFAULT_AI_MATCH_MODEL,
-    MATCH_PROMPT_VERSION,
-    MATCHER_VERSION,
-    build_job_snapshot,
-    build_job_snapshot_hash,
-    build_profile_hash,
-)
-from app.services.generation_context import load_authoritative_generation_context
-from app.services.job_match_store import APPLICATION_GUIDE_STORAGE_KEY
 
 
 def test_resume_template_preflight_rejects_custom_docx_without_saving() -> None:
@@ -425,40 +408,25 @@ def test_document_versions_download_and_application_attachments() -> None:
         with testing_session_local() as db:
             version_count = db.scalar(select(func.count()).select_from(DocumentVersionRecord))
             attachment_count = db.scalar(select(func.count()).select_from(DocumentAttachmentRecord))
-            provenance_count = db.scalar(
-                select(func.count()).select_from(DocumentGenerationProvenanceRecord)
-            )
-            version_provenance_count = db.scalar(
-                select(func.count()).select_from(DocumentVersionGenerationProvenanceRecord)
-            )
     finally:
         app.dependency_overrides.clear()
 
     assert created.status_code == 201
     assert created.json()["currentVersion"] == 1
     assert created.json()["applicationIds"] == ["application-one"]
-    assert created.json()["generationFingerprint"] is None
-    assert created.json()["generationModel"] is None
-    assert created.json()["generationBackend"] is None
-    assert created.json()["inputVersions"] == {}
     assert created.json()["versions"][0]["hasRenderedDocx"] is False
     assert updated.status_code == 200
     assert updated.json()["id"] == document_id
     assert updated.json()["currentVersion"] == 2
     assert len(updated.json()["versions"]) == 2
     assert updated.json()["applicationIds"] == ["application-one"]
-    assert updated.json()["generationFingerprint"] is None
-    assert updated.json()["generationModel"] is None
-    assert updated.json()["generationBackend"] is None
     assert restored.status_code == 200
     assert restored.json()["id"] == document_id
     assert restored.json()["currentVersion"] == 3
     assert restored.json()["versions"][-1]["content"].startswith("Dear Hiring Team")
     assert restored.json()["applicationIds"] == ["application-one"]
-    assert restored.json()["generationFingerprint"] is None
     assert listed.status_code == 200
     assert listed.json()[0]["jobId"] == "job-figma"
-    assert listed.json()[0]["generationFingerprint"] is None
     assert downloaded.status_code == 410
     assert downloaded.json()["detail"] == (
         "Rendered document artifact is no longer available for recovery"
@@ -467,8 +435,6 @@ def test_document_versions_download_and_application_attachments() -> None:
     assert deleted.status_code == 204
     assert version_count == 0
     assert attachment_count == 0
-    assert provenance_count == 0
-    assert version_provenance_count == 0
 
 
 def test_file_access_does_not_load_preparation_analysis(monkeypatch) -> None:
@@ -484,14 +450,6 @@ def test_file_access_does_not_load_preparation_analysis(monkeypatch) -> None:
         with testing_session_local() as db:
             yield db
 
-    def fail_if_analysis_is_loaded(*_args, **_kwargs):
-        raise AssertionError("file access must not load generation context")
-
-    monkeypatch.setattr(
-        documents_api,
-        "load_authoritative_generation_context",
-        fail_if_analysis_is_loaded,
-    )
     monkeypatch.setattr(
         documents_api,
         "render_docx_to_pdf",
@@ -518,8 +476,7 @@ def test_file_access_does_not_load_preparation_analysis(monkeypatch) -> None:
                     name="Historical template",
                     file_name="historical-template.docx",
                     content_type=(
-                        "application/vnd.openxmlformats-officedocument."
-                        "wordprocessingml.document"
+                        "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                     ),
                     content_sha256="a" * 64,
                     content=b"historical template",
@@ -555,8 +512,7 @@ def test_file_access_does_not_load_preparation_analysis(monkeypatch) -> None:
                 template_id=template_id,
                 file_name="historical-cover-letter.docx",
                 content_type=(
-                    "application/vnd.openxmlformats-officedocument."
-                    "wordprocessingml.document"
+                    "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
                 ),
                 content=b"historical rendered file",
                 created_at=now,
@@ -569,13 +525,6 @@ def test_file_access_does_not_load_preparation_analysis(monkeypatch) -> None:
                 application_id="application-file-access",
                 created_at=now,
             )
-        )
-        document.generation_provenance = DocumentGenerationProvenanceRecord(
-            document_id=document_id,
-            generation_fingerprint="b" * 64,
-            generation_model="historical-model",
-            input_versions={"documentLanguage": "English"},
-            created_at=now,
         )
         db.add(document)
         db.commit()
@@ -599,9 +548,7 @@ def test_file_access_does_not_load_preparation_analysis(monkeypatch) -> None:
         app.dependency_overrides.clear()
 
     assert listed.status_code == 200
-    assert listed.json()[0]["currentGenerationFingerprint"] is None
     assert detail.status_code == 200
-    assert detail.json()["currentGenerationFingerprint"] is None
     assert versions.status_code == 200
     assert [item["version"] for item in versions.json()["items"]] == [1]
     assert downloaded.status_code == 200
@@ -613,7 +560,6 @@ def test_file_access_does_not_load_preparation_analysis(monkeypatch) -> None:
         "application-file-access",
         "application-file-attachment",
     ]
-    assert attached.json()["currentGenerationFingerprint"] is None
 
 
 def test_document_download_preserves_unicode_filename_for_rendered_docx() -> None:
@@ -787,9 +733,6 @@ def test_pdf_artifact_is_downloadable_but_immutable() -> None:
                 content_type="application/pdf",
                 renderer_template_id="modern_single",
                 renderer_template_version="1.0.0",
-                final_resume_json={"id": "final-resume"},
-                stage_results={"atsFinalReview": {"status": "passed"}},
-                provenance={"contentSha256": "abc123"},
                 content=b"%PDF-1.7\nstored",
             )
         )
@@ -821,7 +764,7 @@ def test_pdf_artifact_is_downloadable_but_immutable() -> None:
     assert artifact["contentType"] == "application/pdf"
     assert artifact["templateId"] == "modern_single"
     assert artifact["templateVersion"] == "1.0.0"
-    assert artifact["finalResumeJson"] == {"id": "final-resume"}
+    assert "finalResumeJson" not in artifact
     assert restored.status_code == 405
     assert "read-only" in restored.json()["detail"]
     assert restored_download.status_code == 404
@@ -901,15 +844,6 @@ def test_document_attachment_requires_existing_application() -> None:
     client = TestClient(app)
 
     try:
-        incomplete_provenance = client.post(
-            "/documents",
-            json={
-                "type": "tailored_resume",
-                "title": "Incomplete provenance",
-                "content": "Verified achievements",
-                "generationModel": "test-model",
-            },
-        )
         response = client.post(
             "/documents",
             json={
@@ -922,13 +856,8 @@ def test_document_attachment_requires_existing_application() -> None:
     finally:
         app.dependency_overrides.clear()
 
-    assert incomplete_provenance.status_code == 422
-    assert incomplete_provenance.json()["detail"][0]["loc"] == [
-        "body",
-        "generationModel",
-    ]
     assert response.status_code == 410
-    assert "three-stage resume-tailoring pipeline" in response.json()["detail"]
+    assert response.json()["detail"] == "Tailored resume creation is not available"
 
 
 def test_cover_letter_template_preserves_visual_structure() -> None:
@@ -1017,7 +946,6 @@ def test_cover_letter_template_preserves_visual_structure() -> None:
         for item in listed.json()
     )
     assert created.status_code == 201
-    assert created.json()["generationFingerprint"] is None
     assert downloaded.status_code == 200
     assert header_text == "EDUARD · SOFTWARE ENGINEER"
     assert footer_text == "Private application"
@@ -1078,274 +1006,4 @@ def test_legacy_resume_document_creation_is_gone() -> None:
         app.dependency_overrides.clear()
 
     assert created.status_code == 410
-    assert "three-stage resume-tailoring pipeline" in created.json()["detail"]
-
-
-def test_generated_cover_letter_skips_blocking_validation(monkeypatch) -> None:
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    Base.metadata.create_all(bind=engine)
-    testing_session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False)
-
-    def override_get_db() -> Generator[Session, None, None]:
-        with testing_session_local() as db:
-            yield db
-
-    def reject_validation(**_kwargs):
-        raise AssertionError("Cover letters must not invoke blocking document validation")
-
-    monkeypatch.setattr(
-        "app.api.documents.validate_generated_document",
-        reject_validation,
-    )
-
-    with testing_session_local() as db:
-        db.add_all(
-            [
-                StoredApplicationRecord(
-                    id="application-validated",
-                    data={
-                        "id": "application-validated",
-                        "status": "draft",
-                        "job": {
-                            "id": "job-validated",
-                            "aiMatch": {
-                                "applicationGuide": {"language": "Client-controlled language"}
-                            },
-                        },
-                    },
-                ),
-                StoredJobRecord(
-                    id="job-validated",
-                    data={
-                        "id": "job-validated",
-                        "title": "Backend Engineer",
-                        "company": "Acme",
-                    },
-                ),
-                ProfileRecord(
-                    id="default",
-                    data={
-                        "name": "Alex",
-                        "skills": "Python",
-                        "experience": "Built a Python service at Acme in 2023.",
-                    },
-                ),
-                JobMatchRecord(
-                    id="match-validated",
-                    job_id="job-validated",
-                    profile_hash=build_profile_hash(
-                        ProfilePayload(
-                            name="Alex",
-                            skills="Python",
-                            experience="Built a Python service at Acme in 2023.",
-                        )
-                    ),
-                    vacancy_hash=build_job_snapshot_hash(
-                        build_job_snapshot(
-                            {
-                                "id": "job-validated",
-                                "title": "Backend Engineer",
-                                "company": "Acme",
-                            }
-                        )
-                    ),
-                    model=DEFAULT_AI_MATCH_MODEL,
-                    prompt_version=MATCH_PROMPT_VERSION,
-                    matcher_version=MATCHER_VERSION,
-                    cache_key="cache-validated",
-                    score=90,
-                    source="openclaw_codex",
-                    confidence="high",
-                    breakdown={
-                        APPLICATION_GUIDE_STORAGE_KEY: {
-                            "language": "German",
-                            "clarificationQuestions": [
-                                {
-                                    "id": "production-python",
-                                    "requirement": "Production Python",
-                                    "question": "Have you used Python in production?",
-                                    "blocking": True,
-                                }
-                            ],
-                            "evidenceMatrix": [],
-                        }
-                    },
-                    reasons=[],
-                    gaps=[],
-                    heuristic_score=90,
-                    created_at=datetime.now(UTC),
-                ),
-                CandidateConfirmationRecord(
-                    application_id="application-validated",
-                    question_id="production-python",
-                    requirement="Client-controlled requirement",
-                    response="yes",
-                    example_text="Built a Python service at Acme in 2023.",
-                    blocking=False,
-                    updated_at=datetime.now(UTC),
-                ),
-            ]
-        )
-        db.commit()
-
-    template = Document()
-    template.add_paragraph("Dear Hiring Team,")
-    template.add_paragraph("Original body.")
-    template.add_paragraph("Kind regards,")
-    template_output = BytesIO()
-    template.save(template_output)
-    data_url = (
-        "data:application/vnd.openxmlformats-officedocument.wordprocessingml.document;"
-        "base64," + base64.b64encode(template_output.getvalue()).decode()
-    )
-
-    app.dependency_overrides[get_db] = override_get_db
-    client = TestClient(app)
-    try:
-        uploaded = client.post(
-            "/documents/templates",
-            json={
-                "type": "cover_letter",
-                "name": "Validated source",
-                "fileName": "source.docx",
-                "dataUrl": data_url,
-            },
-        )
-        generation_artifact_id = str(uuid4())
-        generated_content = (
-            "Dear Hiring Team,\n\nBuilt a Python service at Acme in 2023.\n\nKind regards,"
-        )
-        with testing_session_local() as db:
-            context = load_authoritative_generation_context(
-                db,
-                application_id="application-validated",
-                template_id=uploaded.json()["id"],
-                document_type="cover_letter",
-            )
-            provenance = context.provenance()
-            now = datetime.now(UTC)
-            db.add(
-                DocumentGenerationArtifactRecord(
-                    id=generation_artifact_id,
-                    application_id=context.application_id,
-                    job_id=context.job_id,
-                    document_type="cover_letter",
-                    template_id=context.template.id,
-                    template_content=context.template.content,
-                    input_snapshot=context.input_snapshot(prompt="Generate cover letter"),
-                    generation_fingerprint=provenance.generation_fingerprint,
-                    input_versions=provenance.input_versions,
-                    validation_evidence=context.validation_evidence(),
-                    status="completed",
-                    result_content=generated_content,
-                    generation_model="test-model",
-                    consumed_at=None,
-                    expires_at=now + timedelta(minutes=30),
-                    created_at=now,
-                    completed_at=now,
-                )
-            )
-            db.commit()
-        tampered = client.post(
-            "/documents",
-            json={
-                "type": "cover_letter",
-                "title": "Tampered letter",
-                "content": "Client-controlled generated content",
-                "generationArtifactId": generation_artifact_id,
-            },
-        )
-        created = client.post(
-            "/documents",
-            json={
-                "type": "cover_letter",
-                "title": "Validated letter",
-                "applicationId": "application-validated",
-                "jobId": "job-validated",
-                "generationArtifactId": generation_artifact_id,
-            },
-        )
-        replayed = client.post(
-            "/documents",
-            json={
-                "type": "cover_letter",
-                "title": "Replayed letter",
-                "generationArtifactId": generation_artifact_id,
-            },
-        )
-        listed = client.get("/documents")
-        with testing_session_local() as db:
-            profile = db.get(ProfileRecord, "default")
-            assert profile is not None
-            profile.data = {**profile.data, "skills": "Python, PostgreSQL"}
-            db.commit()
-        refreshed = client.get("/documents?applicationId=application-validated")
-        foreign_update = client.patch(
-            f"/documents/{created.json()['id']}",
-            json={
-                "title": "Must not be changed",
-                "applicationId": "application-not-owner",
-            },
-        )
-        manually_updated = client.patch(
-            f"/documents/{created.json()['id']}",
-            json={
-                "content": (
-                    "Dear Hiring Team,\n\n"
-                    "This content was edited without regeneration.\n\n"
-                    "Kind regards,"
-                ),
-                "applicationId": "application-validated",
-            },
-        )
-        with testing_session_local() as db:
-            validation_count = db.scalar(
-                select(func.count()).select_from(DocumentVersionValidationRecord)
-            )
-            current_provenance_count = db.scalar(
-                select(func.count()).select_from(DocumentGenerationProvenanceRecord)
-            )
-            version_provenance_count = db.scalar(
-                select(func.count()).select_from(DocumentVersionGenerationProvenanceRecord)
-            )
-    finally:
-        app.dependency_overrides.clear()
-
-    assert uploaded.status_code == 201
-    assert tampered.status_code == 422
-    assert tampered.json()["detail"] == (
-        "Generated documents accept generationArtifactId instead of client content or template"
-    )
-    assert created.status_code == 201
-    assert replayed.status_code == 409
-    assert replayed.json()["detail"] == "Generation artifact has already been used"
-    assert created.json()["generationFingerprint"] == created.json()["currentGenerationFingerprint"]
-    assert created.json()["inputVersions"]["fingerprintVersion"] == ("generation-fingerprint-v4")
-    assert created.json()["inputVersions"]["sourceDocument"]["id"] == uploaded.json()["id"]
-    assert created.json()["inputVersions"]["profile"] != "profile-v1"
-    assert created.json()["versions"][0]["hasRenderedDocx"] is True
-    assert created.json()["versions"][0]["factualValidation"] == {}
-    assert created.json()["versions"][0]["visualValidation"] == {}
-    assert created.json()["versions"][0]["diff"] == []
-    assert listed.json()[0]["versions"][0]["diff"] == []
-    assert refreshed.status_code == 200
-    assert refreshed.json()[0]["generationFingerprint"] == created.json()["generationFingerprint"]
-    assert refreshed.json()[0]["currentGenerationFingerprint"] is None
-    assert foreign_update.status_code == 409
-    assert foreign_update.json()["detail"] == (
-        "Existing document is not attached to the application"
-    )
-    assert manually_updated.status_code == 200
-    assert manually_updated.json()["currentVersion"] == 2
-    assert manually_updated.json()["generationFingerprint"] is None
-    assert manually_updated.json()["currentGenerationFingerprint"] is None
-    assert manually_updated.json()["versions"][0]["factualValidation"] == {}
-    assert manually_updated.json()["versions"][1]["factualValidation"] == {}
-    assert manually_updated.json()["versions"][1]["visualValidation"] == {}
-    assert validation_count == 0
-    assert current_provenance_count == 0
-    assert version_provenance_count == 1
+    assert created.json()["detail"] == "Tailored resume creation is not available"

@@ -10,7 +10,7 @@ import {
   deleteApplication,
   deleteApplicationAttachment,
   fetchApplicationDocuments,
-  fetchApplicationAnalysis,
+  fetchApplication,
   fetchApplications,
   patchApplication,
   uploadApplicationAttachment,
@@ -198,11 +198,11 @@ export function useApplications() {
     });
   }, [queryClient]);
 
-  const refreshAnalysis = useCallback((applicationId: string) => withSignal(async (signal) => {
-    const payload = await fetchApplicationAnalysis(applicationId, signal);
+  const refresh = useCallback((applicationId: string) => withSignal(async (signal) => {
+    const payload = await fetchApplication(applicationId, signal);
     const normalized = normalizePayload(payload);
     if (!normalized || normalized.application.id !== applicationId) {
-      throw new Error("Authoritative application analysis returned an invalid payload");
+      throw new Error("Application API returned an invalid payload");
     }
     const current = queryClient.getQueryData<ApplicationsSnapshot>(applicationsQueryKey);
     const existing = current?.items.find((item) => item.application.id === applicationId);
@@ -257,6 +257,6 @@ export function useApplications() {
       withSignal((signal) => uploadApplicationAttachment(applicationId, file, metadata, signal)),
     deleteAttachment: (applicationId: string, document: ApplicationDocument) =>
       withSignal((signal) => deleteApplicationAttachment(applicationId, document, signal)),
-    refreshAnalysis,
+    refresh,
   };
 }

@@ -713,10 +713,10 @@ export function AppWorkspaceRoot({
   const selectedJob = filteredJobs.find((job) => job.id === selectedJobId) ?? filteredJobs[0] ?? null;
   const selectedJobPostingUrl = selectedJob ? getJobApplyUrl(selectedJob) : "";
   const isSelectedSaved = selectedJob ? savedJobs.includes(selectedJob.id) : false;
-  const selectedJobPreparation = selectedJob
+  const selectedJobRecord = selectedJob
     ? applications.find((application) => application.job.id === selectedJob.id)
     : undefined;
-  const selectedJobApplication = selectedJobPreparation?.status === "draft" ? undefined : selectedJobPreparation;
+  const selectedJobApplication = selectedJobRecord?.status === "draft" ? undefined : selectedJobRecord;
   const trackedApplications = useMemo(
     () => applications.filter((application) => application.status !== "draft"),
     [applications],
@@ -880,7 +880,7 @@ export function AppWorkspaceRoot({
     changeView("Applications", nextApplication.id);
   }
 
-  function prepareJobApplication(job: Job) {
+  function openJobApplication(job: Job) {
     const existingApplication = applications.find((item) => item.job.id === job.id);
     if (existingApplication) {
       updateApplicationJob(existingApplication.id, job);
@@ -1023,7 +1023,7 @@ export function AppWorkspaceRoot({
         return;
       }
 
-      const authoritativeApplication = await applicationState.refreshAnalysis(application.id);
+      const authoritativeApplication = await applicationState.refresh(application.id);
       appendAppLog({
         level: "success",
         area: "AI Match",
@@ -1040,13 +1040,6 @@ export function AppWorkspaceRoot({
     } finally {
       setMatchingApplicationIds((currentIds) => currentIds.filter((id) => id !== application.id));
     }
-  }
-
-  function refreshApplicationAnalysis(applicationId: string) {
-    const application = applications.find((item) => item.id === applicationId);
-    if (!application) return;
-
-    void analyzeApplicationWithAi(application);
   }
 
   function updateApplicationStatus(applicationId: string, status: ApplicationStatus) {
@@ -2901,21 +2894,9 @@ export function AppWorkspaceRoot({
         ) : activeView === "ApplicationWorkspace" ? (
           <ApplicationWorkspace
             application={workspaceApplication}
-            profile={profile}
             backLabel={workspaceApplication?.status === "draft" ? "Jobs" : "Applications"}
             onBack={() => changeView(workspaceApplication?.status === "draft" ? "Jobs" : "Applications")}
-            onOpenAssistant={(prompt, applicationId) => openAssistant(prompt, "application", applicationId)}
             onDocumentAttached={attachGeneratedDocumentToApplication}
-            onRefreshAnalysis={refreshApplicationAnalysis}
-            isAnalysisRefreshing={Boolean(workspaceApplication && matchingApplicationIds.includes(workspaceApplication.id))}
-            onMarkApplied={(applicationId) => {
-              updateApplicationStatus(applicationId, "applied");
-              appendAppLog({
-                level: "success",
-                area: "Applications",
-                message: "Application marked as applied",
-              });
-            }}
           />
         ) : activeView === "Applications" ? (
           <ApplicationsView
@@ -2926,7 +2907,7 @@ export function AppWorkspaceRoot({
             selectedApplication={selectedApplication}
             onSelectApplication={setSelectedApplicationId}
             onOpenJobs={() => changeView("Jobs")}
-            onPrepareApplication={openApplicationWorkspace}
+            onOpenApplication={openApplicationWorkspace}
             onAddManualApplication={addManualApplication}
             onChangeStatus={updateApplicationStatus}
             onChangeNotes={updateApplicationNotes}
@@ -3420,15 +3401,13 @@ export function AppWorkspaceRoot({
                                 variant="ghost"
                                 className="h-10 rounded-md border border-[#e95300] bg-accent px-3 text-xs font-bold text-foreground shadow-[0_8px_20px_rgba(255,90,0,0.18)] hover:border-[#e95300] hover:bg-[#e95300] xl:text-[13px] 2xl:h-11"
                                 onClick={() =>
-                                  prepareJobApplication(selectedJob)
+                                  openJobApplication(selectedJob)
                                 }
                               >
                                 <FileText className="h-4 w-4 2xl:h-5 2xl:w-5" />
-                                {selectedJobPreparation
-                                  ? selectedJobPreparation.status === "draft"
-                                    ? "Continue preparation"
-                                    : "Open application"
-                                  : "Prepare application"}
+                                {selectedJobRecord
+                                  ? "Open application"
+                                  : "Create application"}
                               </Button>
                             </div>
                           </div>

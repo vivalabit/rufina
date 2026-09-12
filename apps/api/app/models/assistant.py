@@ -11,7 +11,6 @@ from app.core.database import Base, OwnerScoped
 class AssistantAiMatchContext(BaseModel):
     reasons: list[str] = Field(default_factory=list, max_length=8)
     gaps: list[str] = Field(default_factory=list, max_length=8)
-    application_guide: dict[str, Any] | None = Field(default=None, alias="applicationGuide")
 
     model_config = {"populate_by_name": True}
 
@@ -37,7 +36,6 @@ class AssistantApplicationContext(BaseModel):
     status: str = Field(default="", max_length=80)
     next_step: str = Field(default="", max_length=500, alias="nextStep")
     notes: str = Field(default="", max_length=12_000)
-    generation_date: str = Field(default="", max_length=10, alias="generationDate")
     job: AssistantJobContext
 
     model_config = {"populate_by_name": True}
@@ -54,33 +52,6 @@ class AssistantSourceDocument(BaseModel):
     model_config = {"populate_by_name": True}
 
 
-class AssistantCandidateConfirmation(BaseModel):
-    question_id: str = Field(default="", max_length=160, alias="questionId")
-    requirement: str = Field(default="", max_length=500)
-    question: str = Field(default="", max_length=1_200)
-    why: str = Field(default="", max_length=500)
-    claim_if_confirmed: str = Field(
-        default="",
-        max_length=500,
-        alias="claimIfConfirmed",
-    )
-    answer: str = Field(min_length=1, max_length=1_500)
-
-    model_config = {"populate_by_name": True}
-
-
-class AssistantGenerationContextReference(BaseModel):
-    application_id: str = Field(min_length=1, max_length=160, alias="applicationId")
-    template_id: str = Field(min_length=1, max_length=160, alias="templateId")
-    document_type: Literal["cover_letter", "tailored_resume"] = Field(alias="documentType")
-    target_language: Literal["English", "German"] | None = Field(
-        default=None,
-        alias="targetLanguage",
-    )
-
-    model_config = {"populate_by_name": True}
-
-
 class AssistantChatRequest(BaseModel):
     thread_id: str = Field(min_length=1, max_length=160, alias="threadId")
     message: str = Field(min_length=1, max_length=12_000)
@@ -93,17 +64,7 @@ class AssistantChatRequest(BaseModel):
         max_length=3,
         alias="sourceDocuments",
     )
-    candidate_confirmations: list[AssistantCandidateConfirmation] = Field(
-        default_factory=list,
-        max_length=20,
-        alias="candidateConfirmations",
-    )
-    generation_context: AssistantGenerationContextReference | None = Field(
-        default=None,
-        alias="generationContext",
-    )
-
-    model_config = {"populate_by_name": True}
+    model_config = {"populate_by_name": True, "extra": "forbid"}
 
 
 class AssistantStreamRequest(AssistantChatRequest):
@@ -174,7 +135,7 @@ class CreateInterviewEventProposal(BaseModel):
 
 class SaveDocumentProposal(BaseModel):
     type: Literal["save_document"]
-    document_type: Literal["cover_letter", "tailored_resume"] = Field(alias="documentType")
+    document_type: Literal["cover_letter"] = Field(alias="documentType")
     title: str = Field(min_length=1, max_length=240)
     content: str = Field(min_length=1, max_length=200_000)
 

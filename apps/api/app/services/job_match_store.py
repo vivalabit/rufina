@@ -12,8 +12,6 @@ from app.core.identity import get_bound_owner_id
 from app.models.jobs import JobMatchRecord, StoredJobRecord
 from app.services.ai_match import MATCHER_VERSION
 
-APPLICATION_GUIDE_STORAGE_KEY = "_applicationGuide"
-
 
 def hydrate_job_data(
     db: Session,
@@ -88,12 +86,7 @@ def latest_job_match_record(db: Session, *, job_id: str) -> JobMatchRecord | Non
 
 
 def has_job_match_record(db: Session, *, job_id: str) -> bool:
-    return (
-        db.query(JobMatchRecord.id)
-        .filter(JobMatchRecord.job_id == job_id)
-        .first()
-        is not None
-    )
+    return db.query(JobMatchRecord.id).filter(JobMatchRecord.job_id == job_id).first() is not None
 
 
 def authoritative_match_to_ai_match(record: JobMatchRecord) -> dict[str, Any]:
@@ -140,7 +133,9 @@ def persist_job_and_match(db: Session, *, job: dict[str, Any], profile_hash: str
         db.add(StoredJobRecord(id=job_id, data=job_data))
 
     ai_match = job.get("aiMatch")
-    if isinstance(ai_match, dict) and should_insert_match_record(db, job_id, profile_hash, ai_match):
+    if isinstance(ai_match, dict) and should_insert_match_record(
+        db, job_id, profile_hash, ai_match
+    ):
         db.add(build_match_record(job_id=job_id, profile_hash=profile_hash, ai_match=ai_match))
 
 
@@ -160,8 +155,6 @@ def should_insert_match_record(
 def build_match_record(job_id: str, profile_hash: str, ai_match: dict[str, Any]) -> JobMatchRecord:
     normalized = normalize_ai_match(ai_match)
     stored_breakdown = dict(normalized["breakdown"])
-    if normalized.get("applicationGuide"):
-        stored_breakdown[APPLICATION_GUIDE_STORAGE_KEY] = normalized["applicationGuide"]
     return JobMatchRecord(
         id=uuid4().hex,
         job_id=job_id,
@@ -210,14 +203,14 @@ def normalize_ai_match(
         "source": source,
         "score": score,
         "confidence": str(ai_match.get("confidence") or "low"),
-        "breakdown": ai_match.get("breakdown") if isinstance(ai_match.get("breakdown"), dict) else {},
+        "breakdown": ai_match.get("breakdown")
+        if isinstance(ai_match.get("breakdown"), dict)
+        else {},
         "reasons": normalize_string_list(ai_match.get("reasons")),
         "gaps": normalize_string_list(ai_match.get("gaps")),
         "heuristicScore": clamp_int(ai_match.get("heuristicScore"), score),
         "updatedAt": updated_at,
     }
-    if isinstance(ai_match.get("applicationGuide"), dict):
-        normalized["applicationGuide"] = ai_match["applicationGuide"]
     provider_error = ai_match.get("providerError")
     if provider_error:
         normalized["providerError"] = str(provider_error)[:240]
@@ -226,7 +219,7 @@ def normalize_ai_match(
 
 def match_record_to_ai_match(record: JobMatchRecord) -> dict[str, Any]:
     breakdown = dict(record.breakdown) if isinstance(record.breakdown, dict) else {}
-    application_guide = breakdown.pop(APPLICATION_GUIDE_STORAGE_KEY, None)
+    breakdown.pop("_applicationGuide", None)
     ai_match = {
         "version": record.matcher_version,
         "profileHash": record.profile_hash,
@@ -244,8 +237,6 @@ def match_record_to_ai_match(record: JobMatchRecord) -> dict[str, Any]:
         "heuristicScore": record.heuristic_score,
         "updatedAt": serialize_datetime(record.created_at),
     }
-    if isinstance(application_guide, dict):
-        ai_match["applicationGuide"] = application_guide
     if record.provider_error:
         ai_match["providerError"] = record.provider_error
     return ai_match

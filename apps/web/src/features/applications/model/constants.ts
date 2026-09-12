@@ -11,7 +11,7 @@ export const applicationStatuses: Array<{
   status: ApplicationStatus;
   label: string;
 }> = [
-  { status: "draft", label: "Preparing" },
+  { status: "draft", label: "Draft" },
   { status: "applied", label: "Applied" },
   { status: "interview", label: "Interview" },
   { status: "assessment", label: "Assessment" },

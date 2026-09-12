@@ -44,7 +44,7 @@ describe("job AI-match selectors", () => {
   it("displays authoritative backend scores", () => {
     const matchedJob = job({
       aiMatch: {
-        version: "ai-match-v3",
+        version: "ai-match-v4",
         cacheKey: "cache",
         source: "openai_api",
         score: 82,
@@ -58,10 +58,16 @@ describe("job AI-match selectors", () => {
     expect(formatMatchValue(matchedJob)).toBe("82%");
   });
 
-  it("builds recommendations only from source-backed evidence", () => {
+  it("keeps stored job recommendations independent from match analysis", () => {
     const matchedJob = job({
+      recommendations: [
+        {
+          text: "Emphasize the platform example",
+          gain: "+4%",
+        },
+      ],
       aiMatch: {
-        version: "ai-match-v3",
+        version: "ai-match-v4",
         cacheKey: "cache",
         source: "openai_api",
         score: 82,
@@ -69,34 +75,11 @@ describe("job AI-match selectors", () => {
         breakdown: {},
         reasons: [],
         gaps: [],
-        applicationGuide: {
-          language: "English",
-          positioning: "Lead with delivery evidence",
-          cvImprovements: [],
-          coverLetterStrategy: [],
-          risks: [],
-          keywords: [],
-          applicationQuestions: [],
-          finalChecklist: [],
-          evidenceMatrix: [
-            {
-              requirement: "TypeScript",
-              importance: "required",
-              status: "verified",
-              evidence: "Built a platform",
-              action: "Use the platform example",
-              sources: [{ id: "cv", label: "CV", excerpt: "Built a platform" }],
-            },
-          ],
-        },
       },
     });
 
     expect(buildRecommendationPlan(matchedJob)).toEqual([
-      expect.objectContaining({
-        text: "Use the platform example",
-        gain: "verified evidence",
-      }),
+      { text: "Emphasize the platform example", gain: "+4%" },
     ]);
   });
 });

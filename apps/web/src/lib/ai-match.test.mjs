@@ -3,49 +3,33 @@ import test from "node:test";
 
 import {
   getAiMatchAnalysisStatus,
-  hasCurrentApplicationGuide,
-  isLegacyAiMatch,
 } from "./ai-match.ts";
 
-test("recognizes ai-match-v1 as an outdated analysis", () => {
-  const legacyMatch = {
-    version: "ai-match-v1",
-    score: 94,
-  };
-
-  assert.equal(isLegacyAiMatch(legacyMatch), true);
-  assert.equal(getAiMatchAnalysisStatus(legacyMatch), "outdated");
-  assert.equal(hasCurrentApplicationGuide(legacyMatch), false);
-});
-
-test("does not accept a v3 percentage without an application guide", () => {
+test("rejects match payloads without authoritative match metadata", () => {
+  assert.equal(
+    getAiMatchAnalysisStatus({ version: "ai-match-v4", score: 91 }),
+    "outdated",
+  );
   assert.equal(
     getAiMatchAnalysisStatus({ version: "ai-match-v3", score: 91 }),
     "outdated",
   );
-  assert.equal(
-    getAiMatchAnalysisStatus({ version: "ai-match-v3", applicationGuide: {} }),
-    "outdated",
-  );
 });
 
-test("accepts only an authoritative ai-match-v3 application guide", () => {
-  const migratedMatch = {
-    version: "ai-match-v3",
+test("accepts an authoritative ai-match-v4 score and explanation", () => {
+  const match = {
+    version: "ai-match-v4",
     revision: "match-revision",
     fingerprint: "a".repeat(64),
     score: 88,
-    applicationGuide: {
-      language: "English",
-      positioning: "Lead with verified evidence.",
-    },
+    reasons: ["Relevant platform experience"],
+    gaps: [],
   };
 
-  assert.equal(getAiMatchAnalysisStatus(migratedMatch), "current");
-  assert.equal(hasCurrentApplicationGuide(migratedMatch), true);
+  assert.equal(getAiMatchAnalysisStatus(match), "current");
   assert.equal(
     getAiMatchAnalysisStatus({
-      ...migratedMatch,
+      ...match,
       revision: undefined,
       fingerprint: undefined,
     }),

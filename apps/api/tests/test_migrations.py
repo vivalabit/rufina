@@ -13,6 +13,7 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app import main as main_module
 from app.core.database import Base
+from app.core.legacy_schema import LEGACY_PREPARATION_TABLES
 from app.core.migrations import (
     LEGACY_RECOVERABLE_MISSING_TABLES,
     LegacyDatabaseMismatchError,
@@ -63,7 +64,11 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
     engine = create_engine(database_url)
     try:
         table_names = set(inspect(engine).get_table_names())
-        assert table_names == {*Base.metadata.tables, "alembic_version"}
+        assert table_names == {
+            *Base.metadata.tables,
+            *LEGACY_PREPARATION_TABLES,
+            "alembic_version",
+        }
         template_constraints = inspect(engine).get_unique_constraints(
             "document_templates"
         )

@@ -108,18 +108,15 @@ def create_custom_template(
     return response.json()
 
 
-def test_lists_bundled_and_owner_custom_templates_through_both_routes(
+def test_lists_bundled_and_owner_custom_templates(
     client: TestClient,
 ) -> None:
     custom = create_custom_template(client)
 
     primary = client.get("/resume-templates", headers=OWNER_A)
-    alias = client.get("/documents/resume-templates", headers=OWNER_A)
     other_owner = client.get("/resume-templates", headers=OWNER_B)
 
     assert primary.status_code == 200
-    assert alias.status_code == 200
-    assert alias.json() == primary.json()
     assert [item["kind"] for item in primary.json()] == [
         "bundled",
         "bundled",

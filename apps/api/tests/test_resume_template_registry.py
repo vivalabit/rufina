@@ -57,7 +57,7 @@ def test_resume_template_api_lists_registry_and_rejects_custom_uploads() -> None
     app.dependency_overrides[get_db] = override_get_db
     try:
         client = TestClient(app)
-        listed = client.get("/documents/resume-templates")
+        listed = client.get("/resume-templates")
         uploaded = client.post(
             "/documents/templates",
             json={

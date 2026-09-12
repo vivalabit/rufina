@@ -9,6 +9,7 @@ from sqlalchemy import create_engine, inspect
 from sqlalchemy.engine import Connection
 
 from app.core.database import Base
+from app.core.legacy_schema import include_current_schema_object
 from app.core.settings import get_settings
 
 API_ROOT = Path(__file__).resolve().parents[2]
@@ -269,7 +270,10 @@ def upgrade_database(database_url: str | None = None) -> None:
                 differences = compare_metadata(
                     MigrationContext.configure(
                         connection,
-                        opts={"compare_type": True},
+                        opts={
+                            "compare_type": True,
+                            "include_object": include_current_schema_object,
+                        },
                     ),
                     Base.metadata,
                 )

@@ -1,5 +1,5 @@
 from collections.abc import Generator
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -9,10 +9,9 @@ from sqlalchemy.pool import StaticPool
 from app.core.database import Base, get_db
 from app.core.settings import Settings, get_settings
 from app.main import app
-from app.models.applications import CandidateConfirmationRecord, StoredApplicationRecord
+from app.models.applications import StoredApplicationRecord
 from app.models.documents import (
     DocumentFileRecord,
-    DocumentPackJobRecord,
     DocumentRecord,
     DocumentTemplateRecord,
     DocumentVersionRecord,
@@ -90,32 +89,8 @@ def test_application_data_is_scoped_to_request_owner() -> None:
             db.add_all(
                 [
                     application,
-                    CandidateConfirmationRecord(
-                        application_id=application.id,
-                        question_id=f"question-{suffix}",
-                        owner_id=owner_id,
-                        requirement="Requirement",
-                        response="yes",
-                        example_text="Evidence",
-                        blocking=False,
-                        updated_at=now,
-                    ),
                     template,
                     document,
-                    DocumentPackJobRecord(
-                        id=f"pack-{suffix}",
-                        owner_id=owner_id,
-                        request_fingerprint=suffix * 64,
-                        application_id=application.id,
-                        persistence_mode="atomic",
-                        status="completed",
-                        document_ids=[document.id],
-                        stages=[],
-                        message="completed",
-                        created_at=now,
-                        updated_at=now,
-                        expires_at=now + timedelta(days=1),
-                    ),
                     StoredJobRecord(
                         owner_id=owner_id,
                         id="shared-job",
@@ -147,37 +122,13 @@ def test_application_data_is_scoped_to_request_owner() -> None:
                 "X-Tasko-Owner-Id": "owner-b",
             },
         )
-        confirmations_a = client.get(
-            "/applications/application-a/confirmations",
-            headers=owner_a,
-        )
-        foreign_confirmations = client.get(
-            "/applications/application-a/confirmations",
-            headers=owner_b,
-        )
         templates_a = client.get("/documents/templates/library", headers=owner_a)
         templates_b = client.get("/documents/templates/library", headers=owner_b)
-        resume_templates_a = client.get(
-            "/documents/resume-templates",
-            headers=owner_a,
-        )
-        resume_templates_b = client.get(
-            "/documents/resume-templates",
-            headers=owner_b,
-        )
         documents_a = client.get("/documents", headers=owner_a)
         documents_b = client.get("/documents", headers=owner_b)
         own_download = client.get("/documents/document-a/download", headers=owner_a)
         foreign_document = client.get("/documents/document-a", headers=owner_b)
         foreign_download = client.get("/documents/document-a/download", headers=owner_b)
-        own_pack = client.get(
-            "/documents/packs/pack-a?applicationId=application-a",
-            headers=owner_a,
-        )
-        foreign_pack = client.get(
-            "/documents/packs/pack-a?applicationId=application-a",
-            headers=owner_b,
-        )
         created_for_b = client.post(
             "/applications",
             headers=owner_b,
@@ -194,12 +145,8 @@ def test_application_data_is_scoped_to_request_owner() -> None:
 
     assert [item["id"] for item in applications_a.json()] == ["application-a"]
     assert [item["id"] for item in applications_b.json()] == ["application-b"]
-    assert [item["id"] for item in applications_a_legacy_header.json()] == [
-        "application-a"
-    ]
+    assert [item["id"] for item in applications_a_legacy_header.json()] == ["application-a"]
     assert conflicting_owner_headers.status_code == 400
-    assert [item["questionId"] for item in confirmations_a.json()] == ["question-a"]
-    assert foreign_confirmations.status_code == 404
     assert [item["id"] for item in templates_a.json()] == [
         bundled_cover_letter_template_id("owner-a")
     ]
@@ -208,22 +155,12 @@ def test_application_data_is_scoped_to_request_owner() -> None:
     ]
     assert templates_a.json()[0]["builtIn"] is True
     assert templates_b.json()[0]["builtIn"] is True
-    assert [item["id"] for item in resume_templates_a.json()] == [
-        "classic_single",
-        "modern_single",
-        "modern_two_column",
-        "swiss_classic",
-        "swiss_local_german",
-    ]
-    assert resume_templates_b.json() == resume_templates_a.json()
     assert [item["id"] for item in documents_a.json()] == ["document-a"]
     assert [item["id"] for item in documents_b.json()] == ["document-b"]
     assert own_download.status_code == 200
     assert own_download.content == b"rendered-a"
     assert foreign_document.status_code == 404
     assert foreign_download.status_code == 404
-    assert own_pack.status_code == 410
-    assert foreign_pack.status_code == 410
     assert created_for_b.status_code == 201
     assert created_for_b.json()["id"] == "created-for-b"
     assert {item["id"] for item in applications_b_after_create.json()} == {

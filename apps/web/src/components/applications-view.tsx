@@ -94,7 +94,7 @@ type ApplicationsViewProps = {
   selectedApplication: TrackedApplication | null;
   onSelectApplication: (applicationId: string) => void;
   onOpenJobs: () => void;
-  onPrepareApplication: (applicationId: string) => void;
+  onOpenApplication: (applicationId: string) => void;
   onAddManualApplication: (draft: ManualApplicationDraft) => Promise<void>;
   onChangeStatus: (applicationId: string, status: ApplicationStatus) => void;
   onChangeNotes: (applicationId: string, notes: string) => void;
@@ -145,7 +145,7 @@ export function ApplicationsView({
   selectedApplication,
   onSelectApplication,
   onOpenJobs,
-  onPrepareApplication,
+  onOpenApplication,
   onAddManualApplication,
   onChangeStatus,
   onChangeNotes,
@@ -834,12 +834,12 @@ export function ApplicationsView({
                       <Button
                         type="button"
                         onClick={() =>
-                          onPrepareApplication(visibleSelectedApplication.id)
+                          onOpenApplication(visibleSelectedApplication.id)
                         }
                         className="h-10 rounded-md border border-[#e95300] bg-accent px-4 text-xs font-bold text-foreground shadow-[0_8px_20px_rgba(255,90,0,0.18)] hover:border-[#e95300] hover:bg-[#e95300] 2xl:h-11 2xl:text-[13px]"
                       >
                         <FileText className="h-4 w-4 2xl:h-5 2xl:w-5" />
-                        Prepare application
+                        Open application
                       </Button>
                       <button
                         type="button"

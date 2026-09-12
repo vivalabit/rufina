@@ -255,11 +255,11 @@ it("keeps the manual application dialog and file draft after an upload failure",
   expect(requests).toEqual(["create", "upload"]);
 });
 
-it("retains uploaded documents when authoritative application analysis omits them", async () => {
+it("retains uploaded documents when the refreshed application omits them", async () => {
   window.history.replaceState(null, "", "#applications");
   let createdApplication: Record<string, unknown> | null = null;
   let applicationId = "";
-  let analysisResponses = 0;
+  let detailResponses = 0;
 
   installHomeApiMock(async (url, method, init) => {
     if (url.pathname === "/applications" && method === "POST") {
@@ -287,8 +287,8 @@ it("retains uploaded documents when authoritative application analysis omits the
       const job = parseBody<{ jobs: Array<{ id: string; data: Record<string, unknown> }> }>(init).jobs[0];
       return Response.json([{ id: job.id, data: { ...job.data, match: 88 } }]);
     }
-    if (/^\/applications\/[^/]+\/analysis$/.test(url.pathname) && method === "GET") {
-      analysisResponses += 1;
+    if (/^\/applications\/[^/]+$/.test(url.pathname) && method === "GET") {
+      detailResponses += 1;
       const application = createdApplication as Record<string, unknown>;
       return Response.json({
         id: applicationId,
@@ -310,7 +310,7 @@ it("retains uploaded documents when authoritative application analysis omits the
   );
   fireEvent.click(screen.getByRole("button", { name: "Save application" }));
 
-  await waitFor(() => expect(analysisResponses).toBe(1));
+  await waitFor(() => expect(detailResponses).toBe(1));
   expect(
     await screen.findByRole("link", { name: "Download analysis-resume.pdf" }),
   ).toBeInTheDocument();

@@ -15,15 +15,6 @@ type ApplicationOverrides = Omit<Partial<WorkspaceApplication>, "job"> & {
 };
 
 type WorkspaceApiOptions = {
-  applicationPreferences?: {
-    application_id: string;
-    resume_template_id: string | null;
-    resume_generation_mode: "recruiter_xyz_ats" | "imaginator" | null;
-    updated_at: string;
-    revision: number;
-  } | null;
-  confirmationPutResponse?: unknown[];
-  confirmations?: unknown[];
   currentMasterResume?: unknown | null;
   documents?: unknown[];
   resumeTemplates?: unknown[];
@@ -52,26 +43,6 @@ const baseJob: Omit<WorkspaceJob, "aiMatch"> = {
   applyUrl: "https://example.com/jobs/product-designer",
 };
 
-export function createWorkspaceProfile(
-  overrides: Partial<ApplicationWorkspaceProps["profile"]> = {},
-): ApplicationWorkspaceProps["profile"] {
-  return {
-    name: "Alex Morgan",
-    current_role: "Product Designer",
-    desired_role: "Senior Product Designer",
-    location: "Zurich, Switzerland",
-    headline: "Product designer for complex B2B workflows",
-    skills: "Product design, user research, prototyping",
-    experience: "Six years designing B2B software products.",
-    education: "BA Interaction Design",
-    documents: "",
-    resume_file_name: "",
-    resume_file_size: "",
-    resume_updated_at: "",
-    ...overrides,
-  };
-}
-
 export function createLegacyWorkspaceApplication(
   overrides: ApplicationOverrides = {},
 ): WorkspaceApplication {
@@ -95,66 +66,17 @@ export function createV3WorkspaceApplication(
 ): WorkspaceApplication {
   return createWorkspaceApplication({
     ...overrides,
-    id: overrides.id ?? "application-v3",
+    id: overrides.id ?? "application-current",
     job: {
       ...overrides.job,
       aiMatch: overrides.job?.aiMatch ?? {
-        version: "ai-match-v3",
-        revision: "match-revision-v3",
-        fingerprint: "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        version: "ai-match-v4",
+        revision: "match-revision-v4",
+        fingerprint:
+          "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
         reasons: ["Strong product discovery background"],
-        gaps: ["Confirm formal people-management experience"],
+        gaps: ["People-management experience is not listed"],
         updatedAt: "2026-07-15T10:00:00.000Z",
-        applicationGuide: {
-          language: "English",
-          positioning:
-            "Position Alex as a research-led designer who aligns cross-functional teams.",
-          readiness: "needs_confirmation",
-          roleMission:
-            "Turn complex B2B workflows into clear, validated product experiences.",
-          hiringPriorities: [
-            "Discovery leadership",
-            "Cross-functional collaboration",
-          ],
-          mustHave: ["B2B product design"],
-          niceToHave: ["People leadership"],
-          hardConstraints: [],
-          evidenceMatrix: [
-            {
-              requirement: "B2B product design",
-              importance: "required",
-              status: "verified",
-              evidence: "Six years designing B2B software products.",
-              action: "Lead with recent product outcomes.",
-              sourceIds: ["profile:experience:designer:achievement-product-delivery"],
-              sources: [
-                {
-                  id: "profile:experience:designer:achievement-product-delivery",
-                  label: "Experience · achievement",
-                  excerpt: "Six years designing B2B software products.",
-                },
-              ],
-            },
-          ],
-          clarificationQuestions: [],
-          resumePlan: {
-            targetHeadline: "Senior B2B Product Designer",
-            summaryFocus: "Research-led product delivery",
-            evidenceToLead: ["B2B workflow design"],
-            bulletStrategy: ["Quantify product outcomes"],
-          },
-          coverLetterPlan: {
-            openingAngle: "Connect discovery experience to Acme's platform.",
-            proofPoints: ["Cross-functional product delivery"],
-            motivationAngle: "Complex B2B products",
-          },
-          cvImprovements: ["Make product outcomes measurable"],
-          coverLetterStrategy: ["Use one concrete discovery example"],
-          risks: ["Do not imply unverified people-management experience"],
-          keywords: ["Product discovery", "B2B", "User research"],
-          applicationQuestions: ["Describe a complex workflow you simplified."],
-          finalChecklist: ["Verify every claim against the source CV."],
-        },
       },
     },
   });
@@ -169,9 +91,9 @@ export function createWorkspaceApplicationWithoutGuide(
     job: {
       ...overrides.job,
       aiMatch: overrides.job?.aiMatch ?? {
-        version: "ai-match-v3",
+        version: "ai-match-v4",
         reasons: ["Relevant product design experience"],
-        gaps: ["Application guide has not been generated"],
+        gaps: ["People-management experience is not listed"],
         updatedAt: "2026-07-16T10:00:00.000Z",
       },
     },
@@ -184,7 +106,7 @@ function createWorkspaceApplication(
   return {
     id: "application",
     status: "draft",
-    nextStep: "Prepare application pack",
+    nextStep: "Review application",
     notes: "",
     documents: [],
     ...overrides,
@@ -196,9 +118,6 @@ function createWorkspaceApplication(
 }
 
 export function installApplicationWorkspaceApiMock({
-  applicationPreferences = null,
-  confirmationPutResponse = [],
-  confirmations = [],
   currentMasterResume = {
     masterResumeId: "master-resume-1",
     version: 1,
@@ -282,7 +201,6 @@ export function installApplicationWorkspaceApiMock({
   ],
   requestHandler,
 }: WorkspaceApiOptions = {}) {
-  let savedApplicationPreferences = applicationPreferences;
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
     const requestUrl =
       typeof input === "string"
@@ -368,44 +286,7 @@ export function installApplicationWorkspaceApiMock({
             { status: 404 },
           );
     }
-    if (
-      /^\/applications\/[^/]+\/confirmations$/.test(url.pathname) &&
-      method === "GET"
-    ) {
-      return Response.json(confirmations);
-    }
-    if (
-      /^\/applications\/[^/]+\/confirmations$/.test(url.pathname) &&
-      method === "PUT"
-    ) {
-      return Response.json(confirmationPutResponse);
-    }
-    if (/^\/applications\/[^/]+\/preferences$/.test(url.pathname) && method === "GET") {
-      return savedApplicationPreferences
-        ? Response.json(savedApplicationPreferences)
-        : Response.json(
-            { detail: "Application preferences not found" },
-            { status: 404 },
-          );
-    }
-    if (/^\/applications\/[^/]+\/preferences$/.test(url.pathname) && method === "PUT") {
-      const preferences = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      savedApplicationPreferences = {
-        application_id: url.pathname.split("/")[2],
-        resume_template_id:
-          typeof preferences.resume_template_id === "string"
-            ? preferences.resume_template_id
-            : savedApplicationPreferences?.resume_template_id ?? null,
-        resume_generation_mode:
-          preferences.resume_generation_mode === "recruiter_xyz_ats"
-            || preferences.resume_generation_mode === "imaginator"
-            ? preferences.resume_generation_mode
-            : savedApplicationPreferences?.resume_generation_mode ?? null,
-        updated_at: "2026-09-06T10:00:00.000Z",
-        revision: (savedApplicationPreferences?.revision ?? 0) + 1,
-      };
-      return Response.json(savedApplicationPreferences);
-    }
+
 
     throw new Error(
       `Unhandled ApplicationWorkspace request: ${method} ${url.pathname}`,
@@ -422,13 +303,8 @@ export function renderApplicationWorkspace(
 ) {
   const props: ApplicationWorkspaceProps = {
     application,
-    profile: createWorkspaceProfile(),
     onBack: vi.fn(),
-    onOpenAssistant: vi.fn(),
     onDocumentAttached: vi.fn(),
-    onMarkApplied: vi.fn(),
-    onRefreshAnalysis: vi.fn(),
-    isAnalysisRefreshing: false,
     ...overrides,
   };
 

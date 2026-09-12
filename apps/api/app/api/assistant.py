@@ -1,11 +1,10 @@
 import asyncio
-import base64
 import hashlib
 import json
 import re
 import time
-from dataclasses import dataclass, field, replace
-from datetime import datetime, timedelta
+from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Literal
 from uuid import uuid4
 
@@ -26,7 +25,6 @@ from app.core.identity import (
 )
 from app.core.settings import Settings, get_settings
 from app.models.applications import (
-    CandidateConfirmationRecord,
     StoredApplicationEventRecord,
     StoredApplicationRecord,
 )
@@ -35,7 +33,6 @@ from app.models.assistant import (
     AssistantActionApplyRequest,
     AssistantActionApplyResponse,
     AssistantApplicationContext,
-    AssistantCandidateConfirmation,
     AssistantChatRequest,
     AssistantChatResponse,
     AssistantJobContext,
@@ -45,7 +42,6 @@ from app.models.assistant import (
 from app.models.conversations import ConversationRecord, MessageRecord, utc_now
 from app.models.documents import (
     DocumentAttachmentRecord,
-    DocumentGenerationArtifactRecord,
     DocumentRecord,
     DocumentVersionRecord,
 )
@@ -64,17 +60,6 @@ from app.services.assistant import (
     encode_message_actions,
     extract_assistant_action_previews,
     preflight_source_documents,
-)
-from app.services.cover_letter_header_research import (
-    CoverLetterHeaderResearch,
-    research_cover_letter_header,
-)
-from app.services.document_export import ensure_cover_letter_date_replacement
-from app.services.generation_context import (
-    AuthoritativeGenerationContext,
-    GenerationContextError,
-    clarification_questions,
-    load_authoritative_generation_context,
 )
 from app.services.job_match_store import (
     latest_job_match_record,
@@ -114,13 +99,9 @@ class AuthoritativeAssistantInputs:
     job: AssistantJobContext | None
     application: AssistantApplicationContext | None
     source_documents: tuple[AssistantSourceDocument, ...] = ()
-    confirmations: tuple[AssistantCandidateConfirmation, ...] = ()
-    generation_context: AuthoritativeGenerationContext | None = None
 
 
 assistant_streams: dict[str, AssistantStreamState] = {}
-GENERATION_ARTIFACT_TTL = timedelta(minutes=30)
-GENERATION_MESSAGE_MAX_CHARS = 12_000
 
 
 async def generate_assistant_with_facade(
@@ -134,7 +115,6 @@ async def generate_assistant_with_facade(
     application: AssistantApplicationContext | None,
     history: dict[str, object] | None = None,
     source_documents: list[AssistantSourceDocument] | None = None,
-    candidate_confirmations: list[AssistantCandidateConfirmation] | None = None,
     session_scope: str = "",
 ) -> AIAssistantRun:
     return await facade.generate(
@@ -146,154 +126,8 @@ async def generate_assistant_with_facade(
         application=application,
         history=history,
         source_documents=source_documents,
-        candidate_confirmations=candidate_confirmations,
         session_scope=session_scope,
     )
-
-
-def begin_generation_artifact(
-    db: Session,
-    *,
-    context: AuthoritativeGenerationContext,
-    prompt: str,
-    history: dict[str, object],
-    settings: Settings,
-    header_research: CoverLetterHeaderResearch | None = None,
-) -> DocumentGenerationArtifactRecord:
-    provenance = context.provenance()
-    now = utc_now()
-    artifact_id = str(uuid4())
-    snapshot = context.input_snapshot(prompt=prompt)
-    if header_research is not None:
-        snapshot["companyHeaderResearch"] = header_research.as_dict()
-    snapshot["assistant"] = {
-        "model": (
-            settings.openai_api_model
-            if settings.ai_backend_mode == "openai_api"
-            else settings.openclaw_assistant_model
-        ),
-        "backend": settings.ai_backend_mode,
-        "providerName": ai_backend_provider_name(settings.ai_backend_mode),
-        "thinking": settings.ai_reasoning_for(settings.openclaw_assistant_thinking),
-        "agentId": settings.openclaw_assistant_agent_id,
-        "history": history,
-    }
-    snapshot_hash = hashlib.sha256(
-        json.dumps(
-            snapshot,
-            ensure_ascii=False,
-            separators=(",", ":"),
-            sort_keys=True,
-        ).encode()
-    ).hexdigest()
-    input_versions = {
-        **provenance.input_versions,
-        "generationArtifact": {
-            "id": artifact_id,
-            "inputSnapshotSha256": snapshot_hash,
-            "model": (
-                settings.openai_api_model
-                if settings.ai_backend_mode == "openai_api"
-                else settings.openclaw_assistant_model
-            ),
-            "backend": provenance.generation_backend,
-            "providerName": ai_backend_provider_name(provenance.generation_backend),
-        },
-    }
-    validation_evidence = context.validation_evidence()
-    if header_research is not None:
-        evidence_catalog = validation_evidence.get("evidenceCatalog")
-        if isinstance(evidence_catalog, list):
-            evidence_catalog.append(
-                {
-                    "id": "confirmation:company-header-research",
-                    "type": "web_research",
-                    "text": "\n".join(
-                        (
-                            header_research.official_name,
-                            header_research.address_line,
-                            header_research.source_url,
-                        )
-                    ),
-                }
-            )
-    artifact = DocumentGenerationArtifactRecord(
-        id=artifact_id,
-        application_id=context.application_id,
-        job_id=context.job_id,
-        document_type=context.template.type,
-        template_id=context.template.id,
-        template_content=context.template.content,
-        input_snapshot=snapshot,
-        generation_fingerprint=provenance.generation_fingerprint,
-        input_versions=input_versions,
-        validation_evidence=validation_evidence,
-        status="generating",
-        result_content=None,
-        generation_model=None,
-        generation_backend=provenance.generation_backend,
-        consumed_at=None,
-        expires_at=now + GENERATION_ARTIFACT_TTL,
-        created_at=now,
-        completed_at=None,
-    )
-    db.add(artifact)
-    try:
-        db.commit()
-    except SQLAlchemyError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Generation artifact could not be created",
-        ) from exc
-    return artifact
-
-
-def complete_generation_artifact(
-    db: Session,
-    artifact: DocumentGenerationArtifactRecord,
-    *,
-    content: str,
-    model: str,
-    backend: str,
-) -> None:
-    if not content.strip():
-        fail_generation_artifact(db, artifact)
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="AI returned an empty generated document",
-        )
-    if backend != artifact.generation_backend:
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="AI generation backend did not match the requested backend",
-        )
-    artifact.status = "completed"
-    artifact.result_content = content
-    artifact.generation_model = model.strip() or "unknown"
-    artifact.completed_at = utc_now()
-    try:
-        db.commit()
-    except SQLAlchemyError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Generation artifact could not be completed",
-        ) from exc
-
-
-def fail_generation_artifact(
-    db: Session,
-    artifact: DocumentGenerationArtifactRecord | None,
-) -> None:
-    if artifact is None:
-        return
-    artifact.status = "failed"
-    artifact.completed_at = utc_now()
-    try:
-        db.commit()
-    except SQLAlchemyError:
-        db.rollback()
 
 
 @router.get("/config")
@@ -316,67 +150,13 @@ async def chat_with_assistant(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="The assistant is temporarily disabled. Check the server configuration.",
         )
-    if (
-        request.generation_context is not None
-        and request.generation_context.document_type == "tailored_resume"
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail=(
-                "Legacy assistant-based DOCX resume tailoring was removed; "
-                "use the three-stage resume-tailoring API"
-            ),
-        )
-    validate_assistant_message_length(
-        request.message,
-        settings,
-        is_document_generation=request.generation_context is not None,
-    )
-    if request.generation_context is None:
-        await preflight_assistant_source_documents(request)
+    validate_assistant_message_length(request.message, settings)
+    await preflight_assistant_source_documents(request)
 
-    inputs = load_authoritative_assistant_inputs(
-        db,
-        request,
-        generation_backend=settings.ai_backend_mode,
-    )
+    inputs = load_authoritative_assistant_inputs(db, request)
     history = load_compact_conversation_history(db, request.thread_id, settings)
-    generation_artifact = None
-    header_research = None
-    if inputs.generation_context is not None:
-        if inputs.generation_context.template.type == "cover_letter":
-            header_research = await asyncio.to_thread(
-                research_cover_letter_header,
-                inputs.generation_context.vacancy,
-            )
-        generation_artifact = begin_generation_artifact(
-            db,
-            context=inputs.generation_context,
-            prompt=request.message,
-            history=history,
-            settings=settings,
-            header_research=header_research,
-        )
 
     try:
-        assistant_confirmations = list(inputs.confirmations)
-        if header_research is not None:
-            assistant_confirmations.append(
-                AssistantCandidateConfirmation(
-                    questionId="company-header-research",
-                    requirement="Verified recipient company header",
-                    question="Use these verified official recipient details in the header.",
-                    why="The bundled cover-letter header must contain authoritative company data.",
-                    claimIfConfirmed="The official recipient header was verified online.",
-                    answer="\n".join(
-                        (
-                            f"Official company name: {header_research.official_name}",
-                            f"Full address: {header_research.address_line}",
-                            f"Official source: {header_research.source_url}",
-                        )
-                    ),
-                )
-            )
         run = await generate_assistant_with_facade(
             facade=create_assistant_ai_facade(settings),
             thread_id=request.thread_id,
@@ -387,85 +167,31 @@ async def chat_with_assistant(
             application=inputs.application,
             history=history,
             source_documents=list(inputs.source_documents),
-            candidate_confirmations=assistant_confirmations,
             session_scope=uuid4().hex,
         )
         message, session_id, metrics, backend_name = unpack_assistant_run(
             run, fallback_backend=settings.ai_backend_mode
         )
     except AssistantTimeoutError as exc:
-        fail_generation_artifact(db, generation_artifact)
         raise HTTPException(
             status_code=status.HTTP_504_GATEWAY_TIMEOUT,
             detail=str(exc),
         ) from exc
     except AssistantError as exc:
-        fail_generation_artifact(db, generation_artifact)
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail=str(exc),
         ) from exc
 
-    try:
-        visible_message, actions = extract_assistant_action_previews(
-            message,
-            request_id=request.thread_id,
-            context_kind=request.context_kind,
-            context_id=request.context_id,
-            profile=inputs.profile,
-            job=inputs.job,
-            application=inputs.application,
-        )
-        if (
-            inputs.generation_context is not None
-            and inputs.generation_context.template.type == "cover_letter"
-        ):
-            recipient_name = next(
-                (
-                    confirmation.example_text
-                    for confirmation in inputs.generation_context.confirmations
-                    if confirmation.question_id == "cover-letter-recipient-name"
-                    and confirmation.response != "no"
-                ),
-                "",
-            )
-            visible_message = ensure_cover_letter_date_replacement(
-                template_content=inputs.generation_context.template.content,
-                content=visible_message,
-                generation_date=inputs.generation_context.generation_date,
-                language=inputs.generation_context.language,
-                vacancy=inputs.generation_context.vacancy,
-                profile=inputs.generation_context.profile,
-                recipient_name=recipient_name,
-                official_company_name=(
-                    header_research.official_name if header_research is not None else ""
-                ),
-                recipient_address_line=(
-                    header_research.address_line if header_research is not None else ""
-                ),
-            )
-        if generation_artifact is not None:
-            complete_generation_artifact(
-                db,
-                generation_artifact,
-                content=visible_message,
-                model=str(
-                    metrics.get("model")
-                    or (
-                        settings.openai_api_model
-                        if settings.ai_backend_mode == "openai_api"
-                        else settings.openclaw_assistant_model
-                    )
-                ),
-                backend=backend_name,
-            )
-    except HTTPException:
-        if generation_artifact is not None and generation_artifact.status != "failed":
-            fail_generation_artifact(db, generation_artifact)
-        raise
-    except Exception:
-        fail_generation_artifact(db, generation_artifact)
-        raise
+    visible_message, actions = extract_assistant_action_previews(
+        message,
+        request_id=request.thread_id,
+        context_kind=request.context_kind,
+        context_id=request.context_id,
+        profile=inputs.profile,
+        job=inputs.job,
+        application=inputs.application,
+    )
     return AssistantChatResponse(
         message=visible_message,
         source=backend_name,
@@ -476,11 +202,6 @@ async def chat_with_assistant(
             "providerName": ai_backend_provider_name(backend_name),
             "backend": backend_name,
             "metrics": metrics,
-            **(
-                {"generationArtifactId": generation_artifact.id}
-                if generation_artifact is not None
-                else {}
-            ),
             "actions": [action.model_dump(by_alias=True, mode="json") for action in actions],
         },
     )
@@ -499,14 +220,8 @@ async def stream_chat_with_assistant(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="The assistant is temporarily disabled. Check the server configuration.",
         )
-    if request.generation_context is not None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Document generation must use the artifact-producing chat endpoint",
-        )
     validate_assistant_message_length(request.message, settings)
-    if request.generation_context is None:
-        await preflight_assistant_source_documents(request)
+    await preflight_assistant_source_documents(request)
 
     prune_assistant_streams()
     fingerprint = stream_request_fingerprint(request)
@@ -530,11 +245,7 @@ async def stream_chat_with_assistant(
 
     if not stream:
         history = load_compact_conversation_history(db, request.thread_id, settings)
-        inputs = load_authoritative_assistant_inputs(
-            db,
-            request,
-            generation_backend=settings.ai_backend_mode,
-        )
+        inputs = load_authoritative_assistant_inputs(db, request)
 
         stream = AssistantStreamState(
             request_id=request.request_id,
@@ -561,7 +272,6 @@ async def stream_chat_with_assistant(
                 job=inputs.job,
                 application=inputs.application,
                 source_documents=list(inputs.source_documents),
-                candidate_confirmations=list(inputs.confirmations),
                 facade=create_assistant_ai_facade(settings),
                 settings=settings,
                 history=history,
@@ -656,7 +366,6 @@ async def generate_assistant_stream(
     job: AssistantJobContext | None,
     application: AssistantApplicationContext | None,
     source_documents: list[AssistantSourceDocument],
-    candidate_confirmations: list[AssistantCandidateConfirmation],
     facade: AssistantAIFacade,
     settings: Settings,
     history: dict[str, object],
@@ -674,7 +383,6 @@ async def generate_assistant_stream(
             application=application,
             history=history,
             source_documents=source_documents,
-            candidate_confirmations=candidate_confirmations,
             session_scope=request.request_id,
         )
         message, session_id, metrics, backend_name = unpack_assistant_run(
@@ -820,9 +528,7 @@ def format_sse_event(event: str, payload: dict[str, object], *, event_id: int) -
 
 
 def stream_request_fingerprint(request: AssistantStreamRequest) -> str:
-    excluded = {"offset", "job", "application", "candidate_confirmations"}
-    if request.generation_context is not None:
-        excluded.add("source_documents")
+    excluded = {"offset", "job", "application"}
     payload = request.model_dump(by_alias=True, exclude=excluded)
     serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
@@ -992,14 +698,8 @@ def create_conversation_title(message: str) -> str:
 def validate_assistant_message_length(
     message: str,
     settings: Settings,
-    *,
-    is_document_generation: bool = False,
 ) -> None:
-    limit = (
-        GENERATION_MESSAGE_MAX_CHARS
-        if is_document_generation
-        else settings.openclaw_assistant_max_user_message_chars
-    )
+    limit = settings.openclaw_assistant_max_user_message_chars
     if len(message) > limit:
         raise HTTPException(
             status_code=status.HTTP_413_CONTENT_TOO_LARGE,
@@ -1059,11 +759,7 @@ def unpack_assistant_run(
 def load_profile(db: Session) -> ProfilePayload:
     try:
         record = get_profile_record(db)
-        profile = (
-            ProfilePayload.model_validate(record.data)
-            if record
-            else ProfilePayload()
-        )
+        profile = ProfilePayload.model_validate(record.data) if record else ProfilePayload()
         return enrich_profile_with_files(db, profile)
     except (SQLAlchemyError, ValidationError):
         return ProfilePayload()
@@ -1072,36 +768,7 @@ def load_profile(db: Session) -> ProfilePayload:
 def load_authoritative_assistant_inputs(
     db: Session,
     request: AssistantChatRequest,
-    *,
-    generation_backend: str | None = None,
 ) -> AuthoritativeAssistantInputs:
-    if request.generation_context is not None:
-        reference = request.generation_context
-        if (
-            request.context_kind != "application"
-            or request.context_id != reference.application_id
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Generation context must match the application assistant context",
-            )
-        try:
-            context = load_authoritative_generation_context(
-                db,
-                application_id=reference.application_id,
-                template_id=reference.template_id,
-                document_type=reference.document_type,
-                generation_backend=generation_backend,
-            )
-            if reference.target_language is not None:
-                context = replace(
-                    context,
-                    language=reference.target_language,
-                )
-        except GenerationContextError as exc:
-            raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
-        return assistant_inputs_from_generation_context(context)
-
     profile = load_profile(db)
     if request.context_kind == "job":
         job = load_server_job_context(db, request.context_id)
@@ -1112,17 +779,12 @@ def load_authoritative_assistant_inputs(
             source_documents=tuple(request.source_documents),
         )
     if request.context_kind == "application":
-        application, guide = load_server_application_context(db, request.context_id)
+        application = load_server_application_context(db, request.context_id)
         return AuthoritativeAssistantInputs(
             profile=profile,
             job=application.job,
             application=application,
             source_documents=tuple(request.source_documents),
-            confirmations=load_saved_assistant_confirmations(
-                db,
-                application_id=application.id,
-                application_guide=guide,
-            ),
         )
     return AuthoritativeAssistantInputs(
         profile=profile,
@@ -1130,63 +792,6 @@ def load_authoritative_assistant_inputs(
         application=None,
         source_documents=tuple(request.source_documents),
     )
-
-
-def assistant_inputs_from_generation_context(
-    context: AuthoritativeGenerationContext,
-) -> AuthoritativeAssistantInputs:
-    profile = ProfilePayload.model_validate(context.profile)
-    job_data = dict(context.vacancy)
-    if context.template.type != "cover_letter":
-        job_data["aiMatch"] = {"applicationGuide": context.application_guide}
-    job = AssistantJobContext.model_validate(job_data)
-    application_data = (
-        {"id": context.application_id}
-        if context.template.type == "cover_letter"
-        else dict(context.application)
-    )
-    application_data["job"] = job.model_dump(by_alias=True)
-    application_data["generationDate"] = context.generation_date
-    application = AssistantApplicationContext.model_validate(application_data)
-    confirmations = tuple(
-        AssistantCandidateConfirmation(
-            questionId=confirmation.question_id,
-            requirement=confirmation.requirement,
-            question=confirmation.question,
-            answer=(
-                confirmation.response.upper()
-                + (f": {confirmation.example_text}" if confirmation.example_text else "")
-            ),
-        )
-        for confirmation in context.confirmations
-        if context.template.type != "cover_letter"
-        or confirmation.question_id
-        in {
-            "cover-letter-recipient-name",
-            "cover-letter-company-contact",
-            "cover-letter-additional-context",
-        }
-    )
-    encoded_template = base64.b64encode(context.template.content).decode("ascii")
-    source_document = AssistantSourceDocument(
-        id=context.template.id,
-        title=context.template.name,
-        category=(
-            "Cover Letter"
-            if context.template.type == "cover_letter"
-            else "CV / Resume"
-        ),
-        fileName=context.template.file_name,
-        dataUrl=f"data:{context.template.content_type};base64,{encoded_template}",
-    )
-    return AuthoritativeAssistantInputs(
-        profile=profile,
-        job=job,
-        application=application,
-            source_documents=(source_document,),
-            confirmations=confirmations,
-            generation_context=context,
-        )
 
 
 def load_server_job_context(
@@ -1214,11 +819,13 @@ def load_server_job_context(
 def load_server_application_context(
     db: Session,
     application_id: str,
-) -> tuple[AssistantApplicationContext, dict[str, object]]:
+) -> AssistantApplicationContext:
     try:
         record = db.get(StoredApplicationRecord, application_id) if application_id else None
         if not record or not isinstance(record.data, dict):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Application not found")
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND, detail="Application not found"
+            )
         raw_job = record.data.get("job")
         job_id = str(raw_job.get("id") or "").strip() if isinstance(raw_job, dict) else ""
         job = load_server_job_context(db, job_id)
@@ -1230,11 +837,7 @@ def load_server_application_context(
         application_data = dict(record.data)
         application_data["id"] = application_id
         application_data["job"] = job.model_dump(by_alias=True)
-        guide = job.ai_match.application_guide if job.ai_match else None
-        return (
-            AssistantApplicationContext.model_validate(application_data),
-            guide if isinstance(guide, dict) else {},
-        )
+        return AssistantApplicationContext.model_validate(application_data)
     except HTTPException:
         raise
     except (SQLAlchemyError, ValidationError) as exc:
@@ -1242,42 +845,6 @@ def load_server_application_context(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Authoritative application context is unavailable",
         ) from exc
-
-
-def load_saved_assistant_confirmations(
-    db: Session,
-    *,
-    application_id: str,
-    application_guide: dict[str, object],
-) -> tuple[AssistantCandidateConfirmation, ...]:
-    questions = {question.question_id: question for question in clarification_questions(application_guide)}
-    try:
-        records = (
-            db.query(CandidateConfirmationRecord)
-            .filter(CandidateConfirmationRecord.application_id == application_id)
-            .all()
-        )
-    except SQLAlchemyError:
-        return ()
-    confirmations: list[AssistantCandidateConfirmation] = []
-    for record in records:
-        question = questions.get(record.question_id)
-        if question is None or record.response not in {"yes", "no", "partial"}:
-            continue
-        confirmations.append(
-            AssistantCandidateConfirmation(
-                questionId=question.question_id,
-                requirement=question.requirement,
-                question=question.question,
-                why=question.why,
-                claimIfConfirmed=question.claim_if_confirmed,
-                answer=(
-                    record.response.upper()
-                    + (f": {record.example_text.strip()}" if record.example_text.strip() else "")
-                ),
-            )
-        )
-    return tuple(confirmations)
 
 
 PROFILE_ACTION_FIELDS = {
@@ -1409,18 +976,10 @@ def execute_assistant_action(db: Session, action) -> AssistantActionApplyRespons
 
     if action.type == "save_document":
         document_type = payload_string(payload, "documentType", max_length=32)
-        if document_type not in {"cover_letter", "tailored_resume"}:
+        if document_type != "cover_letter":
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail="Document type is invalid",
-            )
-        if document_type == "tailored_resume":
-            raise HTTPException(
-                status_code=status.HTTP_410_GONE,
-                detail=(
-                    "Legacy assistant resume saves were removed; only server-rendered "
-                    "FinalResume PDF artifacts can be saved"
-                ),
             )
         application_id = payload_string(
             payload,

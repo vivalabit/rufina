@@ -42,7 +42,7 @@ function renderApplicationsView(
     selectedApplication: application,
     onSelectApplication: vi.fn(),
     onOpenJobs: vi.fn(),
-    onPrepareApplication: vi.fn(),
+    onOpenApplication: vi.fn(),
     onAddManualApplication: vi.fn().mockResolvedValue(undefined),
     onChangeStatus: vi.fn(),
     onChangeNotes: vi.fn(),
@@ -65,8 +65,8 @@ it("filters applications and preserves parent navigation callbacks", () => {
   expect(
     screen.getByRole("heading", { name: "Applications" }),
   ).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Prepare application" }));
-  expect(props.onPrepareApplication).toHaveBeenCalledWith(application.id);
+  fireEvent.click(screen.getByRole("button", { name: "Open application" }));
+  expect(props.onOpenApplication).toHaveBeenCalledWith(application.id);
 
   fireEvent.change(
     screen.getByRole("searchbox", { name: "Search applications" }),

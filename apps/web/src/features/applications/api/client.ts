@@ -69,15 +69,15 @@ export async function deleteApplication(
   });
 }
 
-export async function fetchApplicationAnalysis(
+export async function fetchApplication(
   applicationId: string,
   signal?: AbortSignal,
 ) {
   return (await apiClient.json<StoredApplicationPayload>({
-    path: `/applications/${encodeURIComponent(applicationId)}/analysis`,
+    path: `/applications/${encodeURIComponent(applicationId)}`,
     cache: "no-store",
     signal,
-    errorMessage: "Authoritative application analysis could not be loaded",
+    errorMessage: "Application could not be loaded",
   })).data;
 }
 

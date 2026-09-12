@@ -162,7 +162,7 @@ it("imports, edits, reviews, and confirms a Master Resume once", async () => {
   expect(await screen.findByText("Confirmed · v1")).toBeInTheDocument();
   expect(
     screen.getByText(
-      "Master Resume version 1 is confirmed and ready for tailoring.",
+      "Master Resume version 1 is confirmed and ready for future documents.",
     ),
   ).toBeInTheDocument();
   expect(

@@ -5058,7 +5058,7 @@ it("shows seeded vacancies and calendar events only in demo mode", async () => {
   ).toBe(true);
 });
 
-it("keeps preparation drafts out of Applications while showing the compact workspace", async () => {
+it("keeps drafts out of Applications while showing the compact workspace", async () => {
   window.history.replaceState(null, "", "#jobs");
   vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "1");
   const savedApplicationStatuses: string[] = [];
@@ -5108,12 +5108,12 @@ it("keeps preparation drafts out of Applications while showing the compact works
   render(<HomePage />);
 
   fireEvent.click(
-    await screen.findByRole("button", { name: "Prepare application" }),
+    await screen.findByRole("button", { name: "Create application" }),
   );
   expect(
     await screen.findByRole("region", { name: "Existing documents" }),
   ).toBeInTheDocument();
-  expect(screen.getByText("Preparing")).toBeInTheDocument();
+  expect(screen.getByText("Draft")).toBeInTheDocument();
   expect(
     screen.queryByRole("button", { name: "Mark as applied" }),
   ).not.toBeInTheDocument();

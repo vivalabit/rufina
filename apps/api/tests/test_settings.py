@@ -129,18 +129,6 @@ def test_job_screening_settings_have_independent_defaults() -> None:
     assert settings.ai_match_batch_size_value() == 1
 
 
-def test_default_openclaw_resume_tailoring_model_disables_reasoning(
-    monkeypatch,
-) -> None:
-    monkeypatch.delenv("OPENCLAW_RESUME_TAILORING_MODEL", raising=False)
-    monkeypatch.delenv("OPENCLAW_RESUME_TAILORING_THINKING", raising=False)
-
-    settings = Settings(_env_file=None)
-
-    assert settings.openclaw_resume_tailoring_model == "openai/gpt-5.6-terra"
-    assert settings.openclaw_resume_tailoring_thinking == "off"
-
-
 def test_job_screening_settings_use_dedicated_environment_variables(monkeypatch) -> None:
     monkeypatch.setenv("JOB_SCREENING_MODEL", "openai/gpt-5.5")
     monkeypatch.setenv("JOB_SCREENING_REASONING", "low")
@@ -193,9 +181,7 @@ def test_ai_settings_update_is_partial_and_refreshes_cache(
 ) -> None:
     env_path = tmp_path / ".env"
     env_path.write_text(
-        "BRIGHTDATA_API_KEY=bright-existing-key\n"
-        "AI_BACKEND=openclaw_codex\n"
-        "OPENAI_API_KEY=\n",
+        "BRIGHTDATA_API_KEY=bright-existing-key\nAI_BACKEND=openclaw_codex\nOPENAI_API_KEY=\n",
         encoding="utf-8",
     )
     monkeypatch.setenv("TASKO_SETTINGS_FILE", str(tmp_path / ".env"))
@@ -245,8 +231,7 @@ def test_job_screening_settings_api_updates_only_screening_configuration(
 ) -> None:
     env_path = tmp_path / ".env"
     env_path.write_text(
-        "OPENAI_API_MODEL=gpt-full-match\n"
-        "OPENCLAW_AI_MATCH_MODEL=openai/gpt-full-match\n",
+        "OPENAI_API_MODEL=gpt-full-match\nOPENCLAW_AI_MATCH_MODEL=openai/gpt-full-match\n",
         encoding="utf-8",
     )
     monkeypatch.setenv("TASKO_SETTINGS_FILE", str(tmp_path / ".env"))
@@ -356,9 +341,7 @@ def test_auto_ai_match_setting_is_opt_in_and_persisted(
     assert response.status_code == 200
     assert response.json()["auto_ai_match_enabled"] is True
     assert refreshed.auto_ai_match_enabled is True
-    assert "AUTO_AI_MATCH_ENABLED=true" in (tmp_path / ".env").read_text(
-        encoding="utf-8"
-    )
+    assert "AUTO_AI_MATCH_ENABLED=true" in (tmp_path / ".env").read_text(encoding="utf-8")
 
 
 @pytest.mark.parametrize(
@@ -408,9 +391,7 @@ def test_openai_api_cannot_be_enabled_without_a_key(
         get_settings.cache_clear()
 
     assert response.status_code == 422
-    assert response.json()["detail"] == (
-        "Configure an OpenAI API key before enabling openai_api"
-    )
+    assert response.json()["detail"] == ("Configure an OpenAI API key before enabling openai_api")
     assert not (tmp_path / ".env").exists()
 
 

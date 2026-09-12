@@ -11,10 +11,10 @@ def test_expiration_cleanup_runs_repeatedly_on_schedule(monkeypatch) -> None:
     class StopSchedule(Exception):
         pass
 
-    def cleanup() -> tuple[int, int, int, int]:
+    def cleanup() -> tuple[int, int]:
         nonlocal cleanup_calls
         cleanup_calls += 1
-        return 0, 0, 0, 0
+        return 0, 0
 
     async def advance_schedule(_interval_seconds: int) -> None:
         if cleanup_calls >= 2:

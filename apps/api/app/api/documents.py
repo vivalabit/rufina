@@ -1,12 +1,10 @@
 import base64
 import hashlib
-import json
 import re
 import unicodedata
 from collections import defaultdict
 from collections.abc import Mapping
 from dataclasses import dataclass
-from datetime import datetime
 from urllib.parse import quote
 from uuid import uuid4
 
@@ -15,29 +13,15 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, load_only, selectinload
 
-from app.api.resume_templates import list_resume_template_payloads
 from app.core.database import get_db
 from app.core.identity import bind_request_identity
-from app.core.settings import Settings, get_settings
 from app.models.applications import StoredApplicationRecord
-from app.models.assistant import (
-    AssistantApplicationContext,
-    AssistantCandidateConfirmation,
-    AssistantJobContext,
-    AssistantSourceDocument,
-)
 from app.models.documents import (
     DocumentArtifactPayload,
     DocumentAttachmentRecord,
     DocumentAttachRequest,
     DocumentCreateRequest,
     DocumentFileRecord,
-    DocumentGenerationArtifactRecord,
-    DocumentGenerationProvenanceRecord,
-    DocumentPackPayload,
-    DocumentPackRequest,
-    DocumentPackValidationPayload,
-    DocumentPackValidationRequest,
     DocumentPayload,
     DocumentRecord,
     DocumentRestoreRequest,
@@ -47,21 +31,13 @@ from app.models.documents import (
     DocumentTemplatePreflightRequest,
     DocumentTemplateRecord,
     DocumentUpdateRequest,
-    DocumentVersionGenerationProvenanceRecord,
     DocumentVersionPagePayload,
     DocumentVersionPayload,
     DocumentVersionRecord,
-    DocumentVersionValidationRecord,
     WorkspaceSourceCategory,
     WorkspaceSourceDocumentPayload,
     WorkspaceSourceDocumentRecord,
     utc_now,
-)
-from app.models.profile import ProfilePayload
-from app.models.resume_templates import ResumeTemplatePayload
-from app.services.assistant import (
-    analyze_openclaw_assistant_context,
-    build_source_document_context,
 )
 from app.services.cover_letter_template_preview import (
     CoverLetterTemplatePreviewError,
@@ -78,12 +54,6 @@ from app.services.document_security import DocumentSecurityError
 from app.services.document_validation import (
     DocumentValidationError,
     render_docx_to_pdf,
-    validate_generated_document,
-)
-from app.services.generation_context import (
-    AuthoritativeGenerationContext,
-    GenerationContextError,
-    load_authoritative_generation_context,
 )
 from app.services.profile_files import (
     ProfileFileValidationError,
@@ -147,48 +117,22 @@ def create_document(
     if request.type == "tailored_resume":
         raise HTTPException(
             status_code=status.HTTP_410_GONE,
-            detail=(
-                "Legacy DOCX resume creation was removed; run the three-stage "
-                "resume-tailoring pipeline and render finalResume as PDF"
-            ),
+            detail="Tailored resume creation is not available",
         )
     try:
-        generation_artifact = (
-            require_generation_artifact(
-                db,
-                document_type=request.type,
-                artifact_id=request.generation_artifact_id,
-                application_id=request.application_id,
-                expected_job_id=request.job_id,
-            )
-            if request.generation_artifact_id
-            else None
-        )
-        if generation_artifact and (request.content is not None or request.template_id is not None):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Generated documents accept generationArtifactId instead of client content or template",
-            )
-        content = generation_artifact.result_content if generation_artifact else request.content
+        content = request.content
         if not content:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Document content or generationArtifactId is required",
+                detail="Document content is required",
             )
-        application_id = (
-            generation_artifact.application_id if generation_artifact else request.application_id
-        )
-        job_id = generation_artifact.job_id if generation_artifact else request.job_id
-        template_id = (
-            generation_artifact.template_id if generation_artifact else request.template_id
-        )
         now = utc_now()
         document_id = str(uuid4())
         record = DocumentRecord(
             id=document_id,
             type=request.type,
             title=request.title.strip(),
-            job_id=job_id,
+            job_id=request.job_id,
             current_version=1,
             created_at=now,
             updated_at=now,
@@ -202,27 +146,10 @@ def create_document(
                 created_at=now,
             )
         )
-        if generation_artifact:
-            assert generation_artifact.generation_model is not None
-            set_current_generation_provenance(
-                record,
-                generation_artifact.generation_fingerprint,
-                generation_artifact.generation_model,
-                generation_artifact.input_versions,
-                now,
-            )
-            append_version_generation_provenance(
-                record,
-                1,
-                generation_artifact.generation_fingerprint,
-                generation_artifact.generation_model,
-                generation_artifact.input_versions,
-                now,
-            )
         db.add(record)
         db.flush()
-        if template_id:
-            template = require_template(db, template_id)
+        if request.template_id:
+            template = require_template(db, request.template_id)
             if template.type != request.type:
                 raise HTTPException(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
@@ -230,11 +157,7 @@ def create_document(
                 )
             try:
                 rendered_content = build_document_from_template(
-                    template_content=(
-                        generation_artifact.template_content
-                        if generation_artifact
-                        else template.content
-                    ),
+                    template_content=template.content,
                     content=content,
                     document_type=request.type,
                 )
@@ -243,15 +166,6 @@ def create_document(
                     status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                     detail=str(exc),
                 ) from exc
-            if generation_artifact and request.type != "cover_letter":
-                validation = validate_document_or_422(
-                    template_content=generation_artifact.template_content,
-                    rendered_content=rendered_content,
-                    generated_content=content,
-                    document_type=request.type,
-                    evidence=generation_artifact.validation_evidence,
-                )
-                append_document_validation(record, 1, validation, now)
             db.add(
                 DocumentFileRecord(
                     id=str(uuid4()),
@@ -262,83 +176,15 @@ def create_document(
                     created_at=now,
                 )
             )
-        if application_id:
-            attach_document_record(db, record, application_id)
-        if generation_artifact:
-            generation_artifact.consumed_at = now
+        if request.application_id:
+            attach_document_record(db, record, request.application_id)
         db.commit()
-        return document_payload(
-            require_document(db, document_id),
-            current_generation_fingerprint=(
-                generation_artifact.generation_fingerprint if generation_artifact else None
-            ),
-        )
+        return document_payload(require_document(db, document_id))
     except HTTPException:
         db.rollback()
         raise
     except SQLAlchemyError as exc:
         db.rollback()
-        raise database_unavailable(exc) from exc
-
-
-@router.post(
-    "/packs/validate-resume",
-    response_model=DocumentPackValidationPayload,
-)
-def validate_resume_pack_item(
-    _request: DocumentPackValidationRequest,
-) -> DocumentPackValidationPayload:
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail=(
-            "Legacy DOCX resume pack validation was removed; use the validated "
-            "PDF artifact returned by resume tailoring"
-        ),
-    )
-
-
-@router.post(
-    "/packs",
-    response_model=DocumentPackPayload,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_document_pack(
-    _request: DocumentPackRequest,
-) -> DocumentPackPayload:
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail=(
-            "Legacy DOCX application packs were removed; save the tailored PDF "
-            "artifact and cover letter independently"
-        ),
-    )
-
-
-@router.get(
-    "/packs/{pack_job_id}",
-    response_model=DocumentPackPayload,
-)
-def get_document_pack_status(
-    pack_job_id: str,
-    application_id: str = Query(min_length=1, max_length=160, alias="applicationId"),
-) -> DocumentPackPayload:
-    del pack_job_id, application_id
-    raise HTTPException(
-        status_code=status.HTTP_410_GONE,
-        detail="Legacy DOCX application packs were removed",
-    )
-
-
-@router.get(
-    "/resume-templates",
-    response_model=list[ResumeTemplatePayload],
-)
-def list_resume_templates_alias(
-    db: Session = Depends(get_db),
-) -> list[ResumeTemplatePayload]:
-    try:
-        return list_resume_template_payloads(db)
-    except SQLAlchemyError as exc:
         raise database_unavailable(exc) from exc
 
 
@@ -401,8 +247,6 @@ def list_document_versions(
                         DocumentFileRecord.renderer_template_id,
                         DocumentFileRecord.renderer_template_version,
                         DocumentFileRecord.renderer_design_sha256,
-                        DocumentFileRecord.source_ats_final_review_id,
-                        DocumentFileRecord.source_imaginator_resume_id,
                     )
                 )
                 .where(
@@ -414,26 +258,12 @@ def list_document_versions(
             else []
         )
         artifacts_by_version = {artifact.version: artifact for artifact in artifacts}
-        validations = (
-            db.scalars(
-                select(DocumentVersionValidationRecord).where(
-                    DocumentVersionValidationRecord.document_id == document_id,
-                    DocumentVersionValidationRecord.version.in_(version_numbers),
-                )
-            ).all()
-            if version_numbers
-            else []
-        )
         return DocumentVersionPagePayload(
             items=document_version_payloads(
                 versions,
                 rendered_versions=set(artifacts_by_version),
                 artifacts_by_version=artifacts_by_version,
-                include_artifact_details=False,
                 artifact_title=record.title,
-                validations_by_version={
-                    validation.version: validation for validation in validations
-                },
             ),
             total=total,
             limit=limit,
@@ -456,34 +286,9 @@ def update_document(
         if record.type == "tailored_resume":
             raise HTTPException(
                 status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-                detail=(
-                    "Tailored resume artifacts are immutable; generate a new "
-                    "three-stage PDF instead"
-                ),
+                detail="Saved tailored resume artifacts are read-only",
             )
         fields = request.model_fields_set
-        generation_artifact = (
-            require_generation_artifact(
-                db,
-                artifact_id=request.generation_artifact_id,
-                document_type=record.type,
-                application_id=request.application_id,
-                expected_job_id=request.job_id,
-            )
-            if request.generation_artifact_id
-            else None
-        )
-        has_provenance = generation_artifact is not None
-        if generation_artifact and ({"content", "template_id", "job_id"} & fields):
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                detail="Generated documents accept generationArtifactId instead of client content, template, or job",
-            )
-        if generation_artifact:
-            require_document_application_ownership(
-                record,
-                generation_artifact.application_id,
-            )
         if request.application_id:
             require_document_application_ownership(record, request.application_id)
         if "template_id" in fields and ("content" not in fields or request.content is None):
@@ -495,48 +300,25 @@ def update_document(
             record.title = request.title.strip()
         if "job_id" in fields:
             record.job_id = request.job_id
-        generated_content = (
-            generation_artifact.result_content if generation_artifact else request.content
-        )
-        if ("content" in fields or generation_artifact) and generated_content is not None:
+        if "content" in fields and request.content is not None:
             current = current_version_record(record)
-            if current.content != generated_content or has_provenance or "template_id" in fields:
+            if current.content != request.content or "template_id" in fields:
                 now = utc_now()
-                current_provenance = record.generation_provenance
-                if current_provenance and not any(
-                    provenance.version == record.current_version
-                    for provenance in record.version_generation_provenance
-                ):
-                    append_version_generation_provenance(
-                        record,
-                        record.current_version,
-                        current_provenance.generation_fingerprint,
-                        current_provenance.generation_model,
-                        current_provenance.input_versions,
-                        now,
-                    )
                 next_version = record.current_version + 1
                 record.versions.append(
                     DocumentVersionRecord(
                         id=str(uuid4()),
                         document_id=record.id,
                         version=next_version,
-                        content=generated_content,
+                        content=request.content,
                         created_at=now,
                     )
                 )
                 current_file = document_file_record(db, record.id, record.current_version)
-                if generation_artifact:
-                    template_id = generation_artifact.template_id
-                elif "template_id" in fields:
+                if "template_id" in fields:
                     template_id = request.template_id
                 else:
                     template_id = current_file.template_id if current_file else None
-                if has_provenance and not template_id:
-                    raise HTTPException(
-                        status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-                        detail="Document template is required for generated documents",
-                    )
                 if template_id:
                     template = require_template(db, template_id)
                     if template.type != record.type:
@@ -546,12 +328,8 @@ def update_document(
                         )
                     try:
                         rendered_content = build_document_from_template(
-                            template_content=(
-                                generation_artifact.template_content
-                                if generation_artifact
-                                else template.content
-                            ),
-                            content=generated_content,
+                            template_content=template.content,
+                            content=request.content,
                             document_type=record.type,
                         )
                     except ValueError as exc:
@@ -559,21 +337,6 @@ def update_document(
                             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                             detail=str(exc),
                         ) from exc
-                    if has_provenance and record.type != "cover_letter":
-                        assert generation_artifact is not None
-                        validation = validate_document_or_422(
-                            template_content=generation_artifact.template_content,
-                            rendered_content=rendered_content,
-                            generated_content=generated_content,
-                            document_type=record.type,
-                            evidence=generation_artifact.validation_evidence,
-                        )
-                        append_document_validation(
-                            record,
-                            next_version,
-                            validation,
-                            now,
-                        )
                     db.add(
                         DocumentFileRecord(
                             id=str(uuid4()),
@@ -584,34 +347,7 @@ def update_document(
                             created_at=now,
                         )
                     )
-                    if generation_artifact:
-                        record.job_id = generation_artifact.job_id
-                        attach_document_record(db, record, generation_artifact.application_id)
-                if has_provenance:
-                    assert generation_artifact is not None
-                    assert generation_artifact.generation_model is not None
-                    set_current_generation_provenance(
-                        record,
-                        generation_artifact.generation_fingerprint,
-                        generation_artifact.generation_model,
-                        generation_artifact.input_versions,
-                        now,
-                    )
-                else:
-                    record.generation_provenance = None
-                current_provenance = record.generation_provenance
-                if current_provenance:
-                    append_version_generation_provenance(
-                        record,
-                        next_version,
-                        current_provenance.generation_fingerprint,
-                        current_provenance.generation_model,
-                        current_provenance.input_versions,
-                        now,
-                    )
                 record.current_version = next_version
-                if generation_artifact:
-                    generation_artifact.consumed_at = now
         record.updated_at = utc_now()
         db.commit()
         updated = require_document(db, document_id)
@@ -635,10 +371,7 @@ def restore_document_version(
         if record.type == "tailored_resume":
             raise HTTPException(
                 status_code=status.HTTP_405_METHOD_NOT_ALLOWED,
-                detail=(
-                    "Tailored resume artifacts are read-only; generate a new "
-                    "three-stage PDF instead of restoring a version"
-                ),
+                detail=("Saved tailored resume artifacts are read-only"),
             )
         source = next(
             (version for version in record.versions if version.version == request.version),
@@ -673,59 +406,9 @@ def restore_document_version(
                     renderer_template_id=source_file.renderer_template_id,
                     renderer_template_version=(source_file.renderer_template_version),
                     renderer_design_sha256=source_file.renderer_design_sha256,
-                    source_ats_final_review_id=(source_file.source_ats_final_review_id),
-                    source_imaginator_resume_id=(source_file.source_imaginator_resume_id),
-                    final_resume_json=source_file.final_resume_json,
-                    stage_results=source_file.stage_results,
-                    provenance=source_file.provenance,
                     content=source_file.content,
                     created_at=now,
                 )
-            )
-        source_provenance = next(
-            (
-                provenance
-                for provenance in record.version_generation_provenance
-                if provenance.version == source.version
-            ),
-            None,
-        )
-        if source_provenance:
-            set_current_generation_provenance(
-                record,
-                source_provenance.generation_fingerprint,
-                source_provenance.generation_model,
-                source_provenance.input_versions,
-                now,
-            )
-            append_version_generation_provenance(
-                record,
-                next_version,
-                source_provenance.generation_fingerprint,
-                source_provenance.generation_model,
-                source_provenance.input_versions,
-                now,
-            )
-        else:
-            record.generation_provenance = None
-        source_validation = next(
-            (
-                validation
-                for validation in record.version_validations
-                if validation.version == source.version
-            ),
-            None,
-        )
-        if source_validation:
-            append_document_validation(
-                record,
-                next_version,
-                {
-                    "factual": source_validation.factual_report,
-                    "visual": source_validation.visual_report,
-                    "diff": source_validation.diff_items,
-                },
-                now,
             )
         record.current_version = next_version
         record.updated_at = now
@@ -954,8 +637,6 @@ def download_document_template_thumbnail(
 )
 def preflight_document_template(
     request: DocumentTemplatePreflightRequest,
-    db: Session = Depends(get_db),
-    settings: Settings = Depends(get_settings),
 ) -> DocumentTemplatePreflightPayload:
     if request.type == "tailored_resume":
         raise HTTPException(
@@ -996,75 +677,6 @@ def preflight_document_template(
             rejected_elements=report["rejectedElements"],
         )
 
-    ai_context = None
-    warnings: list[str] = []
-    if request.application_id:
-        try:
-            now = utc_now()
-            transient_template = DocumentTemplateRecord(
-                id=str(uuid4()),
-                type=request.type,
-                name=request.name.strip(),
-                file_name=safe_upload_filename(request.file_name),
-                content_type=DOCX_CONTENT_TYPE,
-                content_sha256=hashlib.sha256(content).hexdigest(),
-                content=content,
-                extracted_text="",
-                created_at=now,
-                updated_at=now,
-            )
-            generation_context = load_authoritative_generation_context(
-                db,
-                application_id=request.application_id,
-                template_id=transient_template.id,
-                document_type=request.type,
-                template_override=transient_template,
-            )
-            profile, job, application, source, confirmations = assistant_preflight_inputs(
-                generation_context
-            )
-            ai_context = analyze_openclaw_assistant_context(
-                message_characters=request.prompt_characters,
-                context_kind="application",
-                profile=profile,
-                job=job,
-                application=application,
-                source_documents=[source],
-                candidate_confirmations=confirmations,
-                max_prompt_chars=settings.openclaw_assistant_max_prompt_chars,
-            )
-            source_context = dict(report["sourceContext"])
-            actual_source_context = build_source_document_context([source])[0]
-            source_elements = actual_source_context.get("paragraphs", [])
-            actual_source_characters = len(
-                json.dumps(
-                    actual_source_context,
-                    ensure_ascii=False,
-                    separators=(",", ":"),
-                )
-            )
-            metadata_characters = max(
-                0,
-                actual_source_characters - source_context["includedCharacters"],
-            )
-            source_context["includedElements"] = len(source_elements)
-            source_context["omittedElements"] = max(
-                0,
-                source_context["totalElements"] - len(source_elements),
-            )
-            source_context["includedCharacters"] = actual_source_characters
-            source_context["estimatedCharacters"] += metadata_characters
-            source_context["truncated"] = source_context["omittedElements"] > 0
-            omitted_source_characters = max(
-                0,
-                source_context["estimatedCharacters"] - source_context["includedCharacters"],
-            )
-            ai_context["estimatedCharacters"] += omitted_source_characters
-            ai_context["source"] = source_context
-            ai_context["truncated"] = bool(ai_context["truncated"] or source_context["truncated"])
-        except GenerationContextError as exc:
-            warnings.append(f"AI context could not be estimated: {exc}")
-
     return DocumentTemplatePreflightPayload(
         supported=True,
         template=None,
@@ -1072,8 +684,6 @@ def preflight_document_template(
         immutable_count=report["immutableCount"],
         immutable_elements=report["immutableElements"],
         rejected_elements=report["rejectedElements"],
-        ai_context=ai_context,
-        warnings=warnings,
     )
 
 
@@ -1450,160 +1060,6 @@ def delete_document(document_id: str, db: Session = Depends(get_db)) -> None:
         raise database_unavailable(exc) from exc
 
 
-def set_current_generation_provenance(
-    record: DocumentRecord,
-    generation_fingerprint: str,
-    generation_model: str,
-    input_versions: dict[str, object],
-    created_at: datetime,
-) -> None:
-    provenance = record.generation_provenance
-    if provenance is None:
-        provenance = DocumentGenerationProvenanceRecord(document_id=record.id)
-        record.generation_provenance = provenance
-    provenance.generation_fingerprint = generation_fingerprint
-    provenance.generation_model = generation_model.strip()
-    provenance.generation_backend = generation_backend_from_input_versions(input_versions)
-    provenance.input_versions = input_versions
-    provenance.created_at = created_at
-
-
-def append_version_generation_provenance(
-    record: DocumentRecord,
-    version: int,
-    generation_fingerprint: str,
-    generation_model: str,
-    input_versions: dict[str, object],
-    created_at: datetime,
-) -> None:
-    record.version_generation_provenance.append(
-        DocumentVersionGenerationProvenanceRecord(
-            document_id=record.id,
-            version=version,
-            generation_fingerprint=generation_fingerprint,
-            generation_model=generation_model.strip(),
-            generation_backend=generation_backend_from_input_versions(input_versions),
-            input_versions=input_versions,
-            created_at=created_at,
-        )
-    )
-
-
-def generation_backend_from_input_versions(input_versions: dict[str, object]) -> str:
-    backend = input_versions.get("backend")
-    if isinstance(backend, str) and backend in {"openclaw_codex", "openai_api", "local"}:
-        return backend
-    generation_artifact = input_versions.get("generationArtifact")
-    if isinstance(generation_artifact, dict):
-        backend = generation_artifact.get("backend")
-        if isinstance(backend, str) and backend in {
-            "openclaw_codex",
-            "openai_api",
-            "local",
-        }:
-            return backend
-    return "openclaw_codex"
-
-
-def validate_document_or_422(
-    *,
-    template_content: bytes,
-    rendered_content: bytes,
-    generated_content: str,
-    document_type: str,
-    evidence: dict[str, object],
-) -> dict[str, object]:
-    try:
-        return validate_generated_document(
-            template_content=template_content,
-            rendered_content=rendered_content,
-            generated_content=generated_content,
-            document_type=document_type,
-            evidence=evidence,
-        )
-    except DocumentValidationError as exc:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail=str(exc),
-        ) from exc
-
-
-def append_document_validation(
-    record: DocumentRecord,
-    version: int,
-    validation: dict[str, object],
-    created_at: datetime,
-) -> None:
-    record.version_validations.append(
-        DocumentVersionValidationRecord(
-            document_id=record.id,
-            version=version,
-            factual_report=validation.get("factual", {}),
-            visual_report=validation.get("visual", {}),
-            diff_items=validation.get("diff", []),
-            created_at=created_at,
-        )
-    )
-
-
-def require_generation_artifact(
-    db: Session,
-    *,
-    artifact_id: str,
-    document_type: str,
-    application_id: str | None = None,
-    expected_job_id: str | None = None,
-) -> DocumentGenerationArtifactRecord:
-    artifact = db.scalar(
-        select(DocumentGenerationArtifactRecord)
-        .where(DocumentGenerationArtifactRecord.id == artifact_id)
-        .with_for_update()
-    )
-    if artifact is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Generation artifact was not found",
-        )
-    if (
-        artifact.status != "completed"
-        or not artifact.result_content
-        or not artifact.generation_model
-    ):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Generation artifact is not complete",
-        )
-    if artifact.consumed_at is not None:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Generation artifact has already been used",
-        )
-    expires_at = artifact.expires_at
-    if expires_at.tzinfo is None:
-        expires_at = expires_at.replace(tzinfo=utc_now().tzinfo)
-    if expires_at <= utc_now():
-        raise HTTPException(
-            status_code=status.HTTP_410_GONE,
-            detail="Generation artifact has expired",
-        )
-    if artifact.document_type != document_type:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
-            detail="Generation artifact document type does not match",
-        )
-    if application_id and artifact.application_id != application_id:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Generation artifact does not match the application",
-        )
-    if expected_job_id and artifact.job_id != expected_job_id:
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Generation artifact does not match the vacancy",
-        )
-    return artifact
-
-
 def require_document(db: Session, document_id: str) -> DocumentRecord:
     record = db.scalar(
         select(DocumentRecord)
@@ -1611,9 +1067,6 @@ def require_document(db: Session, document_id: str) -> DocumentRecord:
         .options(
             selectinload(DocumentRecord.versions),
             selectinload(DocumentRecord.attachments),
-            selectinload(DocumentRecord.generation_provenance),
-            selectinload(DocumentRecord.version_generation_provenance),
-            selectinload(DocumentRecord.version_validations),
             selectinload(DocumentRecord.files),
         )
     )
@@ -1638,26 +1091,6 @@ def require_template(db: Session, template_id: str) -> DocumentTemplateRecord:
             detail="Document template not found",
         )
     return record
-
-
-def load_generation_context_or_http(
-    db: Session,
-    *,
-    application_id: str,
-    template_id: str,
-    document_type: str,
-    expected_job_id: str | None = None,
-) -> AuthoritativeGenerationContext:
-    try:
-        return load_authoritative_generation_context(
-            db,
-            application_id=application_id,
-            template_id=template_id,
-            document_type=document_type,
-            expected_job_id=expected_job_id,
-        )
-    except GenerationContextError as exc:
-        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
 
 
 def require_document_application_ownership(
@@ -1735,11 +1168,8 @@ class DocumentPayloadRelations:
     versions: tuple[DocumentVersionRecord, ...]
     versions_total: int
     application_ids: tuple[str, ...]
-    provenance: DocumentGenerationProvenanceRecord | None
     rendered_versions: frozenset[int]
     artifacts_by_version: Mapping[int, DocumentFileRecord]
-    artifact_details_loaded: bool
-    validations_by_version: Mapping[int, DocumentVersionValidationRecord]
 
 
 def initial_document_payloads(
@@ -1821,8 +1251,6 @@ def load_initial_document_relations(
                     DocumentFileRecord.renderer_template_id,
                     DocumentFileRecord.renderer_template_version,
                     DocumentFileRecord.renderer_design_sha256,
-                    DocumentFileRecord.source_ats_final_review_id,
-                    DocumentFileRecord.source_imaginator_resume_id,
                 )
             )
             .join(
@@ -1836,23 +1264,6 @@ def load_initial_document_relations(
             rendered_versions_by_document[artifact.document_id].add(artifact.version)
             artifacts_by_document[artifact.document_id][artifact.version] = artifact
 
-    validations_by_document: dict[
-        str,
-        dict[int, DocumentVersionValidationRecord],
-    ] = defaultdict(dict)
-    if versions:
-        validations = db.scalars(
-            select(DocumentVersionValidationRecord)
-            .join(
-                ranked_version_ids,
-                (ranked_version_ids.c.document_id == DocumentVersionValidationRecord.document_id)
-                & (ranked_version_ids.c.version == DocumentVersionValidationRecord.version),
-            )
-            .where(ranked_version_ids.c.page_row <= DOCUMENT_VERSION_PAGE_SIZE)
-        ).all()
-        for validation in validations:
-            validations_by_document[validation.document_id][validation.version] = validation
-
     application_ids_by_document: dict[str, list[str]] = defaultdict(list)
     for document_id, application_id in db.execute(
         select(
@@ -1862,24 +1273,13 @@ def load_initial_document_relations(
     ).all():
         application_ids_by_document[document_id].append(application_id)
 
-    provenance_by_document = {
-        provenance.document_id: provenance
-        for provenance in db.scalars(
-            select(DocumentGenerationProvenanceRecord).where(
-                DocumentGenerationProvenanceRecord.document_id.in_(document_ids)
-            )
-        ).all()
-    }
     return {
         record.id: DocumentPayloadRelations(
             versions=tuple(versions_by_document[record.id]),
             versions_total=int(version_counts.get(record.id, 0)),
             application_ids=tuple(application_ids_by_document[record.id]),
-            provenance=provenance_by_document.get(record.id),
             rendered_versions=frozenset(rendered_versions_by_document[record.id]),
             artifacts_by_version=artifacts_by_document[record.id],
-            artifact_details_loaded=False,
-            validations_by_version=validations_by_document[record.id],
         )
         for record in records
     }
@@ -1888,31 +1288,22 @@ def load_initial_document_relations(
 def document_payload(
     record: DocumentRecord,
     *,
-    current_generation_fingerprint: str | None = None,
     version_limit: int | None = None,
     version_offset: int = 0,
     relations: DocumentPayloadRelations | None = None,
 ) -> DocumentPayload:
     if relations is None:
-        provenance = record.generation_provenance
         rendered_versions = {file.version for file in record.files}
         artifacts_by_version = {file.version: file for file in record.files}
-        validations_by_version = {
-            validation.version: validation for validation in record.version_validations
-        }
         source_versions = record.versions
         versions_total = len(record.versions)
         application_ids = [item.application_id for item in record.attachments]
-        artifact_details_loaded = True
     else:
-        provenance = relations.provenance
         rendered_versions = set(relations.rendered_versions)
         artifacts_by_version = dict(relations.artifacts_by_version)
-        validations_by_version = dict(relations.validations_by_version)
         source_versions = relations.versions
         versions_total = relations.versions_total
         application_ids = list(relations.application_ids)
-        artifact_details_loaded = relations.artifact_details_loaded
     ordered_versions = sorted(
         source_versions,
         key=lambda version: version.version,
@@ -1931,18 +1322,11 @@ def document_payload(
         current_version=record.current_version,
         created_at=record.created_at,
         updated_at=record.updated_at,
-        generation_fingerprint=provenance.generation_fingerprint if provenance else None,
-        current_generation_fingerprint=current_generation_fingerprint,
-        generation_model=provenance.generation_model if provenance else None,
-        generation_backend=provenance.generation_backend if provenance else None,
-        input_versions=provenance.input_versions if provenance else {},
         versions=document_version_payloads(
             paged_versions,
             rendered_versions=rendered_versions,
             artifacts_by_version=artifacts_by_version,
-            include_artifact_details=artifact_details_loaded,
             artifact_title=record.title,
-            validations_by_version=validations_by_version,
         ),
         versions_total=versions_total,
         versions_has_more=version_offset + len(paged_versions) < versions_total,
@@ -1954,9 +1338,7 @@ def document_version_payloads(
     *,
     rendered_versions: set[int],
     artifacts_by_version: dict[int, DocumentFileRecord],
-    include_artifact_details: bool,
     artifact_title: str,
-    validations_by_version: dict[int, DocumentVersionValidationRecord],
 ) -> list[DocumentVersionPayload]:
     return [
         DocumentVersionPayload(
@@ -1975,26 +1357,10 @@ def document_version_payloads(
             artifact=(
                 document_artifact_payload(
                     artifacts_by_version[version.version],
-                    include_details=include_artifact_details,
                     artifact_title=artifact_title,
                 )
                 if version.version in artifacts_by_version
                 else None
-            ),
-            factual_validation=(
-                validations_by_version[version.version].factual_report
-                if version.version in validations_by_version
-                else {}
-            ),
-            visual_validation=(
-                validations_by_version[version.version].visual_report
-                if version.version in validations_by_version
-                else {}
-            ),
-            diff=(
-                validations_by_version[version.version].diff_items
-                if version.version in validations_by_version
-                else []
             ),
         )
         for version in versions
@@ -2004,7 +1370,6 @@ def document_version_payloads(
 def document_artifact_payload(
     artifact: DocumentFileRecord,
     *,
-    include_details: bool,
     artifact_title: str,
 ) -> DocumentArtifactPayload:
     content_type = artifact.content_type or DOCX_CONTENT_TYPE
@@ -2016,11 +1381,6 @@ def document_artifact_payload(
         template_id=artifact.renderer_template_id or artifact.template_id,
         template_version=artifact.renderer_template_version,
         design_sha256=artifact.renderer_design_sha256,
-        source_ats_final_review_id=artifact.source_ats_final_review_id,
-        source_imaginator_resume_id=artifact.source_imaginator_resume_id,
-        final_resume_json=(artifact.final_resume_json if include_details else None),
-        stage_results=(artifact.stage_results if include_details else None),
-        provenance=(artifact.provenance if include_details else None),
     )
 
 
@@ -2140,47 +1500,6 @@ def workspace_source_document_payload(
             f"?applicationId={quote(record.application_id, safe='')}"
         ),
     )
-
-
-def assistant_preflight_inputs(
-    context: AuthoritativeGenerationContext,
-) -> tuple[
-    ProfilePayload,
-    AssistantJobContext,
-    AssistantApplicationContext,
-    AssistantSourceDocument,
-    list[AssistantCandidateConfirmation],
-]:
-    profile = ProfilePayload.model_validate(context.profile)
-    job_data = dict(context.vacancy)
-    job_data["aiMatch"] = {"applicationGuide": context.application_guide}
-    job = AssistantJobContext.model_validate(job_data)
-    application_data = dict(context.application)
-    application_data["job"] = job.model_dump(by_alias=True)
-    application = AssistantApplicationContext.model_validate(application_data)
-    confirmations = [
-        AssistantCandidateConfirmation(
-            questionId=confirmation.question_id,
-            requirement=confirmation.requirement,
-            question=confirmation.question,
-            why=confirmation.why,
-            claimIfConfirmed=confirmation.claim_if_confirmed,
-            answer=(
-                confirmation.response.upper()
-                + (f": {confirmation.example_text}" if confirmation.example_text else "")
-            ),
-        )
-        for confirmation in context.confirmations
-    ]
-    encoded_template = base64.b64encode(context.template.content).decode("ascii")
-    source = AssistantSourceDocument(
-        id=context.template.id,
-        title=context.template.name,
-        category="Cover Letter",
-        fileName=context.template.file_name,
-        dataUrl=(f"data:{context.template.content_type};base64,{encoded_template}"),
-    )
-    return profile, job, application, source, confirmations
 
 
 def database_unavailable(exc: Exception) -> HTTPException:

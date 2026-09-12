@@ -9,16 +9,13 @@ from app.core.identity import RequestIdentity, get_request_identity
 from app.models.assistant import AppliedAssistantActionRecord
 from app.models.conversations import ConversationRecord
 from app.models.documents import (
-    DocumentPackJobRecord,
     DocumentRecord,
-    DocumentValidationArtifactRecord,
     utc_now,
 )
 from app.models.job_screening import JobScreeningDecisionRecord
 from app.models.jobs import JobMatchRecord
 from app.models.privacy import AiPrivacySettingsRecord
 from app.models.profile import CandidateMatchSnapshotRecord
-from app.models.resume import ImaginatorResumeRecord
 
 
 def privacy_settings_record(
@@ -26,9 +23,7 @@ def privacy_settings_record(
     owner_id: str,
 ) -> AiPrivacySettingsRecord | None:
     return db.scalar(
-        select(AiPrivacySettingsRecord).where(
-            AiPrivacySettingsRecord.owner_id == owner_id
-        )
+        select(AiPrivacySettingsRecord).where(AiPrivacySettingsRecord.owner_id == owner_id)
     )
 
 
@@ -69,13 +64,10 @@ def delete_ai_data_for_owner(db: Session, owner_id: str) -> int:
     models = (
         AppliedAssistantActionRecord,
         ConversationRecord,
-        DocumentValidationArtifactRecord,
-        DocumentPackJobRecord,
         DocumentRecord,
         JobScreeningDecisionRecord,
         JobMatchRecord,
         CandidateMatchSnapshotRecord,
-        ImaginatorResumeRecord,
     )
     for model in models:
         result = db.execute(delete(model).where(model.owner_id == owner_id))

@@ -178,7 +178,7 @@ export function MasterResumeEditor({
       setDraft(cloneResume(payload.masterResume));
       setConfirmState("idle");
       setDialogOpen(false);
-      setMessage("Master Resume version 1 is confirmed and ready for tailoring.");
+      setMessage("Master Resume version 1 is confirmed and ready for future documents.");
     } catch (error) {
       setConfirmState("error");
       setMessage(
@@ -240,7 +240,7 @@ export function MasterResumeEditor({
               <p className="mt-1 max-w-[760px] text-xs leading-5 text-muted 2xl:text-[13px]">
                 {confirmation
                   ? `${confirmation.masterResume.basics.fullName} is now the verified, vacancy-independent source for tailored resumes.`
-                  : "Import once, review the structured facts, and confirm an immutable source of truth for future tailoring."}
+                  : "Import once, review the structured facts, and confirm an immutable source of truth for future applications."}
               </p>
               {message ? (
                 <p

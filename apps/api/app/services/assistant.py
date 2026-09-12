@@ -17,7 +17,6 @@ from app.models.assistant import (
     AssistantActionFieldPreview,
     AssistantActionPreview,
     AssistantApplicationContext,
-    AssistantCandidateConfirmation,
     AssistantJobContext,
     AssistantSourceDocument,
     CreateInterviewEventProposal,
@@ -43,7 +42,6 @@ from app.services.document_analysis import (
 )
 from app.services.document_security import DocumentSecurityError
 from app.services.experience_evidence import build_atomic_experience_evidence
-from app.services.generation_context import DIRECT_PROFILE_EVIDENCE_FIELDS, VACANCY_EVIDENCE_FIELDS
 from app.services.resume_import import (
     decode_resume_data_url,
     extract_json_objects,
@@ -53,6 +51,25 @@ from app.services.resume_import import (
 )
 
 logger = logging.getLogger("uvicorn.error")
+
+DIRECT_PROFILE_EVIDENCE_FIELDS = (
+    "name",
+    "current_role",
+    "desired_role",
+    "location",
+    "headline",
+    "skills",
+    "education",
+)
+VACANCY_EVIDENCE_FIELDS = (
+    "title",
+    "company",
+    "location",
+    "overview",
+    "responsibilities",
+    "requirements",
+    "skills",
+)
 
 
 class AssistantError(RuntimeError):
@@ -165,7 +182,6 @@ class AssistantAIFacade:
         application: AssistantApplicationContext | None,
         history: dict[str, Any] | None = None,
         source_documents: list[AssistantSourceDocument] | None = None,
-        candidate_confirmations: list[AssistantCandidateConfirmation] | None = None,
         session_scope: str = "",
     ) -> AIAssistantRun:
         return await run_ai_assistant(
@@ -182,7 +198,6 @@ class AssistantAIFacade:
             model=self.model,
             history=history,
             source_documents=source_documents,
-            candidate_confirmations=candidate_confirmations,
             session_scope=session_scope,
             max_prompt_chars=self.max_prompt_chars,
             max_attempts=self.max_attempts,
@@ -206,13 +221,9 @@ def create_assistant_ai_facade(settings: Settings) -> AssistantAIFacade:
             else settings.openclaw_assistant_model
         ),
         thinking=settings.ai_reasoning_for(settings.openclaw_assistant_thinking),
-        timeout_seconds=settings.ai_timeout_for(
-            settings.openclaw_assistant_timeout_seconds
-        ),
+        timeout_seconds=settings.ai_timeout_for(settings.openclaw_assistant_timeout_seconds),
         max_prompt_chars=settings.openclaw_assistant_max_prompt_chars,
-        max_attempts=settings.ai_max_attempts_for(
-            settings.openclaw_assistant_max_attempts
-        ),
+        max_attempts=settings.ai_max_attempts_for(settings.openclaw_assistant_max_attempts),
         retry_backoff_seconds=settings.ai_retry_backoff_for(
             settings.openclaw_assistant_retry_backoff_seconds
         ),
@@ -277,7 +288,6 @@ async def run_ai_assistant(
     model: str = "",
     history: dict[str, Any] | None = None,
     source_documents: list[AssistantSourceDocument] | None = None,
-    candidate_confirmations: list[AssistantCandidateConfirmation] | None = None,
     session_scope: str = "",
     max_prompt_chars: int = 48_000,
     max_attempts: int = 1,
@@ -299,7 +309,6 @@ async def run_ai_assistant(
         application=application,
         history=history,
         source_documents=source_documents,
-        candidate_confirmations=candidate_confirmations,
         max_prompt_chars=max_prompt_chars,
     )
     started_at = time.perf_counter()
@@ -512,7 +521,6 @@ def build_openclaw_assistant_prompt(
     application: AssistantApplicationContext | None,
     history: dict[str, Any] | None = None,
     source_documents: list[AssistantSourceDocument] | None = None,
-    candidate_confirmations: list[AssistantCandidateConfirmation] | None = None,
     max_prompt_chars: int = 48_000,
 ) -> str:
     context_payload = build_openclaw_context_payload(
@@ -522,7 +530,6 @@ def build_openclaw_assistant_prompt(
         application=application,
         history=history,
         source_documents=source_documents,
-        candidate_confirmations=candidate_confirmations,
     )
     user_message = message.strip()
     context_budget = openclaw_context_budget(
@@ -548,7 +555,6 @@ def build_openclaw_context_payload(
     application: AssistantApplicationContext | None,
     history: dict[str, Any] | None = None,
     source_documents: list[AssistantSourceDocument] | None = None,
-    candidate_confirmations: list[AssistantCandidateConfirmation] | None = None,
 ) -> dict[str, Any]:
     context_payload = {
         "context_kind": context_kind,
@@ -560,8 +566,6 @@ def build_openclaw_context_payload(
             exclude_defaults=True,
         )
         add_vacancy_evidence_ids(application_context.get("job"))
-        if application_context.get("generationDate"):
-            application_context["generationDateEvidenceId"] = "generation:date"
         context_payload["application"] = application_context
     elif job:
         job_context = job.model_dump(
@@ -576,19 +580,6 @@ def build_openclaw_context_payload(
         context_payload["selected_source_documents"] = build_source_document_context(
             source_documents
         )
-    if candidate_confirmations:
-        context_payload["candidate_confirmations"] = []
-        for confirmation in candidate_confirmations:
-            confirmation_context = confirmation.model_dump(
-                by_alias=True,
-                exclude_defaults=True,
-            )
-            if confirmation.question_id:
-                confirmation_context["evidenceId"] = (
-                    f"confirmation:{confirmation.question_id}"
-                )
-            context_payload["candidate_confirmations"].append(confirmation_context)
-
     return context_payload
 
 
@@ -596,9 +587,7 @@ def add_vacancy_evidence_ids(job_context: Any) -> None:
     if not isinstance(job_context, dict):
         return
     evidence_ids = {
-        field: f"vacancy:{field}"
-        for field in VACANCY_EVIDENCE_FIELDS
-        if job_context.get(field)
+        field: f"vacancy:{field}" for field in VACANCY_EVIDENCE_FIELDS if job_context.get(field)
     }
     if evidence_ids:
         job_context["evidence_ids"] = evidence_ids
@@ -612,7 +601,6 @@ def analyze_openclaw_assistant_context(
     job: AssistantJobContext | None,
     application: AssistantApplicationContext | None,
     source_documents: list[AssistantSourceDocument] | None = None,
-    candidate_confirmations: list[AssistantCandidateConfirmation] | None = None,
     max_prompt_chars: int = 48_000,
 ) -> dict[str, int | bool]:
     context_payload = build_openclaw_context_payload(
@@ -621,7 +609,6 @@ def analyze_openclaw_assistant_context(
         job=job,
         application=application,
         source_documents=source_documents,
-        candidate_confirmations=candidate_confirmations,
     )
     sanitized_context = sanitize_untrusted_value(context_payload)
     serialized_context = json.dumps(
@@ -666,9 +653,7 @@ def build_profile_context(profile: ProfilePayload) -> dict[str, Any]:
     primary_resume = profile.runtime_primary_resume
     profile_context["resume_attached"] = isinstance(primary_resume, dict)
     if isinstance(primary_resume, dict):
-        profile_context["primary_resume"] = runtime_profile_file_context(
-            primary_resume
-        )
+        profile_context["primary_resume"] = runtime_profile_file_context(primary_resume)
     supporting_documents = [
         runtime_profile_file_context(document)
         for document in profile.runtime_supporting_documents
@@ -795,11 +780,7 @@ def preflight_source_documents(
             continue
         try:
             _, content = decode_resume_data_url(source.data_url)
-            document_type = (
-                "cover_letter"
-                if is_cover_letter_source_document(source)
-                else "generic"
-            )
+            document_type = "cover_letter" if is_cover_letter_source_document(source) else "generic"
             analysis = analyze_docx_source(content, document_type)
             analyses.append(analysis)
         except DocumentSecurityError as exc:
@@ -836,8 +817,7 @@ def preflight_source_documents(
 
     if unsupported_elements:
         descriptions = ", ".join(
-            f'{issue["description"]} ({issue["element"]})'
-            for issue in unsupported_elements
+            f"{issue['description']} ({issue['element']})" for issue in unsupported_elements
         )
         raise SourceDocumentPreflightError(
             "Selected DOCX cannot be tailored safely. "
@@ -849,10 +829,7 @@ def preflight_source_documents(
 
 
 def is_cover_letter_source_document(source: AssistantSourceDocument) -> bool:
-    return (
-        source.file_name.lower().endswith(".docx")
-        and "cover letter" in source.category.lower()
-    )
+    return source.file_name.lower().endswith(".docx") and "cover letter" in source.category.lower()
 
 
 def compact_conversation_history(
@@ -1050,9 +1027,7 @@ def assistant_run_metrics_from_result(
             model=result.model or fallback_model or "configured-agent-model",
             input_tokens=usage.input_tokens,
             output_tokens=usage.output_tokens,
-            total_tokens=(
-                usage.total_tokens or usage.input_tokens + usage.output_tokens
-            ),
+            total_tokens=(usage.total_tokens or usage.input_tokens + usage.output_tokens),
             token_count_source=usage.source,
             attempts=attempts,
             prompt_chars=len(prompt),

@@ -94,37 +94,15 @@ type WorkspaceApplication = {
       reasons: string[];
       gaps: string[];
       updatedAt?: string;
-      applicationGuide?: {
-        language: "English" | "German";
-        positioning: string;
-        [key: string]: unknown;
-      };
     };
   };
   documents: WorkspaceApplicationDocument[];
 };
 
-type WorkspaceProfile = {
-  name: string;
-  current_role: string;
-  desired_role: string;
-  location: string;
-  headline: string;
-  skills: string;
-  experience: string;
-  education: string;
-  documents: string;
-  resume_file_name: string;
-  resume_file_size: string;
-  resume_updated_at: string;
-};
-
 type ApplicationWorkspaceProps = {
   application: WorkspaceApplication | null;
-  profile: WorkspaceProfile;
   backLabel?: string;
   onBack: () => void;
-  onOpenAssistant: (prompt: string, applicationId: string) => void;
   onDocumentAttached: (
     applicationId: string,
     document: {
@@ -136,9 +114,6 @@ type ApplicationWorkspaceProps = {
       downloadUrl: string;
     },
   ) => void;
-  onMarkApplied: (applicationId: string) => void;
-  onRefreshAnalysis: (applicationId: string) => void;
-  isAnalysisRefreshing: boolean;
 };
 
 function getFileBadge(fileName: string, fileType: string) {

@@ -1,7 +1,7 @@
 import pytest
 from pydantic import ValidationError
 
-from app.models.resume import ExperienceRewrite, FinalResume, MasterResume
+from app.models.resume import FinalResume, MasterResume
 
 
 def evidence(evidence_id: str, text: str) -> dict[str, str]:
@@ -110,64 +110,6 @@ def test_section_order_matches_non_empty_sections() -> None:
     duplicate["sectionOrder"] = ["summary", "experience", "skills", "skills"]
     with pytest.raises(ValidationError, match="sectionOrder must not contain duplicates"):
         MasterResume.model_validate(duplicate)
-
-
-def test_experience_rewrite_links_each_master_experience_once() -> None:
-    rewrite = ExperienceRewrite.model_validate(
-        {
-            "masterResumeId": "resume:master",
-            "targetJobId": "job:platform",
-            "experiences": [
-                {
-                    "id": "rewrite:acme",
-                    "masterExperienceId": "experience:acme",
-                    "company": "Acme AG",
-                    "title": "Platform Engineer",
-                    "period": "2022 — Present",
-                    "bullets": [
-                        {
-                            "id": "tailored-bullet:acme:api",
-                            "text": "Delivered reliable Python APIs.",
-                            "evidenceIds": [
-                                "profile:experience:acme:achievement-api",
-                            ],
-                        }
-                    ],
-                }
-            ],
-            "links": [
-                {
-                    "originalExperienceId": "experience:acme",
-                    "rewrittenExperienceId": "rewrite:acme",
-                    "bulletLinks": [
-                        {
-                            "originalBulletIds": ["bullet:acme:api"],
-                            "rewrittenBulletId": "tailored-bullet:acme:api",
-                        }
-                    ],
-                }
-            ],
-        }
-    )
-
-    assert rewrite.experiences[0].master_experience_id == "experience:acme"
-
-    payload = rewrite.model_dump(by_alias=True)
-    payload["experiences"].append(
-        {
-            **payload["experiences"][0],
-            "id": "rewrite:acme:duplicate",
-            "bullets": [
-                {
-                    "id": "tailored-bullet:acme:duplicate",
-                    "text": "Another version.",
-                    "evidenceIds": ["profile:experience:acme:achievement-api"],
-                }
-            ],
-        }
-    )
-    with pytest.raises(ValidationError, match="masterExperienceIds must not contain duplicates"):
-        ExperienceRewrite.model_validate(payload)
 
 
 def test_final_resume_validates_order_and_complete_evidence_catalog() -> None:

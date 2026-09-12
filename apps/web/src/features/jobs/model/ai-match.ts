@@ -3,7 +3,7 @@ import {
   isImportedJob,
   isManualJob,
 } from "@/features/jobs/model/sources";
-import type { Job, JobRecommendation } from "@/shared/types/job";
+import type { Job } from "@/shared/types/job";
 
 const aiMatchBreakdownItems = [
   { key: "role_fit", label: "Role", max: 20 },
@@ -98,43 +98,9 @@ export function buildAiMatchRawExplanation(job: Job) {
 }
 
 export function getProfileImprovementItems(job: Job) {
-  const evidence = job.aiMatch?.applicationGuide?.evidenceMatrix ?? [];
-  return evidence
-    .filter(
-      (item) =>
-        ["verified", "transferable"].includes(item.status) &&
-        item.sources?.length,
-    )
-    .map(
-      (item) =>
-        `${item.action} Sources: ${item.sources
-          ?.map((source) => `${source.label} — “${source.excerpt}”`)
-          .join("; ")}.`,
-    )
-    .slice(0, 5);
+  return job.recommendations.map((item) => item.text).slice(0, 5);
 }
 
-export function buildRecommendationPlan(job: Job): JobRecommendation[] {
-  const evidence = job.aiMatch?.applicationGuide?.evidenceMatrix ?? [];
-  return evidence
-    .filter(
-      (item) =>
-        ["verified", "transferable"].includes(item.status) &&
-        item.sources?.length,
-    )
-    .map((item) => ({
-      text: item.action,
-      gain:
-        item.status === "verified"
-          ? "verified evidence"
-          : "transferable evidence",
-      why: `${item.requirement}: ${item.evidence}`,
-      impact: `Sources: ${item.sources
-        ?.map((source) => source.label)
-        .join(", ")}`,
-      action: item.sources
-        ?.map((source) => `${source.label}: “${source.excerpt}”`)
-        .join(" · "),
-    }))
-    .slice(0, 9);
+export function buildRecommendationPlan(job: Job) {
+  return job.recommendations.slice(0, 9);
 }

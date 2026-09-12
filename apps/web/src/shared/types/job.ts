@@ -12,50 +12,6 @@ export type AiMatchMetadata = {
   breakdown: Record<string, number>;
   reasons: string[];
   gaps: string[];
-  applicationGuide?: {
-    language: "English" | "German";
-    positioning: string;
-    readiness?: "ready" | "needs_confirmation" | "weak_fit";
-    roleMission?: string;
-    hiringPriorities?: string[];
-    mustHave?: string[];
-    niceToHave?: string[];
-    hardConstraints?: string[];
-    evidenceMatrix?: Array<{
-      requirement: string;
-      importance: "required" | "preferred";
-      status: "verified" | "transferable" | "needs_confirmation" | "missing";
-      evidence: string;
-      action: string;
-      sourceIds?: string[];
-      sources?: Array<{ id: string; label: string; excerpt: string }>;
-    }>;
-    clarificationQuestions?: Array<{
-      id: string;
-      requirement: string;
-      question: string;
-      why: string;
-      claimIfConfirmed: string;
-      blocking: boolean;
-    }>;
-    resumePlan?: {
-      targetHeadline: string;
-      summaryFocus: string;
-      evidenceToLead: string[];
-      bulletStrategy: string[];
-    };
-    coverLetterPlan?: {
-      openingAngle: string;
-      proofPoints: string[];
-      motivationAngle: string;
-    };
-    cvImprovements: string[];
-    coverLetterStrategy: string[];
-    risks: string[];
-    keywords: string[];
-    applicationQuestions: string[];
-    finalChecklist: string[];
-  };
   explanation?: string;
   rawExplanation?: string;
   heuristicScore?: number;

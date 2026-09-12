@@ -17,7 +17,6 @@ from app.api.notifications import router as notifications_router
 from app.api.parsers import router as parsers_router
 from app.api.privacy import router as privacy_router
 from app.api.profile import router as profile_router
-from app.api.resume_tailoring import router as resume_tailoring_router
 from app.api.resume_templates import router as resume_templates_router
 from app.api.settings import router as settings_router
 from app.core.migrations import upgrade_database
@@ -98,11 +97,6 @@ app.include_router(
 app.include_router(documents_router, prefix="/documents", tags=["documents"])
 app.include_router(parsers_router, prefix="/parsers", tags=["parsers"])
 app.include_router(profile_router, prefix="/profile", tags=["profile"])
-app.include_router(
-    resume_tailoring_router,
-    prefix="/resume-tailoring",
-    tags=["resume tailoring"],
-)
 app.include_router(
     resume_templates_router,
     prefix="/resume-templates",

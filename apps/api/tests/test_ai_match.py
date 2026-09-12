@@ -27,7 +27,6 @@ from app.services.ai_backend import AIRequest, AIResult, AIUsage, OpenAIAPIBacke
 from app.services.ai_match import (
     OpenClawAiMatchError,
     OpenClawAiMatchPayload,
-    build_ai_match_evidence_catalog,
     build_cache_key,
     build_candidate_snapshot,
     build_job_snapshot,
@@ -49,72 +48,6 @@ from app.services.candidate_snapshot import (
     extract_openclaw_candidate_snapshot_payload,
     get_candidate_match_snapshot,
 )
-
-
-def valid_application_guide() -> dict[str, object]:
-    return {
-        "language": "English",
-        "positioning": "Lead with verified Python delivery experience.",
-        "readiness": "ready",
-        "roleMission": "Build reliable production software.",
-        "hiringPriorities": ["Ship reliable software."],
-        "mustHave": ["Python"],
-        "niceToHave": [],
-        "hardConstraints": [],
-        "evidenceMatrix": [
-            {
-                "requirement": "Python",
-                "importance": "required",
-                "status": "verified",
-                "evidence": "Python",
-                "action": "Lead with the strongest verified Python example.",
-                "sourceIds": ["profile:skills"],
-            }
-        ],
-        "clarificationQuestions": [
-            {
-                "id": "strongest-outcome",
-                "requirement": "Role-relevant outcome",
-                "question": "Which role-relevant outcome should the application emphasize?",
-                "why": "A concrete outcome can strengthen both application documents.",
-                "claimIfConfirmed": "Delivered a role-relevant outcome.",
-                "blocking": True,
-            },
-            {
-                "id": "technical-scope",
-                "requirement": "Technical scope",
-                "question": "What technical scope best demonstrates your fit for this role?",
-                "why": "Specific scope can improve resume evidence and cover-letter proof.",
-                "claimIfConfirmed": "Owned relevant technical scope.",
-                "blocking": True,
-            },
-            {
-                "id": "role-motivation",
-                "requirement": "Role motivation",
-                "question": "What specific aspect of this role motivates you?",
-                "why": "Specific motivation improves the cover letter and resume positioning.",
-                "claimIfConfirmed": "Has a specific motivation for the target role.",
-                "blocking": True,
-            },
-        ],
-        "resumePlan": {
-            "targetHeadline": "Python Engineer",
-            "summaryFocus": "Verified production delivery.",
-            "evidenceToLead": ["Python delivery"],
-            "bulletStrategy": ["Lead with verified outcomes."],
-        },
-        "coverLetterPlan": {
-            "openingAngle": "Connect Python delivery to the role mission.",
-            "proofPoints": ["Python delivery"],
-            "motivationAngle": "Focus on the technical mission.",
-        },
-        "cvImprovements": ["Prioritize relevant Python evidence."],
-        "coverLetterStrategy": ["Connect evidence to the vacancy."],
-        "risks": [],
-        "keywords": ["Python"],
-        "applicationQuestions": [],
-        "finalChecklist": ["Verify every claim against the source CV."],
-    }
 
 
 def persist_accepted_jobs(
@@ -152,7 +85,6 @@ def valid_match_result(job_id: str = "job-strict") -> dict[str, object]:
         },
         "reasons": ["Strong verified fit."],
         "gaps": [],
-        "applicationGuide": valid_application_guide(),
     }
 
 
@@ -166,7 +98,11 @@ def bypass_ai_activity_tracking() -> Generator[None, None, None]:
 
 
 def install_openclaw_fakes(monkeypatch: pytest.MonkeyPatch) -> None:
-    def fake_build_snapshot_with_openclaw(*, fallback_snapshot: dict, **_: object) -> dict:
+    def fake_build_snapshot_with_openclaw(
+        *,
+        fallback_snapshot: dict,
+        **_: object,
+    ) -> dict:
         return fallback_snapshot
 
     def fake_score_with_openclaw(*, jobs: list[dict], **_: object) -> list[dict]:
@@ -188,85 +124,29 @@ def install_openclaw_fakes(monkeypatch: pytest.MonkeyPatch) -> None:
                         "industry_fit": 4 if is_relevant else 1,
                         "evidence_fit": 2,
                     },
-                    "reasons": ["OpenClaw matched this role"] if is_relevant else ["OpenClaw found weak overlap"],
-                    "gaps": ["No major gaps detected from available data"] if is_relevant else ["Role is not aligned"],
-                    "applicationGuide": {
-                        "language": "English",
-                        "positioning": "Lead with verified machine learning experience.",
-                        "readiness": "needs_confirmation",
-                        "roleMission": "Build reliable machine learning systems for the product.",
-                        "hiringPriorities": ["Ship production-ready ML features."],
-                        "mustHave": ["Python", "Machine Learning"],
-                        "niceToHave": ["PyTorch"],
-                        "hardConstraints": [],
-                        "evidenceMatrix": [
-                            {
-                                "requirement": "Python",
-                                "importance": "required",
-                                "status": "verified",
-                                "evidence": "Python",
-                                "action": "Lead with the strongest Python project.",
-                                "sourceIds": ["profile:skills"],
-                            },
-                            {
-                                "requirement": "Production ML",
-                                "importance": "required",
-                                "status": "needs_confirmation",
-                                "evidence": "",
-                                "action": "Confirm a concrete production deployment example.",
-                                "sourceIds": [],
-                            },
-                        ],
-                        "clarificationQuestions": [
-                            {
-                                "id": "production-ml",
-                                "requirement": "Production ML",
-                                "question": "Which ML model did you deploy to production?",
-                                "why": "This is a core responsibility.",
-                                "claimIfConfirmed": "Deployed an ML model to production.",
-                                "blocking": True,
-                            },
-                            {
-                                "id": "ml-outcome",
-                                "requirement": "Machine learning outcome",
-                                "question": "What measurable outcome came from your strongest ML project?",
-                                "why": "A concrete outcome strengthens both application documents.",
-                                "claimIfConfirmed": "Delivered a measurable machine learning outcome.",
-                                "blocking": True,
-                            },
-                            {
-                                "id": "ml-motivation",
-                                "requirement": "Role motivation",
-                                "question": "What specifically motivates you about this ML role?",
-                                "why": "Specific motivation improves the cover letter.",
-                                "claimIfConfirmed": "Has a specific motivation for the target ML role.",
-                                "blocking": True,
-                            },
-                        ],
-                        "resumePlan": {
-                            "targetHeadline": "Machine Learning Engineer",
-                            "summaryFocus": "Verified ML delivery experience.",
-                            "evidenceToLead": ["Python project evidence"],
-                            "bulletStrategy": ["Lead with the strongest verified ML result."],
-                        },
-                        "coverLetterPlan": {
-                            "openingAngle": "Connect verified ML work to the product mission.",
-                            "proofPoints": ["Python project evidence"],
-                            "motivationAngle": "Focus on the role's technical mission.",
-                        },
-                        "cvImprovements": ["Move relevant Python evidence into the summary."],
-                        "coverLetterStrategy": ["Connect verified project evidence to the role."],
-                        "risks": ["Do not claim tools absent from the profile."],
-                        "keywords": ["Python", "Machine Learning"],
-                        "applicationQuestions": ["Describe a relevant ML project using verified facts."],
-                        "finalChecklist": ["Verify every claim against the source CV."],
-                    },
+                    "reasons": (
+                        ["OpenClaw matched this role"]
+                        if is_relevant
+                        else ["OpenClaw found weak overlap"]
+                    ),
+                    "gaps": (
+                        ["No major gaps detected from available data"]
+                        if is_relevant
+                        else ["Role is not aligned"]
+                    ),
                 }
             )
         return matches
 
-    monkeypatch.setattr("app.services.candidate_snapshot.build_snapshot_with_ai", fake_build_snapshot_with_openclaw)
-    monkeypatch.setattr(ai_match_service, "score_with_openclaw", fake_score_with_openclaw)
+    monkeypatch.setattr(
+        "app.services.candidate_snapshot.build_snapshot_with_ai",
+        fake_build_snapshot_with_openclaw,
+    )
+    monkeypatch.setattr(
+        ai_match_service,
+        "score_with_openclaw",
+        fake_score_with_openclaw,
+    )
 
 
 def test_parse_number_reads_spaced_salary_values() -> None:
@@ -353,63 +233,6 @@ def test_openclaw_ai_match_scores_relevant_job_higher(monkeypatch: pytest.Monkey
     assert matched[0]["aiMatch"]["reasons"]
 
 
-def test_ai_match_v1_is_migrated_to_application_guide_v3(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    install_openclaw_fakes(monkeypatch)
-    profile = ProfilePayload(
-        current_role="Machine Learning Engineer",
-        desired_role="Machine Learning Engineer",
-        location="Zurich",
-        skills="Python\nMachine Learning",
-    )
-    legacy_job = {
-        "id": "linkedin-legacy-ai-match",
-        "title": "Machine Learning Engineer",
-        "company": "Acme",
-        "location": "Zurich",
-        "type": "Full-Time",
-        "salary": "Not specified",
-        "posted": "LinkedIn",
-        "experience": "Mid-Senior level",
-        "department": "Engineering",
-        "match": 97,
-        "logo": "linkedin",
-        "overview": "Build machine learning systems with Python.",
-        "responsibilities": ["Build ML systems"],
-        "requirements": ["Python", "Machine Learning"],
-        "skills": ["Python", "Machine Learning"],
-        "aiMatch": {
-            "version": "ai-match-v1",
-            "cacheKey": "legacy-cache-key",
-            "source": "openclaw_codex",
-            "backend": "openclaw_codex",
-            "score": 97,
-            "confidence": "high",
-            "breakdown": {},
-            "reasons": ["Legacy percentage only"],
-            "gaps": [],
-        },
-    }
-
-    migrated = calculate_ai_matches(
-        profile,
-        [legacy_job],
-        command="openclaw",
-        agent_id="main",
-        thinking="low",
-        timeout_seconds=1,
-        openclaw_enabled=True,
-        openclaw_max_jobs=20,
-    )[0]
-
-    assert migrated["aiMatch"]["version"] == "ai-match-v3"
-    assert migrated["match"] == 88
-    assert migrated["match"] != legacy_job["match"]
-    assert migrated["aiMatch"]["applicationGuide"]["roleMission"]
-    assert migrated["aiMatch"]["applicationGuide"]["evidenceMatrix"]
-
-
 def test_ai_match_requires_openclaw_enabled() -> None:
     profile = ProfilePayload(
         current_role="Senior LLM Engineer",
@@ -482,42 +305,21 @@ def test_openclaw_prompt_treats_score_as_expert_judgment() -> None:
         }
     )
 
-    prompt = build_openclaw_ai_match_prompt(
-        profile_snapshot,
-        [job_snapshot],
-        evidence_sources=[
-            {"id": "profile:skills", "label": "Profile · skills", "excerpt": "Python, PyTorch"}
-        ],
-    )
+    prompt = build_openclaw_ai_match_prompt(profile_snapshot, [job_snapshot])
 
     assert "score as your expert judgment from 0 to 100" in prompt
     assert "not an arithmetic sum of breakdown values" in prompt
     assert "breakdownMaxScores" in prompt
-    assert '"applicationGuide"' in prompt
-    assert '"language":"English|German"' in prompt
-    assert '"evidenceMatrix"' in prompt
-    assert '"clarificationQuestions"' in prompt
-    assert '"candidateEvidenceSources"' in prompt
-    assert '"sourceIds"' in prompt
-    assert "Evidence must be a short exact excerpt of at most 500 characters" in prompt
-    assert "Keep every enum token exactly as shown" in prompt
-    assert "if a data role requires Excel" in prompt
-    assert "reuse directly when tailoring the candidate's CV and cover letter" in prompt
     assert '"weights"' not in prompt
 
 
 @pytest.mark.parametrize(
     "missing_path",
-    ["reasons", "applicationGuide", "evidenceMatrix", "clarificationQuestions"],
+    ["reasons", "breakdown"],
 )
 def test_strict_ai_match_schema_rejects_missing_analysis_fields(missing_path: str) -> None:
     result = valid_match_result()
-    if missing_path in {"evidenceMatrix", "clarificationQuestions"}:
-        guide = result["applicationGuide"]
-        assert isinstance(guide, dict)
-        guide.pop(missing_path)
-    else:
-        result.pop(missing_path)
+    result.pop(missing_path)
 
     with pytest.raises(OpenClawAiMatchError, match="Field required"):
         ai_match_service.validate_openclaw_result(result, {"id": "job-strict"})
@@ -543,92 +345,6 @@ def test_strict_ai_match_schema_forbids_extra_fields_and_inconsistent_ready_stat
     with pytest.raises(OpenClawAiMatchError, match="Extra inputs are not permitted"):
         ai_match_service.validate_openclaw_result(extra_result, {"id": "job-strict"})
 
-    inconsistent_result = valid_match_result()
-    guide = inconsistent_result["applicationGuide"]
-    assert isinstance(guide, dict)
-    evidence = guide["evidenceMatrix"]
-    assert isinstance(evidence, list)
-    assert isinstance(evidence[0], dict)
-    evidence[0] = {
-        **evidence[0],
-        "status": "missing",
-        "evidence": "",
-        "sourceIds": [],
-    }
-    with pytest.raises(OpenClawAiMatchError, match="ready analysis cannot contain unresolved"):
-        ai_match_service.validate_openclaw_result(
-            inconsistent_result,
-            {"id": "job-strict"},
-        )
-
-
-def test_ai_match_requires_three_blocking_document_improvement_questions() -> None:
-    too_few = valid_match_result()
-    guide = too_few["applicationGuide"]
-    assert isinstance(guide, dict)
-    questions = guide["clarificationQuestions"]
-    assert isinstance(questions, list)
-    questions.pop()
-    with pytest.raises(OpenClawAiMatchError, match="at least 3 items"):
-        ai_match_service.validate_openclaw_result(
-            too_few,
-            {"id": "job-strict"},
-        )
-
-    optional_question = valid_match_result()
-    optional_guide = optional_question["applicationGuide"]
-    assert isinstance(optional_guide, dict)
-    optional_questions = optional_guide["clarificationQuestions"]
-    assert isinstance(optional_questions, list)
-    assert isinstance(optional_questions[0], dict)
-    optional_questions[0]["blocking"] = False
-    with pytest.raises(
-        OpenClawAiMatchError,
-        match="all document improvement questions must be blocking",
-    ):
-        ai_match_service.validate_openclaw_result(
-            optional_question,
-            {"id": "job-strict"},
-        )
-
-
-@pytest.mark.parametrize(
-    ("source_ids", "excerpt", "error"),
-    [
-        (["profile:unknown"], "Python", "unknown evidence source IDs"),
-        (["profile:skills"], "Invented Kubernetes delivery", "not present in its cited sources"),
-    ],
-)
-def test_verified_ai_match_evidence_requires_real_source_excerpt(
-    source_ids: list[str],
-    excerpt: str,
-    error: str,
-) -> None:
-    result = valid_match_result()
-    guide = result["applicationGuide"]
-    assert isinstance(guide, dict)
-    evidence_matrix = guide["evidenceMatrix"]
-    assert isinstance(evidence_matrix, list)
-    assert isinstance(evidence_matrix[0], dict)
-    evidence_matrix[0] = {
-        **evidence_matrix[0],
-        "sourceIds": source_ids,
-        "evidence": excerpt,
-    }
-    validated = ai_match_service.validate_openclaw_result(result, {"id": "job-strict"})
-
-    with pytest.raises(OpenClawAiMatchError, match=error):
-        ai_match_service.validate_ai_match_evidence_sources(
-            [validated],
-            {
-                "profile:skills": {
-                    "id": "profile:skills",
-                    "label": "Profile · skills",
-                    "excerpt": "Python, FastAPI",
-                }
-            },
-        )
-
 
 def test_incomplete_ai_match_is_retried_and_never_synthetically_completed(
     monkeypatch: pytest.MonkeyPatch,
@@ -640,7 +356,7 @@ def test_incomplete_ai_match_is_retried_and_never_synthetically_completed(
         attempts += 1
         result = valid_match_result("job-retry")
         if attempts == 1:
-            result.pop("applicationGuide")
+            result.pop("reasons")
         return [result]
 
     monkeypatch.setattr(ai_match_service, "score_with_openclaw", fake_score_with_openclaw)
@@ -665,15 +381,7 @@ def test_incomplete_ai_match_is_retried_and_never_synthetically_completed(
     )
 
     assert attempts == 2
-    guide = matched[0]["aiMatch"]["applicationGuide"]
-    assert guide["positioning"] == valid_application_guide()["positioning"]
-    assert guide["evidenceMatrix"][0]["sources"] == [
-        {
-            "id": "profile:skills",
-            "label": "Profile · skills",
-            "excerpt": "Python",
-        }
-    ]
+    assert matched[0]["aiMatch"]["reasons"] == ["Strong verified fit."]
 
 
 def test_ai_match_reports_progress_after_each_batch(
@@ -705,9 +413,7 @@ def test_ai_match_reports_progress_after_each_batch(
         timeout_seconds=1,
         openclaw_enabled=True,
         openclaw_max_jobs=2,
-        progress_callback=lambda processed, total: progress.append(
-            (processed, total)
-        ),
+        progress_callback=lambda processed, total: progress.append((processed, total)),
     )
 
     assert progress == [(2, 5), (4, 5), (5, 5)]
@@ -780,7 +486,6 @@ def test_ai_match_passes_strict_pydantic_output_model_to_backend() -> None:
         thinking="low",
         timeout_seconds=30,
         model="gpt-5.6-terra",
-        evidence_sources=[],
         backend=FakeBackend(),
     )
 
@@ -799,9 +504,7 @@ def test_ai_match_retry_includes_validation_feedback(
         backend = kwargs.get("backend")
         backends.append(backend.name if backend is not None else "")
         if len(correction_feedback) == 1:
-            raise OpenClawAiMatchError(
-                "applicationGuide.evidenceMatrix.1.importance must be required or preferred"
-            )
+            raise OpenClawAiMatchError("breakdown.experience_fit must not exceed 15")
         return [valid_match_result(jobs[0]["id"])]
 
     monkeypatch.setattr(ai_match_service, "score_with_openclaw", fake_score_with_openclaw)
@@ -829,7 +532,7 @@ def test_ai_match_retry_includes_validation_feedback(
 
     assert correction_feedback == [
         None,
-        "applicationGuide.evidenceMatrix.1.importance must be required or preferred",
+        "breakdown.experience_fit must not exceed 15",
     ]
     assert backends == ["openai_api", "openai_api"]
 
@@ -1010,14 +713,6 @@ def test_candidate_snapshot_hydrates_profile_file_evidence_and_hashes() -> None:
         assert fallback["evidence"]["profile_files_hash"] == (
             build_profile_files_fingerprint(profile)
         )
-        evidence = build_ai_match_evidence_catalog(profile)
-        assert evidence["profile-file:primary-runtime-file"]["excerpt"].startswith(
-            "Built FastAPI"
-        )
-        assert "Cloud certificate" in evidence[
-            "profile-file:supporting-runtime-file"
-        ]["excerpt"]
-
         primary = db.get(ProfileFileRecord, "primary-runtime-file")
         assert primary is not None
         changed_content = b"%PDF-1.4 changed resume"
@@ -1356,97 +1051,6 @@ def test_score_with_openclaw_accepts_single_match_object(
     assert results == [match]
 
 
-def test_score_with_openclaw_truncates_overlong_evidence_excerpt(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    match = valid_match_result("manual-job-long-evidence")
-    guide = match["applicationGuide"]
-    assert isinstance(guide, dict)
-    evidence_matrix = guide["evidenceMatrix"]
-    assert isinstance(evidence_matrix, list)
-    assert isinstance(evidence_matrix[0], dict)
-    overlong_evidence = "Python delivery evidence. " * 30
-    evidence_matrix[0]["evidence"] = overlong_evidence
-
-    def fake_run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess(args, 0, stdout=json.dumps(match), stderr="")
-
-    monkeypatch.setattr(ai_match_service.subprocess, "run", fake_run)
-
-    results = ai_match_service.score_with_openclaw(
-        profile_snapshot={"roles": ["Python Engineer"]},
-        jobs=[
-            build_job_snapshot(
-                {
-                    "id": "manual-job-long-evidence",
-                    "title": "Python Engineer",
-                    "company": "Acme",
-                    "overview": "Build Python services.",
-                    "requirements": ["Python"],
-                    "skills": ["Python"],
-                }
-            )
-        ],
-        command="openclaw",
-        agent_id="main",
-        thinking="low",
-        timeout_seconds=10,
-    )
-
-    evidence = results[0]["applicationGuide"]["evidenceMatrix"][0]["evidence"]
-    assert len(evidence) == ai_match_service.MAX_AI_MATCH_TEXT_LENGTH
-    assert overlong_evidence.startswith(evidence)
-
-
-@pytest.mark.parametrize(
-    ("model_value", "expected"),
-    [
-        ("mandatory", "required"),
-        ("must-have", "required"),
-        ("wünschenswert", "preferred"),
-        ("nice_to_have", "preferred"),
-    ],
-)
-def test_score_with_openclaw_normalizes_safe_importance_synonyms(
-    monkeypatch: pytest.MonkeyPatch,
-    model_value: str,
-    expected: str,
-) -> None:
-    match = valid_match_result("manual-job-importance")
-    guide = match["applicationGuide"]
-    assert isinstance(guide, dict)
-    evidence_matrix = guide["evidenceMatrix"]
-    assert isinstance(evidence_matrix, list)
-    assert isinstance(evidence_matrix[0], dict)
-    evidence_matrix[0]["importance"] = model_value
-
-    def fake_run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-        return subprocess.CompletedProcess(args, 0, stdout=json.dumps(match), stderr="")
-
-    monkeypatch.setattr(ai_match_service.subprocess, "run", fake_run)
-
-    results = ai_match_service.score_with_openclaw(
-        profile_snapshot={"roles": ["Python Engineer"]},
-        jobs=[
-            build_job_snapshot(
-                {
-                    "id": "manual-job-importance",
-                    "title": "Python Engineer",
-                    "company": "Acme",
-                    "requirements": ["Python"],
-                    "skills": ["Python"],
-                }
-            )
-        ],
-        command="openclaw",
-        agent_id="main",
-        thinking="low",
-        timeout_seconds=10,
-    )
-
-    assert results[0]["applicationGuide"]["evidenceMatrix"][0]["importance"] == expected
-
-
 def test_seniority_normalization_handles_common_variants() -> None:
     assert infer_seniority("Sr. Machine Learning Engineer") == "senior"
     assert infer_seniority("Mid-Senior level software engineer") == "senior"
@@ -1566,7 +1170,6 @@ def test_ai_match_endpoint_ignores_cached_local_candidate_snapshot(
                 },
                 "reasons": ["OpenClaw matched this role"],
                 "gaps": ["No major gaps detected from available data"],
-                "applicationGuide": valid_application_guide(),
             }
             for job in jobs
         ]
@@ -1641,8 +1244,7 @@ def test_ai_match_endpoint_ignores_cached_local_candidate_snapshot(
         assert fallback_roles_seen == [[]]
         with testing_session_local() as db:
             snapshot_sources = [
-                record.source
-                for record in db.query(CandidateMatchSnapshotRecord).all()
+                record.source for record in db.query(CandidateMatchSnapshotRecord).all()
             ]
             assert snapshot_sources.count("local") == 1
             assert snapshot_sources.count("openclaw_codex") == 1
@@ -1672,7 +1274,6 @@ def test_ai_match_endpoint_rejects_incomplete_openclaw_breakdown(
                 },
                 "reasons": ["OpenClaw matched this role"],
                 "gaps": ["No major gaps detected from available data"],
-                "applicationGuide": valid_application_guide(),
             }
         ]
 
@@ -1778,7 +1379,9 @@ def test_ai_match_endpoint_updates_and_persists_job_scores(monkeypatch: pytest.M
                         desired_role="ML Software Engineer",
                         location="Zurich",
                         skills="Python\nMachine Learning\nPyTorch",
-                        job_preferences=json.dumps({"locations": ["Zurich"], "work_formats": ["Hybrid"]}),
+                        job_preferences=json.dumps(
+                            {"locations": ["Zurich"], "work_formats": ["Hybrid"]}
+                        ),
                     ).model_dump(),
                 )
             )
@@ -1812,37 +1415,36 @@ def test_ai_match_endpoint_updates_and_persists_job_scores(monkeypatch: pytest.M
         assert payload["aiMatch"]["source"] == "openclaw_codex"
         assert payload["aiMatch"]["backend"] == "openclaw_codex"
         assert payload["aiMatch"]["cacheKey"]
-        assert payload["aiMatch"]["applicationGuide"]["language"] == "English"
-        assert payload["aiMatch"]["applicationGuide"]["cvImprovements"]
-        assert payload["aiMatch"]["applicationGuide"]["roleMission"]
-        assert payload["aiMatch"]["applicationGuide"]["evidenceMatrix"][0]["status"] == "verified"
-        assert payload["aiMatch"]["applicationGuide"]["clarificationQuestions"][0]["blocking"] is True
+        assert payload["aiMatch"]["reasons"] == ["OpenClaw matched this role"]
+        assert "applicationGuide" not in payload["aiMatch"]
         assert read_response.json()[0]["data"]["aiMatch"]["score"] == payload["match"]
-        assert (
-            read_response.json()[0]["data"]["aiMatch"]["applicationGuide"]
-            == payload["aiMatch"]["applicationGuide"]
-        )
 
         with testing_session_local() as db:
             stored_job = db.get(StoredJobRecord, ("local-owner", job["id"]))
-            match_records = db.query(JobMatchRecord).filter(JobMatchRecord.job_id == job["id"]).all()
+            match_records = (
+                db.query(JobMatchRecord).filter(JobMatchRecord.job_id == job["id"]).all()
+            )
             snapshot_records = db.query(CandidateMatchSnapshotRecord).all()
             assert stored_job is not None
             assert "aiMatch" not in stored_job.data
             assert len(snapshot_records) == 1
             assert snapshot_records[0].source == "openclaw_codex"
             assert len(match_records) == 1
-            assert {record.profile_hash for record in match_records} == {snapshot_records[0].profile_hash}
+            assert {record.profile_hash for record in match_records} == {
+                snapshot_records[0].profile_hash
+            }
             assert payload["match"] in {record.score for record in match_records}
             assert all(record.source == "openclaw_codex" for record in match_records)
             assert all(record.backend == "openclaw_codex" for record in match_records)
             assert all(record.breakdown for record in match_records)
-            assert all("_applicationGuide" in record.breakdown for record in match_records)
+            assert all("_applicationGuide" not in record.breakdown for record in match_records)
     finally:
         app.dependency_overrides.clear()
 
 
-def test_ai_match_endpoint_force_reruns_cached_openclaw_jobs(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_ai_match_endpoint_force_reruns_cached_openclaw_jobs(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     install_openclaw_fakes(monkeypatch)
     engine = create_engine(
         "sqlite://",
@@ -1873,7 +1475,9 @@ def test_ai_match_endpoint_force_reruns_cached_openclaw_jobs(monkeypatch: pytest
                         desired_role="ML Software Engineer",
                         location="Zurich",
                         skills="Python\nMachine Learning\nPyTorch",
-                        job_preferences=json.dumps({"locations": ["Zurich"], "work_formats": ["Hybrid"]}),
+                        job_preferences=json.dumps(
+                            {"locations": ["Zurich"], "work_formats": ["Hybrid"]}
+                        ),
                     ).model_dump(),
                 )
             )
@@ -1944,7 +1548,9 @@ def test_ai_match_endpoint_force_reruns_cached_openclaw_jobs(monkeypatch: pytest
         app.dependency_overrides.clear()
 
 
-def test_ai_match_run_endpoint_updates_status_and_persists_job_scores(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_ai_match_run_endpoint_updates_status_and_persists_job_scores(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     install_openclaw_fakes(monkeypatch)
     engine = create_engine(
         "sqlite://",
@@ -1975,7 +1581,9 @@ def test_ai_match_run_endpoint_updates_status_and_persists_job_scores(monkeypatc
                         desired_role="ML Software Engineer",
                         location="Zurich",
                         skills="Python\nMachine Learning\nPyTorch",
-                        job_preferences=json.dumps({"locations": ["Zurich"], "work_formats": ["Hybrid"]}),
+                        job_preferences=json.dumps(
+                            {"locations": ["Zurich"], "work_formats": ["Hybrid"]}
+                        ),
                     ).model_dump(),
                 )
             )
@@ -2054,7 +1662,6 @@ def test_ai_match_run_endpoint_batches_openclaw_scoring(monkeypatch: pytest.Monk
                 },
                 "reasons": ["OpenClaw matched this role"],
                 "gaps": ["No major gaps detected from available data"],
-                "applicationGuide": valid_application_guide(),
             }
             for job in jobs
         ]

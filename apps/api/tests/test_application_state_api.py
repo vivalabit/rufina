@@ -179,85 +179,41 @@ def test_point_application_and_event_writes_use_revisions() -> None:
 def test_legacy_bulk_application_writes_are_not_available() -> None:
     client, _ = state_api_client()
     try:
-        assert client.put(
-            "/applications",
-            json={"applications": []},
-        ).status_code == 405
-        assert client.put(
-            "/applications/events",
-            json={"events": []},
-        ).status_code == 405
+        assert (
+            client.put(
+                "/applications",
+                json={"applications": []},
+            ).status_code
+            == 405
+        )
+        assert (
+            client.put(
+                "/applications/events",
+                json={"events": []},
+            ).status_code
+            == 405
+        )
     finally:
         app.dependency_overrides.clear()
 
 
-def test_application_preferences_are_owner_scoped_and_revisioned() -> None:
+def test_legacy_preparation_routes_are_not_available() -> None:
     client, _ = state_api_client()
-    owner_a = {"X-Rufina-Owner-Id": "owner-a"}
-    owner_b = {"X-Rufina-Owner-Id": "owner-b"}
     try:
         created = client.post(
             "/applications",
-            headers=owner_a,
             json={
-                "id": "application-preferences",
-                "data": {"id": "application-preferences", "status": "draft"},
+                "id": "application-without-preparation",
+                "data": {
+                    "id": "application-without-preparation",
+                    "status": "draft",
+                },
             },
         )
         assert created.status_code == 201
 
-        absent = client.get(
-            "/applications/application-preferences/preferences",
-            headers=owner_a,
-        )
-        assert absent.status_code == 404
-
-        saved = client.put(
-            "/applications/application-preferences/preferences",
-            headers=owner_a,
-            json={
-                "resume_template_id": "classic_single",
-                "resume_generation_mode": "recruiter_xyz_ats",
-            },
-        )
-        assert saved.status_code == 200
-        assert saved.headers["etag"] == '"1"'
-        assert saved.json()["revision"] == 1
-
-        updated = client.patch(
-            "/applications/application-preferences/preferences",
-            headers={**owner_a, "If-Match": 'W/"1"'},
-            json={"resume_template_id": "modern_single"},
-        )
-        assert updated.status_code == 200
-        assert updated.json()["revision"] == 2
-        assert updated.json()["resume_template_id"] == "modern_single"
-        assert updated.json()["resume_generation_mode"] == "recruiter_xyz_ats"
-
-        empty_patch = client.patch(
-            "/applications/application-preferences/preferences",
-            headers=owner_a,
-            json={"revision": 2},
-        )
-        assert empty_patch.status_code == 422
-
-        stale = client.patch(
-            "/applications/application-preferences/preferences",
-            headers=owner_a,
-            json={"resume_generation_mode": "imaginator", "revision": 1},
-        )
-        assert stale.status_code == 412
-
-        foreign = client.get(
-            "/applications/application-preferences/preferences",
-            headers=owner_b,
-        )
-        assert foreign.status_code == 404
-
-        deleted = client.delete(
-            "/applications/application-preferences/preferences",
-            headers={**owner_a, "If-Match": '"2"'},
-        )
-        assert deleted.status_code == 204
+        application_id = "application-without-preparation"
+        for suffix in ("analysis", "confirmations", "preferences"):
+            assert client.get(f"/applications/{application_id}/{suffix}").status_code == 404
     finally:
         app.dependency_overrides.clear()
