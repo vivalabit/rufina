@@ -18,17 +18,22 @@ GenerationExecutionState = Literal["queued", "running", "completed", "failed"]
 GenerationDocumentState = Literal["queued", "running", "completed", "failed"]
 
 _PROHIBITED_CONTEXT_KEYS = {
+    "analysis",
     "aimatch",
     "analysisplan",
     "applicationguide",
     "documentplan",
     "generationplan",
+    "match",
+    "matchanalysis",
     "matchexplanation",
     "matchreasons",
     "matchscore",
     "plan",
     "plans",
     "preparationanalysis",
+    "reasons",
+    "recommendations",
 }
 
 
@@ -57,6 +62,24 @@ def _reject_internal_context(value: Any, *, path: str) -> None:
     elif isinstance(value, (list, tuple)):
         for index, nested in enumerate(value):
             _reject_internal_context(nested, path=f"{path}[{index}]")
+
+
+def without_internal_generation_context(value: Any) -> Any:
+    """Copy source JSON while omitting match analysis and obsolete planning data."""
+
+    if isinstance(value, dict):
+        sanitized: dict[str, Any] = {}
+        for key, nested in value.items():
+            normalized_key = re.sub(r"[^a-z0-9]", "", str(key).casefold())
+            if normalized_key in _PROHIBITED_CONTEXT_KEYS:
+                continue
+            sanitized[str(key)] = without_internal_generation_context(nested)
+        return sanitized
+    if isinstance(value, list):
+        return [without_internal_generation_context(nested) for nested in value]
+    if isinstance(value, tuple):
+        return [without_internal_generation_context(nested) for nested in value]
+    return value
 
 
 class GenerationApplicationSnapshot(GenerationContractModel):
@@ -210,4 +233,5 @@ __all__ = [
     "GenerationRequest",
     "GenerationResult",
     "GenerationVacancySnapshot",
+    "without_internal_generation_context",
 ]
