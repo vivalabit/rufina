@@ -10,7 +10,16 @@ from app.core.database import Base, get_db
 from app.main import app
 from app.models.applications import StoredApplicationRecord
 from app.models.jobs import JobMatchRecord, StoredJobRecord
-from app.services.ai_match import MATCHER_VERSION
+from app.models.profile import ProfilePayload, ProfileRecord
+from app.services.ai_match import (
+    DEFAULT_AI_MATCH_MODEL,
+    MATCH_PROMPT_VERSION,
+    MATCHER_VERSION,
+    build_cache_key,
+    build_job_snapshot,
+    build_job_snapshot_hash,
+    build_profile_input_hash,
+)
 
 
 def test_applications_and_events_can_be_created_updated_and_read() -> None:
@@ -141,15 +150,20 @@ def test_applications_expose_the_current_match_without_preparation_analysis() ->
             db.close()
 
     now = datetime.now(UTC)
+    profile = ProfilePayload()
+    job_data = {
+        "id": "job-revision",
+        "title": "Authoritative title",
+        "company": "Acme",
+    }
+    profile_version = build_profile_input_hash(profile)
+    vacancy_version = build_job_snapshot_hash(build_job_snapshot(job_data))
     with testing_session_local() as db:
+        db.add(ProfileRecord(id="default", data=profile.model_dump()))
         db.add(
             StoredJobRecord(
                 id="job-revision",
-                data={
-                    "id": "job-revision",
-                    "title": "Authoritative title",
-                    "company": "Acme",
-                },
+                data=job_data,
             )
         )
         for revision, created_at in (
@@ -160,9 +174,19 @@ def test_applications_expose_the_current_match_without_preparation_analysis() ->
                 JobMatchRecord(
                     id=revision,
                     job_id="job-revision",
-                    profile_hash=f"profile-{revision}",
+                    profile_hash=profile_version,
+                    vacancy_hash=vacancy_version,
+                    model=DEFAULT_AI_MATCH_MODEL,
+                    backend="openclaw_codex",
+                    prompt_version=MATCH_PROMPT_VERSION,
                     matcher_version=MATCHER_VERSION,
-                    cache_key=f"cache-{revision}",
+                    cache_key=build_cache_key(
+                        profile_version=profile_version,
+                        vacancy_version=vacancy_version,
+                        model=DEFAULT_AI_MATCH_MODEL,
+                        backend="openclaw_codex",
+                        prompt_version=MATCH_PROMPT_VERSION,
+                    ),
                     score=92,
                     source="openclaw_codex",
                     created_at=created_at,

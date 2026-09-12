@@ -65,7 +65,7 @@ def list_jobs(db: Session = Depends(get_db)) -> list[StoredJobPayload]:
                     db,
                     job_id=record.id,
                     job_data=record.data,
-                    profile_hash=candidate_snapshot.profile_hash,
+                    profile_hash=candidate_snapshot.profile_input_hash,
                 ),
             )
             for record in records
@@ -151,7 +151,7 @@ def match_jobs(
                 db,
                 job_id=str(job.get("id") or ""),
                 job_data=job,
-                profile_hash=candidate_snapshot.profile_hash,
+                profile_hash=candidate_snapshot.profile_input_hash,
             )
             for job in jobs_to_match
         ]
@@ -160,6 +160,7 @@ def match_jobs(
             jobs_to_match,
             force=force,
             candidate_snapshot=candidate_snapshot.data,
+            profile_version=candidate_snapshot.profile_input_hash,
         )
 
         persisted_jobs: list[dict[str, Any]] = []
@@ -167,7 +168,11 @@ def match_jobs(
             job_id = str(job.get("id") or "")
             if not job_id:
                 continue
-            persist_job_and_match(db, job=job, profile_hash=candidate_snapshot.profile_hash)
+            persist_job_and_match(
+                db,
+                job=job,
+                profile_hash=candidate_snapshot.profile_input_hash,
+            )
             persisted_jobs.append(job)
 
         db.commit()
@@ -178,7 +183,7 @@ def match_jobs(
                     db,
                     job_id=str(job["id"]),
                     job_data=job,
-                    profile_hash=candidate_snapshot.profile_hash,
+                    profile_hash=candidate_snapshot.profile_input_hash,
                 ),
             )
             for job in persisted_jobs
@@ -240,7 +245,7 @@ def run_match_jobs(
                 db,
                 job_id=str(job.get("id") or ""),
                 job_data=job,
-                profile_hash=candidate_snapshot.profile_hash,
+                profile_hash=candidate_snapshot.profile_input_hash,
             )
             for job in jobs_to_match
         ]
@@ -250,7 +255,7 @@ def run_match_jobs(
             owner_id=identity.owner_id,
             profile=profile,
             jobs=jobs_to_match,
-            profile_hash=candidate_snapshot.profile_hash,
+            profile_hash=candidate_snapshot.profile_input_hash,
             candidate_snapshot=candidate_snapshot.data,
             settings=settings,
             session_factory=session_factory,

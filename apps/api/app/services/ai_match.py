@@ -35,7 +35,7 @@ from app.services.resume_import import (
     summarize_openclaw_error,
 )
 
-MATCHER_VERSION = "ai-match-v5"
+MATCHER_VERSION = "ai-match-v6"
 MATCH_PROMPT_VERSION = "ai-match-prompt-v8"
 DEFAULT_AI_MATCH_MODEL = "openai/gpt-5.6-terra"
 DEFAULT_AI_MATCH_MAX_ATTEMPTS = 2
@@ -159,6 +159,7 @@ class VacancyMatchingAIFacade:
         *,
         force: bool = False,
         candidate_snapshot: dict[str, Any] | None = None,
+        profile_version: str | None = None,
         progress_callback: Callable[[int, int], None] | None = None,
     ) -> list[dict[str, Any]]:
         return calculate_ai_matches(
@@ -175,6 +176,7 @@ class VacancyMatchingAIFacade:
             retry_backoff_seconds=self.retry_backoff_seconds,
             force=force,
             candidate_snapshot=candidate_snapshot,
+            profile_version=profile_version,
             backend=self.backend,
             progress_callback=progress_callback,
         )
@@ -210,6 +212,7 @@ def calculate_ai_matches(
     retry_backoff_seconds: float = 0,
     force: bool = False,
     candidate_snapshot: dict[str, Any] | None = None,
+    profile_version: str | None = None,
     backend: AIBackend | None = None,
     progress_callback: Callable[[int, int], None] | None = None,
 ) -> list[dict[str, Any]]:
@@ -219,6 +222,7 @@ def calculate_ai_matches(
         raise AiMatchError("AI vacancy matching requires a positive job batch size")
 
     profile_snapshot = candidate_snapshot or build_candidate_snapshot(profile)
+    resolved_profile_version = profile_version or build_profile_input_hash(profile)
     backend_source = backend.name if backend is not None else "openclaw_codex"
     ordered_jobs: list[dict[str, Any] | tuple[dict[str, Any], dict[str, Any], str]] = []
     now = datetime.now(UTC).isoformat()
@@ -229,9 +233,10 @@ def calculate_ai_matches(
             continue
 
         job_snapshot = build_job_snapshot(job)
+        vacancy_version = build_job_snapshot_hash(job_snapshot)
         cache_key = build_cache_key(
-            profile_snapshot,
-            job_snapshot,
+            profile_version=resolved_profile_version,
+            vacancy_version=vacancy_version,
             model=model,
             prompt_version=MATCH_PROMPT_VERSION,
             backend=backend_source,
@@ -239,8 +244,15 @@ def calculate_ai_matches(
         cached_match = job.get("aiMatch")
         if (
             not force
-            and is_cached_match_valid(cached_match, cache_key)
-            and cached_match.get("source") == backend_source
+            and is_cached_match_valid(
+                cached_match,
+                cache_key,
+                profile_version=resolved_profile_version,
+                vacancy_version=vacancy_version,
+                model=model,
+                backend=backend_source,
+                prompt_version=MATCH_PROMPT_VERSION,
+            )
         ):
             ordered_jobs.append(job)
             continue
@@ -311,7 +323,7 @@ def calculate_ai_matches(
             ),
             item[2],
             now,
-            profile_hash=build_candidate_snapshot_hash(profile_snapshot),
+            profile_hash=resolved_profile_version,
             vacancy_hash=build_job_snapshot_hash(item[1]),
             model=model,
             prompt_version=MATCH_PROMPT_VERSION,
@@ -368,6 +380,20 @@ def build_profile_files_fingerprint(profile: ProfilePayload) -> str:
         separators=(",", ":"),
     )
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def build_profile_input_hash(profile: ProfilePayload) -> str:
+    """Version the source profile, including files, before AI normalization."""
+
+    payload = json.dumps(
+        {
+            "profile": profile.model_dump(),
+            "profile_files_hash": build_profile_files_fingerprint(profile),
+        },
+        sort_keys=True,
+        separators=(",", ":"),
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def build_candidate_snapshot(profile: ProfilePayload) -> dict[str, Any]:
@@ -814,9 +840,9 @@ def apply_match_result(
 
 
 def build_cache_key(
-    profile_snapshot: dict[str, Any],
-    job_snapshot: dict[str, Any],
     *,
+    profile_version: str,
+    vacancy_version: str,
     model: str = DEFAULT_AI_MATCH_MODEL,
     prompt_version: str = MATCH_PROMPT_VERSION,
     backend: str = "openclaw_codex",
@@ -827,8 +853,8 @@ def build_cache_key(
             "promptVersion": prompt_version,
             "model": model,
             "backend": backend,
-            "candidate": profile_snapshot,
-            "job": job_snapshot,
+            "profileVersion": profile_version,
+            "vacancyVersion": vacancy_version,
         },
         sort_keys=True,
         separators=(",", ":"),
@@ -842,7 +868,7 @@ def build_job_snapshot_hash(snapshot: dict[str, Any]) -> str:
 
 
 def build_profile_hash(profile: ProfilePayload) -> str:
-    return build_candidate_snapshot_hash(build_candidate_snapshot(profile))
+    return build_profile_input_hash(profile)
 
 
 def build_candidate_snapshot_hash(snapshot: dict[str, Any]) -> str:
@@ -854,13 +880,34 @@ def build_candidate_snapshot_hash(snapshot: dict[str, Any]) -> str:
     return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
-def is_cached_match_valid(value: Any, cache_key: str) -> bool:
+def is_cached_match_valid(
+    value: Any,
+    cache_key: str,
+    *,
+    profile_version: str,
+    vacancy_version: str,
+    model: str,
+    backend: str,
+    prompt_version: str,
+) -> bool:
+    try:
+        match = AiMatchMetadata.model_validate(value)
+    except ValidationError:
+        return False
+
     return (
-        isinstance(value, dict)
-        and value.get("version") == MATCHER_VERSION
-        and value.get("cacheKey") == cache_key
-        and type(value.get("score")) is int
-        and 0 <= value["score"] <= 100
+        match.version == MATCHER_VERSION
+        and match.cache_key == cache_key
+        and re.fullmatch(r"[a-f0-9]{64}", match.cache_key, re.IGNORECASE) is not None
+        and match.provider_error is None
+        and match.profile_hash == profile_version
+        and re.fullmatch(r"[a-f0-9]{64}", match.profile_hash, re.IGNORECASE) is not None
+        and match.vacancy_hash == vacancy_version
+        and re.fullmatch(r"[a-f0-9]{64}", match.vacancy_hash, re.IGNORECASE) is not None
+        and match.model == model
+        and match.backend == backend
+        and match.source == backend
+        and match.prompt_version == prompt_version
     )
 
 

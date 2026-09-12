@@ -233,6 +233,13 @@ function serializeAssistantJob(job: AssistantJob | null) {
   };
 }
 
+function formatAssistantJobMatch(job: AssistantJob) {
+  if (job.aiMatch?.providerError) return "Calculation failed";
+  const score = job.aiMatch?.score;
+  return score !== undefined && Number.isInteger(score) && score >= 0 && score <= 100
+    ? `${score}% match`
+    : "Not scored";
+}
 
 export function AssistantView({
   profile,
@@ -1114,7 +1121,7 @@ export function AssistantView({
               </span>
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold leading-5 text-foreground 2xl:text-[15px]">{contextLabel}</p>
-                {selectedJob && <p className="mt-0.5 text-[10px] text-muted 2xl:text-[11px]">{selectedJob.location} · {selectedJob.match}% match</p>}
+                {selectedJob && <p className="mt-0.5 text-[10px] text-muted 2xl:text-[11px]">{selectedJob.location} · {formatAssistantJobMatch(selectedJob)}</p>}
                 {selectedApplication && <span className="mt-2 inline-flex rounded-md border border-border bg-white px-2 py-1 text-[10px] font-bold capitalize text-[#1d1e1c]">{selectedApplication.status}</span>}
               </div>
             </div>

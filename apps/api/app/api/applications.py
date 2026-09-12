@@ -19,10 +19,8 @@ from app.models.applications import (
 )
 from app.models.documents import WorkspaceSourceDocumentRecord
 from app.models.jobs import StoredJobRecord
-from app.services.job_match_store import (
-    authoritative_match_to_ai_match,
-    latest_job_match_record,
-)
+from app.services.candidate_snapshot import get_current_profile_version
+from app.services.job_match_store import hydrate_job_data
 
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
 
@@ -104,12 +102,15 @@ def application_payload(
         job["id"] = job_id
     else:
         job = dict(raw_job) if isinstance(raw_job, dict) else {}
-    job.pop("aiMatch", None)
-
-    match_record = latest_job_match_record(db, job_id=job_id) if job_id else None
-    if match_record:
-        job["match"] = match_record.score
-        job["aiMatch"] = authoritative_match_to_ai_match(match_record)
+    if job_id:
+        job = hydrate_job_data(
+            db,
+            job_id=job_id,
+            job_data=job,
+            profile_hash=get_current_profile_version(db),
+        )
+    else:
+        job.pop("aiMatch", None)
     if job:
         data["job"] = job
     return StoredApplicationPayload(

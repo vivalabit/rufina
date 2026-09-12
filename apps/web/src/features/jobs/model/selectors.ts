@@ -179,6 +179,7 @@ export function matchesRemoteFilter(job: Job, filter: string) {
 
 export function matchesJobFilters(job: Job, filters: JobFilters) {
   const salaryAmount = getJobSalaryAmount(job);
+  const matchScore = getDisplayMatch(job);
 
   return (
     (filters.location === "Any" ||
@@ -191,7 +192,7 @@ export function matchesJobFilters(job: Job, filters: JobFilters) {
     matchesExperienceFilter(job, filters.experience) &&
     (filters.type === "Any" || job.type === filters.type) &&
     (filters.match === "Any" ||
-      getDisplayMatch(job) >= Number.parseInt(filters.match, 10))
+      (matchScore !== null && matchScore >= Number.parseInt(filters.match, 10)))
   );
 }
 
@@ -272,6 +273,6 @@ export function selectFilteredJobs({
     if (sortBy === "Salary") {
       return getJobSalaryAmount(right) - getJobSalaryAmount(left);
     }
-    return getDisplayMatch(right) - getDisplayMatch(left);
+    return (getDisplayMatch(right) ?? -1) - (getDisplayMatch(left) ?? -1);
   });
 }

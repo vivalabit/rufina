@@ -48,6 +48,7 @@ from app.models.documents import (
 from app.models.jobs import StoredJobRecord
 from app.models.profile import ProfilePayload
 from app.services.ai_backend import ai_backend_provider_name
+from app.services.ai_match import build_profile_input_hash
 from app.services.ai_privacy import record_ai_activity
 from app.services.assistant import (
     AIAssistantRun,
@@ -61,10 +62,7 @@ from app.services.assistant import (
     extract_assistant_action_previews,
     preflight_source_documents,
 )
-from app.services.job_match_store import (
-    authoritative_match_to_ai_match,
-    latest_job_match_record,
-)
+from app.services.job_match_store import hydrate_job_data
 from app.services.profile_files import enrich_profile_with_files
 from app.services.profile_versions import (
     StaleProfileRevisionError,
@@ -771,7 +769,7 @@ def load_authoritative_assistant_inputs(
 ) -> AuthoritativeAssistantInputs:
     profile = load_profile(db)
     if request.context_kind == "job":
-        job = load_server_job_context(db, request.context_id)
+        job = load_server_job_context(db, request.context_id, profile)
         return AuthoritativeAssistantInputs(
             profile=profile,
             job=job,
@@ -779,7 +777,7 @@ def load_authoritative_assistant_inputs(
             source_documents=tuple(request.source_documents),
         )
     if request.context_kind == "application":
-        application = load_server_application_context(db, request.context_id)
+        application = load_server_application_context(db, request.context_id, profile)
         return AuthoritativeAssistantInputs(
             profile=profile,
             job=application.job,
@@ -797,6 +795,7 @@ def load_authoritative_assistant_inputs(
 def load_server_job_context(
     db: Session,
     job_id: str,
+    profile: ProfilePayload,
 ) -> AssistantJobContext | None:
     if not job_id:
         return None
@@ -805,13 +804,12 @@ def load_server_job_context(
         record = db.get(StoredJobRecord, (get_bound_owner_id(), job_id))
         if not record or not isinstance(record.data, dict):
             return None
-        job_data = dict(record.data)
-        job_data["id"] = job_id
-        job_data.pop("aiMatch", None)
-        match_record = latest_job_match_record(db, job_id=job_id)
-        if match_record:
-            job_data["match"] = match_record.score
-            job_data["aiMatch"] = authoritative_match_to_ai_match(match_record)
+        job_data = hydrate_job_data(
+            db,
+            job_id=job_id,
+            job_data={**record.data, "id": job_id},
+            profile_hash=build_profile_input_hash(profile),
+        )
         return AssistantJobContext.model_validate(job_data)
     except (SQLAlchemyError, ValidationError):
         return None
@@ -820,6 +818,7 @@ def load_server_job_context(
 def load_server_application_context(
     db: Session,
     application_id: str,
+    profile: ProfilePayload,
 ) -> AssistantApplicationContext:
     try:
         record = db.get(StoredApplicationRecord, application_id) if application_id else None
@@ -829,7 +828,7 @@ def load_server_application_context(
             )
         raw_job = record.data.get("job")
         job_id = str(raw_job.get("id") or "").strip() if isinstance(raw_job, dict) else ""
-        job = load_server_job_context(db, job_id)
+        job = load_server_job_context(db, job_id, profile)
         if job is None:
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,

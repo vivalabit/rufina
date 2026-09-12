@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from pydantic import ValidationError
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -30,6 +31,7 @@ from app.services.ai_match import (
     build_cache_key,
     build_candidate_snapshot,
     build_job_snapshot,
+    build_job_snapshot_hash,
     build_openclaw_ai_match_prompt,
     build_profile_files_fingerprint,
     calculate_ai_matches,
@@ -47,6 +49,11 @@ from app.services.candidate_snapshot import (
     build_snapshot_with_openclaw,
     extract_openclaw_candidate_snapshot_payload,
     get_candidate_match_snapshot,
+)
+from app.services.job_match_store import (
+    hydrate_job_data,
+    normalize_ai_match,
+    persist_job_and_match,
 )
 
 
@@ -123,17 +130,17 @@ def test_parse_number_reads_spaced_salary_values() -> None:
 
 
 def test_ai_match_cache_key_separates_backends() -> None:
-    profile_snapshot = {"skills": ["Python"]}
-    job_snapshot = {"id": "job-cache", "skills": ["Python"]}
+    profile_version = "a" * 64
+    vacancy_version = "b" * 64
 
     openclaw_key = build_cache_key(
-        profile_snapshot,
-        job_snapshot,
+        profile_version=profile_version,
+        vacancy_version=vacancy_version,
         backend="openclaw_codex",
     )
     openai_key = build_cache_key(
-        profile_snapshot,
-        job_snapshot,
+        profile_version=profile_version,
+        vacancy_version=vacancy_version,
         backend="openai_api",
     )
 
@@ -382,6 +389,57 @@ def test_ai_match_reports_progress_after_each_batch(
     )
 
     assert progress == [(2, 5), (4, 5), (5, 5)]
+
+
+def test_ai_match_preserves_input_order_when_cached_jobs_are_skipped(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    score_calls: list[list[str]] = []
+
+    def fake_score_with_openclaw(*, jobs: list[dict], **_: object) -> list[dict]:
+        score_calls.append([str(job["id"]) for job in jobs])
+        return [
+            {"id": job["id"], "score": 0 if len(score_calls) == 2 else 80}
+            for job in jobs
+        ]
+
+    monkeypatch.setattr(ai_match_service, "score_with_openclaw", fake_score_with_openclaw)
+    jobs = [
+        {
+            "id": f"job-order-{index}",
+            "title": f"Python Engineer {index}",
+            "company": "Acme",
+            "requirements": ["Python"],
+            "skills": ["Python"],
+        }
+        for index in range(3)
+    ]
+    arguments = {
+        "command": "openclaw",
+        "agent_id": "main",
+        "thinking": "low",
+        "timeout_seconds": 1,
+        "openclaw_enabled": True,
+        "openclaw_max_jobs": 3,
+    }
+
+    first = calculate_ai_matches(ProfilePayload(skills="Python"), jobs, **arguments)
+    second = calculate_ai_matches(
+        ProfilePayload(skills="Python"),
+        [first[0], jobs[1], first[2]],
+        **arguments,
+    )
+
+    assert score_calls == [
+        ["job-order-0", "job-order-1", "job-order-2"],
+        ["job-order-1"],
+    ]
+    assert [job["id"] for job in second] == [
+        "job-order-0",
+        "job-order-1",
+        "job-order-2",
+    ]
+    assert second[1]["aiMatch"]["score"] == 0
 
 
 def test_ai_match_records_provider_neutral_backend_source(
@@ -1378,7 +1436,7 @@ def test_ai_match_endpoint_updates_and_persists_job_scores(monkeypatch: pytest.M
             assert snapshot_records[0].source == "openclaw_codex"
             assert len(match_records) == 1
             assert {record.profile_hash for record in match_records} == {
-                snapshot_records[0].profile_hash
+                snapshot_records[0].profile_input_hash
             }
             assert payload["match"] in {record.score for record in match_records}
             assert all(record.source == "openclaw_codex" for record in match_records)
@@ -1693,17 +1751,178 @@ def test_ai_match_run_endpoint_batches_openclaw_scoring(monkeypatch: pytest.Monk
     [(0, True), (100, True), (-1, False), (101, False), (True, False), (1.5, False)],
 )
 def test_match_cache_accepts_only_valid_scores(score: object, valid: bool) -> None:
-    match = {"version": ai_match_service.MATCHER_VERSION, "cacheKey": "cache", "score": score}
-    assert ai_match_service.is_cached_match_valid(match, "cache") is valid
-    assert not ai_match_service.is_cached_match_valid(match, "different-cache")
-    assert not ai_match_service.is_cached_match_valid({**match, "version": "ai-match-v4"}, "cache")
+    profile_version = "a" * 64
+    vacancy_version = "b" * 64
+    cache_key = build_cache_key(
+        profile_version=profile_version,
+        vacancy_version=vacancy_version,
+    )
+    match = {
+        "version": ai_match_service.MATCHER_VERSION,
+        "profileHash": profile_version,
+        "vacancyHash": vacancy_version,
+        "model": ai_match_service.DEFAULT_AI_MATCH_MODEL,
+        "backend": "openclaw_codex",
+        "promptVersion": ai_match_service.MATCH_PROMPT_VERSION,
+        "cacheKey": cache_key,
+        "source": "openclaw_codex",
+        "score": score,
+        "updatedAt": datetime.now(UTC).isoformat(),
+    }
+    expected = {
+        "profile_version": profile_version,
+        "vacancy_version": vacancy_version,
+        "model": ai_match_service.DEFAULT_AI_MATCH_MODEL,
+        "backend": "openclaw_codex",
+        "prompt_version": ai_match_service.MATCH_PROMPT_VERSION,
+    }
+
+    assert ai_match_service.is_cached_match_valid(match, cache_key, **expected) is valid
+    assert not ai_match_service.is_cached_match_valid(match, "d" * 64, **expected)
+    assert not ai_match_service.is_cached_match_valid(
+        {**match, "version": "ai-match-v4"}, cache_key, **expected
+    )
+    if valid:
+        for changed_match in (
+            {**match, "profileHash": "d" * 64},
+            {**match, "vacancyHash": "e" * 64},
+            {**match, "model": "different-model"},
+            {**match, "backend": "openai_api", "source": "openai_api"},
+            {**match, "promptVersion": "different-prompt"},
+            {**match, "providerError": "Provider timed out"},
+        ):
+            assert not ai_match_service.is_cached_match_valid(
+                changed_match,
+                cache_key,
+                **expected,
+            )
 
 
 def test_match_cache_identity_tracks_all_scoring_inputs() -> None:
-    candidate = {"skills": ["Python"]}
+    profile_version = build_profile_input_hash(ProfilePayload(skills="Python"))
+    changed_profile_version = build_profile_input_hash(ProfilePayload(skills="Java"))
     job = build_job_snapshot({"id": "job-1", "title": "Engineer"})
-    original = build_cache_key(candidate, job)
-    assert original != build_cache_key({"skills": ["Java"]}, job)
-    assert original != build_cache_key(candidate, {**job, "title": "Senior Engineer"})
-    assert original != build_cache_key(candidate, job, model="different-model")
-    assert original != build_cache_key(candidate, job, prompt_version="different-prompt")
+    vacancy_version = build_job_snapshot_hash(job)
+    changed_vacancy_version = build_job_snapshot_hash(
+        build_job_snapshot({"id": "job-1", "title": "Senior Engineer"})
+    )
+    original = build_cache_key(
+        profile_version=profile_version,
+        vacancy_version=vacancy_version,
+    )
+
+    assert original != build_cache_key(
+        profile_version=changed_profile_version,
+        vacancy_version=vacancy_version,
+    )
+    assert original != build_cache_key(
+        profile_version=profile_version,
+        vacancy_version=changed_vacancy_version,
+    )
+    assert original != build_cache_key(
+        profile_version=profile_version,
+        vacancy_version=vacancy_version,
+        model="different-model",
+    )
+    assert original != build_cache_key(
+        profile_version=profile_version,
+        vacancy_version=vacancy_version,
+        prompt_version="different-prompt",
+    )
+
+
+def test_match_hydration_requires_current_profile_and_vacancy_versions() -> None:
+    engine = create_engine("sqlite://")
+    Base.metadata.create_all(bind=engine)
+    profile_version = build_profile_input_hash(ProfilePayload(skills="Python"))
+    job = {
+        "id": "job-versioned-score",
+        "title": "Python Engineer",
+        "company": "Acme",
+        "overview": "Build Python services",
+        "requirements": ["Python"],
+        "skills": ["Python"],
+        "match": 50,
+    }
+    vacancy_version = build_job_snapshot_hash(build_job_snapshot(job))
+    cache_key = build_cache_key(
+        profile_version=profile_version,
+        vacancy_version=vacancy_version,
+    )
+    scored_job = {
+        **job,
+        "match": 0,
+        "aiMatch": {
+            "version": ai_match_service.MATCHER_VERSION,
+            "profileHash": profile_version,
+            "vacancyHash": vacancy_version,
+            "model": ai_match_service.DEFAULT_AI_MATCH_MODEL,
+            "backend": "openclaw_codex",
+            "promptVersion": ai_match_service.MATCH_PROMPT_VERSION,
+            "cacheKey": cache_key,
+            "source": "openclaw_codex",
+            "score": 0,
+            "updatedAt": datetime.now(UTC).isoformat(),
+        },
+    }
+
+    with Session(engine) as db:
+        persist_job_and_match(db, job=scored_job, profile_hash=profile_version)
+        db.commit()
+
+        current = hydrate_job_data(
+            db,
+            job_id=job["id"],
+            job_data=scored_job,
+            profile_hash=profile_version,
+        )
+        changed_profile = hydrate_job_data(
+            db,
+            job_id=job["id"],
+            job_data=scored_job,
+            profile_hash=build_profile_input_hash(ProfilePayload(skills="Java")),
+        )
+        changed_vacancy = hydrate_job_data(
+            db,
+            job_id=job["id"],
+            job_data={**scored_job, "overview": "Build Java services"},
+            profile_hash=profile_version,
+        )
+
+    assert current["aiMatch"]["score"] == 0
+    assert "aiMatch" not in changed_profile
+    assert "aiMatch" not in changed_vacancy
+
+    with Session(engine) as db, pytest.raises(ValueError, match="vacancy version"):
+        persist_job_and_match(
+            db,
+            job={
+                **scored_job,
+                "aiMatch": {
+                    **scored_job["aiMatch"],
+                    "vacancyHash": "e" * 64,
+                },
+            },
+            profile_hash=profile_version,
+        )
+
+
+@pytest.mark.parametrize("score", [None, "0", -1, 101, True])
+def test_persisted_match_does_not_coerce_missing_or_invalid_scores_to_zero(
+    score: object,
+) -> None:
+    with pytest.raises(ValidationError):
+        normalize_ai_match(
+            {
+                "version": ai_match_service.MATCHER_VERSION,
+                "profileHash": "a" * 64,
+                "vacancyHash": "b" * 64,
+                "model": ai_match_service.DEFAULT_AI_MATCH_MODEL,
+                "backend": "openclaw_codex",
+                "promptVersion": ai_match_service.MATCH_PROMPT_VERSION,
+                "cacheKey": "c" * 64,
+                "source": "openclaw_codex",
+                "score": score,
+                "updatedAt": datetime.now(UTC).isoformat(),
+            }
+        )

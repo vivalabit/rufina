@@ -133,6 +133,7 @@ import {
 } from "@/features/jobs/formatting";
 import {
   formatMatchValue,
+  getDisplayMatch,
   hasDisplayableMatch,
 } from "@/features/jobs/model/ai-match";
 import {
@@ -3417,11 +3418,11 @@ export function AppWorkspaceRoot({
                               {[
                                 {
                                   label: hasDisplayableMatch(selectedJob)
-                                    ? `Why ${selectedJob.match}%?`
+                                    ? `Why ${getDisplayMatch(selectedJob)}%?`
                                     : "Why no match score?",
                                   prompt: hasDisplayableMatch(selectedJob)
                                     ? assistantPrompts.whyMatch(
-                                        selectedJob.match,
+                                        getDisplayMatch(selectedJob) ?? 0,
                                       )
                                     : assistantPrompts.whyNoMatch,
                                   icon: BarChart3,

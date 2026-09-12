@@ -71,7 +71,7 @@ export function createV3WorkspaceApplication(
       ...overrides.job,
       aiMatch: overrides.job?.aiMatch ?? {
         ...aiMatchFixture,
-        version: "ai-match-v5",
+        version: "ai-match-v6",
         revision: "match-revision-v4",
         fingerprint:
           "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
@@ -91,7 +91,7 @@ export function createWorkspaceApplicationWithoutGuide(
       ...overrides.job,
       aiMatch: overrides.job?.aiMatch ?? {
         ...aiMatchFixture,
-        version: "ai-match-v5",
+        version: "ai-match-v6",
         updatedAt: "2026-07-16T10:00:00.000Z",
       },
     },

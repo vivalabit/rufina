@@ -56,7 +56,10 @@ export function filterAndSortApplications(
     })
     .sort((left, right) => {
       if (filter.sortBy === "AI Match") {
-        return getDisplayMatch(right.job) - getDisplayMatch(left.job);
+        return (
+          (getDisplayMatch(right.job) ?? -1) -
+          (getDisplayMatch(left.job) ?? -1)
+        );
       }
       if (filter.sortBy === "Status") {
         const leftIndex = trackedApplicationStatuses.findIndex(

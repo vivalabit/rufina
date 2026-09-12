@@ -15,7 +15,10 @@ import {
   Smartphone,
 } from "lucide-react";
 
-import { hasDisplayableMatch } from "@/features/jobs/model/ai-match";
+import {
+  getDisplayMatch,
+  hasDisplayableMatch,
+} from "@/features/jobs/model/ai-match";
 import { getDirectCompanyByJobId } from "@/lib/direct-company-catalog";
 import { cn } from "@/lib/utils";
 import type { Job } from "@/shared/types/job";
@@ -28,7 +31,8 @@ type JobRoleIconProps = {
 
 export function JobMatchRing({ job }: { job: Job }) {
   const hasScore = hasDisplayableMatch(job);
-  const normalizedMatch = Math.max(0, Math.min(100, job.match));
+  const matchScore = getDisplayMatch(job);
+  const normalizedMatch = Math.max(0, Math.min(100, matchScore ?? 0));
   const radius = 18.5;
   const strokeWidth = 3;
   const circumference = 2 * Math.PI * radius;
@@ -39,8 +43,8 @@ export function JobMatchRing({ job }: { job: Job }) {
   return (
     <div
       className="h-10 w-10 shrink-0 text-accent 2xl:h-12 2xl:w-12"
-      aria-label={hasScore ? `${job.match}% AI match` : "AI match not scored"}
-      title={hasScore ? `${job.match}% match` : "AI match not scored"}
+      aria-label={hasScore ? `${matchScore}% AI match` : "AI match not scored"}
+      title={hasScore ? `${matchScore}% match` : "AI match not scored"}
     >
       <svg className="block h-full w-full" viewBox="0 0 48 48" aria-hidden="true">
         <circle

@@ -25,7 +25,7 @@ export function MatchPanel({
       <div className="mt-2.5 h-2 rounded-full bg-[#fff8f1] 2xl:mt-3">
         <div
           className="h-full rounded-full bg-success"
-          style={{ width: `${getDisplayMatch(job)}%` }}
+          style={{ width: `${getDisplayMatch(job) ?? 0}%` }}
         />
       </div>
       <button

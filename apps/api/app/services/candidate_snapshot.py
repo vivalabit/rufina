@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import subprocess
 from dataclasses import dataclass
@@ -23,11 +22,12 @@ from app.services.ai_match import (
     MATCHER_VERSION,
     build_candidate_snapshot,
     build_candidate_snapshot_hash,
-    build_profile_files_fingerprint,
+    build_profile_input_hash,
     normalize_list,
     parse_number,
 )
 from app.services.profile_files import enrich_profile_with_files
+from app.services.profile_versions import get_profile_record
 from app.services.resume_import import (
     extract_json_object,
     extract_json_objects,
@@ -48,6 +48,12 @@ class CandidateMatchSnapshot:
     model: str
     data: dict[str, Any]
     provider_error: str | None = None
+
+
+def get_current_profile_version(db: Session) -> str:
+    record = get_profile_record(db)
+    profile = ProfilePayload.model_validate(record.data) if record else ProfilePayload()
+    return build_profile_input_hash(enrich_profile_with_files(db, profile))
 
 
 LIST_FIELDS = {
@@ -228,19 +234,6 @@ def record_to_snapshot(record: CandidateMatchSnapshotRecord) -> CandidateMatchSn
         data=record.data,
         provider_error=record.provider_error,
     )
-
-
-def build_profile_input_hash(profile: ProfilePayload) -> str:
-    payload = json.dumps(
-        {
-            "version": MATCHER_VERSION,
-            "profile": profile.model_dump(),
-            "profile_files_hash": build_profile_files_fingerprint(profile),
-        },
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 @dataclass(frozen=True)

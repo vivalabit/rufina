@@ -1379,13 +1379,14 @@ def match_new_jobs_if_allowed(
             profile,
             jobs,
             candidate_snapshot=candidate_snapshot.data,
+            profile_version=candidate_snapshot.profile_input_hash,
             progress_callback=progress_callback,
         )
         for matched_job in matched_jobs:
             persist_job_and_match(
                 db,
                 job=matched_job,
-                profile_hash=candidate_snapshot.profile_hash,
+                profile_hash=candidate_snapshot.profile_input_hash,
             )
         activity_at = datetime.now(UTC)
         privacy.last_ai_activity_at = activity_at

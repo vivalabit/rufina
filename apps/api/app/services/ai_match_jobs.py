@@ -150,6 +150,7 @@ class AiMatchJobManager:
                 batch,
                 force=force,
                 candidate_snapshot=candidate_snapshot,
+                profile_version=profile_hash,
             )
         except AiMatchError as exc:
             if len(batch) > 1:

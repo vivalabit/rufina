@@ -29,7 +29,7 @@ export function selectRecommendedDashboardJobs(
   return [...jobs]
     .sort(
       (left, right) =>
-        getDisplayMatch(right) - getDisplayMatch(left) ||
+        (getDisplayMatch(right) ?? -1) - (getDisplayMatch(left) ?? -1) ||
         getJobPostedTime(right, nowMs) - getJobPostedTime(left, nowMs),
     )
     .slice(0, limit);
@@ -37,7 +37,7 @@ export function selectRecommendedDashboardJobs(
 
 export function countDashboardStrongMatches(jobs: Job[]) {
   return jobs.filter(
-    (job) => hasDisplayableMatch(job) && getDisplayMatch(job) >= 80,
+    (job) => hasDisplayableMatch(job) && (getDisplayMatch(job) ?? -1) >= 80,
   ).length;
 }
 

@@ -11,7 +11,12 @@ from sqlalchemy.orm import Session
 from app.core.identity import get_bound_owner_id
 from app.models.ai_match import AiMatchMetadata
 from app.models.jobs import JobMatchRecord, StoredJobRecord
-from app.services.ai_match import MATCHER_VERSION
+from app.services.ai_match import (
+    MATCHER_VERSION,
+    build_cache_key,
+    build_job_snapshot,
+    build_job_snapshot_hash,
+)
 
 
 def hydrate_job_data(
@@ -22,7 +27,15 @@ def hydrate_job_data(
     profile_hash: str,
 ) -> dict[str, Any]:
     next_job_data = strip_ai_match(job_data)
-    match_record = latest_match_record(db, job_id=job_id, profile_hash=profile_hash)
+    vacancy_hash = build_job_snapshot_hash(
+        build_job_snapshot({**next_job_data, "id": job_id})
+    )
+    match_record = latest_match_record(
+        db,
+        job_id=job_id,
+        profile_hash=profile_hash,
+        vacancy_hash=vacancy_hash,
+    )
     if match_record:
         next_job_data["match"] = match_record.score
         next_job_data["aiMatch"] = authoritative_match_to_ai_match(match_record)
@@ -31,18 +44,36 @@ def hydrate_job_data(
     return next_job_data
 
 
-def latest_match_record(db: Session, *, job_id: str, profile_hash: str) -> JobMatchRecord | None:
-    return (
+def latest_match_record(
+    db: Session,
+    *,
+    job_id: str,
+    profile_hash: str,
+    vacancy_hash: str,
+) -> JobMatchRecord | None:
+    record = (
         db.query(JobMatchRecord)
         .filter(
             JobMatchRecord.job_id == job_id,
             JobMatchRecord.profile_hash == profile_hash,
+            JobMatchRecord.vacancy_hash == vacancy_hash,
             JobMatchRecord.matcher_version == MATCHER_VERSION,
             JobMatchRecord.source.in_(("openclaw_codex", "openai_api", "local")),
+            JobMatchRecord.provider_error.is_(None),
         )
         .order_by(JobMatchRecord.created_at.desc(), JobMatchRecord.id.desc())
         .first()
     )
+    if record is None or record.source != record.backend:
+        return None
+    expected_cache_key = build_cache_key(
+        profile_version=profile_hash,
+        vacancy_version=vacancy_hash,
+        model=record.model,
+        backend=record.backend,
+        prompt_version=record.prompt_version,
+    )
+    return record if record.cache_key == expected_cache_key else None
 
 
 def authoritative_match_record(
@@ -68,18 +99,6 @@ def authoritative_match_record(
             JobMatchRecord.backend == backend,
             JobMatchRecord.prompt_version == prompt_version,
             JobMatchRecord.matcher_version == matcher_version,
-        )
-        .order_by(JobMatchRecord.created_at.desc(), JobMatchRecord.id.desc())
-        .first()
-    )
-
-
-def latest_job_match_record(db: Session, *, job_id: str) -> JobMatchRecord | None:
-    return (
-        db.query(JobMatchRecord)
-        .filter(
-            JobMatchRecord.job_id == job_id,
-            JobMatchRecord.matcher_version == MATCHER_VERSION,
         )
         .order_by(JobMatchRecord.created_at.desc(), JobMatchRecord.id.desc())
         .first()
@@ -128,25 +147,65 @@ def persist_job_and_match(db: Session, *, job: dict[str, Any], profile_hash: str
     record = db.get(StoredJobRecord, (get_bound_owner_id(), job_id))
     if record and record.status != "active":
         return
+
+    ai_match = job.get("aiMatch")
+    vacancy_hash = build_job_snapshot_hash(build_job_snapshot({**job_data, "id": job_id}))
+    match_record = None
+    if isinstance(ai_match, dict) and should_insert_match_record(
+        db,
+        job_id,
+        profile_hash,
+        vacancy_hash,
+        ai_match,
+    ):
+        match_record = build_match_record(
+            job_id=job_id,
+            profile_hash=profile_hash,
+            ai_match=ai_match,
+        )
+
     if record:
         record.data = job_data
     else:
         db.add(StoredJobRecord(id=job_id, data=job_data))
 
-    ai_match = job.get("aiMatch")
-    if isinstance(ai_match, dict) and should_insert_match_record(
-        db, job_id, profile_hash, ai_match
-    ):
-        db.add(build_match_record(job_id=job_id, profile_hash=profile_hash, ai_match=ai_match))
+    if match_record is not None:
+        db.add(match_record)
 
 
 def should_insert_match_record(
     db: Session,
     job_id: str,
     profile_hash: str,
+    vacancy_hash: str,
     ai_match: dict[str, Any],
 ) -> bool:
-    latest = latest_match_record(db, job_id=job_id, profile_hash=profile_hash)
+    normalized = normalize_ai_match(ai_match)
+    if normalized["version"] != MATCHER_VERSION:
+        raise ValueError("AI match version is not current")
+    if normalized["profileHash"] != profile_hash:
+        raise ValueError("AI match profile version does not match the persisted profile version")
+    if normalized["vacancyHash"] != vacancy_hash:
+        raise ValueError("AI match vacancy version does not match the persisted vacancy version")
+    if normalized.get("providerError"):
+        raise ValueError("A failed AI match cannot be persisted as a suitability score")
+    expected_cache_key = build_cache_key(
+        profile_version=profile_hash,
+        vacancy_version=vacancy_hash,
+        model=normalized["model"],
+        backend=normalized["backend"],
+        prompt_version=normalized["promptVersion"],
+    )
+    if normalized["source"] != normalized["backend"]:
+        raise ValueError("AI match source does not match its backend")
+    if normalized["cacheKey"] != expected_cache_key:
+        raise ValueError("AI match cache key does not match its scoring inputs")
+    latest = latest_match_record(
+        db,
+        job_id=job_id,
+        profile_hash=profile_hash,
+        vacancy_hash=vacancy_hash,
+    )
     if not latest:
         return True
 
@@ -176,27 +235,20 @@ def normalize_ai_match(
     ai_match: dict[str, Any],
     fallback_updated_at: datetime | None = None,
 ) -> dict[str, Any]:
-    score = clamp_int(ai_match.get("score"), 0)
     updated_at = (
         str(ai_match.get("updatedAt") or "").strip()
         or (fallback_updated_at or datetime.now(UTC)).isoformat()
     )
-    source = str(ai_match.get("source") or "openclaw_codex")
-    if source not in {"openclaw_codex", "openai_api", "local"}:
-        source = "local"
-    backend = str(ai_match.get("backend") or source)
-    if backend not in {"openclaw_codex", "openai_api", "local"}:
-        backend = source
     normalized = {
-        "version": str(ai_match.get("version") or MATCHER_VERSION),
-        "profileHash": str(ai_match.get("profileHash") or ""),
-        "vacancyHash": str(ai_match.get("vacancyHash") or ""),
-        "model": str(ai_match.get("model") or ""),
-        "backend": backend,
-        "promptVersion": str(ai_match.get("promptVersion") or ""),
-        "cacheKey": str(ai_match.get("cacheKey") or ""),
-        "source": source,
-        "score": score,
+        "version": ai_match.get("version"),
+        "profileHash": ai_match.get("profileHash"),
+        "vacancyHash": ai_match.get("vacancyHash"),
+        "model": ai_match.get("model"),
+        "backend": ai_match.get("backend"),
+        "promptVersion": ai_match.get("promptVersion"),
+        "cacheKey": ai_match.get("cacheKey"),
+        "source": ai_match.get("source"),
+        "score": ai_match.get("score"),
         "updatedAt": updated_at,
     }
     provider_error = ai_match.get("providerError")
@@ -240,11 +292,3 @@ def serialize_datetime(value: datetime) -> str:
     if value.tzinfo is None:
         return value.replace(tzinfo=UTC).isoformat()
     return value.astimezone(UTC).isoformat()
-
-
-def clamp_int(value: Any, default: int) -> int:
-    try:
-        number = round(float(value))
-    except (TypeError, ValueError):
-        number = default
-    return max(0, min(100, number))

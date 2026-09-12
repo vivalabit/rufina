@@ -38,15 +38,15 @@ function job(overrides: Partial<Job> = {}): Job {
 describe("job AI-match selectors", () => {
   it("does not display static scores for imported or manual jobs", () => {
     expect(formatMatchValue(job())).toBe("Not scored");
-    expect(getDisplayMatch(job({ id: "manual-job-1", logo: "manual" }))).toBe(0);
+    expect(getDisplayMatch(job({ id: "manual-job-1", logo: "manual" }))).toBeNull();
   });
 
   it("displays authoritative backend scores", () => {
     const matchedJob = job({
       aiMatch: {
         ...aiMatchFixture,
-        version: "ai-match-v5",
-        cacheKey: "cache",
+        version: "ai-match-v6",
+        cacheKey: "c".repeat(64),
         source: "openai_api",
         score: 82,
       },
@@ -59,5 +59,26 @@ describe("job AI-match selectors", () => {
     const matchedJob = job({ match: 10, aiMatch: aiMatchFixture });
     expect(formatMatchValue(matchedJob)).toBe("82%");
     expect(getDisplayMatch(matchedJob)).toBe(82);
+  });
+
+  it("distinguishes failed, missing, and zero scores", () => {
+    const zeroScore = job({
+      match: 0,
+      aiMatch: { ...aiMatchFixture, score: 0 },
+    });
+    const failed = job({
+      match: 0,
+      aiMatch: {
+        ...aiMatchFixture,
+        score: 0,
+        providerError: "Provider timed out",
+      },
+    });
+
+    expect(formatMatchValue(zeroScore)).toBe("0%");
+    expect(getDisplayMatch(zeroScore)).toBe(0);
+    expect(formatMatchValue(failed)).toBe("Calculation failed");
+    expect(getDisplayMatch(failed)).toBeNull();
+    expect(formatMatchValue(job())).toBe("Not scored");
   });
 });

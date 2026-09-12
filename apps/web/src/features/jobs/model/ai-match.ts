@@ -30,21 +30,28 @@ export function getAiMatchSourceDisplay(job: Job) {
 
 export function hasAiBackendMatch(job: Job) {
   return (
-    job.aiMatch?.source === "openclaw_codex" ||
-    job.aiMatch?.source === "openai_api"
+    !job.aiMatch?.providerError &&
+    (job.aiMatch?.source === "openclaw_codex" ||
+      job.aiMatch?.source === "openai_api") &&
+    Number.isInteger(job.aiMatch.score) &&
+    job.aiMatch.score >= 0 &&
+    job.aiMatch.score <= 100
   );
 }
 
 export function hasDisplayableMatch(job: Job) {
+  if (job.aiMatch?.providerError) return false;
   return (
     (!isImportedJob(job) && !isManualJob(job)) || hasAiBackendMatch(job)
   );
 }
 
 export function formatMatchValue(job: Job) {
-  return hasDisplayableMatch(job) ? `${getDisplayMatch(job)}%` : "Not scored";
+  if (job.aiMatch?.providerError) return "Calculation failed";
+  const score = getDisplayMatch(job);
+  return score === null ? "Not scored" : `${score}%`;
 }
 
 export function getDisplayMatch(job: Job) {
-  return hasDisplayableMatch(job) ? (job.aiMatch?.score ?? job.match) : 0;
+  return hasDisplayableMatch(job) ? (job.aiMatch?.score ?? job.match) : null;
 }
