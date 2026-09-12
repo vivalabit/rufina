@@ -239,7 +239,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260906_0052"
+            assert revision == "20260912_0053"
             entry_it = connection.execute(
                 text(
                     "SELECT id, owner_id, name, filters "
@@ -2058,7 +2058,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260906_0052"
+            assert revision == "20260912_0053"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
@@ -2098,7 +2098,7 @@ def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> Non
                     "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
                 )
             ).scalar_one()
-        assert revision == "20260906_0052"
+        assert revision == "20260912_0053"
         assert entry_it_count == 1
         assert LEGACY_RECOVERABLE_MISSING_TABLES <= set(
             inspect(engine).get_table_names()
@@ -2880,3 +2880,46 @@ def test_lifespan_starts_and_stops_scheduled_expiration_cleanup(monkeypatch) -> 
         await asyncio.wait_for(worker_stopped.wait(), timeout=1)
 
     asyncio.run(start_application())
+
+
+def test_match_score_migration_preserves_scores_and_provenance(tmp_path) -> None:
+    database_url = f"sqlite:///{tmp_path / 'match-score.sqlite'}"
+    config = get_alembic_config(database_url)
+    command.upgrade(config, "20260906_0052")
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO job_matches "
+                    "(id, owner_id, job_id, profile_hash, vacancy_hash, model, backend, "
+                    "prompt_version, matcher_version, cache_key, score, source, confidence, "
+                    "breakdown, reasons, gaps, heuristic_score, created_at) VALUES "
+                    "('match-1', 'local-owner', 'job-1', 'profile', 'vacancy', 'test-model', "
+                    "'openai_api', 'old-prompt', 'ai-match-v4', 'cache', 88, 'openai_api', "
+                    "'high', :breakdown, '[\"Old reason\"]', '[]', 50, "
+                    "'2026-09-12 10:00:00')"
+                ),
+                {"breakdown": json.dumps({"role_fit": 18})},
+            )
+        command.upgrade(config, "head")
+        columns = {column["name"] for column in inspect(engine).get_columns("job_matches")}
+        assert columns == set(Base.metadata.tables["job_matches"].columns.keys())
+        with engine.connect() as connection:
+            row = connection.execute(text("SELECT * FROM job_matches")).mappings().one()
+            assert row["id"] == "match-1"
+            assert row["score"] == 88
+            assert row["matcher_version"] == "ai-match-v4"
+            assert row["profile_hash"] == "profile"
+            assert row["vacancy_hash"] == "vacancy"
+            assert row["model"] == "test-model"
+            assert row["cache_key"] == "cache"
+        command.downgrade(config, "20260906_0052")
+        with engine.connect() as connection:
+            row = connection.execute(text("SELECT * FROM job_matches")).mappings().one()
+            assert row["score"] == 88
+            assert json.loads(row["reasons"]) == []
+            assert json.loads(row["breakdown"]) == {}
+        command.upgrade(config, "head")
+    finally:
+        engine.dispose()

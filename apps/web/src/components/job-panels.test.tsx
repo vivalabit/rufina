@@ -1,3 +1,4 @@
+import { aiMatchFixture } from "@/test/ai-match-fixture";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
@@ -5,7 +6,6 @@ import { JobMainPanel } from "@/components/job-main-panel";
 import {
   JobDetails,
   MatchPanel,
-  RecommendationsPanel,
   SalaryInsights,
 } from "@/components/job-summary-panels";
 import { ManualJobDialog } from "@/components/manual-job-dialog";
@@ -28,9 +28,8 @@ it("renders the selected vacancy panels from job props", () => {
   expect(screen.getAllByText(job.location).length).toBeGreaterThan(0);
 });
 
-it("forwards actions from match and recommendation panels", () => {
+it("opens match score details", () => {
   const onReviewFullAnalysis = vi.fn();
-  const onViewAllRecommendations = vi.fn();
 
   render(
     <>
@@ -38,18 +37,12 @@ it("forwards actions from match and recommendation panels", () => {
         job={demoJobs[0]}
         onReviewFullAnalysis={onReviewFullAnalysis}
       />
-      <RecommendationsPanel
-        job={demoJobs[0]}
-        onViewAllRecommendations={onViewAllRecommendations}
-      />
     </>,
   );
 
-  fireEvent.click(screen.getByRole("button", { name: /review full analysis/i }));
-  fireEvent.click(screen.getByRole("button", { name: /view all recommendations/i }));
+  fireEvent.click(screen.getByRole("button", { name: /view score details/i }));
 
   expect(onReviewFullAnalysis).toHaveBeenCalledOnce();
-  expect(onViewAllRecommendations).toHaveBeenCalledOnce();
 });
 
 it("keeps the manual vacancy dialog controlled", () => {
@@ -78,4 +71,13 @@ it("keeps the manual vacancy dialog controlled", () => {
 
   expect(onChange).toHaveBeenCalledWith("title", "Staff Designer");
   expect(onSave).toHaveBeenCalledOnce();
+});
+
+it("shows suitability and calculation metadata without legacy analysis", () => {
+  const job = { ...demoJobs[0], aiMatch: aiMatchFixture };
+  render(<JobMainPanel job={job} tab="AI Match" />);
+  expect(screen.getByText("82%")).toBeInTheDocument();
+  expect(screen.getByText("Updated")).toBeInTheDocument();
+  expect(screen.getByText("Source")).toBeInTheDocument();
+  expect(screen.queryByText(/reasons|gaps|confidence|recommendations|explanation/i)).not.toBeInTheDocument();
 });

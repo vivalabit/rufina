@@ -64,8 +64,3 @@ export function formatAiMatchTimestamp(value?: string) {
     hour12: false,
   });
 }
-
-export function formatConfidence(value?: "low" | "medium" | "high") {
-  if (!value) return "Not calculated";
-  return `${value[0].toUpperCase()}${value.slice(1)}`;
-}

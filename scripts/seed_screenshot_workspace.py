@@ -34,7 +34,7 @@ from app.models.jobs import (
 )
 from app.models.privacy import AiPrivacySettingsRecord
 from app.models.profile import ProfilePayload
-from app.services.ai_match import MATCH_PROMPT_VERSION, MATCHER_VERSION, WEIGHTS
+from app.services.ai_match import MATCH_PROMPT_VERSION, MATCHER_VERSION
 from app.services.candidate_snapshot import get_candidate_match_snapshot
 from app.services.job_match_store import build_match_record
 from app.services.profile_files import store_profile_file
@@ -498,20 +498,6 @@ def build_fixture(now: datetime | None = None) -> ScreenshotFixture:
     )
 
 
-def weighted_breakdown(score: int) -> dict[str, int]:
-    exact = {key: score * weight / 100 for key, weight in WEIGHTS.items()}
-    result = {key: int(value) for key, value in exact.items()}
-    missing = score - sum(result.values())
-    ranked = sorted(
-        WEIGHTS,
-        key=lambda key: exact[key] - result[key],
-        reverse=True,
-    )
-    for key in ranked[:missing]:
-        result[key] += 1
-    return result
-
-
 def demo_ai_match(
     job: dict[str, Any],
     *,
@@ -535,19 +521,6 @@ def demo_ai_match(
         "cacheKey": cache_key,
         "source": "openai_api",
         "score": score,
-        "confidence": "high" if score >= 80 else "medium",
-        "breakdown": weighted_breakdown(score),
-        "reasons": [
-            f"Strong overlap with {job['skills'][0]} and {job['skills'][1]}",
-            "Relevant experience simplifying complex B2B workflows",
-            "Location and working model align with the candidate's preferences",
-        ],
-        "gaps": (
-            ["Leadership scope should be confirmed during the interview"]
-            if "Lead" in job["title"]
-            else ["Industry-specific experience is not fully demonstrated"]
-        ),
-        "heuristicScore": score,
         "updatedAt": iso_at(now, hours=-1),
     }
 

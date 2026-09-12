@@ -85,7 +85,7 @@ def test_bulk_ai_match_continues_after_one_vacancy_fails(
         job_ids = [str(job["id"]) for job in jobs]
         calls.append(job_ids)
         if "job-invalid" in job_ids:
-            raise OpenClawAiMatchError("breakdown.experience_fit must not exceed 15")
+            raise OpenClawAiMatchError("score must not exceed 100")
         return jobs
 
     monkeypatch.setattr(
@@ -130,7 +130,7 @@ def test_bulk_ai_match_continues_after_one_vacancy_fails(
     assert status.processed == status.total == 3
     assert [job.id for job in status.updated_jobs] == ["job-valid-1", "job-valid-2"]
     assert [failure.id for failure in status.failed_jobs] == ["job-invalid"]
-    assert "experience_fit" in status.failed_jobs[0].error
+    assert "score" in status.failed_jobs[0].error
     assert calls == [
         ["job-valid-1", "job-invalid"],
         ["job-valid-1"],

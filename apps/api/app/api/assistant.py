@@ -62,8 +62,8 @@ from app.services.assistant import (
     preflight_source_documents,
 )
 from app.services.job_match_store import (
+    authoritative_match_to_ai_match,
     latest_job_match_record,
-    match_record_to_ai_match,
 )
 from app.services.profile_files import enrich_profile_with_files
 from app.services.profile_versions import (
@@ -810,7 +810,8 @@ def load_server_job_context(
         job_data.pop("aiMatch", None)
         match_record = latest_job_match_record(db, job_id=job_id)
         if match_record:
-            job_data["aiMatch"] = match_record_to_ai_match(match_record)
+            job_data["match"] = match_record.score
+            job_data["aiMatch"] = authoritative_match_to_ai_match(match_record)
         return AssistantJobContext.model_validate(job_data)
     except (SQLAlchemyError, ValidationError):
         return None

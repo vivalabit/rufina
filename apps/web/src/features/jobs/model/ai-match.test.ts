@@ -1,7 +1,7 @@
+import { aiMatchFixture } from "@/test/ai-match-fixture";
 import { describe, expect, it } from "vitest";
 
 import {
-  buildRecommendationPlan,
   formatMatchValue,
   getDisplayMatch,
 } from "@/features/jobs/model/ai-match";
@@ -44,42 +44,20 @@ describe("job AI-match selectors", () => {
   it("displays authoritative backend scores", () => {
     const matchedJob = job({
       aiMatch: {
-        version: "ai-match-v4",
+        ...aiMatchFixture,
+        version: "ai-match-v5",
         cacheKey: "cache",
         source: "openai_api",
         score: 82,
-        confidence: "high",
-        breakdown: {},
-        reasons: [],
-        gaps: [],
       },
     });
 
     expect(formatMatchValue(matchedJob)).toBe("82%");
   });
 
-  it("keeps stored job recommendations independent from match analysis", () => {
-    const matchedJob = job({
-      recommendations: [
-        {
-          text: "Emphasize the platform example",
-          gain: "+4%",
-        },
-      ],
-      aiMatch: {
-        version: "ai-match-v4",
-        cacheKey: "cache",
-        source: "openai_api",
-        score: 82,
-        confidence: "high",
-        breakdown: {},
-        reasons: [],
-        gaps: [],
-      },
-    });
-
-    expect(buildRecommendationPlan(matchedJob)).toEqual([
-      { text: "Emphasize the platform example", gain: "+4%" },
-    ]);
+  it("uses the match score when the legacy job score differs", () => {
+    const matchedJob = job({ match: 10, aiMatch: aiMatchFixture });
+    expect(formatMatchValue(matchedJob)).toBe("82%");
+    expect(getDisplayMatch(matchedJob)).toBe(82);
   });
 });

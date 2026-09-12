@@ -1,13 +1,9 @@
 "use client";
 
-import { Check, CircleDot } from "lucide-react";
-
 import { formatJobPosted } from "@/features/jobs/formatting";
 import {
-  buildRecommendationPlan,
   formatMatchValue,
   getDisplayMatch,
-  hasDisplayableMatch,
 } from "@/features/jobs/model/ai-match";
 import type { Job } from "@/shared/types/job";
 
@@ -20,13 +16,6 @@ export function MatchPanel({
   job,
   onReviewFullAnalysis,
 }: MatchPanelProps) {
-  const reasons = job.aiMatch?.reasons.length
-    ? job.aiMatch.reasons
-    : hasDisplayableMatch(job)
-      ? ["Strong profile overlap", "Relevant experience", "Skills alignment"]
-      : ["Run AI matching to generate role-specific reasons."];
-  const gaps = job.aiMatch?.gaps ?? [];
-
   return (
     <article className="panel p-4 2xl:p-5">
       <h3 className="text-base font-bold 2xl:text-lg">AI Match Score</h3>
@@ -39,89 +28,12 @@ export function MatchPanel({
           style={{ width: `${getDisplayMatch(job)}%` }}
         />
       </div>
-      <h4 className="mt-5 text-[13px] font-bold 2xl:mt-7 2xl:text-sm">
-        Why this match?
-      </h4>
-      <ul className="mt-2.5 space-y-1.5 text-[13px] text-muted 2xl:mt-3 2xl:space-y-2 2xl:text-sm">
-        {reasons.map((item) => (
-          <li key={item} className="flex items-center gap-2">
-            <Check className="h-4 w-4 text-success" />
-            {item}
-          </li>
-        ))}
-      </ul>
-      {gaps.length > 0 ? (
-        <>
-          <h4 className="mt-5 text-[13px] font-bold 2xl:mt-7 2xl:text-sm">
-            Gaps
-          </h4>
-          <ul className="mt-2.5 space-y-1.5 text-[13px] text-muted 2xl:mt-3 2xl:space-y-2 2xl:text-sm">
-            {gaps.map((item) => (
-              <li key={item} className="flex items-center gap-2">
-                <CircleDot className="h-4 w-4 text-[#fa5d00]" />
-                {item}
-              </li>
-            ))}
-          </ul>
-        </>
-      ) : null}
       <button
         type="button"
         className="mt-4 inline-flex items-center gap-2 text-[13px] font-bold text-accent transition hover:text-accent/85 2xl:mt-5 2xl:text-sm"
         onClick={onReviewFullAnalysis}
       >
-        Review full analysis <span aria-hidden="true">-&gt;</span>
-      </button>
-    </article>
-  );
-}
-
-type RecommendationsPanelProps = {
-  job: Job;
-  onViewAllRecommendations: () => void;
-};
-
-export function RecommendationsPanel({
-  job,
-  onViewAllRecommendations,
-}: RecommendationsPanelProps) {
-  const recommendationPlan = buildRecommendationPlan(job).slice(0, 3);
-
-  return (
-    <article className="panel p-4 2xl:p-5">
-      <h3 className="text-base font-bold 2xl:text-lg">
-        Evidence-backed recommendations
-      </h3>
-      <div className="mt-3 divide-y divide-border">
-        {recommendationPlan.length ? (
-          recommendationPlan.map((recommendation) => (
-            <div
-              key={recommendation.text}
-              className="flex items-center justify-between gap-4 py-2 text-[13px] 2xl:py-2.5 2xl:text-sm"
-            >
-              <div>
-                <p className="text-muted">{recommendation.text}</p>
-                <p className="mt-1 text-[11px] font-semibold text-[#4a4a47]">
-                  {recommendation.action}
-                </p>
-              </div>
-              <p className="shrink-0 font-bold text-success">
-                {recommendation.gain}
-              </p>
-            </div>
-          ))
-        ) : (
-          <p className="py-3 text-[13px] leading-5 text-muted 2xl:text-sm">
-            No source-backed recommendations are available.
-          </p>
-        )}
-      </div>
-      <button
-        type="button"
-        className="mt-3 inline-flex items-center gap-2 text-[13px] font-bold text-accent transition hover:text-accent/85 2xl:text-sm"
-        onClick={onViewAllRecommendations}
-      >
-        View all recommendations <span aria-hidden="true">-&gt;</span>
+        View score details <span aria-hidden="true">-&gt;</span>
       </button>
     </article>
   );

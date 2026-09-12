@@ -6,16 +6,13 @@ export type AiMatchMetadata = {
   fingerprint?: string;
   cacheKey: string;
   source: AiSource;
-  backend?: AiSource;
+  backend: AiSource;
   score: number;
-  confidence: "low" | "medium" | "high";
-  breakdown: Record<string, number>;
-  reasons: string[];
-  gaps: string[];
-  explanation?: string;
-  rawExplanation?: string;
-  heuristicScore?: number;
-  updatedAt?: string;
+  profileHash: string;
+  vacancyHash: string;
+  model: string;
+  promptVersion: string;
+  updatedAt: string;
   providerError?: string;
 };
 

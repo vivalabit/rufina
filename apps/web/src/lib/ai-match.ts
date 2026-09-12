@@ -1,12 +1,10 @@
-export const currentAiMatchVersion = "ai-match-v4";
+export const currentAiMatchVersion = "ai-match-v5";
 
 type AiMatchLike = {
   version?: unknown;
   revision?: unknown;
   fingerprint?: unknown;
   score?: unknown;
-  reasons?: unknown;
-  gaps?: unknown;
 } | null | undefined;
 
 export type AiMatchAnalysisStatus = "missing" | "outdated" | "current";
@@ -17,8 +15,9 @@ export function getAiMatchAnalysisStatus(aiMatch: AiMatchLike): AiMatchAnalysisS
   return aiMatch.version === currentAiMatchVersion
     && isAuthoritativeRevision(aiMatch.revision, aiMatch.fingerprint)
     && typeof aiMatch.score === "number"
-    && Array.isArray(aiMatch.reasons)
-    && Array.isArray(aiMatch.gaps)
+    && Number.isInteger(aiMatch.score)
+    && aiMatch.score >= 0
+    && aiMatch.score <= 100
     ? "current"
     : "outdated";
 }

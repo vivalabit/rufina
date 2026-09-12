@@ -1,3 +1,4 @@
+import { aiMatchFixture } from "@/test/ai-match-fixture";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
@@ -69,10 +70,7 @@ it("auto-sends a launched match explanation with the selected job context", asyn
           responsibilities: ["Lead product discovery"],
           requirements: ["Five years of product design experience"],
           skills: ["Research", "Prototyping"],
-          aiMatch: {
-            reasons: ["Verified research experience"],
-            gaps: ["Enterprise portfolio evidence is missing"],
-          },
+          aiMatch: { ...aiMatchFixture, score: 73 },
         },
       ]}
       applications={[]}

@@ -9,7 +9,7 @@ import unicodedata
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import Annotated, Any, Literal
+from typing import Annotated, Any
 
 from pydantic import (
     BaseModel,
@@ -17,10 +17,10 @@ from pydantic import (
     Field,
     StringConstraints,
     ValidationError,
-    model_validator,
 )
 
 from app.core.settings import Settings
+from app.models.ai_match import AiMatchMetadata, AiMatchScore
 from app.models.profile import ProfilePayload
 from app.services.ai_backend import (
     AIBackend,
@@ -35,13 +35,11 @@ from app.services.resume_import import (
     summarize_openclaw_error,
 )
 
-MATCHER_VERSION = "ai-match-v4"
-MATCH_PROMPT_VERSION = "ai-match-prompt-v7"
+MATCHER_VERSION = "ai-match-v5"
+MATCH_PROMPT_VERSION = "ai-match-prompt-v8"
 DEFAULT_AI_MATCH_MODEL = "openai/gpt-5.6-terra"
 DEFAULT_AI_MATCH_MAX_ATTEMPTS = 2
 MAX_AI_MATCH_TEXT_LENGTH = 500
-MAX_REASON_COUNT = 3
-MAX_GAP_COUNT = 3
 JOB_ADDED_AT_FIELDS = ("addedAt", "importedAt", "createdAt", "created_at")
 RUNTIME_PROFILE_FILE_FINGERPRINT_FIELDS = (
     "id",
@@ -56,16 +54,6 @@ RUNTIME_PROFILE_FILE_FINGERPRINT_FIELDS = (
     "content_type",
     "content_sha256",
 )
-
-WEIGHTS = {
-    "role_fit": 20,
-    "skills_fit": 30,
-    "experience_fit": 15,
-    "preferences_fit": 15,
-    "constraints_fit": 10,
-    "industry_fit": 5,
-    "evidence_fit": 5,
-}
 
 SKILL_ALIASES = {
     "ai": "artificial intelligence",
@@ -138,30 +126,8 @@ class StrictAiMatchModel(BaseModel):
     model_config = ConfigDict(extra="forbid", strict=True, populate_by_name=True)
 
 
-class AiMatchBreakdown(StrictAiMatchModel):
-    role_fit: int = Field(ge=0, le=WEIGHTS["role_fit"])
-    skills_fit: int = Field(ge=0, le=WEIGHTS["skills_fit"])
-    experience_fit: int = Field(ge=0, le=WEIGHTS["experience_fit"])
-    preferences_fit: int = Field(ge=0, le=WEIGHTS["preferences_fit"])
-    constraints_fit: int = Field(ge=0, le=WEIGHTS["constraints_fit"])
-    industry_fit: int = Field(ge=0, le=WEIGHTS["industry_fit"])
-    evidence_fit: int = Field(ge=0, le=WEIGHTS["evidence_fit"])
-
-
-class AiMatchResult(StrictAiMatchModel):
+class AiMatchResult(AiMatchScore):
     id: StrictText
-    score: int = Field(ge=0, le=100)
-    confidence: Literal["low", "medium", "high"]
-    breakdown: AiMatchBreakdown
-    reasons: list[StrictText] = Field(min_length=1, max_length=MAX_REASON_COUNT)
-    gaps: list[StrictText] = Field(max_length=MAX_GAP_COUNT)
-
-    @model_validator(mode="after")
-    def validate_score_consistency(self) -> AiMatchResult:
-        breakdown_total = sum(self.breakdown.model_dump().values())
-        if abs(self.score - breakdown_total) > 20:
-            raise ValueError("score differs from the breakdown total by more than 20 points")
-        return self
 
 
 class AiMatchPayload(StrictAiMatchModel):
@@ -622,7 +588,6 @@ def build_openclaw_ai_match_prompt(
         {
             "candidate": profile_snapshot,
             "jobs": compact_jobs,
-            "breakdownMaxScores": WEIGHTS,
         },
         ensure_ascii=False,
         separators=(",", ":"),
@@ -636,28 +601,21 @@ def build_openclaw_ai_match_prompt(
     )
 
     return (
-        "You score job fit for a personal job search app.\n"
+        "You assess how suitable each vacancy is for the candidate's master profile.\n"
         "Return ONLY one valid JSON object, no markdown and no prose.\n"
-        "Every field shown in the JSON shape is required. Use [] for empty lists. "
-        "Do not add fields.\n"
+        "Every field shown in the JSON shape is required. Do not add fields.\n"
         f"{correction_instruction}"
         f"Keep every string at most {MAX_AI_MATCH_TEXT_LENGTH} characters. "
         "Use only the provided snapshots and do not invent facts.\n"
         "For every job, set score as your expert judgment from 0 to 100.\n"
-        "Score is the final AI assessment, not an arithmetic sum of breakdown values.\n"
-        "Breakdown is a structured explanation with category scores capped by breakdownMaxScores; "
-        "it must be internally consistent, but it is not the formula for score. The score must be "
-        "within 20 points of the breakdown total.\n"
+        "Consider role, skills, experience, preferences, constraints and industry fit. "
+        "Assess suitability independently of document preparation or application readiness. "
+        "Do not produce explanations, strengths, weaknesses, document plans, questions, "
+        "recommendations or readiness assessments.\n"
         "Apply caps: hard dealbreaker max 30, salary below candidate minimum max 50, "
         "work authorization mismatch max 35, major seniority mismatch max 45.\n"
         "JSON shape:\n"
-        '{"matches":[{"id":"job id","score":0,"confidence":"low|medium|high",'
-        '"breakdown":{"role_fit":0,"skills_fit":0,"experience_fit":0,"preferences_fit":0,'
-        '"constraints_fit":0,"industry_fit":0,"evidence_fit":0},'
-        '"reasons":["max 3 short evidence-based reasons"],'
-        '"gaps":["max 3 short material gaps"]}]}\n'
-        "Reasons must explain the strongest verified alignment. Gaps must contain only material "
-        "requirements that are absent or unsupported in the candidate snapshot.\n"
+        '{"matches":[{"id":"job id","score":0}]}\n'
         f"Input JSON:\n{payload}"
     )
 
@@ -762,20 +720,11 @@ def normalize_openclaw_result(
     *,
     backend_source: str = "openclaw_codex",
 ) -> dict[str, Any]:
-    fallback = (
-        current_job.get("aiMatch", {}) if isinstance(current_job.get("aiMatch"), dict) else {}
-    )
     validated = validate_openclaw_result(result, current_job)
-    normalized = validated.model_dump(by_alias=True)
     return {
-        "score": normalized["score"],
+        "score": validated.score,
         "source": backend_source,
         "backend": backend_source,
-        "confidence": normalized["confidence"],
-        "breakdown": normalized["breakdown"],
-        "reasons": normalized["reasons"],
-        "gaps": normalized["gaps"],
-        "heuristicScore": clamp_round(fallback.get("heuristicScore", current_job.get("match", 0))),
     }
 
 
@@ -845,25 +794,22 @@ def apply_match_result(
     prompt_version: str,
 ) -> dict[str, Any]:
     next_job = dict(job)
-    score = clamp_round(result.get("score", next_job.get("match", 0)))
+    score = result["score"]
     next_job["match"] = score
-    next_job["aiMatch"] = {
-        "version": MATCHER_VERSION,
-        "profileHash": profile_hash,
-        "vacancyHash": vacancy_hash,
-        "model": model,
-        "backend": result.get("backend", result.get("source", "openclaw_codex")),
-        "promptVersion": prompt_version,
-        "cacheKey": cache_key,
-        "source": result.get("source", "openclaw_codex"),
-        "score": score,
-        "confidence": normalize_confidence(result.get("confidence", "low")),
-        "breakdown": result.get("breakdown", {}),
-        "reasons": normalize_string_list(result.get("reasons"), MAX_REASON_COUNT),
-        "gaps": normalize_string_list(result.get("gaps"), MAX_GAP_COUNT),
-        "heuristicScore": clamp_round(result.get("heuristicScore", score)),
-        "updatedAt": updated_at,
-    }
+    next_job["aiMatch"] = AiMatchMetadata.model_validate(
+        {
+            "version": MATCHER_VERSION,
+            "profileHash": profile_hash,
+            "vacancyHash": vacancy_hash,
+            "model": model,
+            "backend": result.get("backend", result.get("source", "openclaw_codex")),
+            "promptVersion": prompt_version,
+            "cacheKey": cache_key,
+            "source": result.get("source", "openclaw_codex"),
+            "score": score,
+            "updatedAt": updated_at,
+        }
+    ).model_dump(by_alias=True, exclude_none=True)
     return next_job
 
 
@@ -913,9 +859,8 @@ def is_cached_match_valid(value: Any, cache_key: str) -> bool:
         isinstance(value, dict)
         and value.get("version") == MATCHER_VERSION
         and value.get("cacheKey") == cache_key
-        and isinstance(value.get("score"), int)
-        and isinstance(value.get("reasons"), list)
-        and isinstance(value.get("gaps"), list)
+        and type(value.get("score")) is int
+        and 0 <= value["score"] <= 100
     )
 
 
@@ -1049,12 +994,6 @@ def normalize_list(value: Any) -> list[str]:
     return list(dict.fromkeys(item.strip() for item in values if item and item.strip()))
 
 
-def normalize_string_list(value: Any, limit: int) -> list[str]:
-    if not isinstance(value, list):
-        return []
-    return [str(item).strip()[:180] for item in value if str(item).strip()][:limit]
-
-
 def extract_keywords(text: str) -> list[str]:
     words = re.findall(r"[a-zA-Z][a-zA-Z0-9+#./-]{1,}", canonical_term(text))
     blocked = {
@@ -1088,15 +1027,3 @@ def normalize_text(value: str) -> str:
         unicodedata.normalize("NFKD", str(value)).encode("ascii", "ignore").decode("ascii")
     )
     return re.sub(r"\s+", " ", re.sub(r"[^a-z0-9+#./-]+", " ", ascii_value.lower())).strip()
-
-
-def normalize_confidence(value: Any) -> str:
-    return str(value).lower() if str(value).lower() in {"low", "medium", "high"} else "low"
-
-
-def clamp_round(value: Any) -> int:
-    try:
-        number = float(value)
-    except (TypeError, ValueError):
-        number = 0
-    return max(0, min(100, round(number)))

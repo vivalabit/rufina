@@ -43,7 +43,6 @@ import { JobSearchDialog } from "@/components/job-search-dialog";
 import {
   JobDetails,
   MatchPanel,
-  RecommendationsPanel,
   SalaryInsights,
 } from "@/components/job-summary-panels";
 import {
@@ -564,9 +563,8 @@ export function AppWorkspaceRoot({
   const selectedJobId = route.jobId ?? "";
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState(tabs[0]);
-  const [pendingAiMatchFocus, setPendingAiMatchFocus] = useState<"analysis" | "recommendations" | null>(null);
+  const [pendingAiMatchFocus, setPendingAiMatchFocus] = useState<"analysis" | null>(null);
   const aiMatchAnalysisRef = useRef<HTMLElement | null>(null);
-  const aiMatchRecommendationsRef = useRef<HTMLElement | null>(null);
   const savedJobs = jobsState.savedJobIds;
   const areSavedJobsLoaded = !jobsState.isLoading;
   const archivedJobIds = jobsState.archivedJobIds;
@@ -758,7 +756,7 @@ export function AppWorkspaceRoot({
     selectedApplication,
   ]);
 
-  function openAiMatchSection(section: "analysis" | "recommendations") {
+  function openAiMatchSection(section: "analysis") {
     setActiveTab("AI Match");
     setPendingAiMatchFocus(section);
   }
@@ -786,7 +784,7 @@ export function AppWorkspaceRoot({
     if (activeTab !== "AI Match" || !pendingAiMatchFocus) return;
 
     const frame = window.requestAnimationFrame(() => {
-      const target = pendingAiMatchFocus === "recommendations" ? aiMatchRecommendationsRef.current : aiMatchAnalysisRef.current;
+      const target = aiMatchAnalysisRef.current;
       target?.scrollIntoView({ behavior: "smooth", block: "start" });
       target?.focus({ preventScroll: true });
       setPendingAiMatchFocus(null);
@@ -3566,7 +3564,6 @@ export function AppWorkspaceRoot({
                             job={selectedJob}
                             tab={activeTab}
                             analysisRef={aiMatchAnalysisRef}
-                            recommendationsRef={aiMatchRecommendationsRef}
                           />
 
                           <div className="grid content-start gap-3 2xl:gap-4">
@@ -3574,12 +3571,6 @@ export function AppWorkspaceRoot({
                               job={selectedJob}
                               onReviewFullAnalysis={() =>
                                 openAiMatchSection("analysis")
-                              }
-                            />
-                            <RecommendationsPanel
-                              job={selectedJob}
-                              onViewAllRecommendations={() =>
-                                openAiMatchSection("recommendations")
                               }
                             />
                             <JobDetails job={selectedJob} />

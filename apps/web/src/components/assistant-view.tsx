@@ -63,6 +63,7 @@ import type {
 } from "@/features/assistant/model/types";
 import { getAiSourceLabel } from "@/lib/ai-source";
 import { cn } from "@/lib/utils";
+import type { AiMatchMetadata } from "@/shared/types/job";
 
 export type {
   AssistantAppliedAction,
@@ -93,10 +94,7 @@ type AssistantJob = {
   responsibilities?: string[];
   requirements: string[];
   skills: string[];
-  aiMatch?: {
-    reasons: string[];
-    gaps: string[];
-  };
+  aiMatch?: AiMatchMetadata;
 };
 
 type AssistantApplication = {
@@ -231,10 +229,7 @@ function serializeAssistantJob(job: AssistantJob | null) {
     responsibilities: job.responsibilities ?? [],
     requirements: job.requirements,
     skills: job.skills,
-    aiMatch: job.aiMatch ? {
-      reasons: job.aiMatch.reasons,
-      gaps: job.aiMatch.gaps,
-    } : null,
+    aiMatch: job.aiMatch ?? null,
   };
 }
 

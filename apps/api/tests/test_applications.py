@@ -152,9 +152,9 @@ def test_applications_expose_the_current_match_without_preparation_analysis() ->
                 },
             )
         )
-        for revision, created_at, reason in (
-            ("match-old", now - timedelta(minutes=5), "Old reason"),
-            ("match-current", now, "Current reason"),
+        for revision, created_at in (
+            ("match-old", now - timedelta(minutes=5)),
+            ("match-current", now),
         ):
             db.add(
                 JobMatchRecord(
@@ -165,11 +165,6 @@ def test_applications_expose_the_current_match_without_preparation_analysis() ->
                     cache_key=f"cache-{revision}",
                     score=92,
                     source="openclaw_codex",
-                    confidence="high",
-                    breakdown={"skills": 35, "experience": 30},
-                    reasons=[reason],
-                    gaps=[],
-                    heuristic_score=90,
                     created_at=created_at,
                 )
             )
@@ -213,7 +208,8 @@ def test_applications_expose_the_current_match_without_preparation_analysis() ->
     assert listed_match == detail_match
     assert detail_match["revision"] == "match-current"
     assert len(detail_match["fingerprint"]) == 64
-    assert detail_match["reasons"] == ["Current reason"]
+    assert "reasons" not in detail_match
+    assert detail_match["score"] == 92
     assert "applicationGuide" not in detail_match
     assert detail_response.json()["data"]["job"]["title"] == "Authoritative title"
 

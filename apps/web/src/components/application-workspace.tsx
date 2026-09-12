@@ -31,6 +31,7 @@ import {
 import { applicationStatusStyles } from "@/features/applications/model/constants";
 import { normalizeJobsChJobUrl } from "@/lib/job-url";
 import { cn } from "@/lib/utils";
+import type { AiMatchMetadata } from "@/shared/types/job";
 import type { ApplicationStatus } from "@/shared/types/application";
 
 type WorkspaceApplicationDocument = {
@@ -87,14 +88,7 @@ type WorkspaceApplication = {
     skills: string[];
     applyUrl?: string;
     sourceUrl?: string;
-    aiMatch?: {
-      version?: string;
-      revision?: string;
-      fingerprint?: string;
-      reasons: string[];
-      gaps: string[];
-      updatedAt?: string;
-    };
+    aiMatch?: AiMatchMetadata;
   };
   documents: WorkspaceApplicationDocument[];
 };

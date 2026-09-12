@@ -73,18 +73,6 @@ def valid_match_result(job_id: str = "job-strict") -> dict[str, object]:
     return {
         "id": job_id,
         "score": 88,
-        "confidence": "high",
-        "breakdown": {
-            "role_fit": 18,
-            "skills_fit": 26,
-            "experience_fit": 14,
-            "preferences_fit": 14,
-            "constraints_fit": 10,
-            "industry_fit": 4,
-            "evidence_fit": 2,
-        },
-        "reasons": ["Strong verified fit."],
-        "gaps": [],
     }
 
 
@@ -114,26 +102,6 @@ def install_openclaw_fakes(monkeypatch: pytest.MonkeyPatch) -> None:
                 {
                     "id": job["id"],
                     "score": 88 if is_relevant else 34,
-                    "confidence": "high" if is_relevant else "medium",
-                    "breakdown": {
-                        "role_fit": 18 if is_relevant else 3,
-                        "skills_fit": 26 if is_relevant else 2,
-                        "experience_fit": 14 if is_relevant else 5,
-                        "preferences_fit": 14 if is_relevant else 6,
-                        "constraints_fit": 10,
-                        "industry_fit": 4 if is_relevant else 1,
-                        "evidence_fit": 2,
-                    },
-                    "reasons": (
-                        ["OpenClaw matched this role"]
-                        if is_relevant
-                        else ["OpenClaw found weak overlap"]
-                    ),
-                    "gaps": (
-                        ["No major gaps detected from available data"]
-                        if is_relevant
-                        else ["Role is not aligned"]
-                    ),
                 }
             )
         return matches
@@ -230,7 +198,7 @@ def test_openclaw_ai_match_scores_relevant_job_higher(monkeypatch: pytest.Monkey
     assert matched[0]["match"] > matched[1]["match"]
     assert matched[0]["aiMatch"]["source"] == "openclaw_codex"
     assert matched[0]["aiMatch"]["backend"] == "openclaw_codex"
-    assert matched[0]["aiMatch"]["reasons"]
+    assert matched[0]["aiMatch"]["score"] == 88
 
 
 def test_ai_match_requires_openclaw_enabled() -> None:
@@ -308,16 +276,16 @@ def test_openclaw_prompt_treats_score_as_expert_judgment() -> None:
     prompt = build_openclaw_ai_match_prompt(profile_snapshot, [job_snapshot])
 
     assert "score as your expert judgment from 0 to 100" in prompt
-    assert "not an arithmetic sum of breakdown values" in prompt
-    assert "breakdownMaxScores" in prompt
+    assert '{"matches":[{"id":"job id","score":0}]}' in prompt
+    assert "breakdownMaxScores" not in prompt
     assert '"weights"' not in prompt
 
 
 @pytest.mark.parametrize(
     "missing_path",
-    ["reasons", "breakdown"],
+    ["id", "score"],
 )
-def test_strict_ai_match_schema_rejects_missing_analysis_fields(missing_path: str) -> None:
+def test_strict_ai_match_schema_rejects_missing_score_fields(missing_path: str) -> None:
     result = valid_match_result()
     result.pop(missing_path)
 
@@ -325,25 +293,22 @@ def test_strict_ai_match_schema_rejects_missing_analysis_fields(missing_path: st
         ai_match_service.validate_openclaw_result(result, {"id": "job-strict"})
 
 
-@pytest.mark.parametrize("category,max_score", list(ai_match_service.WEIGHTS.items()))
-def test_strict_ai_match_schema_enforces_breakdown_category_maxima(
-    category: str,
-    max_score: int,
-) -> None:
-    result = valid_match_result()
-    breakdown = result["breakdown"]
-    assert isinstance(breakdown, dict)
-    breakdown[category] = max_score + 1
-
-    with pytest.raises(OpenClawAiMatchError, match=f"breakdown.{category}"):
+@pytest.mark.parametrize("score", [-1, 101, 1.5, "88", True, None])
+def test_strict_ai_match_schema_rejects_invalid_scores(score: object) -> None:
+    result = {**valid_match_result(), "score": score}
+    with pytest.raises(OpenClawAiMatchError, match="score"):
         ai_match_service.validate_openclaw_result(result, {"id": "job-strict"})
 
 
-def test_strict_ai_match_schema_forbids_extra_fields_and_inconsistent_ready_state() -> None:
-    extra_result = valid_match_result()
-    extra_result["unsupported"] = True
+@pytest.mark.parametrize("field", [
+    "confidence", "breakdown", "reasons", "gaps", "explanation", "rawExplanation",
+    "strengths", "weaknesses", "documentPlan", "questions", "recommendations",
+    "applicationGuide", "readyToApply", "readiness", "unsupported",
+])
+def test_strict_ai_match_schema_forbids_analysis_fields(field: str) -> None:
+    result = {**valid_match_result(), field: []}
     with pytest.raises(OpenClawAiMatchError, match="Extra inputs are not permitted"):
-        ai_match_service.validate_openclaw_result(extra_result, {"id": "job-strict"})
+        ai_match_service.validate_openclaw_result(result, {"id": "job-strict"})
 
 
 def test_incomplete_ai_match_is_retried_and_never_synthetically_completed(
@@ -356,7 +321,7 @@ def test_incomplete_ai_match_is_retried_and_never_synthetically_completed(
         attempts += 1
         result = valid_match_result("job-retry")
         if attempts == 1:
-            result.pop("reasons")
+            result.pop("score")
         return [result]
 
     monkeypatch.setattr(ai_match_service, "score_with_openclaw", fake_score_with_openclaw)
@@ -381,7 +346,7 @@ def test_incomplete_ai_match_is_retried_and_never_synthetically_completed(
     )
 
     assert attempts == 2
-    assert matched[0]["aiMatch"]["reasons"] == ["Strong verified fit."]
+    assert matched[0]["aiMatch"]["score"] == 88
 
 
 def test_ai_match_reports_progress_after_each_batch(
@@ -504,7 +469,7 @@ def test_ai_match_retry_includes_validation_feedback(
         backend = kwargs.get("backend")
         backends.append(backend.name if backend is not None else "")
         if len(correction_feedback) == 1:
-            raise OpenClawAiMatchError("breakdown.experience_fit must not exceed 15")
+            raise OpenClawAiMatchError("score must not exceed 100")
         return [valid_match_result(jobs[0]["id"])]
 
     monkeypatch.setattr(ai_match_service, "score_with_openclaw", fake_score_with_openclaw)
@@ -532,7 +497,7 @@ def test_ai_match_retry_includes_validation_feedback(
 
     assert correction_feedback == [
         None,
-        "breakdown.experience_fit must not exceed 15",
+        "score must not exceed 100",
     ]
     assert backends == ["openai_api", "openai_api"]
 
@@ -964,15 +929,6 @@ def test_openclaw_ai_match_reads_top_level_payloads_text() -> None:
                                     {
                                         "id": "linkedin-python-backend",
                                         "score": 83,
-                                        "breakdown": {
-                                            "role_fit": 16,
-                                            "skills_fit": 25,
-                                            "experience_fit": 13,
-                                            "preferences_fit": 12,
-                                            "constraints_fit": 8,
-                                            "industry_fit": 4,
-                                            "evidence_fit": 3,
-                                        },
                                     }
                                 ]
                             }
@@ -1158,18 +1114,6 @@ def test_ai_match_endpoint_ignores_cached_local_candidate_snapshot(
             {
                 "id": job["id"],
                 "score": 87,
-                "confidence": "high",
-                "breakdown": {
-                    "role_fit": 18,
-                    "skills_fit": 25,
-                    "experience_fit": 14,
-                    "preferences_fit": 14,
-                    "constraints_fit": 10,
-                    "industry_fit": 4,
-                    "evidence_fit": 2,
-                },
-                "reasons": ["OpenClaw matched this role"],
-                "gaps": ["No major gaps detected from available data"],
             }
             for job in jobs
         ]
@@ -1252,7 +1196,7 @@ def test_ai_match_endpoint_ignores_cached_local_candidate_snapshot(
         app.dependency_overrides.clear()
 
 
-def test_ai_match_endpoint_rejects_incomplete_openclaw_breakdown(
+def test_ai_match_endpoint_rejects_out_of_range_score(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     score_calls = 0
@@ -1266,14 +1210,7 @@ def test_ai_match_endpoint_rejects_incomplete_openclaw_breakdown(
         return [
             {
                 "id": jobs[0]["id"],
-                "score": 81,
-                "confidence": "high",
-                "breakdown": {
-                    "role_fit": 18,
-                    "skills_fit": 24,
-                },
-                "reasons": ["OpenClaw matched this role"],
-                "gaps": ["No major gaps detected from available data"],
+                "score": 101,
             }
         ]
 
@@ -1318,7 +1255,7 @@ def test_ai_match_endpoint_rejects_incomplete_openclaw_breakdown(
             db.commit()
 
         job = {
-            "id": "linkedin-incomplete-openclaw-breakdown",
+            "id": "linkedin-invalid-openclaw-score",
             "company": "Google",
             "title": "Machine Learning Engineer",
             "location": "Zurich",
@@ -1339,9 +1276,9 @@ def test_ai_match_endpoint_rejects_incomplete_openclaw_breakdown(
         response = client.post("/jobs/ai-match", json={"jobs": [{"id": job["id"], "data": job}]})
 
         assert response.status_code == 502
-        assert "breakdown.experience_fit: Field required" in response.json()["detail"]
+        assert "score: Input should be less than or equal to 100" in response.json()["detail"]
         assert score_calls == 2
-        assert "experience_fit" in response.json()["detail"]
+        assert "score" in response.json()["detail"]
         with testing_session_local() as db:
             assert db.query(JobMatchRecord).count() == 0
     finally:
@@ -1415,9 +1352,19 @@ def test_ai_match_endpoint_updates_and_persists_job_scores(monkeypatch: pytest.M
         assert payload["aiMatch"]["source"] == "openclaw_codex"
         assert payload["aiMatch"]["backend"] == "openclaw_codex"
         assert payload["aiMatch"]["cacheKey"]
-        assert payload["aiMatch"]["reasons"] == ["OpenClaw matched this role"]
+        assert payload["aiMatch"]["score"] == payload["match"]
+        assert set(payload["aiMatch"]) == {
+            "version", "profileHash", "vacancyHash", "model", "backend", "promptVersion",
+            "cacheKey", "source", "score", "updatedAt", "revision", "fingerprint",
+        }
+        assert payload["aiMatch"] == read_response.json()[0]["data"]["aiMatch"]
+        cached_response = client.post(
+            "/jobs/ai-match", json={"jobs": [{"id": job["id"], "data": payload}]}
+        )
+        assert cached_response.status_code == 200
+        assert cached_response.json()[0]["data"]["aiMatch"] == payload["aiMatch"]
         assert "applicationGuide" not in payload["aiMatch"]
-        assert read_response.json()[0]["data"]["aiMatch"]["score"] == payload["match"]
+        assert read_response.json()[0]["data"]["aiMatch"] == payload["aiMatch"]
 
         with testing_session_local() as db:
             stored_job = db.get(StoredJobRecord, ("local-owner", job["id"]))
@@ -1436,8 +1383,7 @@ def test_ai_match_endpoint_updates_and_persists_job_scores(monkeypatch: pytest.M
             assert payload["match"] in {record.score for record in match_records}
             assert all(record.source == "openclaw_codex" for record in match_records)
             assert all(record.backend == "openclaw_codex" for record in match_records)
-            assert all(record.breakdown for record in match_records)
-            assert all("_applicationGuide" not in record.breakdown for record in match_records)
+            assert payload["aiMatch"]["revision"] == match_records[0].id
     finally:
         app.dependency_overrides.clear()
 
@@ -1633,7 +1579,7 @@ def test_ai_match_run_endpoint_updates_status_and_persists_job_scores(
         assert payload["aiMatch"]["source"] == "openclaw_codex"
 
         read_response = client.get("/jobs")
-        assert read_response.json()[0]["data"]["aiMatch"]["score"] == payload["match"]
+        assert read_response.json()[0]["data"]["aiMatch"] == payload["aiMatch"]
     finally:
         app.dependency_overrides.clear()
 
@@ -1650,18 +1596,6 @@ def test_ai_match_run_endpoint_batches_openclaw_scoring(monkeypatch: pytest.Monk
             {
                 "id": job["id"],
                 "score": 82,
-                "confidence": "high",
-                "breakdown": {
-                    "role_fit": 17,
-                    "skills_fit": 24,
-                    "experience_fit": 13,
-                    "preferences_fit": 13,
-                    "constraints_fit": 10,
-                    "industry_fit": 3,
-                    "evidence_fit": 2,
-                },
-                "reasons": ["OpenClaw matched this role"],
-                "gaps": ["No major gaps detected from available data"],
             }
             for job in jobs
         ]
@@ -1752,3 +1686,24 @@ def test_ai_match_run_endpoint_batches_openclaw_scoring(monkeypatch: pytest.Monk
         assert batch_sizes == [2, 2, 1]
     finally:
         app.dependency_overrides.clear()
+
+
+@pytest.mark.parametrize(
+    "score,valid",
+    [(0, True), (100, True), (-1, False), (101, False), (True, False), (1.5, False)],
+)
+def test_match_cache_accepts_only_valid_scores(score: object, valid: bool) -> None:
+    match = {"version": ai_match_service.MATCHER_VERSION, "cacheKey": "cache", "score": score}
+    assert ai_match_service.is_cached_match_valid(match, "cache") is valid
+    assert not ai_match_service.is_cached_match_valid(match, "different-cache")
+    assert not ai_match_service.is_cached_match_valid({**match, "version": "ai-match-v4"}, "cache")
+
+
+def test_match_cache_identity_tracks_all_scoring_inputs() -> None:
+    candidate = {"skills": ["Python"]}
+    job = build_job_snapshot({"id": "job-1", "title": "Engineer"})
+    original = build_cache_key(candidate, job)
+    assert original != build_cache_key({"skills": ["Java"]}, job)
+    assert original != build_cache_key(candidate, {**job, "title": "Senior Engineer"})
+    assert original != build_cache_key(candidate, job, model="different-model")
+    assert original != build_cache_key(candidate, job, prompt_version="different-prompt")

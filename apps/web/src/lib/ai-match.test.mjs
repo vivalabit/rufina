@@ -7,7 +7,7 @@ import {
 
 test("rejects match payloads without authoritative match metadata", () => {
   assert.equal(
-    getAiMatchAnalysisStatus({ version: "ai-match-v4", score: 91 }),
+    getAiMatchAnalysisStatus({ version: "ai-match-v5", score: 91 }),
     "outdated",
   );
   assert.equal(
@@ -16,14 +16,12 @@ test("rejects match payloads without authoritative match metadata", () => {
   );
 });
 
-test("accepts an authoritative ai-match-v4 score and explanation", () => {
+test("accepts an authoritative ai-match-v5 score without analysis", () => {
   const match = {
-    version: "ai-match-v4",
+    version: "ai-match-v5",
     revision: "match-revision",
     fingerprint: "a".repeat(64),
     score: 88,
-    reasons: ["Relevant platform experience"],
-    gaps: [],
   };
 
   assert.equal(getAiMatchAnalysisStatus(match), "current");
@@ -35,4 +33,21 @@ test("accepts an authoritative ai-match-v4 score and explanation", () => {
     }),
     "outdated",
   );
+});
+
+
+test("rejects legacy versions and invalid scores", () => {
+  const match = {
+    version: "ai-match-v5",
+    revision: "match-revision",
+    fingerprint: "a".repeat(64),
+    score: 88,
+  };
+  assert.equal(getAiMatchAnalysisStatus({ ...match, version: "ai-match-v4" }), "outdated");
+  for (const score of [-1, 101, 1.5, NaN, Infinity, "88", null]) {
+    assert.equal(getAiMatchAnalysisStatus({ ...match, score }), "outdated");
+  }
+  for (const score of [0, 100]) {
+    assert.equal(getAiMatchAnalysisStatus({ ...match, score }), "current");
+  }
 });

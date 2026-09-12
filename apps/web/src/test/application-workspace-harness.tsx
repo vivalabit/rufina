@@ -1,3 +1,4 @@
+import { aiMatchFixture } from "@/test/ai-match-fixture";
 import type { ComponentProps } from "react";
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
@@ -52,9 +53,8 @@ export function createLegacyWorkspaceApplication(
     job: {
       ...overrides.job,
       aiMatch: overrides.job?.aiMatch ?? {
+        ...aiMatchFixture,
         version: "ai-match-v1",
-        reasons: ["Relevant product design experience"],
-        gaps: ["Leadership scope needs validation"],
         updatedAt: "2026-07-01T10:00:00.000Z",
       },
     },
@@ -70,12 +70,11 @@ export function createV3WorkspaceApplication(
     job: {
       ...overrides.job,
       aiMatch: overrides.job?.aiMatch ?? {
-        version: "ai-match-v4",
+        ...aiMatchFixture,
+        version: "ai-match-v5",
         revision: "match-revision-v4",
         fingerprint:
           "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        reasons: ["Strong product discovery background"],
-        gaps: ["People-management experience is not listed"],
         updatedAt: "2026-07-15T10:00:00.000Z",
       },
     },
@@ -91,9 +90,8 @@ export function createWorkspaceApplicationWithoutGuide(
     job: {
       ...overrides.job,
       aiMatch: overrides.job?.aiMatch ?? {
-        version: "ai-match-v4",
-        reasons: ["Relevant product design experience"],
-        gaps: ["People-management experience is not listed"],
+        ...aiMatchFixture,
+        version: "ai-match-v5",
         updatedAt: "2026-07-16T10:00:00.000Z",
       },
     },

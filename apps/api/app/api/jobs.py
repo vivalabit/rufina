@@ -171,7 +171,18 @@ def match_jobs(
             persisted_jobs.append(job)
 
         db.commit()
-        return [StoredJobPayload(id=str(job.get("id")), data=job) for job in persisted_jobs if job.get("id")]
+        return [
+            StoredJobPayload(
+                id=str(job["id"]),
+                data=hydrate_job_data(
+                    db,
+                    job_id=str(job["id"]),
+                    job_data=job,
+                    profile_hash=candidate_snapshot.profile_hash,
+                ),
+            )
+            for job in persisted_jobs
+        ]
     except SQLAlchemyError as exc:
         db.rollback()
         raise HTTPException(

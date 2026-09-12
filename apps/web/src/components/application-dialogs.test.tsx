@@ -143,6 +143,6 @@ it("renders the AI application information state", () => {
   expect(
     screen.getByRole("heading", { name: "AI application info" }),
   ).toBeInTheDocument();
-  expect(screen.getAllByText("Analyzing...").length).toBeGreaterThan(0);
-  expect(screen.getByText(/AI analysis is running/)).toBeInTheDocument();
+  expect(screen.getAllByText("Calculating...").length).toBeGreaterThan(0);
+  expect(screen.getByText(/Calculating suitability/)).toBeInTheDocument();
 });

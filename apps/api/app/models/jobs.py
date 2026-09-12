@@ -161,11 +161,6 @@ class JobMatchRecord(OwnerScoped, Base):
     cache_key: Mapped[str] = mapped_column(String(64), index=True, nullable=False)
     score: Mapped[int] = mapped_column(Integer, nullable=False)
     source: Mapped[str] = mapped_column(String(32), nullable=False)
-    confidence: Mapped[str] = mapped_column(String(16), nullable=False)
-    breakdown: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
-    reasons: Mapped[list[str]] = mapped_column(JSON, nullable=False)
-    gaps: Mapped[list[str]] = mapped_column(JSON, nullable=False)
-    heuristic_score: Mapped[int] = mapped_column(Integer, nullable=False)
     provider_error: Mapped[str | None] = mapped_column(String(240), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

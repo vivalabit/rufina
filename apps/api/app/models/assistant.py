@@ -6,13 +6,7 @@ from sqlalchemy import JSON, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base, OwnerScoped
-
-
-class AssistantAiMatchContext(BaseModel):
-    reasons: list[str] = Field(default_factory=list, max_length=8)
-    gaps: list[str] = Field(default_factory=list, max_length=8)
-
-    model_config = {"populate_by_name": True}
+from app.models.ai_match import AiMatchMetadata
 
 
 class AssistantJobContext(BaseModel):
@@ -26,7 +20,7 @@ class AssistantJobContext(BaseModel):
     responsibilities: list[str] = Field(default_factory=list, max_length=40)
     requirements: list[str] = Field(default_factory=list, max_length=40)
     skills: list[str] = Field(default_factory=list, max_length=80)
-    ai_match: AssistantAiMatchContext | None = Field(default=None, alias="aiMatch")
+    ai_match: AiMatchMetadata | None = Field(default=None, alias="aiMatch")
 
     model_config = {"populate_by_name": True}
 
