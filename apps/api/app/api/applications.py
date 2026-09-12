@@ -18,8 +18,11 @@ from app.models.applications import (
     StoredApplicationRecord,
 )
 from app.models.documents import WorkspaceSourceDocumentRecord
+from app.models.generation import GenerationResult, GenerationStartRequest
 from app.models.jobs import StoredJobRecord
 from app.services.candidate_snapshot import get_current_profile_version
+from app.services.document_generator import DocumentGenerator, get_document_generator
+from app.services.generation_input import GenerationInputError, build_generation_input
 from app.services.job_match_store import hydrate_job_data
 
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
@@ -199,6 +202,53 @@ def create_application(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Application could not be created",
+        ) from exc
+
+
+@router.post(
+    "/{application_id}/generation",
+    response_model=GenerationResult,
+    response_model_by_alias=True,
+)
+def generate_application_documents(
+    application_id: str,
+    request: GenerationStartRequest,
+    db: Session = Depends(get_db),
+    generator: DocumentGenerator = Depends(get_document_generator),
+) -> GenerationResult:
+    """Build authoritative input and hand it to the configured generator."""
+
+    try:
+        generation_input = build_generation_input(
+            db,
+            application_id=application_id,
+            document_types=request.document_types,
+            language=request.language,
+            formatting_parameters=request.formatting_parameters,
+            user_preferences=request.user_preferences,
+            master_profile_id=request.master_profile_id,
+            master_profile_version=request.master_profile_version,
+        )
+        return generator.generate(generation_input)
+    except GenerationInputError as exc:
+        not_found_codes = {
+            "application_not_found",
+            "master_profile_not_found",
+            "master_profile_version_not_found",
+            "vacancy_not_found",
+        }
+        raise HTTPException(
+            status_code=(
+                status.HTTP_404_NOT_FOUND
+                if exc.code in not_found_codes
+                else status.HTTP_409_CONFLICT
+            ),
+            detail={"code": exc.code, "message": str(exc)},
+        ) from exc
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Generation source data is temporarily unavailable",
         ) from exc
 
 

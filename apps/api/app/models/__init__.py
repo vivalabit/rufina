@@ -8,6 +8,7 @@ from app.models.generation import (
     GenerationMasterProfileVersion,
     GenerationRequest,
     GenerationResult,
+    GenerationStartRequest,
     GenerationVacancySnapshot,
 )
 from app.models.job_screening import JobScreeningDecisionRecord
@@ -64,6 +65,7 @@ __all__ = [
     "GenerationMasterProfileVersion",
     "GenerationRequest",
     "GenerationResult",
+    "GenerationStartRequest",
     "GenerationVacancySnapshot",
     "JobScreeningDecisionRecord",
     "JobSearchConfigRecord",

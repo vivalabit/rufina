@@ -157,6 +157,40 @@ class GenerationRequest(GenerationContractModel):
         return value
 
 
+class GenerationStartRequest(GenerationContractModel):
+    """User-approved options accepted by the application generation endpoint."""
+
+    document_types: tuple[DocumentType, ...] = Field(
+        min_length=1,
+        max_length=2,
+        alias="documentTypes",
+    )
+    language: str = Field(min_length=1, max_length=40)
+    formatting_parameters: dict[str, JsonValue] = Field(alias="formattingParameters")
+    user_preferences: str = Field(max_length=10_000, alias="userPreferences")
+    master_profile_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=160,
+        alias="masterProfileId",
+    )
+    master_profile_version: int | None = Field(
+        default=None,
+        ge=1,
+        alias="masterProfileVersion",
+    )
+
+    @field_validator("document_types")
+    @classmethod
+    def require_unique_document_types(
+        cls,
+        value: tuple[DocumentType, ...],
+    ) -> tuple[DocumentType, ...]:
+        if len(value) != len(set(value)):
+            raise ValueError("documentTypes must not contain duplicates")
+        return value
+
+
 class GenerationError(GenerationContractModel):
     """Stable machine code plus a message suitable for displaying to a user."""
 
@@ -232,6 +266,7 @@ __all__ = [
     "GenerationMasterProfileVersion",
     "GenerationRequest",
     "GenerationResult",
+    "GenerationStartRequest",
     "GenerationVacancySnapshot",
     "without_internal_generation_context",
 ]

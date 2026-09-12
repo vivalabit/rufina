@@ -1,0 +1,182 @@
+import hashlib
+import json
+from collections.abc import Generator
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine, func, select
+from sqlalchemy.orm import Session, sessionmaker
+from sqlalchemy.pool import StaticPool
+
+from app.core.database import Base, get_db
+from app.main import app
+from app.models.applications import StoredApplicationRecord
+from app.models.documents import DocumentRecord
+from app.models.jobs import StoredJobRecord
+from app.models.resume import ResumeMasterRecord, ResumeMasterVersionRecord
+from app.services import ai_backend
+from app.services.document_generator import get_document_generator
+from app.services.generation_examples import ExampleDocumentGenerator
+
+
+def canonical_hash(data: dict[str, object]) -> str:
+    payload = json.dumps(
+        data,
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
+    ).encode()
+    return hashlib.sha256(payload).hexdigest()
+
+
+def master_profile_data() -> dict[str, object]:
+    return {
+        "schemaVersion": "1.0",
+        "id": "master-profile",
+        "language": "English",
+        "basics": {"fullName": "Ada Lovelace"},
+        "summary": None,
+        "experiences": [],
+        "skills": [],
+        "education": [],
+        "projects": [],
+        "certifications": [],
+        "languages": [],
+        "additionalSections": [],
+        "evidence": [],
+        "sectionOrder": [],
+    }
+
+
+@pytest.fixture
+def generation_api() -> Generator[tuple[TestClient, sessionmaker[Session]], None, None]:
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    sessions = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+    Base.metadata.create_all(bind=engine)
+    profile_data = master_profile_data()
+    master = ResumeMasterRecord(
+        id="master-profile",
+        name="Ada Lovelace",
+        language="English",
+        current_version=1,
+    )
+    master.versions.append(
+        ResumeMasterVersionRecord(
+            id="master-profile-version",
+            resume_master_id=master.id,
+            version=1,
+            schema_version="1.0",
+            data=profile_data,
+            content_sha256=canonical_hash(profile_data),
+        )
+    )
+    with sessions() as db:
+        db.add_all(
+            [
+                StoredApplicationRecord(
+                    id="application-1",
+                    data={
+                        "id": "application-1",
+                        "status": "draft",
+                        "job": {"id": "vacancy-1"},
+                    },
+                ),
+                StoredJobRecord(
+                    id="vacancy-1",
+                    data={
+                        "id": "vacancy-1",
+                        "title": "Platform Engineer",
+                        "company": "Example AG",
+                        "overview": "Build reliable platforms.",
+                    },
+                ),
+                master,
+            ]
+        )
+        db.commit()
+
+    def override_get_db() -> Generator[Session, None, None]:
+        with sessions() as db:
+            yield db
+
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        yield TestClient(app), sessions
+    finally:
+        app.dependency_overrides.pop(get_db, None)
+        app.dependency_overrides.pop(get_document_generator, None)
+        engine.dispose()
+
+
+def generation_payload() -> dict[str, object]:
+    return {
+        "documentTypes": ["tailored_resume", "cover_letter"],
+        "language": "de-CH",
+        "formattingParameters": {"tailored_resume": {"maxPages": 2}},
+        "userPreferences": "Keep it concise.",
+    }
+
+
+def test_endpoint_uses_safe_stub_without_ai_documents_or_application_changes(
+    generation_api: tuple[TestClient, sessionmaker[Session]],
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    client, sessions = generation_api
+
+    def reject_ai_call(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("The unavailable generator must not invoke AI")
+
+    monkeypatch.setattr(ai_backend.OpenAIAPIBackend, "generate", reject_ai_call)
+    monkeypatch.setattr(ai_backend.OpenClawCodexBackend, "generate", reject_ai_call)
+
+    response = client.post(
+        "/applications/application-1/generation",
+        json=generation_payload(),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["state"] == "failed"
+    assert response.json()["error"] == {
+        "code": "generator_unavailable",
+        "message": "Document generation is not configured yet.",
+        "retryable": False,
+    }
+    assert [item["state"] for item in response.json()["documents"]] == [
+        "failed",
+        "failed",
+    ]
+    assert all(item["files"] == [] for item in response.json()["documents"])
+
+    with sessions() as db:
+        application = db.get(StoredApplicationRecord, "application-1")
+        document_count = db.scalar(select(func.count()).select_from(DocumentRecord))
+    assert application is not None
+    assert application.data["status"] == "draft"
+    assert document_count == 0
+
+
+def test_endpoint_generator_dependency_is_replaceable_for_development(
+    generation_api: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, _ = generation_api
+    app.dependency_overrides[get_document_generator] = lambda: ExampleDocumentGenerator(
+        "partial",
+        execution_id="dev-partial",
+    )
+
+    response = client.post(
+        "/applications/application-1/generation",
+        json=generation_payload(),
+    )
+
+    assert response.status_code == 200
+    assert response.json()["executionId"] == "dev-partial"
+    assert response.json()["state"] == "completed"
+    assert [item["state"] for item in response.json()["documents"]] == [
+        "completed",
+        "failed",
+    ]

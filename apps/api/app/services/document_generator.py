@@ -48,4 +48,18 @@ class UnavailableDocumentGenerator:
         )
 
 
-__all__ = ["DocumentGenerator", "UnavailableDocumentGenerator"]
+def get_document_generator() -> DocumentGenerator:
+    """Return the configured integration adapter.
+
+    The unavailable adapter is the production-safe default. Applications can
+    replace this dependency with a real adapter without changing callers.
+    """
+
+    return UnavailableDocumentGenerator()
+
+
+__all__ = [
+    "DocumentGenerator",
+    "UnavailableDocumentGenerator",
+    "get_document_generator",
+]

@@ -11,7 +11,12 @@ from app.models.generation import (
     GenerationResult,
     GenerationVacancySnapshot,
 )
-from app.services.document_generator import DocumentGenerator, UnavailableDocumentGenerator
+from app.services.document_generator import (
+    DocumentGenerator,
+    UnavailableDocumentGenerator,
+    get_document_generator,
+)
+from app.services.generation_examples import ExampleDocumentGenerator
 
 
 def generation_request() -> GenerationRequest:
@@ -214,3 +219,46 @@ def test_unavailable_generator_is_a_safe_contract_compatible_stub() -> None:
         message="Document generation is not configured yet.",
         retryable=False,
     )
+
+
+def test_default_generator_provider_uses_only_the_unavailable_stub() -> None:
+    generator = get_document_generator()
+
+    assert isinstance(generator, UnavailableDocumentGenerator)
+    assert isinstance(generator, DocumentGenerator)
+
+
+@pytest.mark.parametrize(
+    ("scenario", "execution_state", "document_states"),
+    [
+        ("running", "running", ["running", "queued"]),
+        ("success", "completed", ["completed", "completed"]),
+        ("error", "failed", ["failed", "failed"]),
+        ("partial", "completed", ["completed", "failed"]),
+    ],
+)
+def test_opt_in_example_generators_cover_ui_states(
+    scenario: str,
+    execution_state: str,
+    document_states: list[str],
+) -> None:
+    generator = ExampleDocumentGenerator(scenario, execution_id=f"fixture-{scenario}")
+
+    assert isinstance(generator, DocumentGenerator)
+    result = generator.generate(generation_request())
+
+    assert result.execution_id == f"fixture-{scenario}"
+    assert result.state == execution_state
+    assert [document.state for document in result.documents] == document_states
+    if scenario == "success":
+        assert all(document.files for document in result.documents)
+    if scenario == "error":
+        assert result.error is not None
+    if scenario == "partial":
+        assert result.documents[0].files
+        assert result.documents[1].error is not None
+
+
+def test_example_generator_rejects_unknown_scenarios() -> None:
+    with pytest.raises(ValueError, match="Unknown generation example scenario"):
+        ExampleDocumentGenerator("unknown")
