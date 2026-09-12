@@ -94,4 +94,23 @@ describe("job selectors", () => {
       }).map((item) => item.id),
     ).toEqual(["newer", "older"]);
   });
+
+  it("keeps match sorting and places missing scores after zero", () => {
+    const high = job({ id: "high", match: 90 });
+    const zero = job({ id: "zero", match: 0 });
+    const missing = job({ id: "manual-job-missing", logo: "manual" });
+
+    expect(
+      selectFilteredJobs({
+        jobs: [zero, missing, high],
+        filters: defaultJobFilters,
+        query: "",
+        savedJobIds: [],
+        showArchivedJobs: false,
+        showSavedJobs: false,
+        sortBy: "AI Match",
+        nowMs: Date.parse("2026-08-31T12:00:00.000Z"),
+      }).map((item) => item.id),
+    ).toEqual(["high", "zero", "manual-job-missing"]);
+  });
 });

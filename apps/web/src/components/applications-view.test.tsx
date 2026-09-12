@@ -38,6 +38,9 @@ function renderApplicationsView(
     applications: [application],
     events: [],
     matchingApplicationIds: [],
+    failedApplicationIds: [],
+    matchingJobIds: [],
+    failedJobIds: [],
     profile: defaultCandidateProfile,
     selectedApplication: application,
     onSelectApplication: vi.fn(),
@@ -78,6 +81,16 @@ it("filters applications and preserves parent navigation callbacks", () => {
 
   fireEvent.click(screen.getByRole("button", { name: "Clear all filters" }));
   expect(screen.getAllByText(application.job.title).length).toBeGreaterThan(0);
+});
+
+it("shows match calculation state without replacing the application status", () => {
+  renderApplicationsView({ matchingApplicationIds: [application.id] });
+
+  expect(
+    screen.getAllByLabelText("AI match: — · Calculating"),
+  ).toHaveLength(2);
+  expect(screen.getAllByText("Applied").length).toBeGreaterThan(0);
+  expect(screen.queryByRole("button", { name: /AI info/i })).not.toBeInTheDocument();
 });
 
 it("keeps notes and event drafts local and emits normalized saves", () => {

@@ -4,7 +4,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Archive,
   ArchiveRestore,
-  BarChart3,
   Bookmark,
   BriefcaseBusiness,
   ChartNoAxesColumnIncreasing,
@@ -42,12 +41,11 @@ import { JobMainPanel } from "@/components/job-main-panel";
 import { JobSearchDialog } from "@/components/job-search-dialog";
 import {
   JobDetails,
-  MatchPanel,
   SalaryInsights,
 } from "@/components/job-summary-panels";
 import {
   getJobSourceLabel,
-  JobMatchRing,
+  JobMatchIndicator,
   JobRoleIcon,
 } from "@/components/job-visuals";
 import { LogsView } from "@/components/logs-view";
@@ -133,8 +131,6 @@ import {
 } from "@/features/jobs/formatting";
 import {
   formatMatchValue,
-  getDisplayMatch,
-  hasDisplayableMatch,
 } from "@/features/jobs/model/ai-match";
 import {
   defaultJobFilters,
@@ -223,8 +219,6 @@ import type {
   PreferenceInputs,
   PreferenceListField,
 } from "@/shared/types/profile";
-
-const tabs = ["Overview", "AI Match"];
 
 const aiMatchStatusPollDelayMs = 2500;
 const aiMatchStatusPollMaxAttempts = 720;
@@ -563,9 +557,6 @@ export function AppWorkspaceRoot({
   const setJobList = jobsState.updateCached;
   const selectedJobId = route.jobId ?? "";
   const [query, setQuery] = useState("");
-  const [activeTab, setActiveTab] = useState(tabs[0]);
-  const [pendingAiMatchFocus, setPendingAiMatchFocus] = useState<"analysis" | null>(null);
-  const aiMatchAnalysisRef = useRef<HTMLElement | null>(null);
   const savedJobs = jobsState.savedJobIds;
   const areSavedJobsLoaded = !jobsState.isLoading;
   const archivedJobIds = jobsState.archivedJobIds;
@@ -578,6 +569,7 @@ export function AppWorkspaceRoot({
   const workspaceApplicationId = route.applicationId ?? null;
   const areApplicationsLoaded = !applicationState.isLoading;
   const [matchingApplicationIds, setMatchingApplicationIds] = useState<string[]>([]);
+  const [failedApplicationIds, setFailedApplicationIds] = useState<string[]>([]);
   const applicationEvents = applicationEventState.events;
   const areApplicationEventsLoaded = !applicationEventState.isLoading;
   const [jobFilters, setJobFilters] = useState<JobFilters>(defaultJobFilters);
@@ -591,6 +583,8 @@ export function AppWorkspaceRoot({
   const [parserSearchMessage, setParserSearchMessage] = useState("");
   const [newLinkedInProfession, setNewLinkedInProfession] = useState("");
   const [forceMatchingJobId, setForceMatchingJobId] = useState("");
+  const [matchingJobIds, setMatchingJobIds] = useState<string[]>([]);
+  const [failedMatchJobIds, setFailedMatchJobIds] = useState<string[]>([]);
   const [aiMatchErrorMessage, setAiMatchErrorMessage] = useState("");
   const [parserSearchForm, setParserSearchForm] = useState<ParserSearchForm>(defaultParserSearchForm);
   const hasParserSearchInteractionRef = useRef(false);
@@ -710,6 +704,8 @@ export function AppWorkspaceRoot({
   );
 
   const selectedJob = filteredJobs.find((job) => job.id === selectedJobId) ?? filteredJobs[0] ?? null;
+  const matchingJobIdSet = new Set(matchingJobIds);
+  const failedMatchJobIdSet = new Set(failedMatchJobIds);
   const selectedJobPostingUrl = selectedJob ? getJobApplyUrl(selectedJob) : "";
   const isSelectedSaved = selectedJob ? savedJobs.includes(selectedJob.id) : false;
   const selectedJobRecord = selectedJob
@@ -757,11 +753,6 @@ export function AppWorkspaceRoot({
     selectedApplication,
   ]);
 
-  function openAiMatchSection(section: "analysis") {
-    setActiveTab("AI Match");
-    setPendingAiMatchFocus(section);
-  }
-
   async function refreshStoredJobsFromServer(signal?: AbortSignal) {
     if (signal?.aborted) return [];
     const result = await jobsState.refetch();
@@ -780,19 +771,6 @@ export function AppWorkspaceRoot({
     clearBrowserStorageNamespace(browserStorageNamespacePrefix);
     writeBrowserStorage(screenshotSessionStorageKey, screenshotSessionId);
   }, []);
-
-  useEffect(() => {
-    if (activeTab !== "AI Match" || !pendingAiMatchFocus) return;
-
-    const frame = window.requestAnimationFrame(() => {
-      const target = aiMatchAnalysisRef.current;
-      target?.scrollIntoView({ behavior: "smooth", block: "start" });
-      target?.focus({ preventScroll: true });
-      setPendingAiMatchFocus(null);
-    });
-
-    return () => window.cancelAnimationFrame(frame);
-  }, [activeTab, pendingAiMatchFocus, selectedJob?.id]);
 
   useEffect(() => {
     const defaultSelection = getDefaultLinkedInSearchSelection(
@@ -837,7 +815,6 @@ export function AppWorkspaceRoot({
     setJobFilters(defaultJobFilters);
     setShowSavedJobs(false);
     setShowArchivedJobs(false);
-    setActiveTab("Overview");
     changeView("Jobs", jobId);
   }
 
@@ -961,7 +938,6 @@ export function AppWorkspaceRoot({
     setShowSavedJobs(false);
     setShowArchivedJobs(false);
     setSelectedJobId(job.id);
-    setActiveTab("AI Match");
     setJobList((currentJobs) => {
       const nextJobs = mergeJobs([job], currentJobs);
       void persistUserJobs(nextJobs.filter(isUserManagedJob));
@@ -973,7 +949,7 @@ export function AppWorkspaceRoot({
     appendAppLog({
       level: "info",
       area: "AI Match",
-      message: `Manual vacancy added; analysis started for ${job.title} at ${job.company}`,
+      message: `Manual vacancy added; match scoring started for ${job.title} at ${job.company}`,
     });
 
     try {
@@ -982,7 +958,7 @@ export function AppWorkspaceRoot({
         appendAppLog({
           level: "success",
           area: "AI Match",
-          message: `AI analysis completed for ${job.title} at ${job.company}`,
+          message: `Match score calculated for ${job.title} at ${job.company}`,
         });
       }
     } finally {
@@ -1002,10 +978,11 @@ export function AppWorkspaceRoot({
 
   async function analyzeApplicationWithAi(application: TrackedApplication) {
     setMatchingApplicationIds((currentIds) => Array.from(new Set([...currentIds, application.id])));
+    setFailedApplicationIds((currentIds) => currentIds.filter((id) => id !== application.id));
     appendAppLog({
       level: "info",
       area: "AI Match",
-      message: `AI analysis started for ${application.job.title} at ${application.job.company}`,
+      message: `Match scoring started for ${application.job.title} at ${application.job.company}`,
     });
 
     try {
@@ -1013,27 +990,30 @@ export function AppWorkspaceRoot({
       const matchedJob = normalizeStoredJobs(payload.map((item) => item.data)).find((job) => job.id === application.job.id);
 
       if (!matchedJob) {
+        setFailedApplicationIds((currentIds) => Array.from(new Set([...currentIds, application.id])));
         appendAppLog({
           level: "warning",
           area: "AI Match",
-          message: "AI analysis completed without a matching job payload",
+          message: "Match scoring completed without a vacancy result",
           details: `${application.job.title} at ${application.job.company}`,
         });
         return;
       }
 
       const authoritativeApplication = await applicationState.refresh(application.id);
+      setFailedApplicationIds((currentIds) => currentIds.filter((id) => id !== application.id));
       appendAppLog({
         level: "success",
         area: "AI Match",
-        message: `AI analysis completed for ${application.job.title} at ${application.job.company}`,
+        message: `Match score calculated for ${application.job.title} at ${application.job.company}`,
         details: `Score: ${formatMatchValue(authoritativeApplication.job)}`,
       });
     } catch (error) {
+      setFailedApplicationIds((currentIds) => Array.from(new Set([...currentIds, application.id])));
       appendAppLog({
         level: "error",
         area: "AI Match",
-        message: error instanceof Error ? error.message : "AI analysis failed",
+        message: error instanceof Error ? error.message : "Match scoring failed",
         details: `${application.job.title} at ${application.job.company}`,
       });
     } finally {
@@ -1257,7 +1237,6 @@ export function AppWorkspaceRoot({
   function updateJobFilter(filter: JobFilterKey, value: string) {
     setJobFilters((current) => ({ ...current, [filter]: value }));
     setSelectedJobId("");
-    setActiveTab("Overview");
   }
 
   function clearAllJobFilters() {
@@ -1267,7 +1246,6 @@ export function AppWorkspaceRoot({
     setShowSavedJobs(false);
     setShowArchivedJobs(false);
     setSelectedJobId("");
-    setActiveTab("Overview");
   }
 
   function updateParserSearchForm<Field extends keyof typeof parserSearchForm>(
@@ -2334,6 +2312,22 @@ export function AppWorkspaceRoot({
 
   function applyAiMatchStatus(status: AiMatchJobStatus) {
     const matchedJobs = normalizeStoredJobs(status.updatedJobs.map((job) => job.data));
+    const updatedJobIds = new Set(matchedJobs.map((job) => job.id));
+    const failedJobIds = status.failedJobs?.map((job) => job.id) ?? [];
+    if (updatedJobIds.size > 0) {
+      setFailedMatchJobIds((currentIds) => currentIds.filter((id) => !updatedJobIds.has(id)));
+      const updatedApplicationIds = new Set(
+        applications
+          .filter((application) => updatedJobIds.has(application.job.id))
+          .map((application) => application.id),
+      );
+      setFailedApplicationIds((currentIds) =>
+        currentIds.filter((id) => !updatedApplicationIds.has(id)),
+      );
+    }
+    if (failedJobIds.length > 0) {
+      setFailedMatchJobIds((currentIds) => Array.from(new Set([...currentIds, ...failedJobIds])));
+    }
     if (matchedJobs.length === 0) return;
 
     const matchedJobsById = new Map(matchedJobs.map((job) => [job.id, job]));
@@ -2359,6 +2353,9 @@ export function AppWorkspaceRoot({
 
   async function refreshAiMatches(jobsToMatch: Job[], force = false, conflictRetry = false): Promise<boolean> {
     if (jobsToMatch.length === 0) return true;
+    const jobIds = new Set(jobsToMatch.map((job) => job.id));
+    setMatchingJobIds((currentIds) => Array.from(new Set([...currentIds, ...jobIds])));
+    setFailedMatchJobIds((currentIds) => currentIds.filter((id) => !jobIds.has(id)));
     setAiMatchErrorMessage("");
 
     try {
@@ -2368,26 +2365,41 @@ export function AppWorkspaceRoot({
       } catch (error) {
         if (error instanceof ApiResponseError && error.status === 409) {
           const previousRunStatus = await pollAiMatchStatus();
-          if (!previousRunStatus || conflictRetry) return false;
-          return refreshAiMatches(jobsToMatch, force, true);
+          if (!previousRunStatus || conflictRetry) {
+            setFailedMatchJobIds((currentIds) => Array.from(new Set([...currentIds, ...jobIds])));
+            return false;
+          }
+          return await refreshAiMatches(jobsToMatch, force, true);
         }
         throw error;
       }
 
       if (!startedStatus) {
         const previousRunStatus = await pollAiMatchStatus();
-        if (!previousRunStatus || conflictRetry) return false;
-        return refreshAiMatches(jobsToMatch, force, true);
+        if (!previousRunStatus || conflictRetry) {
+          setFailedMatchJobIds((currentIds) => Array.from(new Set([...currentIds, ...jobIds])));
+          return false;
+        }
+        return await refreshAiMatches(jobsToMatch, force, true);
       }
       applyAiMatchStatus(startedStatus);
-      if (startedStatus.status === "completed") return true;
+      if (startedStatus.status === "completed") {
+        return (startedStatus.failedJobs?.length ?? 0) === 0;
+      }
 
       const completedStatus = await pollAiMatchStatus();
-      return Boolean(completedStatus && (completedStatus.failedJobs?.length ?? 0) === 0);
+      if (!completedStatus) {
+        setFailedMatchJobIds((currentIds) => Array.from(new Set([...currentIds, ...jobIds])));
+        return false;
+      }
+      return (completedStatus.failedJobs?.length ?? 0) === 0;
     } catch (error) {
       const message = error instanceof Error ? error.message : "AI match request failed";
+      setFailedMatchJobIds((currentIds) => Array.from(new Set([...currentIds, ...jobIds])));
       reportAiMatchError(message);
       return false;
+    } finally {
+      setMatchingJobIds((currentIds) => currentIds.filter((id) => !jobIds.has(id)));
     }
   }
 
@@ -2408,8 +2420,8 @@ export function AppWorkspaceRoot({
     appendAppLog({
       level: "info",
       area: "AI Match",
-      message: `Bulk AI analysis started for ${jobsToAnalyze.length} vacancies`,
-      details: scope === "recent" ? "Vacancies added in the last 24 hours" : "Vacancies without current AI analysis",
+      message: `Bulk match scoring started for ${jobsToAnalyze.length} vacancies`,
+      details: scope === "recent" ? "Vacancies added in the last 24 hours" : "Vacancies without current match scores",
     });
 
     try {
@@ -2418,7 +2430,7 @@ export function AppWorkspaceRoot({
         appendAppLog({
           level: "success",
           area: "AI Match",
-          message: `Bulk AI analysis completed for ${jobsToAnalyze.length} vacancies`,
+          message: `Bulk match scoring completed for ${jobsToAnalyze.length} vacancies`,
         });
       }
     } finally {
@@ -2453,7 +2465,7 @@ export function AppWorkspaceRoot({
         if (failedJobs.length > 0) {
           const successfulJobs = Math.max(0, status.processed - failedJobs.length);
           reportAiMatchError(
-            `AI analysis completed: ${successfulJobs} succeeded, ${failedJobs.length} failed`,
+            `Match scoring completed: ${successfulJobs} succeeded, ${failedJobs.length} failed`,
             failedJobs.map((job) => `${job.id}: ${job.error}`).join("\n"),
           );
         } else {
@@ -2684,7 +2696,6 @@ export function AppWorkspaceRoot({
       const refreshedJobs = await refreshStoredJobsFromServer();
       if (totals.jobsAdded > 0 && refreshedJobs.length > 0) {
         setSelectedJobId(refreshedJobs[0].id);
-        setActiveTab("Overview");
       }
       const issuesLabel = getSearchIssuesLabel(sourceErrors);
       const finalMessage = issuesLabel
@@ -2810,7 +2821,7 @@ export function AppWorkspaceRoot({
                   level: "info",
                   area: "AI Match",
                   message: `${parsersLabel} AI Match started`,
-                  details: `${run.jobsAdded} accepted vacancies queued for analysis.`,
+                  details: `${run.jobsAdded} accepted vacancies queued for match scoring.`,
                 });
               }
               previousPhase = progress.phase;
@@ -2844,7 +2855,7 @@ export function AppWorkspaceRoot({
               appendAppLog({
                 level: "info",
                 area: "AI Match",
-                message: `${parsersLabel}: ${run.jobsAnalyzed} of ${run.jobsAdded} vacancies analyzed`,
+                message: `${parsersLabel}: ${run.jobsAnalyzed} of ${run.jobsAdded} match scores calculated`,
               });
             }
             previousJobsFound = Math.max(previousJobsFound, run.jobsFound);
@@ -2902,6 +2913,9 @@ export function AppWorkspaceRoot({
             applications={trackedApplications}
             events={trackedApplicationEvents}
             matchingApplicationIds={matchingApplicationIds}
+            failedApplicationIds={failedApplicationIds}
+            matchingJobIds={matchingJobIds}
+            failedJobIds={failedMatchJobIds}
             profile={profile}
             selectedApplication={selectedApplication}
             onSelectApplication={setSelectedApplicationId}
@@ -3029,13 +3043,11 @@ export function AppWorkspaceRoot({
                   setShowSavedJobs((current) => !current);
                   setShowArchivedJobs(false);
                   setSelectedJobId("");
-                  setActiveTab("Overview");
                 }}
                 onToggleArchivedJobs={() => {
                   setShowArchivedJobs((current) => !current);
                   setShowSavedJobs(false);
                   setSelectedJobId("");
-                  setActiveTab("Overview");
                 }}
                 onAnalysisMenuOpenChange={setIsAnalysisMenuOpen}
                 onRunAnalysis={(scope) => void runBulkAiAnalysis(scope)}
@@ -3188,14 +3200,12 @@ export function AppWorkspaceRoot({
                           tabIndex={0}
                           onClick={() => {
                             setSelectedJobId(job.id);
-                            setActiveTab("Overview");
                           }}
                           onKeyDown={(event) => {
                             if (event.key !== "Enter" && event.key !== " ")
                               return;
                             event.preventDefault();
                             setSelectedJobId(job.id);
-                            setActiveTab("Overview");
                           }}
                           className={cn(
                             "w-full cursor-pointer rounded-[8px] border p-2.5 text-left transition 2xl:p-3",
@@ -3204,7 +3214,7 @@ export function AppWorkspaceRoot({
                               : "border-border/80 bg-[#fff8f1] hover:border-[#c0bbb6] hover:bg-[#fff3e8]",
                           )}
                         >
-                          <div className="grid grid-cols-[42px_minmax(0,1fr)_68px] gap-2 2xl:grid-cols-[48px_minmax(0,1fr)_72px] 2xl:gap-3">
+                          <div className="grid grid-cols-[42px_minmax(0,1fr)_88px] gap-2 2xl:grid-cols-[48px_minmax(0,1fr)_96px] 2xl:gap-3">
                             <JobRoleIcon job={job} compact />
                             <div className="min-w-0 pt-0.5">
                               <h2 className="line-clamp-2 text-[13px] font-bold leading-tight text-foreground 2xl:text-base">
@@ -3219,7 +3229,11 @@ export function AppWorkspaceRoot({
                             </div>
                             <div className="grid grid-cols-2 justify-items-center gap-1.5">
                               <div className="col-span-2">
-                                <JobMatchRing job={job} />
+                                <JobMatchIndicator
+                                  job={job}
+                                  isCalculating={matchingJobIdSet.has(job.id)}
+                                  isError={failedMatchJobIdSet.has(job.id)}
+                                />
                               </div>
                               <button
                                 type="button"
@@ -3335,6 +3349,12 @@ export function AppWorkspaceRoot({
                                     </>
                                   ) : null}
                                 </p>
+                                <JobMatchIndicator
+                                  job={selectedJob}
+                                  isCalculating={matchingJobIdSet.has(selectedJob.id)}
+                                  isError={failedMatchJobIdSet.has(selectedJob.id)}
+                                  className="mt-2"
+                                />
                               </div>
                             </div>
 
@@ -3414,50 +3434,23 @@ export function AppWorkspaceRoot({
                           <div className="h-px bg-border" />
 
                           <div>
-                            <div className="grid gap-2 sm:grid-cols-2 2xl:gap-3">
-                              {[
-                                {
-                                  label: hasDisplayableMatch(selectedJob)
-                                    ? `Why ${getDisplayMatch(selectedJob)}%?`
-                                    : "Why no match score?",
-                                  prompt: hasDisplayableMatch(selectedJob)
-                                    ? assistantPrompts.whyMatch(
-                                        getDisplayMatch(selectedJob) ?? 0,
-                                      )
-                                    : assistantPrompts.whyNoMatch,
-                                  icon: BarChart3,
-                                  autoSubmit: true,
-                                },
-                                {
-                                  label: "What to know before applying",
-                                  prompt: assistantPrompts.beforeApplying,
-                                  icon: Info,
-                                  autoSubmit: false,
-                                },
-                              ].map((action) => {
-                                const Icon = action.icon;
-                                return (
-                                  <Button
-                                    key={action.label}
-                                    type="button"
-                                    variant="ghost"
-                                    className="h-10 justify-start rounded-md border border-accent/35 bg-accent/[0.045] px-3 text-xs font-bold text-[#1d1e1c] hover:border-accent/60 hover:bg-accent/[0.10] 2xl:h-11 2xl:text-sm"
-                                    onClick={() =>
-                                      openAssistant(
-                                        action.prompt,
-                                        "job",
-                                        selectedJob.id,
-                                        action.autoSubmit,
-                                      )
-                                    }
-                                  >
-                                    <Icon className="h-4 w-4 text-accent 2xl:h-[18px] 2xl:w-[18px]" />
-                                    {action.label}
-                                    <ChevronRight className="ml-auto h-4 w-4 text-muted" />
-                                  </Button>
-                                );
-                              })}
-                            </div>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              className="h-10 w-full justify-start rounded-md border border-accent/35 bg-accent/[0.045] px-3 text-xs font-bold text-[#1d1e1c] hover:border-accent/60 hover:bg-accent/[0.10] 2xl:h-11 2xl:text-sm"
+                              onClick={() =>
+                                openAssistant(
+                                  assistantPrompts.beforeApplying,
+                                  "job",
+                                  selectedJob.id,
+                                  false,
+                                )
+                              }
+                            >
+                              <Info className="h-4 w-4 text-accent 2xl:h-[18px] 2xl:w-[18px]" />
+                              What to know before applying
+                              <ChevronRight className="ml-auto h-4 w-4 text-muted" />
+                            </Button>
                           </div>
 
                           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4 2xl:gap-3">
@@ -3543,37 +3536,10 @@ export function AppWorkspaceRoot({
                           </div>
                         </div>
 
-                        <div className="mt-3 flex gap-2 overflow-x-auto border-b border-border 2xl:mt-4 2xl:gap-4">
-                          {tabs.map((tab) => (
-                            <button
-                              key={tab}
-                              type="button"
-                              onClick={() => setActiveTab(tab)}
-                              className={cn(
-                                "relative h-10 min-w-fit px-4 text-[13px] font-bold text-muted transition hover:text-foreground 2xl:h-11 2xl:px-5 2xl:text-sm",
-                                activeTab === tab &&
-                                  "text-foreground after:absolute after:bottom-[-1px] after:left-0 after:h-0.5 after:w-full after:bg-accent",
-                              )}
-                            >
-                              {tab}
-                            </button>
-                          ))}
-                        </div>
-
                         <div className="mt-4 grid gap-3 min-[1800px]:grid-cols-[minmax(0,1.12fr)_minmax(320px,0.9fr)] 2xl:mt-5 2xl:gap-4">
-                          <JobMainPanel
-                            job={selectedJob}
-                            tab={activeTab}
-                            analysisRef={aiMatchAnalysisRef}
-                          />
+                          <JobMainPanel job={selectedJob} />
 
                           <div className="grid content-start gap-3 2xl:gap-4">
-                            <MatchPanel
-                              job={selectedJob}
-                              onReviewFullAnalysis={() =>
-                                openAiMatchSection("analysis")
-                              }
-                            />
                             <JobDetails job={selectedJob} />
                             <SalaryInsights job={selectedJob} />
                           </div>

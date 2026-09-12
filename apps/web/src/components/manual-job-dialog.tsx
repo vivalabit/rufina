@@ -108,7 +108,7 @@ export function ManualJobDialog({
 
         <div className="mt-5 flex shrink-0 flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <p className="text-xs font-semibold text-muted">
-            Role, company, and description are required. Analysis starts automatically.
+            Role, company, and description are required. Match scoring starts automatically.
           </p>
           <div className="flex gap-2">
             <Button

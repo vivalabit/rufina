@@ -996,7 +996,7 @@ export function AiMatchProfilePanel({
         <EmptyProfileState
           className="mt-4"
           title="Not enough profile signal"
-          description="Add your current role, target role, and a few skills to unlock useful match analysis."
+          description="Add your current role, target role, and a few skills to calculate match scores."
           action="Add profile signal"
           onAction={onEditProfile}
         />

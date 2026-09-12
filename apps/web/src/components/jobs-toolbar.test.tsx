@@ -71,7 +71,7 @@ it("renders the requested action order and opens auto-searches locally", async (
     "Archived (3)",
     "Auto Search",
     "Vacancy Filter",
-    "Analysis",
+    "Match scores",
   ]);
 
   fireEvent.click(within(toolbar).getByRole("button", { name: "Auto Search" }));
@@ -128,15 +128,15 @@ it("shows the bulk analysis menu outside the scrolling action row", () => {
   render(<ControlledToolbar />);
 
   const actionRow = screen.getByLabelText("Jobs actions");
-  fireEvent.click(within(actionRow).getByRole("button", { name: "Analysis" }));
+  fireEvent.click(within(actionRow).getByRole("button", { name: "Match scores" }));
 
-  const menu = screen.getByRole("menu", { name: "Bulk AI analysis" });
+  const menu = screen.getByRole("menu", { name: "Bulk match scoring" });
   expect(menu).toBeVisible();
   expect(actionRow).not.toContainElement(menu);
 
   fireEvent.click(
     within(menu).getByRole("menuitem", {
-      name: /Vacancies without current analysis/,
+      name: /Vacancies without current scores/,
     }),
   );
   expect(onRunAnalysis).toHaveBeenCalledWith("missing");

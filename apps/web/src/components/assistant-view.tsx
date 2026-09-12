@@ -63,7 +63,6 @@ import type {
 } from "@/features/assistant/model/types";
 import { getAiSourceLabel } from "@/lib/ai-source";
 import { cn } from "@/lib/utils";
-import type { AiMatchMetadata } from "@/shared/types/job";
 
 export type {
   AssistantAppliedAction,
@@ -89,12 +88,10 @@ type AssistantJob = {
   company: string;
   location: string;
   type?: string;
-  match: number;
   overview: string;
   responsibilities?: string[];
   requirements: string[];
   skills: string[];
-  aiMatch?: AiMatchMetadata;
 };
 
 type AssistantApplication = {
@@ -224,21 +221,11 @@ function serializeAssistantJob(job: AssistantJob | null) {
     company: job.company,
     location: job.location,
     type: job.type ?? "",
-    match: job.match,
     overview: job.overview,
     responsibilities: job.responsibilities ?? [],
     requirements: job.requirements,
     skills: job.skills,
-    aiMatch: job.aiMatch ?? null,
   };
-}
-
-function formatAssistantJobMatch(job: AssistantJob) {
-  if (job.aiMatch?.providerError) return "Calculation failed";
-  const score = job.aiMatch?.score;
-  return score !== undefined && Number.isInteger(score) && score >= 0 && score <= 100
-    ? `${score}% match`
-    : "Not scored";
 }
 
 export function AssistantView({
@@ -1121,7 +1108,7 @@ export function AssistantView({
               </span>
               <div className="min-w-0">
                 <p className="truncate text-sm font-bold leading-5 text-foreground 2xl:text-[15px]">{contextLabel}</p>
-                {selectedJob && <p className="mt-0.5 text-[10px] text-muted 2xl:text-[11px]">{selectedJob.location} · {formatAssistantJobMatch(selectedJob)}</p>}
+                {selectedJob && <p className="mt-0.5 text-[10px] text-muted 2xl:text-[11px]">{selectedJob.location}</p>}
                 {selectedApplication && <span className="mt-2 inline-flex rounded-md border border-border bg-white px-2 py-1 text-[10px] font-bold capitalize text-[#1d1e1c]">{selectedApplication.status}</span>}
               </div>
             </div>

@@ -160,16 +160,29 @@ def test_build_openclaw_assistant_prompt_only_includes_dynamic_context() -> None
 
 
 def test_application_context_does_not_duplicate_its_embedded_job() -> None:
-    job = AssistantJobContext(
-        id="job-1",
-        title="Backend Engineer",
-        company="Acme",
+    job = AssistantJobContext.model_validate(
+        {
+            "id": "job-1",
+            "title": "Backend Engineer",
+            "company": "Acme",
+            "match": 91,
+            "aiMatch": {"version": "ai-match-v6", "score": 91},
+        }
     )
     application = AssistantApplicationContext(
         id="application-1",
         status="draft",
         job=job,
     )
+
+    job_context = build_openclaw_context_payload(
+        context_kind="job",
+        profile=ProfilePayload(name="Eduard"),
+        job=job,
+        application=None,
+    )
+    assert "match" not in job_context["job"]
+    assert "aiMatch" not in job_context["job"]
 
     context = build_openclaw_context_payload(
         context_kind="application",
@@ -180,6 +193,8 @@ def test_application_context_does_not_duplicate_its_embedded_job() -> None:
 
     assert "job" not in context
     assert context["application"]["job"]["title"] == "Backend Engineer"
+    assert "match" not in context["application"]["job"]
+    assert "aiMatch" not in context["application"]["job"]
 
 
 def test_assistant_context_analysis_reports_budget_truncation() -> None:

@@ -2,8 +2,7 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import {
-  createV3WorkspaceApplication,
-  createWorkspaceApplicationWithoutGuide,
+  createWorkspaceApplication,
   installApplicationWorkspaceApiMock,
   renderApplicationWorkspace,
 } from "@/test/application-workspace-harness";
@@ -14,7 +13,7 @@ function storedDocument(overrides: Record<string, unknown> = {}) {
     type: "cover_letter",
     title: "Saved cover letter",
     jobId: "job-product-designer",
-    applicationIds: ["application-without-guide"],
+    applicationIds: ["application"],
     currentVersion: 2,
     createdAt: "2026-07-24T10:00:00.000Z",
     updatedAt: "2026-07-25T10:00:00.000Z",
@@ -63,7 +62,7 @@ describe("ApplicationWorkspace", () => {
 
   it("renders a compact vacancy card with the application status", () => {
     renderApplicationWorkspace(
-      createV3WorkspaceApplication({ status: "interview" }),
+      createWorkspaceApplication({ status: "interview" }),
     );
 
     expect(
@@ -82,7 +81,7 @@ describe("ApplicationWorkspace", () => {
 
   it("normalizes jobs.ch vacancy links", () => {
     renderApplicationWorkspace(
-      createV3WorkspaceApplication({
+      createWorkspaceApplication({
         job: {
           applyUrl:
             "https://www.jobs.ch/en/vacancies/detail/de866122-37da-4c9d-ad34-c2fa0bc45d5f/apply/",
@@ -98,7 +97,7 @@ describe("ApplicationWorkspace", () => {
 
   it("lists existing application documents without generation actions", () => {
     renderApplicationWorkspace(
-      createV3WorkspaceApplication({
+      createWorkspaceApplication({
         documents: [
           {
             id: "document-1",
@@ -141,7 +140,7 @@ describe("ApplicationWorkspace", () => {
   });
 
   it("does not render any legacy preparation content", () => {
-    renderApplicationWorkspace(createV3WorkspaceApplication());
+    renderApplicationWorkspace(createWorkspaceApplication());
 
     expect(screen.queryByText("Your application angle")).not.toBeInTheDocument();
     expect(screen.queryByText("Required confirmations")).not.toBeInTheDocument();
@@ -176,7 +175,7 @@ describe("ApplicationWorkspace", () => {
         return undefined;
       },
     });
-    renderApplicationWorkspace(createWorkspaceApplicationWithoutGuide());
+    renderApplicationWorkspace(createWorkspaceApplication());
 
     expect(await screen.findByText("Saved cover letter")).toBeInTheDocument();
     expect(
@@ -248,7 +247,7 @@ describe("ApplicationWorkspace", () => {
         return undefined;
       },
     });
-    renderApplicationWorkspace(createWorkspaceApplicationWithoutGuide());
+    renderApplicationWorkspace(createWorkspaceApplication());
 
     fireEvent.click(await screen.findByText("Version history · 2"));
     fireEvent.click(screen.getByRole("button", { name: "Load older versions" }));
@@ -280,14 +279,14 @@ describe("ApplicationWorkspace", () => {
         ) {
           return Response.json({
             ...document,
-            applicationIds: ["application-without-guide"],
+            applicationIds: ["application"],
           });
         }
         return undefined;
       },
     });
     const { props } = renderApplicationWorkspace(
-      createWorkspaceApplicationWithoutGuide(),
+      createWorkspaceApplication(),
     );
 
     fireEvent.click(await screen.findByRole("button", { name: "Attach" }));
@@ -296,11 +295,11 @@ describe("ApplicationWorkspace", () => {
       expect.stringContaining("/documents/stored-document-1/attachments"),
       expect.objectContaining({
         method: "POST",
-        body: JSON.stringify({ applicationId: "application-without-guide" }),
+        body: JSON.stringify({ applicationId: "application" }),
       }),
     ));
     expect(props.onDocumentAttached).toHaveBeenCalledWith(
-      "application-without-guide",
+      "application",
       expect.objectContaining({
         artifactId: "stored-document-1",
         fileName: "saved-cover-letter.docx",

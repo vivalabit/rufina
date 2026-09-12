@@ -36,7 +36,6 @@ def test_openclaw_action_previews_require_apply_and_are_idempotent() -> None:
         title="Senior Product Designer",
         company="Figma",
         location="Remote",
-        match=91,
     )
     application = AssistantApplicationContext(
         id="application-figma",
@@ -94,7 +93,7 @@ def test_openclaw_action_previews_require_apply_and_are_idempotent() -> None:
                         "company": job.company,
                         "location": job.location,
                         "type": "Full-time",
-                        "match": job.match,
+                        "match": 91,
                         "logo": "manual",
                         "overview": "Design complex workflows",
                         "responsibilities": [],

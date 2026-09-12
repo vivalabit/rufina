@@ -2,7 +2,6 @@ import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
 import {
-  ApplicationAiInfoDialog,
   ApplicationEventDialog,
   ApplicationNotesDialog,
   ManualApplicationDialog,
@@ -129,20 +128,4 @@ it("delegates notes and event edits without owning application state", () => {
   expect(onEventChange).toHaveBeenCalledWith("status", "completed");
   fireEvent.click(screen.getByRole("button", { name: "Save event" }));
   expect(onEventSave).toHaveBeenCalledOnce();
-});
-
-it("renders the AI application information state", () => {
-  render(
-    <ApplicationAiInfoDialog
-      application={application}
-      isAnalyzing
-      onClose={vi.fn()}
-    />,
-  );
-
-  expect(
-    screen.getByRole("heading", { name: "AI application info" }),
-  ).toBeInTheDocument();
-  expect(screen.getAllByText("Calculating...").length).toBeGreaterThan(0);
-  expect(screen.getByText(/Calculating suitability/)).toBeInTheDocument();
 });

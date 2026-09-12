@@ -8,7 +8,6 @@ import {
   X,
 } from "lucide-react";
 
-import { JobRoleIcon } from "@/components/job-visuals";
 import { Button } from "@/components/ui/button";
 import { getApplicationDocumentBadge } from "@/features/applications/formatting";
 import {
@@ -18,7 +17,6 @@ import {
   trackedApplicationStatuses,
 } from "@/features/applications/model/constants";
 import type { ManualApplicationDraft } from "@/features/applications/model/types";
-import { AiMatchScoreSummary } from "@/components/ai-match-score-summary";
 import { cn } from "@/lib/utils";
 import type {
   ApplicationEventDraft,
@@ -565,50 +563,6 @@ export function ApplicationEventDialog({
               {isEditing ? "Update event" : "Save event"}
             </Button>
           </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-export function ApplicationAiInfoDialog({
-  application,
-  isAnalyzing,
-  onClose,
-}: {
-  application: TrackedApplication;
-  isAnalyzing: boolean;
-  onClose: () => void;
-}) {
-  const job = application.job;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 px-3 py-4 backdrop-blur-sm">
-      <div className="panel flex max-h-[calc(100vh-32px)] w-full max-w-[920px] flex-col overflow-hidden border-border bg-[#ffffff]/96 p-4 shadow-[0_24px_70px_rgba(0,0,0,0.52)] 2xl:p-5">
-        <div className="flex shrink-0 items-start justify-between gap-4">
-          <div className="flex min-w-0 items-start gap-3">
-            <JobRoleIcon job={job} compact />
-            <div className="min-w-0">
-              <h2 className="text-[22px] font-bold leading-tight text-foreground 2xl:text-[24px]">
-                AI application info
-              </h2>
-              <p className="mt-1 truncate text-sm font-medium text-muted">
-                {job.title} at {job.company}
-              </p>
-            </div>
-          </div>
-          <button
-            type="button"
-            aria-label="Close AI info"
-            onClick={onClose}
-            className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        <div className="job-scroll mt-5 min-h-0 flex-1 overflow-y-auto pr-1">
-          <AiMatchScoreSummary job={job} isAnalyzing={isAnalyzing} />
-
         </div>
       </div>
     </div>

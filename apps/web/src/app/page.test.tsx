@@ -8,6 +8,7 @@ import {
 import { expect, it, vi } from "vitest";
 
 import HomePage from "@/app/page";
+import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
 import { formatParserFailure } from "@/lib/parser-errors";
 import { installApplicationWorkspaceApiMock } from "@/test/application-workspace-harness";
 
@@ -1878,8 +1879,8 @@ it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selecte
   ).toHaveLength(2);
   expect(screen.getAllByText("Source: Indeed")).toHaveLength(2);
 
-  fireEvent.click(screen.getByRole("button", { name: "Analysis" }));
-  const analysisMenu = screen.getByRole("menu", { name: "Bulk AI analysis" });
+  fireEvent.click(screen.getByRole("button", { name: "Match scores" }));
+  const analysisMenu = screen.getByRole("menu", { name: "Bulk match scoring" });
   expect(
     within(analysisMenu).getByRole("menuitem", {
       name: /Vacancies added in the last 24 hours/,
@@ -1887,7 +1888,7 @@ it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selecte
   ).toBeEnabled();
   fireEvent.click(
     within(analysisMenu).getByRole("menuitem", {
-      name: /Vacancies without current analysis/,
+      name: /Vacancies without current scores/,
     }),
   );
   await waitFor(() =>
@@ -1946,9 +1947,9 @@ it("starts the requested 24-hour analysis immediately", async () => {
   render(<HomePage />);
 
   expect(await screen.findByText("1 jobs found")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Analysis" }));
+  fireEvent.click(screen.getByRole("button", { name: "Match scores" }));
   fireEvent.click(
-    within(screen.getByRole("menu", { name: "Bulk AI analysis" })).getByRole(
+    within(screen.getByRole("menu", { name: "Bulk match scoring" })).getByRole(
       "menuitem",
       { name: /Vacancies added in the last 24 hours/ },
     ),
@@ -5021,8 +5022,8 @@ it("shows seeded vacancies and calendar events only in demo mode", async () => {
   expect(screen.queryByText("Ask Assistant")).not.toBeInTheDocument();
   expect(screen.queryByText("Static score")).not.toBeInTheDocument();
   expect(
-    screen.getByLabelText("92% AI match").querySelector("text"),
-  ).toHaveAttribute("fill", "var(--color-ink-black)");
+    screen.getAllByLabelText("AI match: 92% · Calculated").length,
+  ).toBeGreaterThan(0);
 
   fireEvent.click(screen.getByRole("button", { name: "Remote" }));
   const remoteSearch = screen.getByRole("searchbox", {
@@ -5199,7 +5200,7 @@ it("restores an application and reports a failed application deletion", async ()
   });
 });
 
-it("offers decision-focused assistant questions on the Jobs page", async () => {
+it("opens vacancy guidance without using the match score as assistant input", async () => {
   window.history.replaceState(null, "", "#jobs");
   vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "1");
   const assistantRequests: Array<Record<string, unknown>> = [];
@@ -5229,7 +5230,7 @@ it("offers decision-focused assistant questions on the Jobs page", async () => {
         return new Response(
           [
             "event: connected\ndata: {}",
-            'event: delta\ndata: {"text":"Why 92% explanation","offset":19}',
+            'event: delta\ndata: {"text":"Application guidance","offset":20}',
             'event: done\ndata: {"metadata":{"backend":"openclaw_codex"}}',
             "",
           ].join("\n\n"),
@@ -5249,11 +5250,9 @@ it("offers decision-focused assistant questions on the Jobs page", async () => {
   render(<HomePage />);
 
   expect(
-    await screen.findByRole("button", { name: "Why 92%?" }),
+    await screen.findByRole("button", { name: "What to know before applying" }),
   ).toBeInTheDocument();
-  expect(
-    screen.getByRole("button", { name: "What to know before applying" }),
-  ).toBeInTheDocument();
+  expect(screen.queryByRole("button", { name: "Why 92%?" })).not.toBeInTheDocument();
   expect(
     screen.queryByRole("button", { name: "Analyze" }),
   ).not.toBeInTheDocument();
@@ -5261,8 +5260,17 @@ it("offers decision-focused assistant questions on the Jobs page", async () => {
     screen.queryByRole("button", { name: "Write cover letter" }),
   ).not.toBeInTheDocument();
 
-  fireEvent.click(screen.getByRole("button", { name: "Why 92%?" }));
-  expect(await screen.findByText("Why 92% explanation")).toBeInTheDocument();
+  fireEvent.click(
+    screen.getByRole("button", { name: "What to know before applying" }),
+  );
+  const assistantInput = await screen.findByPlaceholderText(
+    "Ask anything about your job search…",
+  );
+  await waitFor(() =>
+    expect(assistantInput).toHaveValue(assistantPrompts.beforeApplying),
+  );
+  fireEvent.click(screen.getByRole("button", { name: "Send message" }));
+  expect(await screen.findByText("Application guidance")).toBeInTheDocument();
   expect(assistantRequests).toHaveLength(1);
   expect(assistantRequests[0]).toMatchObject({
     contextKind: "job",
@@ -5270,7 +5278,6 @@ it("offers decision-focused assistant questions on the Jobs page", async () => {
     job: {
       id: "stripe-senior-product-designer",
       title: "Senior Product Designer",
-      match: 92,
       requirements: [
         "5+ years of product design experience",
         "Strong portfolio demonstrating design thinking",
@@ -5279,8 +5286,7 @@ it("offers decision-focused assistant questions on the Jobs page", async () => {
       ],
     },
   });
-  expect(String(assistantRequests[0].message)).toContain("Why 92%?");
-  expect(String(assistantRequests[0].message)).toContain(
-    "How to improve the match",
-  );
+  expect(assistantRequests[0].job).not.toHaveProperty("match");
+  expect(assistantRequests[0].job).not.toHaveProperty("aiMatch");
+  expect(assistantRequests[0].message).toBe(assistantPrompts.beforeApplying);
 });

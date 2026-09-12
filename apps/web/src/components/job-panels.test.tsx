@@ -1,11 +1,9 @@
-import { aiMatchFixture } from "@/test/ai-match-fixture";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
 import { JobMainPanel } from "@/components/job-main-panel";
 import {
   JobDetails,
-  MatchPanel,
   SalaryInsights,
 } from "@/components/job-summary-panels";
 import { ManualJobDialog } from "@/components/manual-job-dialog";
@@ -16,7 +14,7 @@ it("renders the selected vacancy panels from job props", () => {
 
   render(
     <>
-      <JobMainPanel job={job} tab="Overview" />
+      <JobMainPanel job={job} />
       <JobDetails job={job} />
       <SalaryInsights job={job} />
     </>,
@@ -26,23 +24,6 @@ it("renders the selected vacancy panels from job props", () => {
   expect(screen.getByRole("heading", { name: "Job Details" })).toBeInTheDocument();
   expect(screen.getByRole("heading", { name: "Salary Insights" })).toBeInTheDocument();
   expect(screen.getAllByText(job.location).length).toBeGreaterThan(0);
-});
-
-it("opens match score details", () => {
-  const onReviewFullAnalysis = vi.fn();
-
-  render(
-    <>
-      <MatchPanel
-        job={demoJobs[0]}
-        onReviewFullAnalysis={onReviewFullAnalysis}
-      />
-    </>,
-  );
-
-  fireEvent.click(screen.getByRole("button", { name: /view score details/i }));
-
-  expect(onReviewFullAnalysis).toHaveBeenCalledOnce();
 });
 
 it("keeps the manual vacancy dialog controlled", () => {
@@ -71,13 +52,4 @@ it("keeps the manual vacancy dialog controlled", () => {
 
   expect(onChange).toHaveBeenCalledWith("title", "Staff Designer");
   expect(onSave).toHaveBeenCalledOnce();
-});
-
-it("shows suitability and calculation metadata without legacy analysis", () => {
-  const job = { ...demoJobs[0], aiMatch: aiMatchFixture };
-  render(<JobMainPanel job={job} tab="AI Match" />);
-  expect(screen.getByText("82%")).toBeInTheDocument();
-  expect(screen.getByText("Updated")).toBeInTheDocument();
-  expect(screen.getByText("Source")).toBeInTheDocument();
-  expect(screen.queryByText(/reasons|gaps|confidence|recommendations|explanation/i)).not.toBeInTheDocument();
 });

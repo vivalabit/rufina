@@ -6,7 +6,6 @@ from sqlalchemy import JSON, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base, OwnerScoped
-from app.models.ai_match import AiMatchMetadata
 
 
 class AssistantJobContext(BaseModel):
@@ -15,12 +14,10 @@ class AssistantJobContext(BaseModel):
     company: str = Field(default="", max_length=240)
     location: str = Field(default="", max_length=240)
     type: str = Field(default="", max_length=120)
-    match: int = Field(default=0, ge=0, le=100)
     overview: str = Field(default="", max_length=12_000)
     responsibilities: list[str] = Field(default_factory=list, max_length=40)
     requirements: list[str] = Field(default_factory=list, max_length=40)
     skills: list[str] = Field(default_factory=list, max_length=80)
-    ai_match: AiMatchMetadata | None = Field(default=None, alias="aiMatch")
 
     model_config = {"populate_by_name": True}
 

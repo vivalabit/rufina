@@ -1,32 +1,22 @@
-import { getAiSourceLabel } from "@/lib/ai-source";
 import {
   isImportedJob,
   isManualJob,
 } from "@/features/jobs/model/sources";
+import { getAiMatchAnalysisStatus } from "@/lib/ai-match";
 import type { Job } from "@/shared/types/job";
 
-export function getAiMatchSourceLabel(job: Job) {
-  if (
-    job.aiMatch?.source === "openclaw_codex" ||
-    job.aiMatch?.source === "openai_api"
-  ) {
-    return getAiSourceLabel(job.aiMatch.source);
-  }
-  if (job.aiMatch?.source === "local") return "Legacy local score";
-  if (isImportedJob(job) || isManualJob(job)) return "Not scored";
-  return "Static score";
-}
+export type AiMatchPresentationState =
+  | "calculating"
+  | "current"
+  | "outdated"
+  | "failed"
+  | "missing";
 
-export function getAiMatchSourceStatus(job: Job) {
-  if (!job.aiMatch?.providerError) return "";
-  return "Provider fallback/error";
-}
-
-export function getAiMatchSourceDisplay(job: Job) {
-  const sourceLabel = getAiMatchSourceLabel(job);
-  const sourceStatus = getAiMatchSourceStatus(job);
-  return sourceStatus ? `${sourceLabel} · ${sourceStatus}` : sourceLabel;
-}
+export type AiMatchPresentation = {
+  state: AiMatchPresentationState;
+  label: "Calculating" | "Calculated" | "Outdated" | "Error" | "Not calculated";
+  score: number | null;
+};
 
 export function hasAiBackendMatch(job: Job) {
   return (
@@ -47,11 +37,49 @@ export function hasDisplayableMatch(job: Job) {
 }
 
 export function formatMatchValue(job: Job) {
-  if (job.aiMatch?.providerError) return "Calculation failed";
-  const score = getDisplayMatch(job);
-  return score === null ? "Not scored" : `${score}%`;
+  const presentation = getAiMatchPresentation(job);
+  return presentation.score === null
+    ? presentation.label
+    : `${presentation.score}%`;
 }
 
 export function getDisplayMatch(job: Job) {
   return hasDisplayableMatch(job) ? (job.aiMatch?.score ?? job.match) : null;
+}
+
+export function getAiMatchPresentation(
+  job: Job,
+  options: { isCalculating?: boolean; isError?: boolean } = {},
+): AiMatchPresentation {
+  if (options.isCalculating) {
+    return { state: "calculating", label: "Calculating", score: null };
+  }
+  if (options.isError) {
+    return { state: "failed", label: "Error", score: null };
+  }
+
+  const analysisStatus = getAiMatchAnalysisStatus(job.aiMatch);
+  if (analysisStatus === "failed") {
+    return { state: "failed", label: "Error", score: null };
+  }
+  if (analysisStatus === "outdated") {
+    return {
+      state: "outdated",
+      label: "Outdated",
+      score: getDisplayMatch(job),
+    };
+  }
+  if (analysisStatus === "current") {
+    return {
+      state: "current",
+      label: "Calculated",
+      score: getDisplayMatch(job),
+    };
+  }
+
+  const staticScore = getDisplayMatch(job);
+  if (staticScore !== null && !isImportedJob(job) && !isManualJob(job)) {
+    return { state: "current", label: "Calculated", score: staticScore };
+  }
+  return { state: "missing", label: "Not calculated", score: null };
 }

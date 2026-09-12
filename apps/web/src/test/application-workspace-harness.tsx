@@ -1,4 +1,3 @@
-import { aiMatchFixture } from "@/test/ai-match-fixture";
 import type { ComponentProps } from "react";
 import { render } from "@testing-library/react";
 import { vi } from "vitest";
@@ -27,13 +26,12 @@ type WorkspaceApiOptions = {
   ) => Response | Promise<Response | undefined> | undefined;
 };
 
-const baseJob: Omit<WorkspaceJob, "aiMatch"> = {
+const baseJob: WorkspaceJob = {
   id: "job-product-designer",
   title: "Senior Product Designer",
   company: "Acme Labs",
   location: "Zurich, Switzerland",
   type: "Full-time",
-  match: 86,
   overview: "Lead product discovery and delivery for a growing B2B platform.",
   responsibilities: ["Lead discovery", "Partner with product and engineering"],
   requirements: [
@@ -44,62 +42,8 @@ const baseJob: Omit<WorkspaceJob, "aiMatch"> = {
   applyUrl: "https://example.com/jobs/product-designer",
 };
 
-export function createLegacyWorkspaceApplication(
+export function createWorkspaceApplication(
   overrides: ApplicationOverrides = {},
-): WorkspaceApplication {
-  return createWorkspaceApplication({
-    ...overrides,
-    id: overrides.id ?? "application-legacy",
-    job: {
-      ...overrides.job,
-      aiMatch: overrides.job?.aiMatch ?? {
-        ...aiMatchFixture,
-        version: "ai-match-v1",
-        updatedAt: "2026-07-01T10:00:00.000Z",
-      },
-    },
-  });
-}
-
-export function createV3WorkspaceApplication(
-  overrides: ApplicationOverrides = {},
-): WorkspaceApplication {
-  return createWorkspaceApplication({
-    ...overrides,
-    id: overrides.id ?? "application-current",
-    job: {
-      ...overrides.job,
-      aiMatch: overrides.job?.aiMatch ?? {
-        ...aiMatchFixture,
-        version: "ai-match-v6",
-        revision: "match-revision-v4",
-        fingerprint:
-          "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
-        updatedAt: "2026-07-15T10:00:00.000Z",
-      },
-    },
-  });
-}
-
-export function createWorkspaceApplicationWithoutGuide(
-  overrides: ApplicationOverrides = {},
-): WorkspaceApplication {
-  return createWorkspaceApplication({
-    ...overrides,
-    id: overrides.id ?? "application-without-guide",
-    job: {
-      ...overrides.job,
-      aiMatch: overrides.job?.aiMatch ?? {
-        ...aiMatchFixture,
-        version: "ai-match-v6",
-        updatedAt: "2026-07-16T10:00:00.000Z",
-      },
-    },
-  });
-}
-
-function createWorkspaceApplication(
-  overrides: ApplicationOverrides,
 ): WorkspaceApplication {
   return {
     id: "application",

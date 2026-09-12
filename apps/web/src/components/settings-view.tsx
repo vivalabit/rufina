@@ -503,7 +503,7 @@ export function SettingsView({
                     </span>
                   </div>
                   <p className="mt-1.5 text-xs leading-5 text-muted">
-                    Runs only for vacancies that passed pre-screening and builds the detailed match analysis.
+                    Runs only for vacancies that passed pre-screening and calculates a suitability score.
                   </p>
                 </div>
 

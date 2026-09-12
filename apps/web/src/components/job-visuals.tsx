@@ -2,23 +2,24 @@
 
 import Image from "next/image";
 import {
+  AlertCircle,
   BarChart3,
   BrainCircuit,
   BriefcaseBusiness,
+  CheckCircle2,
   Cloud,
   Code2,
   Database,
   FlaskConical,
+  LoaderCircle,
   Palette,
   Server,
   ShieldCheck,
   Smartphone,
+  TimerReset,
 } from "lucide-react";
 
-import {
-  getDisplayMatch,
-  hasDisplayableMatch,
-} from "@/features/jobs/model/ai-match";
+import { getAiMatchPresentation } from "@/features/jobs/model/ai-match";
 import { getDirectCompanyByJobId } from "@/lib/direct-company-catalog";
 import { cn } from "@/lib/utils";
 import type { Job } from "@/shared/types/job";
@@ -29,64 +30,65 @@ type JobRoleIconProps = {
   compact?: boolean;
 };
 
-export function JobMatchRing({ job }: { job: Job }) {
-  const hasScore = hasDisplayableMatch(job);
-  const matchScore = getDisplayMatch(job);
-  const normalizedMatch = Math.max(0, Math.min(100, matchScore ?? 0));
-  const radius = 18.5;
-  const strokeWidth = 3;
-  const circumference = 2 * Math.PI * radius;
-  const dashOffset = hasScore
-    ? circumference * (1 - normalizedMatch / 100)
-    : circumference;
+const matchStateStyles = {
+  calculating: "border-accent/35 bg-accent/[0.07] text-accent",
+  current: "border-success/30 bg-[#eaf7e9] text-[#237a31]",
+  outdated: "border-[#c47a12]/30 bg-[#fff4dc] text-[#9a5b08]",
+  failed: "border-red-500/25 bg-red-50 text-red-700",
+  missing: "border-border bg-[#fff8f1] text-muted",
+} as const;
+
+const matchStateIcons = {
+  calculating: LoaderCircle,
+  current: CheckCircle2,
+  outdated: TimerReset,
+  failed: AlertCircle,
+  missing: TimerReset,
+} as const;
+
+export function JobMatchIndicator({
+  job,
+  isCalculating = false,
+  isError = false,
+  className,
+}: {
+  job: Job;
+  isCalculating?: boolean;
+  isError?: boolean;
+  className?: string;
+}) {
+  const presentation = getAiMatchPresentation(job, {
+    isCalculating,
+    isError,
+  });
+  const Icon = matchStateIcons[presentation.state];
+  const score = presentation.score === null ? "—" : `${presentation.score}%`;
+  const accessibleLabel = `AI match: ${score} · ${presentation.label}`;
 
   return (
     <div
-      className="h-10 w-10 shrink-0 text-accent 2xl:h-12 2xl:w-12"
-      aria-label={hasScore ? `${matchScore}% AI match` : "AI match not scored"}
-      title={hasScore ? `${matchScore}% match` : "AI match not scored"}
+      role="img"
+      className={cn(
+        "inline-grid min-w-[76px] shrink-0 grid-cols-[auto_auto] items-center justify-center gap-x-1 rounded-md border px-2 py-1.5",
+        matchStateStyles[presentation.state],
+        className,
+      )}
+      aria-label={accessibleLabel}
+      title={accessibleLabel}
     >
-      <svg className="block h-full w-full" viewBox="0 0 48 48" aria-hidden="true">
-        <circle
-          cx="24"
-          cy="24"
-          r={radius}
-          fill="none"
-          stroke="var(--color-parchment-shadow)"
-          strokeWidth={strokeWidth}
-        />
-        <circle
-          cx="24"
-          cy="24"
-          r={radius}
-          fill="none"
-          stroke="currentColor"
-          strokeWidth={strokeWidth}
-          strokeDasharray={circumference}
-          strokeDashoffset={dashOffset}
-          strokeLinecap="round"
-          transform="rotate(-90 24 24)"
-        />
-        <text
-          x="24"
-          y="24"
-          fill="var(--color-ink-black)"
-          fontSize="13"
-          fontWeight="700"
-          textAnchor="middle"
-          dominantBaseline="central"
-          letterSpacing="0"
-        >
-          {hasScore ? (
-            <>
-              <tspan>{normalizedMatch}</tspan>
-              <tspan fill="var(--color-warm-stone)" fontSize="8" fontWeight="700">%</tspan>
-            </>
-          ) : (
-            "AI"
-          )}
-        </text>
-      </svg>
+      <Icon
+        className={cn(
+          "h-3 w-3",
+          presentation.state === "calculating" && "animate-spin",
+        )}
+        aria-hidden="true"
+      />
+      <span className="text-xs font-extrabold leading-none 2xl:text-[13px]">
+        {score}
+      </span>
+      <span className="col-span-2 mt-1 text-center text-[9px] font-bold leading-none 2xl:text-[10px]">
+        {presentation.label}
+      </span>
     </div>
   );
 }

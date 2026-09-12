@@ -1,76 +1,8 @@
-"use client";
-
-import type { RefObject } from "react";
-import { ChevronDown } from "lucide-react";
-
-import { AiMatchScoreSummary } from "@/components/ai-match-score-summary";
 import { parseJobDescription } from "@/lib/job-description";
 import { cn } from "@/lib/utils";
 import type { Job } from "@/shared/types/job";
 
-type JobMainPanelProps = {
-  job: Job;
-  tab: string;
-  analysisRef?: RefObject<HTMLElement | null>;
-};
-
-export function JobMainPanel({
-  job,
-  tab,
-  analysisRef,
-}: JobMainPanelProps) {
-  if (tab === "AI Match") {
-    return (
-      <article
-        ref={analysisRef}
-        tabIndex={-1}
-        className="panel scroll-mt-4 p-3 outline-none 2xl:p-4"
-      >
-        <h3 className="mb-4 text-base font-bold 2xl:text-lg">AI Match Score</h3>
-        <AiMatchScoreSummary job={job} />
-      </article>
-    );
-  }
-
-  if (tab === "Reviews") {
-    return (
-      <article className="panel p-3 2xl:p-4">
-        <h3 className="text-base font-bold 2xl:text-lg">Reviews</h3>
-        <div className="mt-3 space-y-2.5 2xl:mt-4 2xl:space-y-3">
-          {job.reviews.map((review) => (
-            <p
-              key={review}
-              className="rounded-md border border-border bg-[#fff8f1] p-3 text-[13px] leading-5 text-muted 2xl:text-sm 2xl:leading-6"
-            >
-              {review}
-            </p>
-          ))}
-        </div>
-      </article>
-    );
-  }
-
-  if (tab === "Similar Jobs") {
-    return (
-      <article className="panel p-3 2xl:p-4">
-        <h3 className="text-base font-bold 2xl:text-lg">Similar Jobs</h3>
-        <div className="mt-3 space-y-2.5 2xl:mt-4 2xl:space-y-3">
-          {job.similarJobs.map((similarJob) => (
-            <div
-              key={similarJob}
-              className="flex items-center justify-between rounded-md border border-border bg-[#fff8f1] p-3"
-            >
-              <p className="text-[13px] font-semibold text-[#1d1e1c] 2xl:text-sm">
-                {similarJob}
-              </p>
-              <ChevronDown className="h-4 w-4 -rotate-90 text-muted" />
-            </div>
-          ))}
-        </div>
-      </article>
-    );
-  }
-
+export function JobMainPanel({ job }: { job: Job }) {
   const descriptionSections = parseJobDescription(job.overview);
 
   return (

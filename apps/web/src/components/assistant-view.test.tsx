@@ -1,10 +1,9 @@
-import { aiMatchFixture } from "@/test/ai-match-fixture";
 import { fireEvent, render, screen } from "@testing-library/react";
 import { expect, it, vi } from "vitest";
 
 import { AssistantView } from "@/components/assistant-view";
 
-it("auto-sends a launched match explanation with the selected job context", async () => {
+it("auto-sends launched vacancy guidance without match data", async () => {
   const streamBodies: Array<Record<string, unknown>> = [];
   const onLaunchHandled = vi.fn();
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
@@ -30,7 +29,7 @@ it("auto-sends a launched match explanation with the selected job context", asyn
       return new Response(
         [
           "event: connected\ndata: {}",
-          "event: delta\ndata: {\"text\":\"Match explanation\",\"offset\":17}",
+          "event: delta\ndata: {\"text\":\"Application guidance\",\"offset\":20}",
           "event: done\ndata: {\"metadata\":{\"backend\":\"openclaw_codex\"}}",
           "",
         ].join("\n\n"),
@@ -65,19 +64,16 @@ it("auto-sends a launched match explanation with the selected job context", asyn
           company: "Example AG",
           location: "Zurich",
           type: "Full-time",
-          match: 73,
           overview: "Design enterprise workflows.",
           responsibilities: ["Lead product discovery"],
           requirements: ["Five years of product design experience"],
           skills: ["Research", "Prototyping"],
-          aiMatch: { ...aiMatchFixture, score: 73 },
         },
       ]}
       applications={[]}
       launch={{
         id: "launch-job-73",
-        prompt:
-          'Why 73%? Explain the rating and end with "How to improve the match".',
+        prompt: "Tell me what I need to know before applying.",
         contextKind: "job",
         contextId: "job-73",
         autoSubmit: true,
@@ -88,22 +84,22 @@ it("auto-sends a launched match explanation with the selected job context", asyn
     />,
   );
 
-  expect(await screen.findByText("Match explanation")).toBeInTheDocument();
+  expect(await screen.findByText("Application guidance")).toBeInTheDocument();
   expect(onLaunchHandled).toHaveBeenCalledOnce();
   expect(streamBodies).toHaveLength(1);
   expect(streamBodies[0]).toMatchObject({
-    message:
-      'Why 73%? Explain the rating and end with "How to improve the match".',
+    message: "Tell me what I need to know before applying.",
     contextKind: "job",
     contextId: "job-73",
     job: {
       id: "job-73",
       title: "Product Designer",
       company: "Example AG",
-      match: 73,
       requirements: ["Five years of product design experience"],
     },
   });
+  expect(streamBodies[0].job).not.toHaveProperty("match");
+  expect(streamBodies[0].job).not.toHaveProperty("aiMatch");
 });
 
 it("streams immediately", async () => {

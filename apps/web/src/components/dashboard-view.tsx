@@ -14,7 +14,7 @@ import {
 import type { AssistantLaunch } from "@/components/assistant-view";
 import { Button } from "@/components/ui/button";
 import { DashboardGreeting, useHydrationSafeCurrentTime } from "@/components/dashboard-greeting";
-import { JobRoleIcon } from "@/components/job-visuals";
+import { JobMatchIndicator, JobRoleIcon } from "@/components/job-visuals";
 import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
 import {
   formatApplicationEventDate,
@@ -33,10 +33,6 @@ import {
   selectRecommendedDashboardJobs,
   selectUpcomingDashboardEvents,
 } from "@/features/dashboard/model/selectors";
-import {
-  formatMatchValue,
-  hasDisplayableMatch,
-} from "@/features/jobs/model/ai-match";
 import { getProfileCompletion } from "@/features/profile/model/selectors";
 import { createClientId } from "@/lib/client-id";
 import { cn } from "@/lib/utils";
@@ -318,7 +314,7 @@ export function DashboardView({
                           <span className="mt-0.5 block truncate text-[11px] text-muted">{job.location} · {job.type}</span>
                         </span>
                         <span className="min-w-0">
-                          {hasDisplayableMatch(job) ? <span className="inline-flex rounded-full bg-[#eaf7e9] px-2 py-1 text-[10px] font-semibold text-[#237a31] 2xl:text-[11px]">{formatMatchValue(job)} match</span> : null}
+                          <JobMatchIndicator job={job} />
                           <span className="mt-2 flex min-w-0 gap-1.5 overflow-hidden">
                             {job.skills.slice(0, 3).map((skill) => <span key={skill} className="tag max-w-[104px] truncate">{skill}</span>)}
                           </span>

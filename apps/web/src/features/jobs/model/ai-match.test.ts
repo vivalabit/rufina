@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   formatMatchValue,
+  getAiMatchPresentation,
   getDisplayMatch,
 } from "@/features/jobs/model/ai-match";
 import type { Job } from "@/shared/types/job";
@@ -37,7 +38,7 @@ function job(overrides: Partial<Job> = {}): Job {
 
 describe("job AI-match selectors", () => {
   it("does not display static scores for imported or manual jobs", () => {
-    expect(formatMatchValue(job())).toBe("Not scored");
+    expect(formatMatchValue(job())).toBe("Not calculated");
     expect(getDisplayMatch(job({ id: "manual-job-1", logo: "manual" }))).toBeNull();
   });
 
@@ -77,8 +78,44 @@ describe("job AI-match selectors", () => {
 
     expect(formatMatchValue(zeroScore)).toBe("0%");
     expect(getDisplayMatch(zeroScore)).toBe(0);
-    expect(formatMatchValue(failed)).toBe("Calculation failed");
+    expect(formatMatchValue(failed)).toBe("Error");
     expect(getDisplayMatch(failed)).toBeNull();
-    expect(formatMatchValue(job())).toBe("Not scored");
+    expect(formatMatchValue(job())).toBe("Not calculated");
+  });
+
+  it("presents current, calculating, outdated, failed, and missing states", () => {
+    const current = job({ aiMatch: aiMatchFixture });
+    const outdated = job({
+      aiMatch: { ...aiMatchFixture, version: "ai-match-v5" },
+    });
+    const failed = job({
+      aiMatch: { ...aiMatchFixture, providerError: "Provider timed out" },
+    });
+
+    expect(getAiMatchPresentation(current)).toEqual({
+      state: "current",
+      label: "Calculated",
+      score: 82,
+    });
+    expect(getAiMatchPresentation(current, { isCalculating: true })).toEqual({
+      state: "calculating",
+      label: "Calculating",
+      score: null,
+    });
+    expect(getAiMatchPresentation(outdated)).toEqual({
+      state: "outdated",
+      label: "Outdated",
+      score: 82,
+    });
+    expect(getAiMatchPresentation(failed)).toEqual({
+      state: "failed",
+      label: "Error",
+      score: null,
+    });
+    expect(getAiMatchPresentation(job())).toEqual({
+      state: "missing",
+      label: "Not calculated",
+      score: null,
+    });
   });
 });

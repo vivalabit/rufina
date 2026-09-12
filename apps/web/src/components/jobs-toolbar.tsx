@@ -213,7 +213,7 @@ export function JobsToolbar({
             disabled={bulkAnalysisScope !== null}
             onClick={() => onAnalysisMenuOpenChange(!isAnalysisMenuOpen)}
           >
-            {bulkAnalysisScope ? "Analyzing..." : "Analysis"}
+            {bulkAnalysisScope ? "Calculating..." : "Match scores"}
             {!bulkAnalysisScope ? (
               <ChevronDown className="h-3.5 w-3.5 text-[#615f5c]" />
             ) : null}
@@ -225,12 +225,12 @@ export function JobsToolbar({
         {isAnalysisMenuOpen ? (
           <div
             role="menu"
-            aria-label="Bulk AI analysis"
+            aria-label="Bulk match scoring"
             style={{ left: analysisMenuLeft, top: analysisMenuTop }}
             className="absolute z-40 grid w-[min(300px,calc(100vw-2rem))] gap-1 rounded-lg border border-border bg-[#ffffff] p-2 shadow-[0_18px_40px_rgba(0,0,0,0.48)]"
           >
             <p className="px-2 pb-1 pt-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-muted">
-              Run AI analysis
+              Calculate match scores
             </p>
             <button
               type="button"
@@ -243,7 +243,7 @@ export function JobsToolbar({
                 Vacancies added in the last 24 hours
               </span>
               <span className="mt-1 block text-[11px] leading-4 text-muted">
-                Re-run analysis for {recentAnalysisCount} active vacancies.
+                Recalculate scores for {recentAnalysisCount} active vacancies.
               </span>
             </button>
             <button
@@ -254,10 +254,10 @@ export function JobsToolbar({
               className="rounded-md px-2.5 py-2 text-left transition hover:bg-[#fff3e8] disabled:cursor-not-allowed disabled:opacity-45 disabled:hover:bg-transparent"
             >
               <span className="block text-xs font-bold text-[#1d1e1c]">
-                Vacancies without current analysis
+                Vacancies without current scores
               </span>
               <span className="mt-1 block text-[11px] leading-4 text-muted">
-                Analyze {missingAnalysisCount} vacancies with missing or outdated results.
+                Calculate {missingAnalysisCount} missing or outdated scores.
               </span>
             </button>
           </div>

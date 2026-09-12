@@ -24,12 +24,11 @@ import {
 } from "lucide-react";
 
 import {
-  ApplicationAiInfoDialog,
   ApplicationEventDialog,
   ApplicationNotesDialog,
   ManualApplicationDialog,
 } from "@/components/application-dialogs";
-import { JobRoleIcon } from "@/components/job-visuals";
+import { JobMatchIndicator, JobRoleIcon } from "@/components/job-visuals";
 import { Button } from "@/components/ui/button";
 import {
   formatApplicationDate,
@@ -69,7 +68,6 @@ import {
   formatJobLocationCompact,
   getJobApplyUrl,
 } from "@/features/jobs/formatting";
-import { formatMatchValue } from "@/features/jobs/model/ai-match";
 import { createClientId } from "@/lib/client-id";
 import { cn } from "@/lib/utils";
 import type {
@@ -90,6 +88,9 @@ type ApplicationsViewProps = {
   applications: TrackedApplication[];
   events: ApplicationEvent[];
   matchingApplicationIds: string[];
+  failedApplicationIds: string[];
+  matchingJobIds: string[];
+  failedJobIds: string[];
   profile: CandidateProfile;
   selectedApplication: TrackedApplication | null;
   onSelectApplication: (applicationId: string) => void;
@@ -141,6 +142,9 @@ export function ApplicationsView({
   applications,
   events,
   matchingApplicationIds,
+  failedApplicationIds,
+  matchingJobIds,
+  failedJobIds,
   profile,
   selectedApplication,
   onSelectApplication,
@@ -169,7 +173,6 @@ export function ApplicationsView({
   const [isApplicationMenuOpen, setIsApplicationMenuOpen] = useState(false);
   const [isNotesDialogOpen, setIsNotesDialogOpen] = useState(false);
   const [applicationNotesDraft, setApplicationNotesDraft] = useState("");
-  const [aiInfoApplicationId, setAiInfoApplicationId] = useState("");
   const [isManualApplicationDialogOpen, setIsManualApplicationDialogOpen] =
     useState(false);
   const [manualApplicationDraft, setManualApplicationDraft] =
@@ -184,6 +187,9 @@ export function ApplicationsView({
     sortBy: applicationSortBy,
   });
   const matchingApplicationIdSet = new Set(matchingApplicationIds);
+  const failedApplicationIdSet = new Set(failedApplicationIds);
+  const matchingJobIdSet = new Set(matchingJobIds);
+  const failedJobIdSet = new Set(failedJobIds);
   const visibleSelectedApplication = getVisibleSelectedApplication(
     selectedApplication,
     filteredApplications,
@@ -197,10 +203,6 @@ export function ApplicationsView({
   const visibleApplicationEvents = visibleSelectedApplication
     ? getApplicationEventsFor(events, visibleSelectedApplication.id)
     : [];
-  const aiInfoApplication =
-    applications.find(
-      (application) => application.id === aiInfoApplicationId,
-    ) ?? null;
   const nextApplicationEvent = getNextUpcomingApplicationEvent(
     visibleApplicationEvents,
     Date.now(),
@@ -316,11 +318,6 @@ export function ApplicationsView({
     } finally {
       setIsManualApplicationSaving(false);
     }
-  }
-
-  function openApplicationAiInfo(applicationId: string) {
-    setAiInfoApplicationId(applicationId);
-    setIsApplicationMenuOpen(false);
   }
 
   function openScheduleDialog() {
@@ -748,27 +745,13 @@ export function ApplicationsView({
                             applicationStatusStyles[application.status],
                           )}
                         >
-                          {matchingApplicationIdSet.has(application.id)
-                            ? "Analyzing"
-                            : getApplicationStatusLabel(application.status)}
+                          {getApplicationStatusLabel(application.status)}
                         </span>
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[11px] font-bold text-success 2xl:text-xs">
-                            {formatMatchValue(application.job)}
-                          </span>
-                          <button
-                            type="button"
-                            aria-label={`Open AI info for ${application.job.title}`}
-                            title="AI info"
-                            onClick={(event) => {
-                              event.stopPropagation();
-                              openApplicationAiInfo(application.id);
-                            }}
-                            className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border bg-[#fff8f1] text-muted transition hover:border-[#c0bbb6] hover:bg-[#fff3e8] hover:text-foreground 2xl:h-8 2xl:w-8"
-                          >
-                            <Info className="h-3.5 w-3.5 2xl:h-4 2xl:w-4" />
-                          </button>
-                        </div>
+                        <JobMatchIndicator
+                          job={application.job}
+                          isCalculating={matchingApplicationIdSet.has(application.id) || matchingJobIdSet.has(application.job.id)}
+                          isError={failedApplicationIdSet.has(application.id) || failedJobIdSet.has(application.job.id)}
+                        />
                       </div>
                     </div>
                     <div className="mt-2 border-t border-border/80 pt-2 2xl:mt-3 2xl:pt-2.5">
@@ -841,17 +824,11 @@ export function ApplicationsView({
                         <FileText className="h-4 w-4 2xl:h-5 2xl:w-5" />
                         Open application
                       </Button>
-                      <button
-                        type="button"
-                        aria-label="Open AI info"
-                        title="AI info"
-                        onClick={() =>
-                          openApplicationAiInfo(visibleSelectedApplication.id)
-                        }
-                        className="grid h-10 w-10 place-items-center rounded-md border border-border bg-[#fff8f1] text-muted transition hover:border-[#c0bbb6] hover:bg-[#fff3e8] hover:text-foreground 2xl:h-11 2xl:w-11"
-                      >
-                        <Info className="h-4 w-4" />
-                      </button>
+                      <JobMatchIndicator
+                        job={visibleSelectedApplication.job}
+                        isCalculating={matchingApplicationIdSet.has(visibleSelectedApplication.id) || matchingJobIdSet.has(visibleSelectedApplication.job.id)}
+                        isError={failedApplicationIdSet.has(visibleSelectedApplication.id) || failedJobIdSet.has(visibleSelectedApplication.job.id)}
+                      />
                       <button
                         type="button"
                         aria-label="Application actions"
@@ -875,17 +852,6 @@ export function ApplicationsView({
                             className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8] disabled:cursor-not-allowed disabled:text-muted/45 disabled:hover:bg-transparent"
                           >
                             Open job posting
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() =>
-                              openApplicationAiInfo(
-                                visibleSelectedApplication.id,
-                              )
-                            }
-                            className="rounded-md px-2 py-1.5 text-left text-[11px] font-bold text-[#1d1e1c] hover:bg-[#fff3e8]"
-                          >
-                            AI info
                           </button>
                           <div className="my-1 h-px bg-border" />
                           <p className="px-2 py-1 text-[10px] font-bold uppercase tracking-normal text-muted">
@@ -1229,14 +1195,6 @@ export function ApplicationsView({
           </>
         )}
       </div>
-
-      {aiInfoApplication ? (
-        <ApplicationAiInfoDialog
-          application={aiInfoApplication}
-          isAnalyzing={matchingApplicationIdSet.has(aiInfoApplication.id)}
-          onClose={() => setAiInfoApplicationId("")}
-        />
-      ) : null}
 
       {isManualApplicationDialogOpen ? (
         <ManualApplicationDialog
