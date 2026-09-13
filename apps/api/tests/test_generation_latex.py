@@ -9,7 +9,12 @@ from sqlalchemy.pool import StaticPool
 from test_generation_input import seed_complete_sources
 
 from app.core.database import Base
-from app.models.documents import DocumentAttachmentRecord, DocumentFileRecord
+from app.models.documents import (
+    DocumentAttachmentRecord,
+    DocumentFileRecord,
+    DocumentRecord,
+    DocumentVersionRecord,
+)
 from app.models.generation_runs import GenerationRunArtifactRecord, GenerationRunStartRequest
 from app.models.generation_workflow import CoverLetterDraft, DraftBundle
 from app.models.resume import FinalResume
@@ -52,13 +57,13 @@ def _settings() -> SimpleNamespace:
     )
 
 
-def _start() -> GenerationRunStartRequest:
+def _start(key: str = "latex-run") -> GenerationRunStartRequest:
     return GenerationRunStartRequest(
         documentTypes=("tailored_resume",),
         language="English",
         formattingParameters={"tailored_resume": {"templateId": "classic_single"}},
         userPreferences="",
-        idempotencyKey="latex-run",
+        idempotencyKey=key,
     )
 
 
@@ -179,3 +184,65 @@ def test_compiled_pdf_is_imported_once_and_attached_to_application(
         assert attachment is not None and attachment.application_id == "application-1"
         assert file is not None and file.content_type == "application/pdf"
         assert file.content == compiled[0].pdf
+
+
+def test_a_later_run_creates_a_new_version_of_the_attached_document(
+    sessions: sessionmaker[Session],
+) -> None:
+    seed_complete_sources(sessions)
+    bundle = DraftBundle(resume=_resume())
+    compiled = (
+        CompiledDocument(
+            document_type="tailored_resume",
+            engine="lualatex",
+            file_name="cv.pdf",
+            tex_source=build_resume_tex(_resume()),
+            pdf=b"%PDF-1.7\nfirst",
+            compile_log="ok",
+        ),
+    )
+    with sessions() as db:
+        first_run = create_generation_run(
+            db,
+            application_id="application-1",
+            request=_start("first-run"),
+            settings=_settings(),
+        )
+        first_document = import_compiled_generation_documents(
+            db, run=first_run, bundle=bundle, compiled=compiled
+        )[0]
+        first_run.status = "completed"
+        first_run.stage = "final_review"
+        db.commit()
+
+        second_run = create_generation_run(
+            db,
+            application_id="application-1",
+            request=_start("revision-run"),
+            settings=_settings(),
+        )
+        revised = (compiled[0].__class__(
+            document_type=compiled[0].document_type,
+            engine=compiled[0].engine,
+            file_name=compiled[0].file_name,
+            tex_source=compiled[0].tex_source,
+            pdf=b"%PDF-1.7\nrevised",
+            compile_log="ok",
+        ),)
+        second_document = import_compiled_generation_documents(
+            db, run=second_run, bundle=bundle, compiled=revised
+        )[0]
+        db.commit()
+
+        assert second_document.id == first_document.id
+        assert second_document.current_version == 2
+        assert db.scalar(select(func.count()).select_from(DocumentRecord)) == 1
+        assert db.scalar(select(func.count()).select_from(DocumentVersionRecord)) == 2
+        assert db.scalar(select(func.count()).select_from(DocumentFileRecord)) == 2
+        final_artifact = db.scalar(
+            select(GenerationRunArtifactRecord).where(
+                GenerationRunArtifactRecord.run_id == second_run.id,
+                GenerationRunArtifactRecord.artifact_type == "resume_pdf",
+            )
+        )
+        assert final_artifact is not None and final_artifact.document_version == 2

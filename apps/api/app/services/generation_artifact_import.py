@@ -97,21 +97,37 @@ def _import_compiled_document(
             return document
 
     now = datetime.now(UTC)
-    document_id = uuid4().hex
-    document = DocumentRecord(
-        id=document_id,
-        type=rendered.document_type,
-        title=title,
-        job_id=job_id,
-        current_version=1,
-        created_at=now,
-        updated_at=now,
+    document = db.scalar(
+        select(DocumentRecord)
+        .join(DocumentAttachmentRecord)
+        .where(
+            DocumentAttachmentRecord.application_id == run.application_id,
+            DocumentRecord.type == rendered.document_type,
+            DocumentRecord.job_id == job_id,
+        )
+        .order_by(DocumentRecord.updated_at.desc(), DocumentRecord.id.desc())
+        .limit(1)
     )
+    is_new = document is None
+    if document is None:
+        document = DocumentRecord(
+            id=uuid4().hex,
+            type=rendered.document_type,
+            title=title,
+            job_id=job_id,
+            current_version=0,
+            created_at=now,
+            updated_at=now,
+        )
+    document_version = document.current_version + 1
+    document.title = title
+    document.current_version = document_version
+    document.updated_at = now
     document.versions.append(
         DocumentVersionRecord(
             id=uuid4().hex,
-            document_id=document_id,
-            version=1,
+            document_id=document.id,
+            version=document_version,
             content=content,
             created_at=now,
         )
@@ -119,8 +135,8 @@ def _import_compiled_document(
     document.files.append(
         DocumentFileRecord(
             id=uuid4().hex,
-            document_id=document_id,
-            version=1,
+            document_id=document.id,
+            version=document_version,
             template_id=None,
             file_name=file_name,
             content_type="application/pdf",
@@ -131,14 +147,15 @@ def _import_compiled_document(
             created_at=now,
         )
     )
-    document.attachments.append(
-        DocumentAttachmentRecord(
-            id=uuid4().hex,
-            document_id=document_id,
-            application_id=run.application_id,
-            created_at=now,
+    if is_new:
+        document.attachments.append(
+            DocumentAttachmentRecord(
+                id=uuid4().hex,
+                document_id=document.id,
+                application_id=run.application_id,
+                created_at=now,
+            )
         )
-    )
     db.add(document)
     db.flush()
 
@@ -158,7 +175,7 @@ def _import_compiled_document(
             "templateVersion": template.template_version,
         },
         document_id=document.id,
-        document_version=1,
+        document_version=document_version,
     )
     pdf_artifact = persist_run_artifact(
         db,
@@ -177,7 +194,7 @@ def _import_compiled_document(
             "compileLog": rendered.compile_log,
         },
         document_id=document.id,
-        document_version=1,
+        document_version=document_version,
     )
     pdf_artifact.document_id = document.id
     return document
