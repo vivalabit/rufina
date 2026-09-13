@@ -139,6 +139,19 @@ class GenerationWorkflow:
             return None
         return self._draft_and_review(db, run)
 
+    def continue_approved_run(
+        self,
+        db: Session,
+        run: ApplicationGenerationRunRecord,
+    ) -> ReviewedDraftBundle:
+        self._require_state(run, "queued")
+        if run.stage != "draft":
+            raise GenerationWorkflowError(
+                "Generation run is not queued for drafting",
+                code="invalid_run_stage",
+            )
+        return self._draft_and_review(db, run)
+
     def _draft_and_review(
         self,
         db: Session,

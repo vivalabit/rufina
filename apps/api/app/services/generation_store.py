@@ -313,6 +313,39 @@ def request_run_cancellation(
     db.refresh(run)
 
 
+def queue_fit_decision(
+    db: Session,
+    *,
+    run: ApplicationGenerationRunRecord,
+    question_id: str,
+    response: Literal["continue", "stop"],
+    expected_revision: int,
+) -> None:
+    if run.revision != expected_revision:
+        raise GenerationStoreError("Generation run revision is stale", code="stale_run")
+    if run.status != "awaiting_approval":
+        raise GenerationStoreError(
+            "Generation run is not awaiting an answer",
+            code="answer_not_expected",
+        )
+    if run.pending_question is None or run.pending_question.get("id") != question_id:
+        raise GenerationStoreError("Generation question does not match", code="question_mismatch")
+    append_run_message(
+        db,
+        run=run,
+        actor="user",
+        role="user",
+        content=response,
+    )
+    transition_generation_run(
+        db,
+        run=run,
+        status="queued" if response == "continue" else "cancelled",
+        stage="draft" if response == "continue" else "fit",
+        event_kind="fit.approved" if response == "continue" else "fit.declined",
+    )
+
+
 def generation_run_payload(
     db: Session,
     run: ApplicationGenerationRunRecord,
@@ -407,6 +440,7 @@ __all__ = [
     "get_latest_generation_run",
     "persist_run_artifact",
     "persist_run_check",
+    "queue_fit_decision",
     "request_run_cancellation",
     "transition_generation_run",
 ]

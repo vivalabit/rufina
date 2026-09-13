@@ -296,9 +296,18 @@ class GenerationRunCancelRequest(BaseModel):
     revision: int = Field(ge=1)
 
 
+class GenerationRunAnswerRequest(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    question_id: str = Field(min_length=1, max_length=160, alias="questionId")
+    response: Literal["continue", "stop"]
+    revision: int = Field(ge=1)
+
+
 __all__ = [
     "ApplicationGenerationRunRecord",
     "GenerationActor",
+    "GenerationRunAnswerRequest",
     "GenerationRunArtifactPayload",
     "GenerationRunArtifactRecord",
     "GenerationRunCancelRequest",

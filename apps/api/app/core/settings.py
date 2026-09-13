@@ -91,6 +91,7 @@ class Settings(BaseSettings):
     openclaw_assistant_max_user_message_chars: int = Field(default=6_000, ge=200, le=12_000)
     openclaw_assistant_max_history_messages: int = Field(default=12, ge=0, le=100)
     openclaw_assistant_max_history_chars: int = Field(default=8_000, ge=0, le=100_000)
+    generation_worker_poll_interval_seconds: float = Field(default=1.0, ge=0.1, le=60)
 
     _normalize_ai_match_model = field_validator("ai_match_model", mode="before")(
         normalize_ai_match_model

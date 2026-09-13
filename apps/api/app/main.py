@@ -23,6 +23,7 @@ from app.api.settings import router as settings_router
 from app.core.migrations import upgrade_database
 from app.core.request_body_limit import RequestBodyLimitMiddleware
 from app.core.settings import get_settings
+from app.services.generation_worker import run_generation_worker
 from app.services.job_search_worker import run_job_search_worker
 from app.services.storage_cleanup import run_expiration_cleanup
 
@@ -33,6 +34,7 @@ settings = get_settings()
 async def lifespan(_: FastAPI) -> AsyncIterator[None]:
     upgrade_database()
     job_search_stop = asyncio.Event()
+    generation_stop = asyncio.Event()
     cleanup_task = asyncio.create_task(
         run_expiration_cleanup(settings.storage_cleanup_interval_seconds),
         name="storage-expiration-cleanup",
@@ -46,11 +48,22 @@ async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         ),
         name="automatic-job-search-worker",
     )
+    generation_task = asyncio.create_task(
+        run_generation_worker(
+            settings.generation_worker_poll_interval_seconds,
+            settings=settings,
+            settings_provider=get_settings,
+            stop_event=generation_stop,
+        ),
+        name="application-generation-worker",
+    )
     try:
         yield
     finally:
         job_search_stop.set()
+        generation_stop.set()
         await job_search_task
+        await generation_task
         cleanup_task.cancel()
         with suppress(asyncio.CancelledError):
             await cleanup_task
