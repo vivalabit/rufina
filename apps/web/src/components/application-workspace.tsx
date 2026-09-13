@@ -1,18 +1,24 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   ArrowLeft,
   BriefcaseBusiness,
+  Check,
   CircleDot,
   Download,
   Eye,
   ExternalLink,
+  FileOutput,
   FileText,
+  Languages,
+  LayoutTemplate,
   LoaderCircle,
   MapPin,
   Paperclip,
   RefreshCw,
+  Settings2,
+  Sparkles,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -21,15 +27,32 @@ import {
   attachDocument,
   documentDownloadUrl,
   fetchApplicationDocuments,
+  fetchDocumentTemplates,
   fetchDocumentVersions,
   fetchJobDocuments,
+  type DocumentTemplateSummary,
 } from "@/features/applications/api/document-access-client";
+import {
+  startApplicationGeneration,
+  type GenerationResult,
+} from "@/features/applications/api/generation-client";
 import {
   formatApplicationDate,
   getApplicationStatusLabel,
 } from "@/features/applications/formatting";
 import { applicationStatusStyles } from "@/features/applications/model/constants";
+import {
+  generationRequestFromSettings,
+  normalizeDocumentPreparationSettings,
+  type DocumentPreparationSettings,
+  type PreparationDocumentType,
+  type PreparationLanguage,
+  type PreparationPageSize,
+  type PreparationResumeMaxPages,
+} from "@/features/applications/model/document-preparation";
+import { fetchResumeTemplates } from "@/features/profile/api/template-client";
 import { normalizeJobsChJobUrl } from "@/lib/job-url";
+import type { ResumeTemplate } from "@/lib/resume-templates";
 import { cn } from "@/lib/utils";
 import type { ApplicationStatus } from "@/shared/types/application";
 import type { Job } from "@/shared/types/job";
@@ -90,12 +113,17 @@ type WorkspaceApplication = {
     | "sourceUrl"
   >;
   documents: WorkspaceApplicationDocument[];
+  documentPreparation?: DocumentPreparationSettings;
 };
 
 type ApplicationWorkspaceProps = {
   application: WorkspaceApplication | null;
   backLabel?: string;
   onBack: () => void;
+  onPreparationSettingsChange: (
+    applicationId: string,
+    settings: DocumentPreparationSettings,
+  ) => Promise<unknown> | void;
   onDocumentAttached: (
     applicationId: string,
     document: {
@@ -128,8 +156,10 @@ function currentStoredDocumentVersion(document: StoredDocument) {
 }
 
 function storedDocumentFileName(document: StoredDocument) {
-  return currentStoredDocumentVersion(document)?.artifact?.fileName
-    ?? `${document.title || "document"}.docx`;
+  return (
+    currentStoredDocumentVersion(document)?.artifact?.fileName ??
+    `${document.title || "document"}.docx`
+  );
 }
 
 function mergeVersions(
@@ -143,10 +173,15 @@ function mergeVersions(
   );
 }
 
+function generationDocumentLabel(documentType: PreparationDocumentType) {
+  return documentType === "tailored_resume" ? "Tailored CV" : "Cover letter";
+}
+
 export function ApplicationWorkspace({
   application,
   backLabel = "Applications",
   onBack,
+  onPreparationSettingsChange,
   onDocumentAttached,
 }: ApplicationWorkspaceProps) {
   const [storedDocuments, setStoredDocuments] = useState<StoredDocument[]>([]);
@@ -163,6 +198,36 @@ export function ApplicationWorkspace({
     documentId: string;
     version: number;
   } | null>(null);
+  const [settings, setSettings] = useState<DocumentPreparationSettings>(() =>
+    normalizeDocumentPreparationSettings(application?.documentPreparation),
+  );
+  const [settingsStatus, setSettingsStatus] = useState<
+    "saved" | "saving" | "unsaved" | "error"
+  >("saved");
+  const [settingsError, setSettingsError] = useState("");
+  const [resumeTemplates, setResumeTemplates] = useState<ResumeTemplate[]>([]);
+  const [coverLetterTemplates, setCoverLetterTemplates] = useState<
+    DocumentTemplateSummary[]
+  >([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const [generationResult, setGenerationResult] =
+    useState<GenerationResult | null>(null);
+  const [generationError, setGenerationError] = useState("");
+  const saveSequenceRef = useRef(0);
+  const applicationId = application?.id ?? "";
+  const jobId = application?.job.id ?? "";
+  const hydratedApplicationIdRef = useRef(applicationId);
+
+  useEffect(() => {
+    if (hydratedApplicationIdRef.current === applicationId) return;
+    hydratedApplicationIdRef.current = applicationId;
+    setSettings(normalizeDocumentPreparationSettings(application?.documentPreparation));
+    setSettingsStatus("saved");
+    setSettingsError("");
+    setGenerationResult(null);
+    setGenerationError("");
+    saveSequenceRef.current += 1;
+  }, [applicationId, application?.documentPreparation]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -171,14 +236,14 @@ export function ApplicationWorkspace({
     setPreview(null);
     setDocumentsError("");
 
-    if (!application) {
+    if (!applicationId) {
       setDocumentsStatus("idle");
       return () => controller.abort();
     }
 
     setDocumentsStatus("loading");
     void fetchApplicationDocuments<StoredDocument>(
-      application.id,
+      applicationId,
       controller.signal,
     )
       .then((attached) => {
@@ -197,10 +262,7 @@ export function ApplicationWorkspace({
             : "Saved documents could not be loaded.",
         );
       });
-    void fetchJobDocuments<StoredDocument>(
-      application.job.id,
-      controller.signal,
-    )
+    void fetchJobDocuments<StoredDocument>(jobId, controller.signal)
       .then((forJob) => {
         if (!controller.signal.aborted) setJobDocuments(forJob);
       })
@@ -212,26 +274,47 @@ export function ApplicationWorkspace({
         // suggestions for the vacancy are temporarily unavailable.
       });
 
+    void fetchResumeTemplates(controller.signal)
+      .then((items) => {
+        if (!controller.signal.aborted) setResumeTemplates(items);
+      })
+      .catch(() => {
+        // Template discovery is optional; saved/default values stay selectable.
+      });
+    void fetchDocumentTemplates(controller.signal)
+      .then((items) => {
+        if (!controller.signal.aborted) {
+          setCoverLetterTemplates(
+            items.filter((item) => item.type === "cover_letter"),
+          );
+        }
+      })
+      .catch(() => {
+        // The generator can use its default cover-letter template.
+      });
+
     return () => controller.abort();
-  }, [application, documentsRequest]);
+  }, [applicationId, documentsRequest, jobId]);
 
   const storedDocumentIds = useMemo(
     () => new Set(storedDocuments.map((document) => document.id)),
     [storedDocuments],
   );
   const attachedFiles = useMemo(
-    () => application?.documents.filter(
-      (document) => !document.artifactId
-        || !storedDocumentIds.has(document.artifactId),
-    ) ?? [],
+    () =>
+      application?.documents.filter(
+        (document) =>
+          !document.artifactId || !storedDocumentIds.has(document.artifactId),
+      ) ?? [],
     [application, storedDocumentIds],
   );
   const availableJobDocuments = useMemo(
-    () => application
-      ? jobDocuments.filter(
-        (document) => !document.applicationIds.includes(application.id),
-      )
-      : [],
+    () =>
+      application
+        ? jobDocuments.filter(
+            (document) => !document.applicationIds.includes(application.id),
+          )
+        : [],
     [application, jobDocuments],
   );
   const previewDocument = useMemo(() => {
@@ -239,9 +322,7 @@ export function ApplicationWorkspace({
     const document = storedDocuments.find(
       (candidate) => candidate.id === preview.documentId,
     );
-    return document
-      ? { ...document, currentVersion: preview.version }
-      : null;
+    return document ? { ...document, currentVersion: preview.version } : null;
   }, [preview, storedDocuments]);
 
   const updateStoredDocument = useCallback((updated: StoredDocument) => {
@@ -250,14 +331,84 @@ export function ApplicationWorkspace({
         (document) => document.id === updated.id,
       );
       if (existingIndex === -1) return [updated, ...current];
-      return current.map((document, index) => (
-        index === existingIndex ? updated : document
-      ));
+      return current.map((document, index) =>
+        index === existingIndex ? updated : document,
+      );
     });
-    setJobDocuments((current) => current.map((document) => (
-      document.id === updated.id ? updated : document
-    )));
+    setJobDocuments((current) =>
+      current.map((document) =>
+        document.id === updated.id ? updated : document,
+      ),
+    );
   }, []);
+
+  async function persistSettings(next: DocumentPreparationSettings) {
+    if (!applicationId) return;
+    const sequence = saveSequenceRef.current + 1;
+    saveSequenceRef.current = sequence;
+    setSettingsStatus("saving");
+    setSettingsError("");
+    try {
+      await onPreparationSettingsChange(applicationId, next);
+      if (saveSequenceRef.current === sequence) setSettingsStatus("saved");
+    } catch (caught) {
+      if (saveSequenceRef.current !== sequence) return;
+      setSettingsStatus("error");
+      setSettingsError(
+        caught instanceof Error
+          ? caught.message
+          : "Document settings could not be saved.",
+      );
+    }
+  }
+
+  function updateAndPersistSettings(
+    update: (
+      current: DocumentPreparationSettings,
+    ) => DocumentPreparationSettings,
+  ) {
+    const next = update(settings);
+    setSettings(next);
+    void persistSettings(next);
+  }
+
+  function toggleDocumentType(documentType: PreparationDocumentType) {
+    updateAndPersistSettings((current) => ({
+      ...current,
+      documentTypes: current.documentTypes.includes(documentType)
+        ? current.documentTypes.filter((type) => type !== documentType)
+        : [...current.documentTypes, documentType],
+    }));
+  }
+
+  async function generateDocuments() {
+    if (!applicationId || !settings.documentTypes.length || isGenerating)
+      return;
+    setIsGenerating(true);
+    setGenerationError("");
+    setGenerationResult(null);
+    if (settingsStatus === "unsaved" || settingsStatus === "error") {
+      await persistSettings(settings);
+    }
+    try {
+      const result = await startApplicationGeneration(
+        applicationId,
+        generationRequestFromSettings(settings),
+      );
+      setGenerationResult(result);
+      if (result.state === "completed") {
+        setDocumentsRequest((current) => current + 1);
+      }
+    } catch (caught) {
+      setGenerationError(
+        caught instanceof Error
+          ? caught.message
+          : "Document generation could not be started.",
+      );
+    } finally {
+      setIsGenerating(false);
+    }
+  }
 
   async function attachStoredDocument(document: StoredDocument) {
     if (!application || attachingDocumentId) return;
@@ -350,7 +501,7 @@ export function ApplicationWorkspace({
 
   return (
     <section className="job-scroll h-full overflow-y-auto">
-      <div className="mx-auto w-full max-w-5xl px-4 py-5 sm:px-6 sm:py-7">
+      <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-7">
         <Button
           type="button"
           variant="ghost"
@@ -360,45 +511,36 @@ export function ApplicationWorkspace({
           <ArrowLeft className="h-4 w-4" /> {backLabel}
         </Button>
 
-        <article className="workspace-card mt-4 overflow-hidden">
-          <header className="border-b border-border px-5 py-5 sm:px-6 sm:py-6">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-              <div className="min-w-0">
+        <section
+          aria-labelledby="vacancy-summary-title"
+          className="workspace-card mt-4 overflow-hidden px-5 py-5 sm:px-6 sm:py-6"
+        >
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2">
                 <p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">
-                  Application
-                </p>
-                <h1 className="mt-2 text-2xl font-bold tracking-[-0.02em] text-foreground">
-                  {application.job.title}
-                </h1>
-                <p className="mt-1 text-sm font-semibold text-[#4a4a47]">
-                  {application.job.company}
-                </p>
-              </div>
-              <span
-                className={cn(
-                  "inline-flex w-fit items-center gap-1.5 rounded-full border px-3 py-1.5 text-[10px] font-black uppercase tracking-wide",
-                  applicationStatusStyles[application.status],
-                )}
-              >
-                <CircleDot className="h-3.5 w-3.5" />
-                {getApplicationStatusLabel(application.status)}
-              </span>
-            </div>
-          </header>
-
-          <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_minmax(280px,0.7fr)]">
-            <section aria-labelledby="vacancy-details-title">
-              <div className="flex items-center gap-2">
-                <BriefcaseBusiness className="h-4 w-4 text-accent" />
-                <h2
-                  id="vacancy-details-title"
-                  className="text-sm font-bold text-foreground"
-                >
                   Vacancy
-                </h2>
+                </p>
+                <span
+                  className={cn(
+                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-wide",
+                    applicationStatusStyles[application.status],
+                  )}
+                >
+                  <CircleDot className="h-3 w-3" />
+                  {getApplicationStatusLabel(application.status)}
+                </span>
               </div>
-
-              <div className="mt-4 flex flex-wrap gap-2 text-[10px] font-semibold text-muted">
+              <h1
+                id="vacancy-summary-title"
+                className="mt-2 text-2xl font-bold tracking-[-0.02em] text-foreground"
+              >
+                {application.job.title}
+              </h1>
+              <p className="mt-1 text-sm font-semibold text-[#4a4a47]">
+                {application.job.company}
+              </p>
+              <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-semibold text-muted">
                 {application.job.location ? (
                   <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-[#fff8f1] px-2.5 py-1.5">
                     <MapPin className="h-3.5 w-3.5" />
@@ -412,309 +554,734 @@ export function ApplicationWorkspace({
                   </span>
                 ) : null}
               </div>
-
               {application.job.overview ? (
-                <p className="mt-4 max-w-3xl text-sm leading-6 text-[#4a4a47]">
+                <p className="mt-3 max-w-4xl text-sm leading-6 text-[#4a4a47]">
                   {application.job.overview}
                 </p>
               ) : null}
+            </div>
+            {jobUrl ? (
+              <a
+                href={jobUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-border px-3.5 text-xs font-bold text-foreground transition hover:bg-[#fff3e8]"
+              >
+                <ExternalLink className="h-4 w-4" /> View vacancy
+              </a>
+            ) : null}
+          </div>
+        </section>
 
-              {jobUrl ? (
-                <a
-                  href={jobUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-5 inline-flex h-10 items-center gap-2 rounded-xl border border-border px-3.5 text-xs font-bold text-foreground transition hover:bg-[#fff3e8]"
+        <div className="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(300px,0.78fr)_minmax(0,1.35fr)] lg:items-stretch">
+          <section
+            aria-labelledby="document-settings-title"
+            className="workspace-card p-5 sm:p-6"
+          >
+            <div className="flex items-start gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#fff3e8] text-accent">
+                <Settings2 className="h-4.5 w-4.5" />
+              </span>
+              <div>
+                <h2
+                  id="document-settings-title"
+                  className="text-base font-bold text-foreground"
                 >
-                  <ExternalLink className="h-4 w-4" /> View vacancy
-                </a>
-              ) : null}
-            </section>
-
-            <section aria-labelledby="application-documents-title">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-accent" />
-                  <h2
-                    id="application-documents-title"
-                    className="text-sm font-bold text-foreground"
-                  >
-                    Existing documents
-                  </h2>
-                </div>
-                <span className="text-[10px] font-bold text-muted">
-                  {attachedFiles.length + storedDocuments.length}
-                </span>
+                  Document pack
+                </h2>
+                <p className="mt-1 text-[10px] leading-4 text-muted">
+                  Choose what to prepare and how the files should be formatted.
+                </p>
               </div>
+            </div>
 
-              {documentsError ? (
+            <fieldset className="mt-5">
+              <legend className="text-[10px] font-black uppercase tracking-[0.1em] text-muted">
+                Documents
+              </legend>
+              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                {[
+                  {
+                    type: "tailored_resume" as const,
+                    title: "Tailored CV",
+                    description: "Adapted to this vacancy",
+                  },
+                  {
+                    type: "cover_letter" as const,
+                    title: "Cover letter",
+                    description: "Personalized for the role",
+                  },
+                ].map((item) => {
+                  const selected = settings.documentTypes.includes(item.type);
+                  return (
+                    <label
+                      key={item.type}
+                      className={cn(
+                        "flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition",
+                        selected
+                          ? "border-accent/50 bg-[#fff3e8]"
+                          : "border-border bg-white hover:bg-[#fff8f1]",
+                      )}
+                    >
+                      <input
+                        type="checkbox"
+                        aria-label={item.title}
+                        checked={selected}
+                        onChange={() => toggleDocumentType(item.type)}
+                        className="sr-only"
+                      />
+                      <span
+                        aria-hidden="true"
+                        className={cn(
+                          "mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border",
+                          selected
+                            ? "border-accent bg-accent text-white"
+                            : "border-border text-transparent",
+                        )}
+                      >
+                        <Check className="h-3 w-3" />
+                      </span>
+                      <span>
+                        <span className="block text-xs font-bold text-foreground">
+                          {item.title}
+                        </span>
+                        <span className="mt-0.5 block text-[9px] leading-4 text-muted">
+                          {item.description}
+                        </span>
+                      </span>
+                    </label>
+                  );
+                })}
+              </div>
+              {!settings.documentTypes.length ? (
+                <p className="mt-2 text-[10px] font-semibold text-accent">
+                  Select at least one document to generate.
+                </p>
+              ) : null}
+            </fieldset>
+
+            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+              <label className="block">
+                <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-muted">
+                  <Languages className="h-3.5 w-3.5" /> Language
+                </span>
+                <select
+                  aria-label="Document language"
+                  value={settings.language}
+                  onChange={(event) =>
+                    updateAndPersistSettings((current) => ({
+                      ...current,
+                      language: event.target.value as PreparationLanguage,
+                    }))
+                  }
+                  className="mt-2 h-10 w-full rounded-xl border border-border bg-white px-3 text-xs font-semibold text-foreground outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/15"
+                >
+                  <option value="English">English</option>
+                  <option value="German">German</option>
+                </select>
+              </label>
+              <label className="block">
+                <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-muted">
+                  <FileOutput className="h-3.5 w-3.5" /> Page size
+                </span>
+                <select
+                  aria-label="Page size"
+                  value={settings.formatting.pageSize}
+                  onChange={(event) =>
+                    updateAndPersistSettings((current) => ({
+                      ...current,
+                      formatting: {
+                        ...current.formatting,
+                        pageSize: event.target.value as PreparationPageSize,
+                      },
+                    }))
+                  }
+                  className="mt-2 h-10 w-full rounded-xl border border-border bg-white px-3 text-xs font-semibold text-foreground outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/15"
+                >
+                  <option value="A4">A4</option>
+                  <option value="Letter">US Letter</option>
+                </select>
+              </label>
+            </div>
+
+            {settings.documentTypes.includes("tailored_resume") ? (
+              <div className="mt-5 rounded-xl border border-border bg-[#fff8f1] p-4">
+                <p className="flex items-center gap-2 text-xs font-bold text-foreground">
+                  <LayoutTemplate className="h-4 w-4 text-accent" /> CV
+                  formatting
+                </p>
+                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
+                  <label className="block text-[9px] font-bold text-muted">
+                    Template
+                    <select
+                      aria-label="CV template"
+                      value={settings.formatting.resumeTemplateId}
+                      onChange={(event) =>
+                        updateAndPersistSettings((current) => ({
+                          ...current,
+                          formatting: {
+                            ...current.formatting,
+                            resumeTemplateId: event.target.value,
+                          },
+                        }))
+                      }
+                      className="mt-1.5 h-9 w-full rounded-lg border border-border bg-white px-2.5 text-[10px] font-semibold text-foreground outline-none focus:border-accent"
+                    >
+                      {settings.formatting.resumeTemplateId &&
+                      !resumeTemplates.some(
+                        (template) =>
+                          template.id === settings.formatting.resumeTemplateId,
+                      ) ? (
+                        <option value={settings.formatting.resumeTemplateId}>
+                          {settings.formatting.resumeTemplateId ===
+                          "classic_single"
+                            ? "Classic Single"
+                            : "Saved template"}
+                        </option>
+                      ) : null}
+                      {resumeTemplates.map((template) => (
+                        <option key={template.id} value={template.id}>
+                          {template.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="block text-[9px] font-bold text-muted">
+                    Maximum length
+                    <select
+                      aria-label="CV maximum pages"
+                      value={settings.formatting.resumeMaxPages}
+                      onChange={(event) =>
+                        updateAndPersistSettings((current) => ({
+                          ...current,
+                          formatting: {
+                            ...current.formatting,
+                            resumeMaxPages: Number(
+                              event.target.value,
+                            ) as PreparationResumeMaxPages,
+                          },
+                        }))
+                      }
+                      className="mt-1.5 h-9 w-full rounded-lg border border-border bg-white px-2.5 text-[10px] font-semibold text-foreground outline-none focus:border-accent"
+                    >
+                      <option value={1}>1 page</option>
+                      <option value={2}>2 pages</option>
+                      <option value={3}>3 pages</option>
+                    </select>
+                  </label>
+                </div>
+              </div>
+            ) : null}
+
+            {settings.documentTypes.includes("cover_letter") ? (
+              <label className="mt-4 block rounded-xl border border-border bg-[#fff8f1] p-4 text-[9px] font-bold text-muted">
+                <span className="flex items-center gap-2 text-xs font-bold text-foreground">
+                  <LayoutTemplate className="h-4 w-4 text-accent" /> Cover
+                  letter template
+                </span>
+                <select
+                  aria-label="Cover letter template"
+                  value={settings.formatting.coverLetterTemplateId}
+                  onChange={(event) =>
+                    updateAndPersistSettings((current) => ({
+                      ...current,
+                      formatting: {
+                        ...current.formatting,
+                        coverLetterTemplateId: event.target.value,
+                      },
+                    }))
+                  }
+                  className="mt-3 h-9 w-full rounded-lg border border-border bg-white px-2.5 text-[10px] font-semibold text-foreground outline-none focus:border-accent"
+                >
+                  <option value="">Standard template</option>
+                  {coverLetterTemplates.map((template) => (
+                    <option key={template.id} value={template.id}>
+                      {template.name}
+                    </option>
+                  ))}
+                  {settings.formatting.coverLetterTemplateId &&
+                  !coverLetterTemplates.some(
+                    (template) =>
+                      template.id === settings.formatting.coverLetterTemplateId,
+                  ) ? (
+                    <option value={settings.formatting.coverLetterTemplateId}>
+                      Saved template
+                    </option>
+                  ) : null}
+                </select>
+              </label>
+            ) : null}
+
+            <label className="mt-5 block">
+              <span className="text-[10px] font-black uppercase tracking-[0.1em] text-muted">
+                Additional instructions
+              </span>
+              <textarea
+                aria-label="Additional document instructions"
+                value={settings.userPreferences}
+                maxLength={10_000}
+                rows={3}
+                placeholder="For example: keep the tone concise and direct."
+                onChange={(event) => {
+                  setSettings((current) => ({
+                    ...current,
+                    userPreferences: event.target.value,
+                  }));
+                  setSettingsStatus("unsaved");
+                  setSettingsError("");
+                }}
+                onBlur={() => void persistSettings(settings)}
+                className="mt-2 w-full resize-y rounded-xl border border-border bg-white px-3 py-2.5 text-xs leading-5 text-foreground outline-none transition placeholder:text-muted/70 focus:border-accent focus:ring-2 focus:ring-accent/15"
+              />
+            </label>
+
+            <div className="mt-4 min-h-5" aria-live="polite">
+              {settingsStatus === "saving" ? (
+                <p className="flex items-center gap-1.5 text-[9px] font-semibold text-muted">
+                  <LoaderCircle className="h-3 w-3 animate-spin" /> Saving
+                  settings…
+                </p>
+              ) : settingsStatus === "saved" ? (
+                <p className="flex items-center gap-1.5 text-[9px] font-semibold text-success">
+                  <Check className="h-3 w-3" /> Settings saved
+                </p>
+              ) : settingsStatus === "unsaved" ? (
+                <p className="text-[9px] font-semibold text-muted">
+                  Save pending…
+                </p>
+              ) : (
                 <div
                   role="alert"
-                  className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2.5 text-[10px] leading-4 text-accent"
+                  className="flex items-center justify-between gap-2 text-[9px] font-semibold text-accent"
                 >
-                  <span>{documentsError}</span>
+                  <span>{settingsError}</span>
                   <button
                     type="button"
-                    onClick={() => setDocumentsRequest((current) => current + 1)}
-                    className="inline-flex shrink-0 items-center gap-1 font-bold hover:text-foreground"
+                    onClick={() => void persistSettings(settings)}
+                    className="shrink-0 underline underline-offset-2"
                   >
-                    <RefreshCw className="h-3 w-3" /> Retry
+                    Retry
                   </button>
                 </div>
-              ) : null}
+              )}
+            </div>
 
-              {documentsStatus === "loading" ? (
-                <div className="mt-4 flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-xs text-muted">
-                  <LoaderCircle className="h-4 w-4 animate-spin text-accent" />
-                  Loading saved documents…
+            <Button
+              type="button"
+              disabled={!settings.documentTypes.length || isGenerating}
+              onClick={() => void generateDocuments()}
+              className="mt-3 h-11 w-full rounded-xl text-xs font-bold"
+            >
+              {isGenerating ? (
+                <LoaderCircle className="h-4 w-4 animate-spin" />
+              ) : (
+                <Sparkles className="h-4 w-4" />
+              )}
+              {isGenerating ? "Preparing documents…" : "Generate documents"}
+            </Button>
+          </section>
+
+          <section
+            aria-label="Existing documents"
+            className="workspace-card p-5 sm:p-6"
+          >
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <FileText className="h-4 w-4 text-accent" />
+                <h2
+                  id="application-documents-title"
+                  className="text-sm font-bold text-foreground"
+                >
+                  Documents
+                </h2>
+              </div>
+              <span className="text-[10px] font-bold text-muted">
+                {attachedFiles.length + storedDocuments.length}
+              </span>
+            </div>
+
+            {generationError ? (
+              <div
+                role="alert"
+                className="mt-4 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2.5 text-[10px] leading-4 text-accent"
+              >
+                {generationError}
+              </div>
+            ) : null}
+
+            {generationResult ? (
+              <div
+                aria-label="Latest generation"
+                className="mt-4 rounded-2xl border border-border bg-[#fff8f1] p-4"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">
+                      Latest generation
+                    </p>
+                    <p className="mt-1 text-xs font-bold text-foreground">
+                      {generationResult.state === "completed"
+                        ? "Generation finished"
+                        : generationResult.state === "failed"
+                          ? "Generation could not be completed"
+                          : "Generation in progress"}
+                    </p>
+                  </div>
+                  <span
+                    className={cn(
+                      "rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-wide",
+                      generationResult.state === "completed"
+                        ? "border-success/30 bg-success/10 text-success"
+                        : generationResult.state === "failed"
+                          ? "border-accent/25 bg-accent/10 text-accent"
+                          : "border-border bg-white text-muted",
+                    )}
+                  >
+                    {generationResult.state}
+                  </span>
                 </div>
-              ) : null}
-
-              {attachedFiles.length || storedDocuments.length ? (
-                <div className="mt-4 grid gap-2">
-                  {attachedFiles.map((document) => (
-                    <article
-                      key={document.id}
-                      className="flex items-center gap-3 rounded-xl border border-border bg-[#fff8f1] p-3"
+                {generationResult.error ? (
+                  <p
+                    role="alert"
+                    className="mt-3 text-[10px] leading-4 text-accent"
+                  >
+                    {generationResult.error.message}
+                  </p>
+                ) : null}
+                <div className="mt-3 grid gap-2">
+                  {generationResult.documents.map((document) => (
+                    <div
+                      key={document.documentType}
+                      className="rounded-xl border border-border bg-white p-3"
                     >
-                      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border bg-white text-[9px] font-black text-accent">
-                        {getDocumentBadge(document)}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs font-bold text-foreground">
-                          {document.title || document.fileName}
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-[10px] font-bold text-foreground">
+                          {generationDocumentLabel(document.documentType)}
                         </p>
-                        <p className="mt-1 truncate text-[9px] text-muted">
-                          {document.fileName}
-                          {document.fileSize ? ` · ${document.fileSize}` : ""}
-                          {document.uploadedAt
-                            ? ` · ${formatApplicationDate(document.uploadedAt)}`
-                            : ""}
-                        </p>
+                        <span className="text-[8px] font-black uppercase tracking-wide text-muted">
+                          {document.state}
+                        </span>
                       </div>
-                      {document.downloadUrl ? (
-                        <div className="flex shrink-0 gap-1.5">
-                          <a
-                            href={document.downloadUrl}
-                            target="_blank"
-                            rel="noreferrer"
-                            aria-label={`Open ${document.title || document.fileName}`}
-                            className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:bg-white hover:text-foreground"
-                          >
-                            <Eye className="h-4 w-4" />
-                          </a>
-                          <a
-                            href={document.downloadUrl}
-                            download={document.fileName}
-                            aria-label={`Download ${document.title || document.fileName}`}
-                            className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:bg-white hover:text-foreground"
-                          >
-                            <Download className="h-4 w-4" />
-                          </a>
-                        </div>
+                      {document.error ? (
+                        <p className="mt-1 text-[9px] leading-4 text-accent">
+                          {document.error.message}
+                        </p>
                       ) : null}
-                    </article>
-                  ))}
-
-                  {storedDocuments.map((document) => {
-                    const currentVersion = currentStoredDocumentVersion(document);
-                    const fileName = storedDocumentFileName(document);
-                    const fileType = currentVersion?.artifact?.contentType ?? "";
-                    const hasArtifact = Boolean(currentVersion?.hasRenderedArtifact);
-                    const versions = [...document.versions].sort(
-                      (left, right) => right.version - left.version,
-                    );
-                    return (
-                      <article
-                        key={document.id}
-                        className="rounded-xl border border-border bg-[#fff8f1] p-3"
-                      >
-                        <div className="flex items-center gap-3">
-                          <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border bg-white text-[9px] font-black text-accent">
-                            {getFileBadge(fileName, fileType)}
-                          </span>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-xs font-bold text-foreground">
-                              {document.title}
-                            </p>
-                            <p className="mt-1 truncate text-[9px] text-muted">
-                              {fileName} · v{document.currentVersion}
-                            </p>
-                          </div>
-                          {hasArtifact ? (
-                            <div className="flex shrink-0 gap-1.5">
-                              <button
-                                type="button"
-                                aria-label={`Open ${document.title}`}
-                                onClick={() => setPreview({
-                                  documentId: document.id,
-                                  version: document.currentVersion,
-                                })}
-                                className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:bg-white hover:text-foreground"
-                              >
-                                <Eye className="h-4 w-4" />
-                              </button>
+                      {document.files.length ? (
+                        <div className="mt-2 grid gap-1.5">
+                          {document.files.map((file) => (
+                            <div
+                              key={`${file.downloadUrl}-${file.fileName}`}
+                              className="flex items-center gap-2 rounded-lg bg-[#fff8f1] px-2.5 py-2"
+                            >
+                              <span className="min-w-0 flex-1 truncate text-[9px] font-semibold text-foreground">
+                                {file.fileName}
+                              </span>
                               <a
-                                href={documentDownloadUrl(document.id)}
-                                download={fileName}
-                                aria-label={`Download ${document.title}`}
-                                className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:bg-white hover:text-foreground"
+                                href={file.downloadUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-label={`Open ${file.fileName}`}
+                                className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border text-muted hover:bg-white hover:text-foreground"
                               >
-                                <Download className="h-4 w-4" />
+                                <Eye className="h-3 w-3" />
+                              </a>
+                              <a
+                                href={file.downloadUrl}
+                                download={file.fileName}
+                                aria-label={`Download ${file.fileName}`}
+                                className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border text-muted hover:bg-white hover:text-foreground"
+                              >
+                                <Download className="h-3 w-3" />
                               </a>
                             </div>
-                          ) : null}
+                          ))}
                         </div>
-
-                        <details className="mt-3 border-t border-border pt-3">
-                          <summary className="cursor-pointer text-[10px] font-bold text-muted marker:text-accent">
-                            Version history · {document.versionsTotal}
-                          </summary>
-                          <div className="mt-2 grid gap-1.5">
-                            {versions.map((version) => {
-                              const versionFileName = version.artifact?.fileName
-                                ?? `${document.title}-v${version.version}.docx`;
-                              return (
-                                <div
-                                  key={version.id}
-                                  className="flex items-center gap-2 rounded-lg border border-border bg-white px-2.5 py-2"
-                                >
-                                  <div className="min-w-0 flex-1">
-                                    <p className="text-[10px] font-bold text-foreground">
-                                      v{version.version}
-                                      {version.version === document.currentVersion
-                                        ? " · Current"
-                                        : ""}
-                                    </p>
-                                    <p className="mt-0.5 truncate text-[8px] text-muted">
-                                      {versionFileName} · {formatApplicationDate(version.createdAt)}
-                                    </p>
-                                  </div>
-                                  {version.hasRenderedArtifact ? (
-                                    <>
-                                      <button
-                                        type="button"
-                                        aria-label={`Open ${document.title} version ${version.version}`}
-                                        onClick={() => setPreview({
-                                          documentId: document.id,
-                                          version: version.version,
-                                        })}
-                                        className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted hover:text-foreground"
-                                      >
-                                        <Eye className="h-3 w-3" />
-                                      </button>
-                                      <a
-                                        href={documentDownloadUrl(
-                                          document.id,
-                                          version.version,
-                                        )}
-                                        download={versionFileName}
-                                        aria-label={`Download ${document.title} version ${version.version}`}
-                                        className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted hover:text-foreground"
-                                      >
-                                        <Download className="h-3 w-3" />
-                                      </a>
-                                    </>
-                                  ) : (
-                                    <span className="text-[8px] font-bold text-muted">
-                                      Unavailable
-                                    </span>
-                                  )}
-                                </div>
-                              );
-                            })}
-                            {document.versionsHasMore ? (
-                              <Button
-                                type="button"
-                                variant="ghost"
-                                disabled={loadingVersionsDocumentId === document.id}
-                                onClick={() => void loadMoreVersions(document)}
-                                className="h-8 rounded-lg border border-border text-[9px] font-bold"
-                              >
-                                {loadingVersionsDocumentId === document.id ? (
-                                  <LoaderCircle className="h-3 w-3 animate-spin" />
-                                ) : null}
-                                Load older versions
-                              </Button>
-                            ) : null}
-                          </div>
-                        </details>
-                      </article>
-                    );
-                  })}
+                      ) : null}
+                    </div>
+                  ))}
                 </div>
-              ) : documentsStatus !== "loading" ? (
-                <div className="mt-4 rounded-xl border border-dashed border-border px-4 py-8 text-center">
-                  <FileText className="mx-auto h-5 w-5 text-muted" />
-                  <p className="mt-2 text-xs text-muted">
-                    No documents attached yet.
-                  </p>
-                </div>
-              ) : null}
+              </div>
+            ) : null}
 
-              {availableJobDocuments.length ? (
-                <div className="mt-5 border-t border-border pt-4">
-                  <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-muted">
-                    <Paperclip className="h-3.5 w-3.5" /> Available for this vacancy
-                  </p>
-                  <div className="mt-2 grid gap-2">
-                    {availableJobDocuments.map((document) => (
-                      <div
-                        key={document.id}
-                        className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5"
-                      >
-                        <div className="min-w-0">
-                          <p className="truncate text-[10px] font-bold text-foreground">
+            {documentsError ? (
+              <div
+                role="alert"
+                className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2.5 text-[10px] leading-4 text-accent"
+              >
+                <span>{documentsError}</span>
+                <button
+                  type="button"
+                  onClick={() => setDocumentsRequest((current) => current + 1)}
+                  className="inline-flex shrink-0 items-center gap-1 font-bold hover:text-foreground"
+                >
+                  <RefreshCw className="h-3 w-3" /> Retry
+                </button>
+              </div>
+            ) : null}
+
+            {documentsStatus === "loading" ? (
+              <div className="mt-4 flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-xs text-muted">
+                <LoaderCircle className="h-4 w-4 animate-spin text-accent" />
+                Loading saved documents…
+              </div>
+            ) : null}
+
+            {attachedFiles.length || storedDocuments.length ? (
+              <div className="mt-4 grid gap-2">
+                {attachedFiles.map((document) => (
+                  <article
+                    key={document.id}
+                    className="flex items-center gap-3 rounded-xl border border-border bg-[#fff8f1] p-3"
+                  >
+                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border bg-white text-[9px] font-black text-accent">
+                      {getDocumentBadge(document)}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-bold text-foreground">
+                        {document.title || document.fileName}
+                      </p>
+                      <p className="mt-1 truncate text-[9px] text-muted">
+                        {document.fileName}
+                        {document.fileSize ? ` · ${document.fileSize}` : ""}
+                        {document.uploadedAt
+                          ? ` · ${formatApplicationDate(document.uploadedAt)}`
+                          : ""}
+                      </p>
+                    </div>
+                    {document.downloadUrl ? (
+                      <div className="flex shrink-0 gap-1.5">
+                        <a
+                          href={document.downloadUrl}
+                          target="_blank"
+                          rel="noreferrer"
+                          aria-label={`Open ${document.title || document.fileName}`}
+                          className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:bg-white hover:text-foreground"
+                        >
+                          <Eye className="h-4 w-4" />
+                        </a>
+                        <a
+                          href={document.downloadUrl}
+                          download={document.fileName}
+                          aria-label={`Download ${document.title || document.fileName}`}
+                          className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:bg-white hover:text-foreground"
+                        >
+                          <Download className="h-4 w-4" />
+                        </a>
+                      </div>
+                    ) : null}
+                  </article>
+                ))}
+
+                {storedDocuments.map((document) => {
+                  const currentVersion = currentStoredDocumentVersion(document);
+                  const fileName = storedDocumentFileName(document);
+                  const fileType = currentVersion?.artifact?.contentType ?? "";
+                  const hasArtifact = Boolean(
+                    currentVersion?.hasRenderedArtifact,
+                  );
+                  const versions = [...document.versions].sort(
+                    (left, right) => right.version - left.version,
+                  );
+                  return (
+                    <article
+                      key={document.id}
+                      className="rounded-xl border border-border bg-[#fff8f1] p-3"
+                    >
+                      <div className="flex items-center gap-3">
+                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border bg-white text-[9px] font-black text-accent">
+                          {getFileBadge(fileName, fileType)}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-xs font-bold text-foreground">
                             {document.title}
                           </p>
-                          <p className="mt-0.5 text-[8px] text-muted">
-                            v{document.currentVersion}
+                          <p className="mt-1 truncate text-[9px] text-muted">
+                            {fileName} · v{document.currentVersion}
                           </p>
                         </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          disabled={Boolean(attachingDocumentId)}
-                          onClick={() => void attachStoredDocument(document)}
-                          className="h-8 rounded-lg border border-border px-2.5 text-[9px] font-bold"
-                        >
-                          {attachingDocumentId === document.id ? (
-                            <LoaderCircle className="h-3 w-3 animate-spin" />
-                          ) : (
-                            <Paperclip className="h-3 w-3" />
-                          )}
-                          Attach
-                        </Button>
+                        {hasArtifact ? (
+                          <div className="flex shrink-0 gap-1.5">
+                            <button
+                              type="button"
+                              aria-label={`Open ${document.title}`}
+                              onClick={() =>
+                                setPreview({
+                                  documentId: document.id,
+                                  version: document.currentVersion,
+                                })
+                              }
+                              className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:bg-white hover:text-foreground"
+                            >
+                              <Eye className="h-4 w-4" />
+                            </button>
+                            <a
+                              href={documentDownloadUrl(document.id)}
+                              download={fileName}
+                              aria-label={`Download ${document.title}`}
+                              className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:bg-white hover:text-foreground"
+                            >
+                              <Download className="h-4 w-4" />
+                            </a>
+                          </div>
+                        ) : null}
                       </div>
-                    ))}
-                  </div>
-                </div>
-              ) : null}
 
-              {previewDocument ? (
-                <div className="mt-5 border-t border-border pt-5">
-                  <div className="mb-3 flex justify-end">
-                    <button
-                      type="button"
-                      onClick={() => setPreview(null)}
-                      className="text-[10px] font-bold text-muted hover:text-foreground"
+                      <details className="mt-3 border-t border-border pt-3">
+                        <summary className="cursor-pointer text-[10px] font-bold text-muted marker:text-accent">
+                          Version history · {document.versionsTotal}
+                        </summary>
+                        <div className="mt-2 grid gap-1.5">
+                          {versions.map((version) => {
+                            const versionFileName =
+                              version.artifact?.fileName ??
+                              `${document.title}-v${version.version}.docx`;
+                            return (
+                              <div
+                                key={version.id}
+                                className="flex items-center gap-2 rounded-lg border border-border bg-white px-2.5 py-2"
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-[10px] font-bold text-foreground">
+                                    v{version.version}
+                                    {version.version === document.currentVersion
+                                      ? " · Current"
+                                      : ""}
+                                  </p>
+                                  <p className="mt-0.5 truncate text-[8px] text-muted">
+                                    {versionFileName} ·{" "}
+                                    {formatApplicationDate(version.createdAt)}
+                                  </p>
+                                </div>
+                                {version.hasRenderedArtifact ? (
+                                  <>
+                                    <button
+                                      type="button"
+                                      aria-label={`Open ${document.title} version ${version.version}`}
+                                      onClick={() =>
+                                        setPreview({
+                                          documentId: document.id,
+                                          version: version.version,
+                                        })
+                                      }
+                                      className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted hover:text-foreground"
+                                    >
+                                      <Eye className="h-3 w-3" />
+                                    </button>
+                                    <a
+                                      href={documentDownloadUrl(
+                                        document.id,
+                                        version.version,
+                                      )}
+                                      download={versionFileName}
+                                      aria-label={`Download ${document.title} version ${version.version}`}
+                                      className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted hover:text-foreground"
+                                    >
+                                      <Download className="h-3 w-3" />
+                                    </a>
+                                  </>
+                                ) : (
+                                  <span className="text-[8px] font-bold text-muted">
+                                    Unavailable
+                                  </span>
+                                )}
+                              </div>
+                            );
+                          })}
+                          {document.versionsHasMore ? (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              disabled={
+                                loadingVersionsDocumentId === document.id
+                              }
+                              onClick={() => void loadMoreVersions(document)}
+                              className="h-8 rounded-lg border border-border text-[9px] font-bold"
+                            >
+                              {loadingVersionsDocumentId === document.id ? (
+                                <LoaderCircle className="h-3 w-3 animate-spin" />
+                              ) : null}
+                              Load older versions
+                            </Button>
+                          ) : null}
+                        </div>
+                      </details>
+                    </article>
+                  );
+                })}
+              </div>
+            ) : documentsStatus !== "loading" ? (
+              <div className="mt-4 rounded-xl border border-dashed border-border px-4 py-8 text-center">
+                <FileText className="mx-auto h-5 w-5 text-muted" />
+                <p className="mt-2 text-xs text-muted">
+                  No documents attached yet.
+                </p>
+              </div>
+            ) : null}
+
+            {availableJobDocuments.length ? (
+              <div className="mt-5 border-t border-border pt-4">
+                <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-muted">
+                  <Paperclip className="h-3.5 w-3.5" /> Available for this
+                  vacancy
+                </p>
+                <div className="mt-2 grid gap-2">
+                  {availableJobDocuments.map((document) => (
+                    <div
+                      key={document.id}
+                      className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5"
                     >
-                      Close preview
-                    </button>
-                  </div>
-                  <DocumentPdfPreview
-                    document={previewDocument}
-                    label={
-                      previewDocument.type === "tailored_resume"
-                        ? "CV"
-                        : "Cover letter"
-                    }
-                  />
+                      <div className="min-w-0">
+                        <p className="truncate text-[10px] font-bold text-foreground">
+                          {document.title}
+                        </p>
+                        <p className="mt-0.5 text-[8px] text-muted">
+                          v{document.currentVersion}
+                        </p>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        disabled={Boolean(attachingDocumentId)}
+                        onClick={() => void attachStoredDocument(document)}
+                        className="h-8 rounded-lg border border-border px-2.5 text-[9px] font-bold"
+                      >
+                        {attachingDocumentId === document.id ? (
+                          <LoaderCircle className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <Paperclip className="h-3 w-3" />
+                        )}
+                        Attach
+                      </Button>
+                    </div>
+                  ))}
                 </div>
-              ) : null}
-            </section>
-          </div>
-        </article>
+              </div>
+            ) : null}
+
+            {previewDocument ? (
+              <div className="mt-5 border-t border-border pt-5">
+                <div className="mb-3 flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => setPreview(null)}
+                    className="text-[10px] font-bold text-muted hover:text-foreground"
+                  >
+                    Close preview
+                  </button>
+                </div>
+                <DocumentPdfPreview
+                  document={previewDocument}
+                  label={
+                    previewDocument.type === "tailored_resume"
+                      ? "CV"
+                      : "Cover letter"
+                  }
+                />
+              </div>
+            ) : null}
+          </section>
+        </div>
       </div>
     </section>
   );

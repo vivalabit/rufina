@@ -77,6 +77,121 @@ describe("ApplicationWorkspace", () => {
         "Lead product discovery and delivery for a growing B2B platform.",
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Document pack" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("region", { name: "Existing documents" }),
+    ).toBeInTheDocument();
+  });
+
+  it("restores document preparation settings and saves changes", async () => {
+    const { props } = renderApplicationWorkspace(
+      createWorkspaceApplication({
+        documentPreparation: {
+          documentTypes: ["cover_letter"],
+          language: "German",
+          formatting: {
+            pageSize: "Letter",
+            resumeTemplateId: "modern_single",
+            resumeMaxPages: 1,
+            coverLetterTemplateId: "4a9260bb-dc6a-5b9d-8a3a-1caa1e1433e8",
+          },
+          userPreferences: "Use a direct tone.",
+        },
+      }),
+    );
+
+    expect(screen.getByRole("checkbox", { name: "Tailored CV" })).not.toBeChecked();
+    expect(screen.getByRole("checkbox", { name: "Cover letter" })).toBeChecked();
+    expect(screen.getByRole("combobox", { name: "Document language" })).toHaveValue("German");
+    expect(screen.getByRole("combobox", { name: "Page size" })).toHaveValue("Letter");
+    expect(screen.getByRole("textbox", { name: "Additional document instructions" })).toHaveValue(
+      "Use a direct tone.",
+    );
+
+    fireEvent.change(screen.getByRole("combobox", { name: "Document language" }), {
+      target: { value: "English" },
+    });
+
+    await waitFor(() => expect(props.onPreparationSettingsChange).toHaveBeenCalledWith(
+      "application",
+      expect.objectContaining({
+        documentTypes: ["cover_letter"],
+        language: "English",
+        formatting: expect.objectContaining({ pageSize: "Letter" }),
+      }),
+    ));
+    expect(await screen.findByText("Settings saved")).toBeInTheDocument();
+  });
+
+  it("sends the selected pack through the generation contract", async () => {
+    let generationRequest: unknown = null;
+    installApplicationWorkspaceApiMock({
+      requestHandler: (url, method, init) => {
+        if (
+          url.pathname === "/applications/application/generation"
+          && method === "POST"
+        ) {
+          generationRequest = JSON.parse(String(init?.body));
+          return Response.json({
+            executionId: "generation-1",
+            state: "completed",
+            documents: [
+              {
+                documentType: "tailored_resume",
+                state: "completed",
+                files: [
+                  {
+                    fileName: "tailored-cv.pdf",
+                    contentType: "application/pdf",
+                    downloadUrl: "/generated/tailored-cv.pdf",
+                  },
+                ],
+                error: null,
+              },
+            ],
+            error: null,
+          });
+        }
+        return undefined;
+      },
+    });
+    renderApplicationWorkspace(
+      createWorkspaceApplication({
+        documentPreparation: {
+          documentTypes: ["tailored_resume"],
+          language: "German",
+          formatting: {
+            pageSize: "A4",
+            resumeTemplateId: "modern_single",
+            resumeMaxPages: 1,
+            coverLetterTemplateId: "",
+          },
+          userPreferences: "Keep it concise.",
+        },
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Generate documents" }));
+
+    expect(await screen.findByText("Generation finished")).toBeInTheDocument();
+    expect(generationRequest).toEqual({
+      documentTypes: ["tailored_resume"],
+      language: "German",
+      formattingParameters: {
+        tailored_resume: {
+          pageSize: "A4",
+          templateId: "modern_single",
+          maxPages: 1,
+        },
+      },
+      userPreferences: "Keep it concise.",
+    });
+    expect(screen.getByRole("link", { name: "Download tailored-cv.pdf" })).toHaveAttribute(
+      "href",
+      "/generated/tailored-cv.pdf",
+    );
   });
 
   it("normalizes jobs.ch vacancy links", () => {
@@ -95,7 +210,7 @@ describe("ApplicationWorkspace", () => {
     );
   });
 
-  it("lists existing application documents without generation actions", () => {
+  it("lists existing application documents with their actions", () => {
     renderApplicationWorkspace(
       createWorkspaceApplication({
         documents: [
@@ -135,8 +250,8 @@ describe("ApplicationWorkspace", () => {
       within(documents).getByRole("link", { name: "Download Cover letter" }),
     ).toHaveAttribute("href", "/documents/document-2/download");
     expect(
-      screen.queryByRole("button", { name: /Generate|Create CV|Create letter/ }),
-    ).not.toBeInTheDocument();
+      screen.getByRole("button", { name: "Generate documents" }),
+    ).toBeEnabled();
   });
 
   it("does not render any legacy preparation content", () => {

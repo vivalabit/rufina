@@ -3,12 +3,61 @@ import { describe, expect, it } from "vitest";
 import type { ApplicationEvent } from "@/shared/types/application";
 
 import {
+  applicationPayloadForApi,
   applicationEventToApiPayload,
   generatedDocumentToApplicationDocument,
+  normalizeStoredApplications,
   workspaceSourceToApplicationDocument,
 } from "./mappers";
 
 describe("application API mappers", () => {
+  it("normalizes and serializes document preparation settings", () => {
+    const [application] = normalizeStoredApplications([{
+      id: "application-1",
+      status: "draft",
+      appliedAt: "2026-09-13T10:00:00.000Z",
+      nextStep: "",
+      notes: "",
+      job: {
+        id: "job-1",
+        title: "Designer",
+        company: "Acme",
+        location: "Zurich",
+        type: "Full-time",
+        salary: "",
+        posted: "Today",
+        experience: "",
+        department: "Design",
+        match: 0,
+        logo: "company",
+        overview: "Design products.",
+        responsibilities: [],
+        requirements: [],
+        skills: [],
+      },
+      documentPreparation: {
+        documentTypes: ["cover_letter"],
+        language: "German",
+        formatting: {
+          pageSize: "A4",
+          resumeTemplateId: "modern_single",
+          resumeMaxPages: 1,
+          coverLetterTemplateId: "standard-letter",
+        },
+        userPreferences: "Use a direct tone.",
+      },
+    }]);
+
+    expect(application.documentPreparation).toMatchObject({
+      documentTypes: ["cover_letter"],
+      language: "German",
+      formatting: { coverLetterTemplateId: "standard-letter" },
+    });
+    expect(applicationPayloadForApi(application)).toMatchObject({
+      documentPreparation: application.documentPreparation,
+    });
+  });
+
   it("maps workspace source metadata and resolves its URL", () => {
     expect(
       workspaceSourceToApplicationDocument({

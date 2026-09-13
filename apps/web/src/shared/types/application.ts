@@ -1,5 +1,22 @@
 import type { Job } from "@/shared/types/job";
 
+export type PreparationDocumentType = "tailored_resume" | "cover_letter";
+export type PreparationLanguage = "English" | "German";
+export type PreparationPageSize = "A4" | "Letter";
+export type PreparationResumeMaxPages = 1 | 2 | 3;
+
+export type DocumentPreparationSettings = {
+  documentTypes: PreparationDocumentType[];
+  language: PreparationLanguage;
+  formatting: {
+    pageSize: PreparationPageSize;
+    resumeTemplateId: string;
+    resumeMaxPages: PreparationResumeMaxPages;
+    coverLetterTemplateId: string;
+  };
+  userPreferences: string;
+};
+
 export type ApplicationStatus = "draft" | "applied" | "interview" | "assessment" | "offer" | "rejected";
 export type ApplicationEventType = "screening" | "interview" | "assessment" | "follow_up" | "offer_deadline";
 export type ApplicationEventStatus = "scheduled" | "completed" | "canceled";
@@ -27,6 +44,7 @@ export type TrackedApplication = {
   nextStep: string;
   notes: string;
   documents: ApplicationDocument[];
+  documentPreparation?: DocumentPreparationSettings;
 };
 
 export type ApplicationEvent = {

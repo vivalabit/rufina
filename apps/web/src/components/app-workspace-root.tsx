@@ -206,6 +206,7 @@ import type {
   ApplicationDocument,
   ApplicationEvent,
   ApplicationStatus,
+  DocumentPreparationSettings,
   TrackedApplication,
 } from "@/shared/types/application";
 import type { Job } from "@/shared/types/job";
@@ -1046,6 +1047,29 @@ export function AppWorkspaceRoot({
       area: "Applications",
       message: error instanceof Error ? error.message : "Application notes could not be saved",
     }));
+  }
+
+  function updateDocumentPreparationSettings(
+    applicationId: string,
+    settings: DocumentPreparationSettings,
+  ) {
+    const application = applications.find((item) => item.id === applicationId);
+    if (!application) {
+      return Promise.reject(new Error("Application is no longer available"));
+    }
+    return applicationState.upsert({
+      ...application,
+      documentPreparation: settings,
+    }).catch((error) => {
+      appendAppLog({
+        level: "error",
+        area: "Applications",
+        message: error instanceof Error
+          ? error.message
+          : "Document settings could not be saved",
+      });
+      throw error;
+    });
   }
 
   function updateApplicationDocuments(applicationId: string, documents: ApplicationDocument[]) {
@@ -2903,9 +2927,11 @@ export function AppWorkspaceRoot({
           />
         ) : activeView === "ApplicationWorkspace" ? (
           <ApplicationWorkspace
+            key={workspaceApplication?.id ?? "no-application"}
             application={workspaceApplication}
             backLabel={workspaceApplication?.status === "draft" ? "Jobs" : "Applications"}
             onBack={() => changeView(workspaceApplication?.status === "draft" ? "Jobs" : "Applications")}
+            onPreparationSettingsChange={updateDocumentPreparationSettings}
             onDocumentAttached={attachGeneratedDocumentToApplication}
           />
         ) : activeView === "Applications" ? (

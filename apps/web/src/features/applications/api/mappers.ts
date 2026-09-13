@@ -1,6 +1,7 @@
 import { resolveApiUrl } from "@/shared/api/config";
 import { formatFileSize } from "@/shared/formatting/files";
 import { normalizeStoredJobs } from "@/features/jobs/api/mappers";
+import { normalizeDocumentPreparationSettings } from "@/features/applications/model/document-preparation";
 import type {
   ApplicationDocument,
   ApplicationEvent,
@@ -80,6 +81,9 @@ export function normalizeStoredApplications(value: unknown) {
       nextStep: candidate.nextStep,
       notes: candidate.notes,
       documents: normalizeApplicationDocuments(candidate.documents),
+      documentPreparation: normalizeDocumentPreparationSettings(
+        candidate.documentPreparation,
+      ),
     }];
   });
 }

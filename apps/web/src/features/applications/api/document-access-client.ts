@@ -1,5 +1,15 @@
 import { apiClient } from "@/shared/api/client";
 
+export type DocumentTemplateSummary = {
+  id: string;
+  type: "cover_letter" | "tailored_resume";
+  name: string;
+  fileName: string;
+  builtIn: boolean;
+  createdAt: string;
+  updatedAt: string;
+};
+
 function normalizeArray<T>(value: unknown): T[] {
   return Array.isArray(value) ? value as T[] : [];
 }
@@ -37,6 +47,15 @@ export function fetchJobDocuments<T>(
     "Saved vacancy documents are temporarily unavailable",
     signal,
   );
+}
+
+export async function fetchDocumentTemplates(signal?: AbortSignal) {
+  return (await apiClient.json<DocumentTemplateSummary[]>({
+    path: "/documents/templates/library",
+    cache: "no-store",
+    signal,
+    errorMessage: "Document templates are temporarily unavailable",
+  }, normalizeArray<DocumentTemplateSummary>)).data;
 }
 
 export async function attachDocument<T>(

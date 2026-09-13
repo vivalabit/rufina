@@ -246,6 +246,7 @@ export function renderApplicationWorkspace(
   const props: ApplicationWorkspaceProps = {
     application,
     onBack: vi.fn(),
+    onPreparationSettingsChange: vi.fn().mockResolvedValue(undefined),
     onDocumentAttached: vi.fn(),
     ...overrides,
   };
