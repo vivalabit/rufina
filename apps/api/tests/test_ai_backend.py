@@ -1,6 +1,7 @@
 import asyncio
 import json
 import subprocess
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, Mock
 
@@ -106,6 +107,32 @@ def test_openclaw_adapter_preserves_cli_and_returns_neutral_result() -> None:
     assert result.usage.total_tokens == 25
     assert result.latency_ms >= 0
     assert result.session_id == "agent:rufina-assistant:test-session"
+
+
+def test_openclaw_adapter_materializes_page_images_for_local_review() -> None:
+    captured_path = ""
+
+    def fake_run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+        nonlocal captured_path
+        prompt = args[args.index("--message") + 1]
+        captured_path = prompt.rsplit("- ", 1)[-1]
+        assert Path(captured_path).read_bytes() == b"png-bytes"
+        return subprocess.CompletedProcess(
+            args,
+            0,
+            stdout=json.dumps({"result": {"payloads": [{"text": "reviewed"}]}}),
+            stderr="",
+        )
+
+    OpenClawCodexBackend(command="openclaw", sync_runner=fake_run).generate(
+        AIRequest(
+            prompt="Inspect the page",
+            image_inputs=(AIImageInput(content=b"png-bytes"),),
+        )
+    )
+
+    assert captured_path.endswith("page-1.png")
+    assert not Path(captured_path).exists()
 
 
 def test_openai_api_adapter_uses_responses_api_and_returns_same_contract() -> None:

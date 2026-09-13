@@ -96,6 +96,8 @@ def run_generation_cycle(
                     workflow.evaluate_fit(db, run)
                 elif run.stage == "draft":
                     workflow.continue_approved_run(db, run)
+                elif run.stage == "pdf_checks":
+                    workflow.resume_pdf_checks(db, run)
             except Exception:
                 logger.exception("Application generation run failed: run_id=%s", run_id)
             finally:
@@ -157,6 +159,10 @@ def recover_expired_generation_runs(
         ).all()
         for run in runs:
             run.status = "queued"
+            if run.stage == "review":
+                run.stage = "draft"
+            if run.stage == "pdf_checks" and not run.result.get("draft"):
+                run.stage = "draft"
             run.lease_token = None
             run.lease_until = None
             append_run_event(

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
@@ -12,25 +13,31 @@ from app.models.generation_workflow import (
     FitEvaluation,
     ReviewedDraftBundle,
     ReviewerFeedback,
+    VisualReview,
 )
 from app.models.resume import MasterResume
 from app.services.ai_backend import (
     AIBackend,
     AIBackendError,
+    AIImageInput,
     AIRequest,
     AIResult,
     create_ai_backend,
     generate_with_retries,
 )
+from app.services.generation_artifact_import import import_compiled_generation_documents
 from app.services.generation_grounding import validate_grounded_bundle
+from app.services.generation_latex import CompiledDocument, render_generation_bundle
 from app.services.generation_resources import load_instruction
 from app.services.generation_snapshot import GenerationRunSnapshot
 from app.services.generation_store import (
     GenerationStoreError,
     append_run_message,
     persist_run_artifact,
+    persist_run_check,
     transition_generation_run,
 )
+from app.services.generation_verification import VerifiedPdf, verify_compiled_document
 
 
 class GenerationWorkflowError(RuntimeError):
@@ -41,9 +48,18 @@ class GenerationWorkflowError(RuntimeError):
 
 
 class GenerationWorkflow:
-    def __init__(self, *, settings: Any, backend: AIBackend | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        settings: Any,
+        backend: AIBackend | None = None,
+        renderer: Callable[[DraftBundle], tuple[CompiledDocument, ...]] | None = None,
+        verifier: Callable[..., VerifiedPdf] | None = None,
+    ) -> None:
         self.settings = settings
         self.backend_override = backend
+        self.renderer = renderer or render_generation_bundle
+        self.verifier = verifier or verify_compiled_document
 
     def evaluate_fit(
         self,
@@ -151,6 +167,38 @@ class GenerationWorkflow:
                 code="invalid_run_stage",
             )
         return self._draft_and_review(db, run)
+
+    def resume_pdf_checks(
+        self,
+        db: Session,
+        run: ApplicationGenerationRunRecord,
+    ) -> DraftBundle:
+        self._require_state(run, "queued")
+        if run.stage != "pdf_checks":
+            raise GenerationWorkflowError(
+                "Generation run is not queued for PDF checks",
+                code="invalid_run_stage",
+            )
+        snapshot = _run_snapshot(run)
+        try:
+            draft = DraftBundle.model_validate(run.result.get("draft"))
+            review = ReviewerFeedback.model_validate(run.result.get("review"))
+            master_resume = MasterResume.model_validate(
+                snapshot.request.master_profile_version.data
+            )
+        except ValidationError as exc:
+            raise GenerationWorkflowError(
+                "Persisted reviewed draft is not recoverable",
+                code="invalid_recovery_state",
+            ) from exc
+        return self._render_verify_finalize(
+            db,
+            run,
+            draft=draft,
+            review=review,
+            master_resume=master_resume,
+            target_job_id=snapshot.request.vacancy.id,
+        )
 
     def _draft_and_review(
         self,
@@ -260,27 +308,236 @@ class GenerationWorkflow:
                 content=_json_bytes(final_draft),
                 metadata={"stage": "review"},
             )
-            outcome = ReviewedDraftBundle(draft=final_draft, review=review)
+            final_draft = self._render_verify_finalize(
+                db,
+                run,
+                draft=final_draft,
+                review=review,
+                master_resume=master_resume,
+                target_job_id=target_job_id,
+            )
+            return ReviewedDraftBundle(draft=final_draft, review=review)
+        except Exception as exc:
+            self._fail(db, run, exc)
+            raise
+
+    def _render_verify_finalize(
+        self,
+        db: Session,
+        run: ApplicationGenerationRunRecord,
+        *,
+        draft: DraftBundle,
+        review: ReviewerFeedback,
+        master_resume: MasterResume,
+        target_job_id: str,
+    ) -> DraftBundle:
+        snapshot = _run_snapshot(run)
+        fit = FitEvaluation.model_validate(run.result.get("fit"))
+        transition_generation_run(
+            db,
+            run=run,
+            status="running",
+            stage="pdf_checks",
+            event_kind="review.completed",
+            event_data={
+                "approved": review.approved,
+                "findingCount": len(review.findings),
+            },
+            result={
+                **run.result,
+                "review": review.model_dump(mode="json", by_alias=True),
+                "draft": draft.model_dump(mode="json", by_alias=True),
+            },
+        )
+        current_draft = draft
+        for attempt in range(1, 4):
+            compiled = self.renderer(current_draft)
+            verified_documents: list[tuple[CompiledDocument, VerifiedPdf]] = []
+            image_inputs: list[AIImageInput] = []
+            image_index: list[dict[str, Any]] = []
+            for document in compiled:
+                prefix = "resume" if document.document_type == "tailored_resume" else "cover_letter"
+                persist_run_artifact(
+                    db,
+                    run=run,
+                    document_type=document.document_type,
+                    artifact_type=f"{prefix}_tex_attempt",
+                    file_name=f"{prefix}-attempt-{attempt}.tex",
+                    content_type="application/x-tex",
+                    content=document.tex_source.encode(),
+                    metadata={"attempt": attempt, "engine": document.engine},
+                )
+                pdf_artifact = persist_run_artifact(
+                    db,
+                    run=run,
+                    document_type=document.document_type,
+                    artifact_type=f"{prefix}_pdf_attempt",
+                    file_name=f"{prefix}-attempt-{attempt}.pdf",
+                    content_type="application/pdf",
+                    content=document.pdf,
+                    metadata={"attempt": attempt, "engine": document.engine},
+                )
+                verified = self.verifier(
+                    document,
+                    bundle=current_draft,
+                    keywords=fit.keywords,
+                    max_pages=_max_pages(snapshot, document.document_type),
+                )
+                verified_documents.append((document, verified))
+                persist_run_artifact(
+                    db,
+                    run=run,
+                    document_type=document.document_type,
+                    artifact_type=f"{prefix}_verification_report",
+                    file_name=f"{prefix}-verification-{attempt}.json",
+                    content_type="application/json",
+                    content=_json_bytes(verified.report),
+                    metadata={"attempt": attempt, "pdfArtifactId": pdf_artifact.id},
+                )
+                for check in verified.report.checks:
+                    persist_run_check(
+                        db,
+                        run=run,
+                        artifact=pdf_artifact,
+                        check_type=check.name,
+                        status=check.status,
+                        data={"message": check.message, **check.details},
+                    )
+                for page_number, image in enumerate(verified.page_images, start=1):
+                    page_artifact = persist_run_artifact(
+                        db,
+                        run=run,
+                        document_type=document.document_type,
+                        artifact_type=f"{prefix}_page_{page_number}_png",
+                        file_name=f"{prefix}-attempt-{attempt}-page-{page_number}.png",
+                        content_type="image/png",
+                        content=image,
+                        metadata={"attempt": attempt, "page": page_number},
+                    )
+                    image_inputs.append(AIImageInput(content=image))
+                    image_index.append(
+                        {
+                            "image": len(image_inputs),
+                            "artifactId": page_artifact.id,
+                            "documentType": document.document_type,
+                            "page": page_number,
+                        }
+                    )
+
+            visual = (
+                self._request_model(
+                    db,
+                    run,
+                    actor="reviewer",
+                    session_suffix="reviewer",
+                    instruction_name="verify",
+                    context={
+                        "attempt": attempt,
+                        "pageImages": image_index,
+                        "verificationReports": [
+                            verified.report.model_dump(mode="json", by_alias=True)
+                            for _, verified in verified_documents
+                        ],
+                        "draft": current_draft.model_dump(mode="json", by_alias=True),
+                    },
+                    response_model=VisualReview,
+                    image_inputs=tuple(image_inputs),
+                )
+                if image_inputs
+                else VisualReview(
+                    approved=False,
+                    summary="No rendered page images were available for visual review.",
+                    findings=(),
+                )
+            )
+            persist_run_artifact(
+                db,
+                run=run,
+                artifact_type="visual_review_json",
+                file_name=f"visual-review-{attempt}.json",
+                content_type="application/json",
+                content=_json_bytes(visual),
+                metadata={"attempt": attempt},
+            )
+            deterministic_passed = all(verified.report.passed for _, verified in verified_documents)
+            if deterministic_passed and visual.approved:
+                documents = import_compiled_generation_documents(
+                    db,
+                    run=run,
+                    bundle=current_draft,
+                    compiled=compiled,
+                )
+                transition_generation_run(
+                    db,
+                    run=run,
+                    status="completed",
+                    stage="final_review",
+                    event_kind="run.completed",
+                    event_data={"attempts": attempt, "documentCount": len(documents)},
+                    result={
+                        **run.result,
+                        "review": review.model_dump(mode="json", by_alias=True),
+                        "draft": current_draft.model_dump(mode="json", by_alias=True),
+                        "visualReview": visual.model_dump(mode="json", by_alias=True),
+                        "documents": [
+                            {
+                                "id": document.id,
+                                "type": document.type,
+                                "version": document.current_version,
+                                "downloadUrl": f"/documents/{document.id}/download",
+                                "pdfUrl": f"/documents/{document.id}/pdf",
+                            }
+                            for document in documents
+                        ],
+                    },
+                )
+                return current_draft
+            if attempt == 3:
+                raise GenerationWorkflowError(
+                    "PDF verification did not pass after three attempts",
+                    code="pdf_verification_failed",
+                )
+            current_draft = self._request_model(
+                db,
+                run,
+                actor="author",
+                session_suffix="author",
+                instruction_name="draft",
+                context={
+                    "task": "Repair the complete DraftBundle using the PDF and visual findings.",
+                    "previousDraft": current_draft.model_dump(mode="json", by_alias=True),
+                    "verificationReports": [
+                        verified.report.model_dump(mode="json", by_alias=True)
+                        for _, verified in verified_documents
+                    ],
+                    "visualReview": visual.model_dump(mode="json", by_alias=True),
+                },
+                response_model=DraftBundle,
+            )
+            _require_requested_documents(current_draft, run.document_types)
+            validate_grounded_bundle(
+                current_draft,
+                master_resume=master_resume,
+                target_job_id=target_job_id,
+            )
+            persist_run_artifact(
+                db,
+                run=run,
+                artifact_type="repair_bundle_json",
+                file_name=f"repair-bundle-{attempt}.json",
+                content_type="application/json",
+                content=_json_bytes(current_draft),
+                metadata={"attempt": attempt},
+            )
             transition_generation_run(
                 db,
                 run=run,
                 status="running",
                 stage="pdf_checks",
-                event_kind="review.completed",
-                event_data={
-                    "approved": review.approved,
-                    "findingCount": len(review.findings),
-                },
-                result={
-                    **run.result,
-                    "review": review.model_dump(mode="json", by_alias=True),
-                    "draft": final_draft.model_dump(mode="json", by_alias=True),
-                },
+                event_kind="repair.completed",
+                event_data={"attempt": attempt},
             )
-            return outcome
-        except Exception as exc:
-            self._fail(db, run, exc)
-            raise
+        raise AssertionError("unreachable")
 
     def _request_model[T: BaseModel](
         self,
@@ -293,6 +550,7 @@ class GenerationWorkflow:
         context: dict[str, Any],
         response_model: type[T],
         enable_web_search: bool = False,
+        image_inputs: tuple[AIImageInput, ...] = (),
     ) -> T:
         prompt = _build_prompt(instruction_name, context, response_model)
         append_run_message(
@@ -314,6 +572,7 @@ class GenerationWorkflow:
                 structured=True,
                 response_model=response_model,
                 enable_web_search=enable_web_search,
+                image_inputs=image_inputs,
             ),
             max_attempts=int(run.settings_snapshot["max_attempts"]),
             retry_backoff_seconds=float(run.settings_snapshot["retry_backoff_seconds"]),
@@ -425,6 +684,14 @@ def _require_requested_documents(bundle: DraftBundle, document_types: list[str])
 
 def _json_bytes(value: BaseModel) -> bytes:
     return value.model_dump_json(by_alias=True).encode("utf-8")
+
+
+def _max_pages(snapshot: GenerationRunSnapshot, document_type: str) -> int:
+    raw = snapshot.request.formatting_parameters.get(document_type)
+    configured = raw.get("maxPages") if isinstance(raw, dict) else None
+    if isinstance(configured, int) and not isinstance(configured, bool) and 1 <= configured <= 10:
+        return configured
+    return 2 if document_type == "tailored_resume" else 1
 
 
 __all__ = ["GenerationWorkflow", "GenerationWorkflowError"]

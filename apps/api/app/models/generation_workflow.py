@@ -94,6 +94,19 @@ class ReviewedDraftBundle(GenerationContractModel):
     review: ReviewerFeedback
 
 
+class VisualReviewFinding(GenerationContractModel):
+    document: Literal["resume", "cover_letter"]
+    page: int = Field(ge=1)
+    severity: Literal["blocking", "warning", "suggestion"]
+    message: str = Field(min_length=1, max_length=2_000)
+
+
+class VisualReview(GenerationContractModel):
+    approved: bool
+    summary: str = Field(min_length=1, max_length=4_000)
+    findings: tuple[VisualReviewFinding, ...] = Field(max_length=50)
+
+
 __all__ = [
     "CompanyResearchSource",
     "CoverLetterDraft",
@@ -104,4 +117,6 @@ __all__ = [
     "ReviewFinding",
     "ReviewedDraftBundle",
     "ReviewerFeedback",
+    "VisualReview",
+    "VisualReviewFinding",
 ]

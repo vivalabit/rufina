@@ -21,7 +21,9 @@ from app.services.generation_grounding import (
     GenerationGroundingError,
     validate_grounded_bundle,
 )
+from app.services.generation_latex import CompiledDocument, build_resume_tex
 from app.services.generation_store import create_generation_run
+from app.services.generation_verification import PdfCheck, PdfVerificationReport, VerifiedPdf
 from app.services.generation_workflow import GenerationWorkflow
 
 
@@ -178,12 +180,51 @@ def _review() -> dict[str, object]:
     }
 
 
+def _visual_review() -> dict[str, object]:
+    return {
+        "approved": True,
+        "summary": "Both rendered pages are balanced and readable.",
+        "findings": [],
+    }
+
+
+def _renderer(bundle: DraftBundle) -> tuple[CompiledDocument, ...]:
+    assert bundle.resume is not None
+    return (
+        CompiledDocument(
+            document_type="tailored_resume",
+            engine="lualatex",
+            file_name="cv.pdf",
+            tex_source=build_resume_tex(bundle.resume),
+            pdf=b"%PDF-1.7\nfake",
+            compile_log="ok",
+        ),
+    )
+
+
+def _verifier(document: CompiledDocument, **_kwargs) -> VerifiedPdf:
+    return VerifiedPdf(
+        report=PdfVerificationReport(
+            documentType=document.document_type,
+            pageCount=1,
+            extractedText="Ada Lovelace builds reliable platforms with Python.",
+            checks=(PdfCheck(name="text_layer", status="passed", message="Readable"),),
+        ),
+        page_images=(b"fake-png",),
+    )
+
+
 def test_workflow_pauses_after_fit_then_uses_separate_author_and_reviewer_sessions(
     sessions: sessionmaker[Session],
 ) -> None:
     _seed(sessions)
-    backend = FakeBackend([_fit(), _draft(), _review()])
-    workflow = GenerationWorkflow(settings=_settings(), backend=backend)
+    backend = FakeBackend([_fit(), _draft(), _review(), _visual_review()])
+    workflow = GenerationWorkflow(
+        settings=_settings(),
+        backend=backend,
+        renderer=_renderer,
+        verifier=_verifier,
+    )
     with sessions() as db:
         run = create_generation_run(
             db,
@@ -204,8 +245,9 @@ def test_workflow_pauses_after_fit_then_uses_separate_author_and_reviewer_sessio
         ).all()
 
     assert outcome is not None and outcome.review.approved is True
-    assert run.status == "running" and run.stage == "pdf_checks"
-    assert backend.requests[-1].enable_web_search is True
+    assert run.status == "completed" and run.stage == "final_review"
+    assert any(request.enable_web_search for request in backend.requests)
+    assert backend.requests[-1].image_inputs
     sessions_used = {request.session_id.rsplit(":", 1)[-1] for request in backend.requests}
     assert sessions_used == {"fit", "author", "reviewer"}
     assert {message.actor for message in messages} >= {"author", "reviewer", "user"}
@@ -216,7 +258,12 @@ def test_workflow_pauses_after_fit_then_uses_separate_author_and_reviewer_sessio
 def test_declining_fit_finishes_without_drafting(sessions: sessionmaker[Session]) -> None:
     _seed(sessions)
     backend = FakeBackend([_fit()])
-    workflow = GenerationWorkflow(settings=_settings(), backend=backend)
+    workflow = GenerationWorkflow(
+        settings=_settings(),
+        backend=backend,
+        renderer=_renderer,
+        verifier=_verifier,
+    )
     with sessions() as db:
         run = create_generation_run(
             db,

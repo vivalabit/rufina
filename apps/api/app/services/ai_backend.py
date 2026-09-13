@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
@@ -140,6 +140,9 @@ class OpenClawCodexBackend:
         self.model_after_timeout = model_after_timeout
 
     def generate(self, request: AIRequest) -> AIResult:
+        if request.image_inputs:
+            with tempfile.TemporaryDirectory(prefix="tasko-ai-images-") as directory:
+                return self.generate(_materialize_openclaw_images(request, Path(directory)))
         started_at = time.perf_counter()
         try:
             if self.prompt_transport == "file":
@@ -196,6 +199,9 @@ class OpenClawCodexBackend:
         )
 
     async def agenerate(self, request: AIRequest) -> AIResult:
+        if request.image_inputs:
+            with tempfile.TemporaryDirectory(prefix="tasko-ai-images-") as directory:
+                return await self.agenerate(_materialize_openclaw_images(request, Path(directory)))
         started_at = time.perf_counter()
         try:
             process = await self.async_process_factory(
@@ -451,6 +457,27 @@ def build_ai_result(
         latency_ms=latency_ms,
         session_id=session_id or response_id,
         raw_response=raw_response,
+    )
+
+
+def _materialize_openclaw_images(request: AIRequest, directory: Path) -> AIRequest:
+    suffixes = {
+        "image/png": ".png",
+        "image/jpeg": ".jpg",
+        "image/webp": ".webp",
+    }
+    paths: list[str] = []
+    for index, image in enumerate(request.image_inputs, start=1):
+        path = directory / f"page-{index}{suffixes[image.media_type]}"
+        path.write_bytes(image.content)
+        paths.append(str(path))
+    attachment_note = "\n\nServer-rendered page images to inspect:\n" + "\n".join(
+        f"- {path}" for path in paths
+    )
+    return replace(
+        request,
+        prompt=request.prompt + attachment_note,
+        image_inputs=(),
     )
 
 
