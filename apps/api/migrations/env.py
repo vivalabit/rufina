@@ -12,11 +12,11 @@ import app.models.job_screening
 import app.models.job_search
 import app.models.jobs
 import app.models.notifications
+import app.models.privacy
 import app.models.profile
 import app.models.resume
 import app.models.resume_templates  # noqa: F401  # Register migration metadata.
 from app.core.database import Base
-from app.core.legacy_schema import include_current_schema_object
 from app.core.settings import get_settings
 
 config = context.config
@@ -38,7 +38,6 @@ def run_migrations_offline() -> None:
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
         compare_type=True,
-        include_object=include_current_schema_object,
     )
 
     with context.begin_transaction():
@@ -50,7 +49,6 @@ def run_migrations(connection: Connection) -> None:
         connection=connection,
         target_metadata=target_metadata,
         compare_type=True,
-        include_object=include_current_schema_object,
     )
 
     with context.begin_transaction():

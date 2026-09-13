@@ -13,7 +13,6 @@ from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 
 from app import main as main_module
 from app.core.database import Base
-from app.core.legacy_schema import LEGACY_PREPARATION_TABLES
 from app.core.migrations import (
     LEGACY_RECOVERABLE_MISSING_TABLES,
     LegacyDatabaseMismatchError,
@@ -66,7 +65,6 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
         table_names = set(inspect(engine).get_table_names())
         assert table_names == {
             *Base.metadata.tables,
-            *LEGACY_PREPARATION_TABLES,
             "alembic_version",
         }
         template_constraints = inspect(engine).get_unique_constraints(
@@ -76,49 +74,6 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             tuple(constraint["column_names"])
             for constraint in template_constraints
         } == {("owner_id", "type", "content_sha256")}
-        pack_indexes = inspect(engine).get_indexes("document_pack_jobs")
-        assert any(index["column_names"] == ["expires_at"] for index in pack_indexes)
-        pack_foreign_keys = inspect(engine).get_foreign_keys("document_pack_jobs")
-        assert [
-            (
-                foreign_key["constrained_columns"],
-                foreign_key["referred_table"],
-                foreign_key["referred_columns"],
-                foreign_key["options"].get("ondelete"),
-            )
-            for foreign_key in pack_foreign_keys
-        ] == [(["application_id"], "stored_applications", ["id"], "CASCADE")]
-        artifact_foreign_keys = inspect(engine).get_foreign_keys(
-            "document_validation_artifacts"
-        )
-        assert all(
-            len(foreign_key["name"]) <= 63
-            for foreign_key in artifact_foreign_keys
-            if foreign_key["name"]
-        )
-        assert {
-            (
-                tuple(foreign_key["constrained_columns"]),
-                foreign_key["referred_table"],
-                tuple(foreign_key["referred_columns"]),
-                foreign_key["options"].get("ondelete"),
-            )
-            for foreign_key in artifact_foreign_keys
-            } == {
-                (("application_id",), "stored_applications", ("id",), "CASCADE"),
-                (
-                    ("generation_artifact_id",),
-                    "document_generation_artifacts",
-                    ("id",),
-                    "CASCADE",
-                ),
-                (("template_id",), "document_templates", ("id",), "CASCADE"),
-            }
-        artifact_indexes = inspect(engine).get_indexes("document_validation_artifacts")
-        assert {tuple(index["column_names"]) for index in artifact_indexes} >= {
-            ("expires_at",),
-            ("template_id",),
-        }
         snapshot_indexes = inspect(engine).get_indexes("candidate_match_snapshots")
         assert any(
             index["column_names"]
@@ -188,11 +143,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
         owner_tables = {
             "stored_applications",
             "stored_application_events",
-            "application_preferences",
-            "candidate_confirmations",
             "documents",
-            "document_pack_jobs",
-            "document_validation_artifacts",
             "document_templates",
             "workspace_source_documents",
             "conversations",
@@ -211,12 +162,6 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "resume_masters",
             "resume_master_versions",
             "resume_source_files",
-            "senior_recruiter_analyses",
-            "experience_rewrites",
-            "ats_final_reviews",
-            "imaginator_resumes",
-            "resume_tailoring_runs",
-            "resume_tailoring_stages",
             "resume_template_definitions",
             "critical_notifications",
             "profiles",
@@ -239,7 +184,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260913_0055"
+            assert revision == "20260913_0056"
             entry_it = connection.execute(
                 text(
                     "SELECT id, owner_id, name, filters "
@@ -303,11 +248,6 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             assert preset_source_config_ids == {
                 "linkedin": "entry-it-linkedin",
             }
-        imaginator_columns = {
-            column["name"]
-            for column in inspect(engine).get_columns("imaginator_resumes")
-        }
-        assert "protected_facts_audit" in imaginator_columns
         assert inspect(engine).get_pk_constraint("stored_jobs")["constrained_columns"] == [
             "owner_id",
             "id",
@@ -337,17 +277,6 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
         assert {
             column["name"] for column in inspect(engine).get_columns("profiles")
         } >= {"owner_id", "updated_at", "revision"}
-        assert {
-            column["name"]
-            for column in inspect(engine).get_columns("application_preferences")
-        } == {
-            "owner_id",
-            "application_id",
-            "resume_template_id",
-            "resume_generation_mode",
-            "updated_at",
-            "revision",
-        }
         automatic_run_indexes = {
             index["name"]: index
             for index in inspect(engine).get_indexes("job_search_runs")
@@ -447,222 +376,9 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             column["name"]
             for column in inspect(engine).get_columns("document_files")
         }
-        assert document_file_columns >= {
-            "file_name",
-            "content_type",
-            "renderer_template_id",
-            "renderer_template_version",
-            "renderer_design_sha256",
-            "source_ats_final_review_id",
-            "final_resume_json",
-            "stage_results",
-            "provenance",
-        }
-        assert (
-            "source_ats_final_review_id",
-            "renderer_template_id",
-            "renderer_template_version",
-            "renderer_design_sha256",
-        ) in {
-            tuple(constraint["column_names"])
-            for constraint in inspect(engine).get_unique_constraints(
-                "document_files"
-            )
-        }
-        assert {
-            (
-                tuple(foreign_key["constrained_columns"]),
-                foreign_key["referred_table"],
-                foreign_key["options"].get("ondelete"),
-            )
-            for foreign_key in inspect(engine).get_foreign_keys(
-                "document_files"
-            )
-        } >= {
-            (
-                ("source_ats_final_review_id",),
-                "ats_final_reviews",
-                "SET NULL",
-            ),
-        }
-        run_columns = {
-            column["name"]
-            for column in inspect(engine).get_columns(
-                "resume_tailoring_runs"
-            )
-        }
-        assert run_columns >= {
-            "resume_master_id",
-            "resume_master_version_id",
-            "target_job_id",
-            "status",
-            "current_stage",
-            "error",
-            "completed_at",
-        }
-        stage_columns = {
-            column["name"]
-            for column in inspect(engine).get_columns(
-                "resume_tailoring_stages"
-            )
-        }
-        assert stage_columns >= {
-            "run_id",
-            "stage_number",
-            "request_type",
-            "input_fingerprint",
-            "structured_output",
-            "output_record_id",
-            "model",
-            "backend",
-            "latency_ms",
-            "input_tokens",
-            "output_tokens",
-            "total_tokens",
-            "token_count_source",
-            "status",
-            "error",
-            "attempt",
-            "completed_at",
-        }
-        assert {
-            (
-                tuple(foreign_key["constrained_columns"]),
-                foreign_key["referred_table"],
-                foreign_key["options"].get("ondelete"),
-            )
-            for foreign_key in inspect(engine).get_foreign_keys(
-                "resume_tailoring_stages"
-            )
-        } == {
-            (("run_id",), "resume_tailoring_runs", "CASCADE"),
-        }
-        ats_review_columns = {
-            column["name"]
-            for column in inspect(engine).get_columns("ats_final_reviews")
-        }
-        assert ats_review_columns >= {
-            "experience_rewrite_id",
-            "resume_master_id",
-            "resume_master_version_id",
-            "target_job_id",
-            "prompt_version",
-            "result",
-            "render_input",
-            "model",
-            "backend",
-            "provider_session_id",
-            "input_tokens",
-            "output_tokens",
-            "total_tokens",
-            "token_count_source",
-            "latency_ms",
-        }
-        assert {
-            (
-                tuple(foreign_key["constrained_columns"]),
-                foreign_key["referred_table"],
-                foreign_key["options"].get("ondelete"),
-            )
-            for foreign_key in inspect(engine).get_foreign_keys(
-                "ats_final_reviews"
-            )
-        } == {
-            (
-                ("experience_rewrite_id",),
-                "experience_rewrites",
-                "CASCADE",
-            ),
-            (("resume_master_id",), "resume_masters", "CASCADE"),
-            (
-                ("resume_master_version_id",),
-                "resume_master_versions",
-                "CASCADE",
-            ),
-        }
-        recruiter_analysis_columns = {
-            column["name"]
-            for column in inspect(engine).get_columns(
-                "senior_recruiter_analyses"
-            )
-        }
-        assert recruiter_analysis_columns >= {
-            "resume_master_id",
-            "resume_master_version_id",
-            "target_job_id",
-            "vacancy_hash",
-            "prompt_version",
-            "result",
-            "model",
-            "backend",
-            "provider_session_id",
-            "input_tokens",
-            "output_tokens",
-            "total_tokens",
-            "token_count_source",
-            "latency_ms",
-        }
-        assert {
-            (
-                tuple(foreign_key["constrained_columns"]),
-                foreign_key["referred_table"],
-                foreign_key["options"].get("ondelete"),
-            )
-            for foreign_key in inspect(engine).get_foreign_keys(
-                "senior_recruiter_analyses"
-            )
-        } == {
-            (("resume_master_id",), "resume_masters", "CASCADE"),
-            (
-                ("resume_master_version_id",),
-                "resume_master_versions",
-                "CASCADE",
-            ),
-        }
-        experience_rewrite_columns = {
-            column["name"]
-            for column in inspect(engine).get_columns("experience_rewrites")
-        }
-        assert experience_rewrite_columns >= {
-            "senior_recruiter_analysis_id",
-            "resume_master_id",
-            "resume_master_version_id",
-            "target_job_id",
-            "prompt_version",
-            "original_experiences",
-            "result",
-            "links",
-            "model",
-            "backend",
-            "provider_session_id",
-            "input_tokens",
-            "output_tokens",
-            "total_tokens",
-            "token_count_source",
-            "latency_ms",
-        }
-        assert {
-            (
-                tuple(foreign_key["constrained_columns"]),
-                foreign_key["referred_table"],
-                foreign_key["options"].get("ondelete"),
-            )
-            for foreign_key in inspect(engine).get_foreign_keys(
-                "experience_rewrites"
-            )
-        } == {
-            (
-                ("senior_recruiter_analysis_id",),
-                "senior_recruiter_analyses",
-                "CASCADE",
-            ),
-            (("resume_master_id",), "resume_masters", "CASCADE"),
-            (
-                ("resume_master_version_id",),
-                "resume_master_versions",
-                "CASCADE",
-            ),
-        }
+        assert document_file_columns == set(
+            Base.metadata.tables["document_files"].columns.keys()
+        )
         run_columns = {
             column["name"]
             for column in inspect(engine).get_columns("job_search_runs")
@@ -713,7 +429,7 @@ def test_state_ownership_migration_backfills_legacy_profile_revisions(tmp_path) 
     finally:
         engine.dispose()
 
-    command.upgrade(config, "head")
+    command.upgrade(config, "20260913_0055")
 
     engine = create_engine(database_url)
     try:
@@ -741,7 +457,6 @@ def test_state_ownership_migration_backfills_legacy_profile_revisions(tmp_path) 
     finally:
         engine.dispose()
 
-    command.check(get_alembic_config(database_url))
     command.downgrade(config, "20260829_0045")
 
     engine = create_engine(database_url)
@@ -1728,7 +1443,7 @@ def test_imaginator_audit_migration_upgrades_original_0029_shape(
     finally:
         engine.dispose()
 
-    command.upgrade(config, "head")
+    command.upgrade(config, "20260730_0030")
 
     engine = create_engine(database_url)
     try:
@@ -1894,7 +1609,7 @@ def test_backend_neutral_provenance_migration_preserves_legacy_ai_data(tmp_path)
     finally:
         engine.dispose()
 
-    command.upgrade(config, "head")
+    command.upgrade(config, "20260913_0055")
 
     engine = create_engine(database_url)
     try:
@@ -2011,7 +1726,7 @@ def test_storage_foreign_key_migration_removes_existing_orphans(tmp_path) -> Non
     finally:
         engine.dispose()
 
-    command.upgrade(config, "head")
+    command.upgrade(config, "20260913_0055")
 
     engine = create_engine(database_url)
     try:
@@ -2058,7 +1773,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260913_0055"
+            assert revision == "20260913_0056"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
@@ -2098,9 +1813,9 @@ def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> Non
                     "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
                 )
             ).scalar_one()
-        assert revision == "20260913_0055"
+        assert revision == "20260913_0056"
         assert entry_it_count == 1
-        assert LEGACY_RECOVERABLE_MISSING_TABLES <= set(
+        assert LEGACY_RECOVERABLE_MISSING_TABLES.isdisjoint(
             inspect(engine).get_table_names()
         )
     finally:
@@ -2246,7 +1961,7 @@ def test_job_owner_scoping_migration_backfills_and_allows_shared_ids(tmp_path) -
     finally:
         engine.dispose()
 
-    command.upgrade(config, "head")
+    command.upgrade(config, "20260913_0055")
 
     engine = create_engine(database_url)
     try:
@@ -2698,7 +2413,7 @@ def test_screenshot_demo_cleanup_removes_only_known_local_owner_records(
     finally:
         engine.dispose()
 
-    command.upgrade(config, "head")
+    command.upgrade(config, "20260913_0055")
 
     engine = create_engine(database_url)
     try:
@@ -2902,7 +2617,7 @@ def test_match_score_migration_preserves_scores_and_provenance(tmp_path) -> None
                 ),
                 {"breakdown": json.dumps({"role_fit": 18})},
             )
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260912_0053")
         columns = {column["name"] for column in inspect(engine).get_columns("job_matches")}
         assert columns == set(Base.metadata.tables["job_matches"].columns.keys())
         with engine.connect() as connection:
@@ -3040,7 +2755,7 @@ def test_application_history_migration_preserves_user_records_without_profile_pr
                 {"now": now},
             )
 
-        command.upgrade(config, "head")
+        command.upgrade(config, "20260913_0055")
 
         with engine.connect() as connection:
             migrated_application = connection.execute(
@@ -3108,5 +2823,171 @@ def test_application_history_migration_preserves_user_records_without_profile_pr
                 text("SELECT COUNT(*) FROM candidate_confirmations")
             ).scalar_one() == 1
         command.upgrade(config, "head")
+    finally:
+        engine.dispose()
+
+
+def test_obsolete_preparation_cleanup_preserves_current_application_records(
+    tmp_path,
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'obsolete-preparation.sqlite'}"
+    config = get_alembic_config(database_url)
+    command.upgrade(config, "20260913_0055")
+    now = "2026-09-13 12:00:00+00:00"
+    application_data = {
+        "id": "retained-application",
+        "status": "applied",
+        "appliedAt": "2026-09-01T08:00:00.000Z",
+        "notes": "Retain this note.",
+        "legacyCandidateConfirmations": [
+            {
+                "questionId": "leadership",
+                "requirement": "Leadership experience",
+                "response": "yes",
+                "exampleText": "Led a migration project.",
+                "blocking": False,
+                "updatedAt": "2026-09-02T09:30:00+00:00",
+            }
+        ],
+    }
+    obsolete_tables = {
+        "application_preferences",
+        "ats_final_reviews",
+        "candidate_confirmations",
+        "document_generation_artifacts",
+        "document_generation_provenance",
+        "document_pack_jobs",
+        "document_validation_artifacts",
+        "document_version_generation_provenance",
+        "document_version_validations",
+        "document_workflow_runs",
+        "experience_rewrites",
+        "imaginator_resumes",
+        "resume_tailoring_runs",
+        "resume_tailoring_stages",
+        "senior_recruiter_analyses",
+    }
+
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO stored_applications "
+                    "(id, owner_id, data, created_at, updated_at, revision) VALUES "
+                    "('retained-application', 'local-owner', :data, :now, :now, 2)"
+                ),
+                {"data": json.dumps(application_data), "now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO stored_application_events "
+                    "(id, owner_id, application_id, data, created_at, updated_at, revision) "
+                    "VALUES ('retained-event', 'local-owner', 'retained-application', "
+                    "'{\"type\":\"note\",\"notes\":\"Keep event\"}', :now, :now, 1)"
+                ),
+                {"now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO documents "
+                    "(id, owner_id, type, title, job_id, current_version, created_at, updated_at) "
+                    "VALUES ('retained-document', 'local-owner', 'tailored_resume', "
+                    "'Retained resume', NULL, 1, :now, :now)"
+                ),
+                {"now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO document_versions "
+                    "(id, document_id, version, content, created_at) VALUES "
+                    "('retained-version', 'retained-document', 1, 'Retained text', :now)"
+                ),
+                {"now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO document_attachments "
+                    "(id, document_id, application_id, created_at) VALUES "
+                    "('retained-attachment', 'retained-document', "
+                    "'retained-application', :now)"
+                ),
+                {"now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO document_files "
+                    "(id, document_id, version, template_id, file_name, content_type, "
+                    "renderer_template_id, renderer_template_version, "
+                    "renderer_design_sha256, final_resume_json, stage_results, provenance, "
+                    "content, created_at) VALUES "
+                    "('retained-file', 'retained-document', 1, NULL, 'resume.pdf', "
+                    "'application/pdf', 'modern', 'v1', :design_hash, '{}', '{}', '{}', "
+                    ":content, :now)"
+                ),
+                {"content": b"%PDF retained", "design_hash": "d" * 64, "now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO application_preferences "
+                    "(owner_id, application_id, resume_generation_mode) VALUES "
+                    "('local-owner', 'retained-application', 'imaginator')"
+                )
+            )
+
+        command.upgrade(config, "head")
+
+        inspector = inspect(engine)
+        assert obsolete_tables.isdisjoint(inspector.get_table_names())
+        assert {
+            column["name"] for column in inspector.get_columns("document_files")
+        } == set(Base.metadata.tables["document_files"].columns.keys())
+        with engine.connect() as connection:
+            retained_application = json.loads(
+                connection.execute(
+                    text(
+                        "SELECT data FROM stored_applications "
+                        "WHERE id = 'retained-application'"
+                    )
+                ).scalar_one()
+            )
+            retained_file = connection.execute(
+                text(
+                    "SELECT file_name, content_type, renderer_template_id, "
+                    "renderer_template_version, renderer_design_sha256, content "
+                    "FROM document_files WHERE id = 'retained-file'"
+                )
+            ).one()
+            assert retained_application == application_data
+            assert retained_file == (
+                "resume.pdf",
+                "application/pdf",
+                "modern",
+                "v1",
+                "d" * 64,
+                b"%PDF retained",
+            )
+            assert connection.execute(
+                text("SELECT content FROM document_versions WHERE id = 'retained-version'")
+            ).scalar_one() == "Retained text"
+            assert connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM document_attachments "
+                    "WHERE id = 'retained-attachment'"
+                )
+            ).scalar_one() == 1
+            assert connection.execute(
+                text(
+                    "SELECT COUNT(*) FROM stored_application_events "
+                    "WHERE id = 'retained-event'"
+                )
+            ).scalar_one() == 1
+
+        with pytest.raises(RuntimeError, match="physically deleted"):
+            command.downgrade(config, "20260913_0055")
+        with engine.connect() as connection:
+            assert connection.execute(
+                text("SELECT version_num FROM alembic_version")
+            ).scalar_one() == "20260913_0056"
     finally:
         engine.dispose()
