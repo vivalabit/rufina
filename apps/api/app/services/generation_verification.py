@@ -130,13 +130,7 @@ def verify_compiled_document(
                     f"Role period {experience.period!r} is {'present' if present else 'missing'}",
                 )
             )
-    checks.extend(
-        _keyword_checks(
-            extracted,
-            keywords,
-            strict_required=is_resume,
-        )
-    )
+    checks.extend(_keyword_checks(extracted, keywords))
 
     with tempfile.TemporaryDirectory(prefix="tasko-pdf-check-") as temp_directory:
         workdir = Path(temp_directory)
@@ -203,8 +197,6 @@ def _layout_check(pdf_path: Path) -> PdfCheck:
 def _keyword_checks(
     text: str,
     keywords: tuple[FitKeyword, ...],
-    *,
-    strict_required: bool,
 ) -> list[PdfCheck]:
     checks: list[PdfCheck] = []
     for keyword in keywords:
@@ -215,13 +207,6 @@ def _keyword_checks(
         elif present:
             status = "passed"
             message = f"Keyword present: {keyword.term}"
-        elif (
-            strict_required
-            and keyword.importance == "required"
-            and keyword.support == "supported"
-        ):
-            status = "failed"
-            message = f"Supported required keyword is missing: {keyword.term}"
         else:
             status = "warning"
             message = f"Keyword represented by synonym or omitted: {keyword.term}"

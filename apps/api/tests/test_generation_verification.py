@@ -30,7 +30,7 @@ def _bundle() -> DraftBundle:
     return DraftBundle(resume=resume)
 
 
-def test_verification_reports_required_keyword_and_page_failures(
+def test_verification_reports_keyword_warning_and_page_failure(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     pages = [
@@ -82,7 +82,14 @@ def test_verification_reports_required_keyword_and_page_failures(
     )
 
     failed_names = {check.name for check in verified.report.checks if check.status == "failed"}
-    assert failed_names == {"page_count", "keyword:Kubernetes"}
+    checks = {check.name: check for check in verified.report.checks}
+    assert failed_names == {"page_count"}
+    assert checks["keyword:Kubernetes"].status == "warning"
+    assert checks["keyword:Kubernetes"].details == {
+        "importance": "required",
+        "support": "supported",
+        "present": False,
+    }
     assert verified.report.passed is False
     assert verified.page_images == (b"png-one", b"png-two")
 

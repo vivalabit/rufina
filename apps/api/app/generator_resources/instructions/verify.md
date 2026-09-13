@@ -15,13 +15,16 @@ Required checks:
 - section reading order is sensible and no page has a suspicious internal hole,
   orphaned heading, footer collision, or very thin final page.
 - required/preferred vacancy terms are reported as covered, synonym-only,
-  supported-but-missing, or genuine gap. Enforce supported required terms in
-  the CV; omissions from the cover letter are informational.
+  supported-but-missing, or genuine gap. Exact keyword absence is advisory:
+  synonyms, translated wording, and semantically equivalent qualifications
+  must not fail an otherwise valid PDF.
 - render every page to PNG and inspect those exact images in the reviewer
   context before marking visual review complete.
 - Mark `approved` true after every supplied image has been inspected and no
   blocking visual finding remains. Warnings and suggestions do not block
   approval by themselves.
+- Base `approved` on visual and structural usability. Keyword coverage
+  warnings must not make the visual review fail.
 
 Adapted from upstream `/apply` Steps 5-6 and the copied `verify_pdf.py` and
 `verify_layout.py` at commit `c7bd494f11e792508534c1c795e24694498395c4`.
