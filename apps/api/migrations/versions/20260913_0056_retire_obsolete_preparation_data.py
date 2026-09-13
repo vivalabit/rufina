@@ -8,6 +8,7 @@ Create Date: 2026-09-13 13:00:00.000000
 from collections.abc import Sequence
 
 from alembic import op
+from sqlalchemy import inspect
 
 revision: str = "20260913_0056"
 down_revision: str | None = "20260913_0055"
@@ -16,6 +17,12 @@ depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
+    check_constraints = {
+        constraint["name"]
+        for constraint in inspect(op.get_bind()).get_check_constraints("document_files")
+        if constraint.get("name")
+    }
+
     # Generated files remain available through their durable content and
     # renderer metadata. These links and JSON payloads belonged exclusively to
     # the retired ATS and Imaginator pipelines.
@@ -28,10 +35,11 @@ def upgrade() -> None:
         table_name="document_files",
     )
     with op.batch_alter_table("document_files") as batch_op:
-        batch_op.drop_constraint(
-            "ck_document_files_single_resume_pipeline_source",
-            type_="check",
-        )
+        if "ck_document_files_single_resume_pipeline_source" in check_constraints:
+            batch_op.drop_constraint(
+                "ck_document_files_single_resume_pipeline_source",
+                type_="check",
+            )
         batch_op.drop_constraint(
             "uq_document_files_imaginator_resume_pdf_source",
             type_="unique",

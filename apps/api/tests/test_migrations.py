@@ -7,6 +7,8 @@ from io import BytesIO
 
 import pytest
 from alembic import command
+from alembic.migration import MigrationContext
+from alembic.operations import Operations
 from docx import Document
 from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
@@ -2871,6 +2873,18 @@ def test_obsolete_preparation_cleanup_preserves_current_application_records(
     engine = create_engine(database_url)
     try:
         with engine.begin() as connection:
+            operations = Operations(MigrationContext.configure(connection))
+            with operations.batch_alter_table("document_files") as batch_op:
+                batch_op.drop_constraint(
+                    "ck_document_files_single_resume_pipeline_source",
+                    type_="check",
+                )
+            assert "ck_document_files_single_resume_pipeline_source" not in {
+                constraint["name"]
+                for constraint in inspect(connection).get_check_constraints(
+                    "document_files"
+                )
+            }
             connection.execute(
                 text(
                     "INSERT INTO stored_applications "
