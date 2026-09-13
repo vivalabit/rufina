@@ -168,6 +168,7 @@ def append_run_message(
     actor: GenerationActor,
     role: Literal["system", "user", "assistant"],
     content: str,
+    raw_response: str = "",
     response_id: str | None = None,
     usage: dict[str, Any] | None = None,
 ) -> GenerationRunMessageRecord:
@@ -178,6 +179,7 @@ def append_run_message(
         actor=actor,
         role=role,
         content=content,
+        raw_response=raw_response,
         response_id=response_id,
         backend=run.backend,
         model=run.model,

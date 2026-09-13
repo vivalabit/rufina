@@ -149,6 +149,7 @@ class GenerationRunMessageRecord(OwnerScoped, Base):
     actor: Mapped[str] = mapped_column(String(24), nullable=False)
     role: Mapped[str] = mapped_column(String(24), nullable=False)
     content: Mapped[str] = mapped_column(Text, nullable=False)
+    raw_response: Mapped[str] = mapped_column(Text, nullable=False, default="")
     response_id: Mapped[str | None] = mapped_column(String(160), nullable=True)
     backend: Mapped[str] = mapped_column(String(32), nullable=False)
     model: Mapped[str] = mapped_column(String(256), nullable=False)
