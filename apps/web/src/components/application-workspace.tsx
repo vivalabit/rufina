@@ -320,8 +320,28 @@ export function ApplicationWorkspace({
     try {
       const nextSettings = { ...settings, userPreferences: preferences.trim() };
       await persist(nextSettings);
+      const request = generationRequestFromSettings(nextSettings);
       const started = await startGenerationRun(applicationId, {
-        ...generationRequestFromSettings(nextSettings),
+        ...request,
+        formattingParameters: {
+          ...request.formattingParameters,
+          ...(request.formattingParameters.tailored_resume
+            ? {
+                tailored_resume: {
+                  ...request.formattingParameters.tailored_resume,
+                  language: masterResume?.masterResume.language || nextSettings.language,
+                },
+              }
+            : {}),
+          ...(request.formattingParameters.cover_letter
+            ? {
+                cover_letter: {
+                  ...request.formattingParameters.cover_letter,
+                  language: nextSettings.language,
+                },
+              }
+            : {}),
+        },
         idempotencyKey: `${applicationId}-${Date.now()}-${crypto.randomUUID?.() ?? "run"}`,
       });
       setRun(started);
@@ -581,7 +601,8 @@ function ApplicationBrief({
         ))}
       </div>
       <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[11px]">
-        <dt className="text-muted">Language</dt><dd className="text-right font-semibold">{settings.language}</dd>
+        <dt className="text-muted">CV language</dt><dd className="text-right font-semibold">{masterResume?.masterResume.language || settings.language}</dd>
+        <dt className="text-muted">Letter language</dt><dd className="text-right font-semibold">{settings.language}</dd>
         <dt className="text-muted">CV template</dt><dd className="truncate text-right font-semibold">ModernCV · Banking</dd>
         <dt className="text-muted">Letter template</dt><dd className="truncate text-right font-semibold">Classic letter</dd>
         {run ? <><dt className="text-muted">Executor</dt><dd className="truncate text-right font-semibold">{backendLabel(run.backend)}</dd></> : null}
@@ -651,10 +672,11 @@ function PreparationPanel({ settings, masterResume, onChange, onStart, action }:
           </div>
         </fieldset>
         <div className="grid gap-4 sm:grid-cols-2">
-          <label className="text-xs font-bold">Document language
-            <select aria-label="Document language" value={settings.language} onChange={(event) => onChange((current) => ({ ...current, language: event.target.value as PreparationLanguage }))} className="mt-2 h-11 w-full rounded-xl border px-3 text-xs font-semibold">
+          <label className="text-xs font-bold">Vacancy / letter language
+            <select aria-label="Vacancy and letter language" value={settings.language} onChange={(event) => onChange((current) => ({ ...current, language: event.target.value as PreparationLanguage }))} className="mt-2 h-11 w-full rounded-xl border px-3 text-xs font-semibold">
               <option value="English">English</option><option value="German">German</option>
             </select>
+            <span className="mt-1.5 block text-[9px] font-normal leading-4 text-muted">The CV keeps the confirmed profile language ({masterResume?.masterResume.language || settings.language}).</span>
           </label>
           <label className="text-xs font-bold">CV page limit
             <select aria-label="CV page limit" value={settings.formatting.resumeMaxPages} onChange={(event) => onChange((current) => ({ ...current, formatting: { ...current.formatting, resumeMaxPages: Number(event.target.value) as 1 | 2 | 3 } }))} className="mt-2 h-11 w-full rounded-xl border px-3 text-xs font-semibold">
@@ -695,6 +717,7 @@ function FitApproval({ run, onAnswer, action }: { run: GenerationRun; onAnswer: 
           <FitList title="Honest gaps" items={fit.gaps ?? []} />
         </div>
         {(fit.keywords ?? []).length ? <div className="mt-5"><h3 className="text-xs font-black">Relevant terms</h3><div className="mt-2 flex flex-wrap gap-2">{fit.keywords?.map((keyword) => <span key={keyword.term} className={cn("rounded-full border px-2.5 py-1 text-[9px] font-bold", keyword.support === "supported" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800")}>{keyword.term}</span>)}</div></div> : null}
+        {(fit.clarificationQuestions ?? []).length ? <div className="mt-5 rounded-xl border border-amber-200 bg-amber-50 p-4"><h3 className="text-xs font-black text-amber-950">Questions from the fit review</h3><ul className="mt-2 grid gap-2">{fit.clarificationQuestions?.map((question) => <li key={question} className="flex gap-2 text-[11px] leading-5 text-amber-900"><span aria-hidden="true">?</span>{question}</li>)}</ul><p className="mt-2 text-[9px] leading-4 text-amber-800">Stop and add answers to your confirmed profile if they introduce new facts. Continuing keeps the gaps explicit.</p></div> : null}
         <div className="mt-6 flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs font-semibold">{run.pendingQuestion?.prompt ?? "Continue with the CV and cover letter?"}</p><div className="flex gap-2"><Button type="button" variant="ghost" disabled={Boolean(action)} onClick={() => onAnswer("stop")} className="rounded-xl border border-border text-xs">Stop</Button><Button type="button" disabled={Boolean(action)} onClick={() => onAnswer("continue")} className="rounded-xl px-5 text-xs">{action === "answer" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />} Continue</Button></div></div>
       </div>
     </section>

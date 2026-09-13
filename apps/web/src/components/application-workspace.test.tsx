@@ -211,6 +211,12 @@ describe("ApplicationWorkspace", () => {
         prompt: "Continue with the CV and cover letter?",
         choices: ["continue", "stop"],
       },
+      result: {
+        fit: {
+          ...generationRun().result.fit,
+          clarificationQuestions: ["Can you confirm any regulated-finance work?"],
+        },
+      },
     });
     const queued = generationRun({ status: "queued", stage: "draft", revision: 4 });
     const fetchMock = installApplicationWorkspaceApiMock({
@@ -227,6 +233,7 @@ describe("ApplicationWorkspace", () => {
     expect(await screen.findByText("82")).toBeInTheDocument();
     expect(screen.getByText("Design systems leadership")).toBeInTheDocument();
     expect(screen.getAllByText("No explicit fintech portfolio example")).toHaveLength(2);
+    expect(screen.getByText("Can you confirm any regulated-finance work?")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Continue" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
