@@ -11,6 +11,8 @@ from test_generation_input import seed_complete_sources
 
 from app.core.database import Base
 from app.models.generation_runs import (
+    GenerationRunArtifactRecord,
+    GenerationRunCheckRecord,
     GenerationRunMessageRecord,
     GenerationRunStartRequest,
 )
@@ -28,9 +30,13 @@ from app.services.generation_workflow import GenerationWorkflow
 
 
 class FakeBackend:
-    name = "openclaw_codex"
-
-    def __init__(self, payloads: list[dict[str, object]]) -> None:
+    def __init__(
+        self,
+        payloads: list[dict[str, object]],
+        *,
+        name: str = "openclaw_codex",
+    ) -> None:
+        self.name = name
         self.payloads = deque(payloads)
         self.requests = []
 
@@ -41,7 +47,7 @@ class FakeBackend:
             text=json.dumps(payload),
             structured_data=payload,
             model=request.model,
-            backend="openclaw_codex",
+            backend=self.name,
             usage=AIUsage(input_tokens=10, output_tokens=20, total_tokens=30),
             latency_ms=5,
             session_id=request.session_id,
@@ -60,9 +66,9 @@ def sessions() -> sessionmaker[Session]:
     return sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
-def _settings() -> SimpleNamespace:
+def _settings(backend: str = "openclaw_codex") -> SimpleNamespace:
     return SimpleNamespace(
-        ai_backend_mode="openclaw_codex",
+        ai_backend_mode=backend,
         openai_api_model="gpt-direct",
         openai_api_reasoning_effort="medium",
         openai_api_timeout_seconds=120,
@@ -214,13 +220,19 @@ def _verifier(document: CompiledDocument, **_kwargs) -> VerifiedPdf:
     )
 
 
+@pytest.mark.parametrize("backend_name", ["openai_api", "openclaw_codex"])
 def test_workflow_pauses_after_fit_then_uses_separate_author_and_reviewer_sessions(
     sessions: sessionmaker[Session],
+    backend_name: str,
 ) -> None:
     _seed(sessions)
-    backend = FakeBackend([_fit(), _draft(), _review(), _visual_review()])
+    settings = _settings(backend_name)
+    backend = FakeBackend(
+        [_fit(), _draft(), _review(), _visual_review()],
+        name=backend_name,
+    )
     workflow = GenerationWorkflow(
-        settings=_settings(),
+        settings=settings,
         backend=backend,
         renderer=_renderer,
         verifier=_verifier,
@@ -230,7 +242,7 @@ def test_workflow_pauses_after_fit_then_uses_separate_author_and_reviewer_sessio
             db,
             application_id="application-1",
             request=_start(),
-            settings=_settings(),
+            settings=settings,
         )
         evaluation = workflow.evaluate_fit(db, run)
         assert evaluation.overall_score == 82
@@ -243,9 +255,16 @@ def test_workflow_pauses_after_fit_then_uses_separate_author_and_reviewer_sessio
             .where(GenerationRunMessageRecord.run_id == run.id)
             .order_by(GenerationRunMessageRecord.sequence)
         ).all()
+        artifacts = db.scalars(
+            select(GenerationRunArtifactRecord).where(GenerationRunArtifactRecord.run_id == run.id)
+        ).all()
+        checks = db.scalars(
+            select(GenerationRunCheckRecord).where(GenerationRunCheckRecord.run_id == run.id)
+        ).all()
 
     assert outcome is not None and outcome.review.approved is True
     assert run.status == "completed" and run.stage == "final_review"
+    assert run.backend == backend_name
     assert any(request.enable_web_search for request in backend.requests)
     assert backend.requests[-1].image_inputs
     sessions_used = {request.session_id.rsplit(":", 1)[-1] for request in backend.requests}
@@ -253,6 +272,17 @@ def test_workflow_pauses_after_fit_then_uses_separate_author_and_reviewer_sessio
     assert {message.actor for message in messages} >= {"author", "reviewer", "user"}
     assert any(message.raw_response.startswith("{") for message in messages)
     assert "BEGIN UNTRUSTED APPLICATION DATA" in backend.requests[0].prompt
+    assert {artifact.artifact_type for artifact in artifacts} >= {
+        "fit_evaluation_json",
+        "draft_bundle_json",
+        "review_feedback_json",
+        "reviewed_draft_bundle_json",
+        "resume_pdf",
+        "resume_tex",
+        "visual_review_json",
+    }
+    assert checks and all(check.artifact_sha256 for check in checks)
+    assert run.result["documents"][0]["pdfUrl"].endswith("/pdf")
 
 
 def test_declining_fit_finishes_without_drafting(sessions: sessionmaker[Session]) -> None:

@@ -1,8 +1,11 @@
+import shutil
 import subprocess
+from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from pypdf import PdfReader
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
@@ -26,6 +29,7 @@ from app.services.generation_latex import (
     build_resume_tex,
     compile_latex_document,
     latex_escape,
+    render_generation_bundle,
 )
 from app.services.generation_store import create_generation_run
 
@@ -150,6 +154,22 @@ def test_compiler_uses_no_shell_escape_and_copies_versioned_cover_assets(
     assert "-no-shell-escape" in commands[0]
 
 
+def test_real_compilers_produce_readable_resume_and_cover_letter_pdfs() -> None:
+    if not shutil.which("lualatex") or not shutil.which("xelatex"):
+        pytest.skip("The local host does not provide the Docker TeX toolchain")
+
+    compiled = render_generation_bundle(DraftBundle(resume=_resume(), coverLetter=_letter()))
+
+    assert {document.document_type for document in compiled} == {
+        "tailored_resume",
+        "cover_letter",
+    }
+    assert {document.engine for document in compiled} == {"lualatex", "xelatex"}
+    for document in compiled:
+        assert document.pdf.startswith(b"%PDF-")
+        assert len(PdfReader(BytesIO(document.pdf)).pages) >= 1
+
+
 def test_compiled_pdf_is_imported_once_and_attached_to_application(
     sessions: sessionmaker[Session],
 ) -> None:
@@ -221,14 +241,16 @@ def test_a_later_run_creates_a_new_version_of_the_attached_document(
             request=_start("revision-run"),
             settings=_settings(),
         )
-        revised = (compiled[0].__class__(
-            document_type=compiled[0].document_type,
-            engine=compiled[0].engine,
-            file_name=compiled[0].file_name,
-            tex_source=compiled[0].tex_source,
-            pdf=b"%PDF-1.7\nrevised",
-            compile_log="ok",
-        ),)
+        revised = (
+            compiled[0].__class__(
+                document_type=compiled[0].document_type,
+                engine=compiled[0].engine,
+                file_name=compiled[0].file_name,
+                tex_source=compiled[0].tex_source,
+                pdf=b"%PDF-1.7\nrevised",
+                compile_log="ok",
+            ),
+        )
         second_document = import_compiled_generation_documents(
             db, run=second_run, bundle=bundle, compiled=revised
         )[0]
