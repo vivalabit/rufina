@@ -11,6 +11,7 @@ LEGACY_PREPARATION_TABLES = frozenset(
         "document_validation_artifacts",
         "document_version_generation_provenance",
         "document_version_validations",
+        "document_workflow_runs",
         "experience_rewrites",
         "imaginator_resumes",
         "resume_tailoring_runs",
