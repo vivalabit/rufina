@@ -2951,6 +2951,7 @@ export function AppWorkspaceRoot({
             onDocumentAttached={syncApplicationDocumentToApplication}
             onUploadDocument={applicationState.uploadAttachment}
             onReplaceDocument={applicationState.replaceAttachment}
+            onStatusChange={updateApplicationStatus}
           />
         ) : activeView === "Applications" ? (
           <ApplicationsView

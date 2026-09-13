@@ -1,105 +1,56 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
-  BriefcaseBusiness,
   Check,
-  CircleDot,
+  CheckCircle2,
+  ChevronRight,
+  Circle,
   Download,
-  Eye,
   ExternalLink,
-  FileOutput,
+  FileCheck2,
   FileText,
-  Languages,
-  LayoutTemplate,
   LoaderCircle,
-  MapPin,
-  Paperclip,
+  MessageSquareText,
   RefreshCw,
-  Settings2,
+  ShieldCheck,
   Sparkles,
-  Upload,
+  X,
 } from "lucide-react";
 
-import { Button } from "@/components/ui/button";
 import { DocumentPdfPreview } from "@/components/document-pdf-preview";
+import { Button } from "@/components/ui/button";
+import { documentDownloadUrl } from "@/features/applications/api/document-access-client";
 import {
-  attachDocument,
-  documentDownloadUrl,
-  fetchApplicationDocuments,
-  fetchDocumentTemplates,
-  fetchDocumentVersions,
-  fetchJobDocuments,
-  type DocumentTemplateSummary,
-} from "@/features/applications/api/document-access-client";
-import {
-  fetchApplicationGenerationAvailability,
-  startApplicationGeneration,
-  type GenerationAvailability,
-  type GenerationDocumentState,
-  type GenerationError,
-  type GenerationResult,
-} from "@/features/applications/api/generation-client";
-import {
-  formatApplicationDate,
-  getApplicationStatusLabel,
-} from "@/features/applications/formatting";
-import { applicationStatusStyles } from "@/features/applications/model/constants";
+  answerGenerationRun,
+  cancelGenerationRun,
+  fetchCurrentGenerationRun,
+  fetchCurrentMasterResumeSummary,
+  fetchGenerationRun,
+  fetchGenerationRuns,
+  startGenerationRun,
+  type GenerationRun,
+  type GenerationRunCheck,
+  type GenerationRunStage,
+  type MasterResumeSummary,
+} from "@/features/applications/api/generation-runs-client";
 import {
   generationRequestFromSettings,
   normalizeDocumentPreparationSettings,
   type DocumentPreparationSettings,
   type PreparationDocumentType,
   type PreparationLanguage,
-  type PreparationPageSize,
-  type PreparationResumeMaxPages,
 } from "@/features/applications/model/document-preparation";
-import { fetchResumeTemplates } from "@/features/profile/api/template-client";
 import { normalizeJobsChJobUrl } from "@/lib/job-url";
-import type { ResumeTemplate } from "@/lib/resume-templates";
 import { cn } from "@/lib/utils";
 import type {
   ApplicationDocument,
   ApplicationStatus,
   LegacyCandidateConfirmation,
-  SubmissionDocumentSelection,
 } from "@/shared/types/application";
 import type { Job } from "@/shared/types/job";
-
-type WorkspaceApplicationDocument = ApplicationDocument;
-
-type StoredDocumentVersion = {
-  id: string;
-  version: number;
-  createdAt: string;
-  hasRenderedArtifact?: boolean;
-  artifact?: {
-    fileName?: string;
-    contentType?: string;
-  } | null;
-};
-
-type StoredDocument = {
-  id: string;
-  type: "cover_letter" | "tailored_resume";
-  title: string;
-  jobId: string | null;
-  applicationIds: string[];
-  currentVersion: number;
-  createdAt: string;
-  updatedAt: string;
-  versions: StoredDocumentVersion[];
-  versionsTotal: number;
-  versionsHasMore: boolean;
-};
-
-type ResolvedSubmissionDocument = {
-  selection: SubmissionDocumentSelection;
-  title: string;
-  fileName: string;
-  applicationDocument?: ApplicationDocument;
-};
 
 type WorkspaceApplication = {
   id: string;
@@ -120,12 +71,12 @@ type WorkspaceApplication = {
     | "applyUrl"
     | "sourceUrl"
   >;
-  documents: WorkspaceApplicationDocument[];
+  documents: ApplicationDocument[];
   documentPreparation?: DocumentPreparationSettings;
   legacyCandidateConfirmations?: LegacyCandidateConfirmation[];
 };
 
-type ApplicationWorkspaceProps = {
+export type ApplicationWorkspaceProps = {
   application: WorkspaceApplication | null;
   backLabel?: string;
   onBack: () => void;
@@ -148,101 +99,105 @@ type ApplicationWorkspaceProps = {
     file: File,
     metadata: { fileName: string; title: string },
   ) => Promise<ApplicationDocument>;
+  onStatusChange?: (applicationId: string, status: ApplicationStatus) => void;
 };
 
-function getFileBadge(fileName: string, fileType: string) {
-  const extension = fileName.split(".").pop()?.trim().toUpperCase();
-  if (extension && extension.length <= 5) return extension;
-  if (fileType.includes("pdf")) return "PDF";
-  if (fileType.includes("word")) return "DOC";
-  return "FILE";
+const workflowStages: Array<{
+  id: GenerationRunStage;
+  label: string;
+  waitingLabel: string;
+}> = [
+  { id: "sources", label: "Sources", waitingLabel: "Preparing sources" },
+  { id: "fit", label: "Fit", waitingLabel: "Evaluating fit" },
+  { id: "draft", label: "Draft & review", waitingLabel: "Writing drafts" },
+  { id: "pdf_checks", label: "PDF checks", waitingLabel: "Checking PDFs" },
+  { id: "final_review", label: "Final review", waitingLabel: "Finalizing" },
+];
+
+const stageOrder: Record<GenerationRunStage, number> = {
+  sources: 0,
+  fit: 1,
+  draft: 2,
+  review: 2,
+  pdf_checks: 3,
+  final_review: 4,
+};
+
+type WorkspaceTab = "tailored_resume" | "cover_letter" | "changes";
+
+function documentLabel(type: PreparationDocumentType) {
+  return type === "tailored_resume" ? "CV" : "Cover letter";
 }
 
-function getDocumentBadge(document: WorkspaceApplicationDocument) {
-  return getFileBadge(document.fileName, document.fileType);
+function backendLabel(backend: string) {
+  return backend === "openai_api" ? "OpenAI API" : "OpenClaw";
 }
 
-function currentStoredDocumentVersion(document: StoredDocument) {
-  return document.versions.find(
-    (version) => version.version === document.currentVersion,
-  );
+function titleCase(value: string) {
+  return value
+    .replaceAll("_", " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-function storedDocumentFileName(document: StoredDocument) {
-  return (
-    currentStoredDocumentVersion(document)?.artifact?.fileName ??
-    `${document.title || "document"}.docx`
-  );
+function sourceVersions(run: GenerationRun | null) {
+  const event = run?.events.find((item) => item.kind === "run.created");
+  return {
+    application: Number(event?.data.applicationRevision) || null,
+    vacancy: Number(event?.data.vacancyRevision) || null,
+    masterResume: Number(event?.data.masterProfileVersion) || null,
+  };
 }
 
-function mergeVersions(
-  current: StoredDocumentVersion[],
-  incoming: StoredDocumentVersion[],
+function latestFinalArtifact(
+  run: GenerationRun,
+  type: "tailored_resume" | "cover_letter",
 ) {
-  return Array.from(
-    new Map(
-      [...current, ...incoming].map((version) => [version.version, version]),
-    ).values(),
+  const preferred = type === "tailored_resume" ? "resume_pdf" : "cover_letter_pdf";
+  return [...run.artifacts]
+    .reverse()
+    .find((artifact) =>
+      artifact.documentType === type
+      && artifact.contentType === "application/pdf"
+      && artifact.artifactType === preferred
+    ) ?? null;
+}
+
+function checkLabel(check: GenerationRunCheck) {
+  const labels: Record<string, string> = {
+    text_layer: "PDF text is readable",
+    page_count: "Page count is within the limit",
+    required_identity: "Name and contact details verified",
+    protected_dates: "Employment dates match the profile",
+    keyword_coverage: "Relevant vacancy terms are covered",
+    glyphs: "No broken or missing glyphs",
+    geometry: "Layout stays within page bounds",
+  };
+  return labels[check.checkType] ?? titleCase(check.checkType);
+}
+
+function downloadAll(documents: NonNullable<GenerationRun["result"]["documents"]>) {
+  documents.forEach((document, index) => {
+    window.setTimeout(() => {
+      const link = globalThis.document.createElement("a");
+      link.href = documentDownloadUrl(document.id, document.version);
+      link.download = "";
+      globalThis.document.body.append(link);
+      link.click();
+      link.remove();
+    }, index * 180);
+  });
+}
+
+function runVersionLabel(run: GenerationRun, index: number) {
+  const version = Math.max(
+    1,
+    ...((run.result.documents ?? []).map((document) => document.version)),
   );
+  return `Version ${version || index + 1}`;
 }
 
-function generationDocumentLabel(documentType: PreparationDocumentType) {
-  return documentType === "tailored_resume" ? "Tailored CV" : "Cover letter";
-}
-
-function generationStateLabel(state: GenerationDocumentState) {
-  if (state === "queued") return "Queued";
-  if (state === "running") return "In progress";
-  if (state === "completed") return "Ready";
-  return "Failed";
-}
-
-function submissionDocumentLabel(documentType: PreparationDocumentType) {
-  return documentType === "tailored_resume" ? "CV" : "cover letter";
-}
-
-function uploadedDocumentTitle(file: File) {
-  return (
-    file.name
-      .replace(/\.[^.]+$/, "")
-      .replace(/[_-]+/g, " ")
-      .trim() || file.name
-  );
-}
-
-function validateWorkspaceFile(file: File) {
-  const extensions = [".pdf", ".doc", ".docx"];
-  const contentTypes = new Set([
-    "application/pdf",
-    "application/msword",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-  ]);
-  const validExtension = extensions.some((extension) =>
-    file.name.toLowerCase().endsWith(extension),
-  );
-  if (!contentTypes.has(file.type) && !validExtension) {
-    return "Upload a PDF, DOC, or DOCX file.";
-  }
-  if (file.size > 5_000_000) return "Document file must be under 5 MB.";
-  return "";
-}
-
-function workspaceDocumentPreviewUrl(downloadUrl: string) {
-  return `${downloadUrl}${downloadUrl.includes("?") ? "&" : "?"}preview=true`;
-}
-
-function restoreGenerationResult(
-  settings: DocumentPreparationSettings,
-): GenerationResult | null {
-  const restored = settings.latestGeneration;
-  return restored
-    ? {
-        executionId: restored.executionId,
-        state: restored.state,
-        documents: restored.documentResults,
-        error: restored.error,
-      }
-    : null;
+function runErrorMessage(run: GenerationRun | null, fallback = "Something went wrong.") {
+  return run?.error?.message || fallback;
 }
 
 export function ApplicationWorkspace({
@@ -250,496 +205,163 @@ export function ApplicationWorkspace({
   backLabel = "Applications",
   onBack,
   onPreparationSettingsChange,
-  onDocumentAttached,
-  onUploadDocument,
-  onReplaceDocument,
+  onStatusChange,
 }: ApplicationWorkspaceProps) {
-  const [storedDocuments, setStoredDocuments] = useState<StoredDocument[]>([]);
-  const [jobDocuments, setJobDocuments] = useState<StoredDocument[]>([]);
-  const [documentsStatus, setDocumentsStatus] = useState<
-    "idle" | "loading" | "ready" | "error"
-  >("idle");
-  const [documentsError, setDocumentsError] = useState("");
-  const [documentsRequest, setDocumentsRequest] = useState(0);
-  const [attachingDocumentId, setAttachingDocumentId] = useState("");
-  const [uploadDocumentType, setUploadDocumentType] =
-    useState<PreparationDocumentType>("tailored_resume");
-  const [uploadStatus, setUploadStatus] = useState<
-    "idle" | "uploading" | "replacing"
-  >("idle");
-  const [loadingVersionsDocumentId, setLoadingVersionsDocumentId] =
-    useState("");
-  const [preview, setPreview] = useState<{
-    documentId: string;
-    version: number;
-  } | null>(null);
-  const [settings, setSettings] = useState<DocumentPreparationSettings>(() =>
+  const applicationId = application?.id ?? "";
+  const [settings, setSettings] = useState(() =>
     normalizeDocumentPreparationSettings(application?.documentPreparation),
   );
-  const [settingsStatus, setSettingsStatus] = useState<
-    "saved" | "saving" | "unsaved" | "error"
-  >("saved");
-  const [settingsError, setSettingsError] = useState("");
-  const [resumeTemplates, setResumeTemplates] = useState<ResumeTemplate[]>([]);
-  const [coverLetterTemplates, setCoverLetterTemplates] = useState<
-    DocumentTemplateSummary[]
-  >([]);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [generationResult, setGenerationResult] =
-    useState<GenerationResult | null>(() =>
-      restoreGenerationResult(normalizeDocumentPreparationSettings(
-        application?.documentPreparation,
-      )),
-    );
-  const [generationAvailability, setGenerationAvailability] = useState<
-    GenerationAvailability | null
-  >(null);
-  const [generationAvailabilityStatus, setGenerationAvailabilityStatus] =
-    useState<"idle" | "loading" | "ready" | "error">("idle");
-  const [generationAvailabilityError, setGenerationAvailabilityError] =
-    useState("");
-  const [generationAvailabilityRequest, setGenerationAvailabilityRequest] =
-    useState(0);
-  const saveSequenceRef = useRef(0);
-  const generationInFlightRef = useRef(false);
-  const applicationId = application?.id ?? "";
-  const jobId = application?.job.id ?? "";
-  const hydratedApplicationIdRef = useRef(applicationId);
+  const [run, setRun] = useState<GenerationRun | null>(null);
+  const [runs, setRuns] = useState<GenerationRun[]>([]);
+  const [selectedRunId, setSelectedRunId] = useState("");
+  const [masterResume, setMasterResume] = useState<MasterResumeSummary | null>(null);
+  const [loadState, setLoadState] = useState<"loading" | "ready" | "error">("loading");
+  const [action, setAction] = useState<"" | "start" | "answer" | "cancel">("");
+  const [error, setError] = useState("");
+  const [activeTab, setActiveTab] = useState<WorkspaceTab>("tailored_resume");
+  const [revisionRequest, setRevisionRequest] = useState("");
+  const terminalRefreshRef = useRef("");
 
-  useEffect(() => {
-    if (hydratedApplicationIdRef.current === applicationId) return;
-    hydratedApplicationIdRef.current = applicationId;
-    const restoredSettings = normalizeDocumentPreparationSettings(
-      application?.documentPreparation,
-    );
-    setSettings(restoredSettings);
-    setSettingsStatus("saved");
-    setSettingsError("");
-    setGenerationResult(restoreGenerationResult(restoredSettings));
-    setIsGenerating(false);
-    generationInFlightRef.current = false;
-    saveSequenceRef.current += 1;
-  }, [applicationId, application?.documentPreparation]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setGenerationAvailability(null);
-    setGenerationAvailabilityError("");
-    if (!applicationId) {
-      setGenerationAvailabilityStatus("idle");
-      return () => controller.abort();
-    }
-    setGenerationAvailabilityStatus("loading");
-    void fetchApplicationGenerationAvailability(
-      applicationId,
-      controller.signal,
-    )
-      .then((availability) => {
-        if (controller.signal.aborted) return;
-        setGenerationAvailability(availability);
-        setGenerationAvailabilityStatus("ready");
-      })
-      .catch((caught) => {
-        if (caught instanceof DOMException && caught.name === "AbortError") {
-          return;
-        }
-        setGenerationAvailabilityStatus("error");
-        setGenerationAvailabilityError(
-          caught instanceof Error
-            ? caught.message
-            : "Generation availability could not be checked.",
-        );
-      });
-    return () => controller.abort();
-  }, [applicationId, generationAvailabilityRequest]);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    setStoredDocuments([]);
-    setJobDocuments([]);
-    setPreview(null);
-    setDocumentsError("");
-
-    if (!applicationId) {
-      setDocumentsStatus("idle");
-      return () => controller.abort();
-    }
-
-    setDocumentsStatus("loading");
-    void fetchApplicationDocuments<StoredDocument>(
-      applicationId,
-      controller.signal,
-    )
-      .then((attached) => {
-        if (controller.signal.aborted) return;
-        setStoredDocuments(attached);
-        setDocumentsStatus("ready");
-      })
-      .catch((caught) => {
-        if (caught instanceof DOMException && caught.name === "AbortError") {
-          return;
-        }
-        setDocumentsStatus("error");
-        setDocumentsError(
-          caught instanceof Error
-            ? caught.message
-            : "Saved documents could not be loaded.",
-        );
-      });
-    void fetchJobDocuments<StoredDocument>(jobId, controller.signal)
-      .then((forJob) => {
-        if (!controller.signal.aborted) setJobDocuments(forJob);
-      })
-      .catch((caught) => {
-        if (caught instanceof DOMException && caught.name === "AbortError") {
-          return;
-        }
-        // The attached-document list remains usable if optional attachment
-        // suggestions for the vacancy are temporarily unavailable.
-      });
-
-    void fetchResumeTemplates(controller.signal)
-      .then((items) => {
-        if (!controller.signal.aborted) setResumeTemplates(items);
-      })
-      .catch(() => {
-        // Template discovery is optional; saved/default values stay selectable.
-      });
-    void fetchDocumentTemplates(controller.signal)
-      .then((items) => {
-        if (!controller.signal.aborted) {
-          setCoverLetterTemplates(
-            items.filter((item) => item.type === "cover_letter"),
-          );
-        }
-      })
-      .catch(() => {
-        // The generator can use its default cover-letter template.
-      });
-
-    return () => controller.abort();
-  }, [applicationId, documentsRequest, jobId]);
-
-  const storedDocumentIds = useMemo(
-    () => new Set(storedDocuments.map((document) => document.id)),
-    [storedDocuments],
+  const displayedRun = useMemo(
+    () => runs.find((candidate) => candidate.id === selectedRunId) ?? run,
+    [run, runs, selectedRunId],
   );
-  const attachedFiles = useMemo(
-    () =>
-      application?.documents.filter(
-        (document) =>
-          !document.artifactId || !storedDocumentIds.has(document.artifactId),
-      ) ?? [],
-    [application, storedDocumentIds],
-  );
-  const availableJobDocuments = useMemo(
-    () =>
-      application
-        ? jobDocuments.filter(
-            (document) => !document.applicationIds.includes(application.id),
-          )
-        : [],
-    [application, jobDocuments],
-  );
-  const previewDocument = useMemo(() => {
-    if (!preview) return null;
-    const document = storedDocuments.find(
-      (candidate) => candidate.id === preview.documentId,
-    );
-    return document ? { ...document, currentVersion: preview.version } : null;
-  }, [preview, storedDocuments]);
 
-  function resolveSubmissionDocument(
-    documentType: PreparationDocumentType,
-  ): ResolvedSubmissionDocument | null {
-    const selection = settings.submission[documentType];
-    if (!selection) return null;
-    const applicationDocument = attachedFiles.find(
-      (document) => document.id === selection.documentId,
-    );
-    if (applicationDocument) {
-      return {
-        selection,
-        title: applicationDocument.title || applicationDocument.fileName,
-        fileName: applicationDocument.fileName,
-        applicationDocument,
-      };
-    }
-    const storedDocument = storedDocuments.find(
-      (document) => document.id === selection.documentId,
-    );
-    if (!storedDocument) return null;
-    const version = storedDocument.versions.find(
-      (candidate) => candidate.version === selection.version,
-    );
-    return {
-      selection,
-      title: storedDocument.title,
-      fileName:
-        version?.artifact?.fileName
-        ?? `${storedDocument.title}-v${selection.version ?? storedDocument.currentVersion}.docx`,
-    };
-  }
-
-  const selectedResume = resolveSubmissionDocument("tailored_resume");
-  const selectedCoverLetter = resolveSubmissionDocument("cover_letter");
-
-  const updateStoredDocument = useCallback((updated: StoredDocument) => {
-    setStoredDocuments((current) => {
-      const existingIndex = current.findIndex(
-        (document) => document.id === updated.id,
-      );
-      if (existingIndex === -1) return [updated, ...current];
-      return current.map((document, index) =>
-        index === existingIndex ? updated : document,
-      );
-    });
-    setJobDocuments((current) =>
-      current.map((document) =>
-        document.id === updated.id ? updated : document,
-      ),
-    );
-  }, []);
-
-  async function persistSettings(next: DocumentPreparationSettings) {
+  const refreshHistory = useCallback(async (signal?: AbortSignal) => {
     if (!applicationId) return;
-    const sequence = saveSequenceRef.current + 1;
-    saveSequenceRef.current = sequence;
-    setSettingsStatus("saving");
-    setSettingsError("");
     try {
-      await onPreparationSettingsChange(applicationId, next);
-      if (saveSequenceRef.current === sequence) setSettingsStatus("saved");
+      const history = await fetchGenerationRuns(applicationId, signal);
+      setRuns(history);
     } catch (caught) {
-      if (saveSequenceRef.current !== sequence) return;
-      setSettingsStatus("error");
-      setSettingsError(
-        caught instanceof Error
-          ? caught.message
-          : "Document settings could not be saved.",
-      );
+      if (caught instanceof DOMException && caught.name === "AbortError") return;
+      // History is supplementary; the active run remains usable.
     }
+  }, [applicationId]);
+
+  const refreshRun = useCallback(async (signal?: AbortSignal) => {
+    if (!applicationId) return null;
+    const current = await fetchCurrentGenerationRun(applicationId, signal);
+    setRun(current);
+    return current;
+  }, [applicationId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setSettings(normalizeDocumentPreparationSettings(application?.documentPreparation));
+    setRun(null);
+    setRuns([]);
+    setSelectedRunId("");
+    setError("");
+    setLoadState("loading");
+    if (!applicationId) return () => controller.abort();
+    void Promise.all([
+      refreshRun(controller.signal),
+      refreshHistory(controller.signal),
+      fetchCurrentMasterResumeSummary(controller.signal).then(setMasterResume),
+    ])
+      .then(() => setLoadState("ready"))
+      .catch((caught) => {
+        if (caught instanceof DOMException && caught.name === "AbortError") return;
+        setError(caught instanceof Error ? caught.message : "The workspace could not be loaded.");
+        setLoadState("error");
+      });
+    return () => controller.abort();
+  }, [application?.documentPreparation, applicationId, refreshHistory, refreshRun]);
+
+  useEffect(() => {
+    if (!run || !["queued", "running", "awaiting_approval"].includes(run.status)) return;
+    const controller = new AbortController();
+    const interval = window.setInterval(() => {
+      void fetchGenerationRun(applicationId, run.id, controller.signal)
+        .then((next) => {
+          setRun(next);
+          if (["completed", "failed", "cancelled"].includes(next.status)) {
+            void refreshHistory(controller.signal);
+          }
+        })
+        .catch((caught) => {
+          if (caught instanceof DOMException && caught.name === "AbortError") return;
+          setError(caught instanceof Error ? caught.message : "Live status was interrupted.");
+        });
+    }, 1_500);
+    return () => {
+      controller.abort();
+      window.clearInterval(interval);
+    };
+  }, [applicationId, refreshHistory, run]);
+
+  useEffect(() => {
+    if (!run || !["completed", "failed", "cancelled"].includes(run.status)) return;
+    if (terminalRefreshRef.current === `${run.id}:${run.revision}`) return;
+    terminalRefreshRef.current = `${run.id}:${run.revision}`;
+    void refreshHistory();
+  }, [refreshHistory, run]);
+
+  async function persist(next: DocumentPreparationSettings) {
+    if (!applicationId) return;
+    setSettings(next);
+    await onPreparationSettingsChange(applicationId, next);
   }
 
-  function updateAndPersistSettings(
-    update: (
-      current: DocumentPreparationSettings,
-    ) => DocumentPreparationSettings,
+  function updateSettings(
+    update: (current: DocumentPreparationSettings) => DocumentPreparationSettings,
   ) {
     const next = update(settings);
     setSettings(next);
-    void persistSettings(next);
+    void Promise.resolve(onPreparationSettingsChange(applicationId, next)).catch((caught: unknown) => {
+      setError(caught instanceof Error ? caught.message : "Document options could not be saved.");
+    });
   }
 
-  function toggleDocumentType(documentType: PreparationDocumentType) {
-    updateAndPersistSettings((current) => ({
-      ...current,
-      documentTypes: current.documentTypes.includes(documentType)
-        ? current.documentTypes.filter((type) => type !== documentType)
-        : [...current.documentTypes, documentType],
-    }));
-  }
-
-  function selectSubmissionDocument(
-    documentType: PreparationDocumentType,
-    documentId: string,
-    version: number | null,
-  ) {
-    updateAndPersistSettings((current) => ({
-      ...current,
-      documentTypes: current.documentTypes.includes(documentType)
-        ? current.documentTypes
-        : [...current.documentTypes, documentType],
-      submission: {
-        ...current.submission,
-        [documentType]: { documentId, version },
-      },
-    }));
-  }
-
-  async function storeOwnDocument(
-    file: File | undefined,
-    documentType: PreparationDocumentType,
-    replace: boolean,
-  ) {
-    if (!file || !application || uploadStatus !== "idle") return;
-    const validationError = validateWorkspaceFile(file);
-    if (validationError) {
-      setDocumentsError(validationError);
-      return;
-    }
-    const selected = replace
-      ? resolveSubmissionDocument(documentType)
-      : null;
-    setUploadStatus(replace ? "replacing" : "uploading");
-    setDocumentsError("");
+  async function startRun(preferences = settings.userPreferences) {
+    if (!applicationId || action) return;
+    setAction("start");
+    setError("");
     try {
-      const metadata = {
-        fileName: file.name,
-        title: uploadedDocumentTitle(file),
-      };
-      const document = selected?.applicationDocument
-        ? await onReplaceDocument(
-            application.id,
-            selected.applicationDocument,
-            file,
-            metadata,
-          )
-        : await onUploadDocument(application.id, file, metadata);
-      onDocumentAttached(application.id, document);
-      selectSubmissionDocument(documentType, document.id, null);
-    } catch (caught) {
-      setDocumentsError(
-        caught instanceof Error
-          ? caught.message
-          : "The document could not be saved.",
-      );
-    } finally {
-      setUploadStatus("idle");
-    }
-  }
-
-  async function saveGenerationResult(result: GenerationResult) {
-    const nextSettings = {
-      ...settings,
-      latestGeneration: {
-        executionId: result.executionId,
-        state: result.state,
-        documentResults: result.documents,
-        error: result.error,
-      },
-    };
-    setSettings(nextSettings);
-    setGenerationResult(result);
-    await persistSettings(nextSettings);
-  }
-
-  async function generateDocuments() {
-    const restoredRunIsActive = generationResult?.state === "queued"
-      || generationResult?.state === "running";
-    if (
-      !applicationId
-      || !settings.documentTypes.length
-      || generationAvailability?.available !== true
-      || generationInFlightRef.current
-      || restoredRunIsActive
-    ) return;
-    generationInFlightRef.current = true;
-    setIsGenerating(true);
-    if (settingsStatus === "unsaved" || settingsStatus === "error") {
-      await persistSettings(settings);
-    }
-    const executionId = `pending-${applicationId}-${Date.now()}`;
-    const runningResult: GenerationResult = {
-      executionId,
-      state: "running",
-      documents: settings.documentTypes.map((documentType, index) => ({
-        documentType,
-        state: index === 0 ? "running" : "queued",
-        files: [],
-        error: null,
-      })),
-      error: null,
-    };
-    await saveGenerationResult(runningResult);
-    try {
-      const result = await startApplicationGeneration(
-        applicationId,
-        generationRequestFromSettings(settings),
-      );
-      await saveGenerationResult(result);
-      if (result.state === "completed") {
-        setDocumentsRequest((current) => current + 1);
-      }
-    } catch (caught) {
-      const error: GenerationError = {
-        code: "generation_request_failed",
-        message: caught instanceof Error
-          ? caught.message
-          : "Document generation could not be started.",
-        retryable: true,
-      };
-      await saveGenerationResult({
-        executionId,
-        state: "failed",
-        documents: settings.documentTypes.map((documentType) => ({
-          documentType,
-          state: "failed",
-          files: [],
-          error,
-        })),
-        error,
+      const nextSettings = { ...settings, userPreferences: preferences.trim() };
+      await persist(nextSettings);
+      const started = await startGenerationRun(applicationId, {
+        ...generationRequestFromSettings(nextSettings),
+        idempotencyKey: `${applicationId}-${Date.now()}-${crypto.randomUUID?.() ?? "run"}`,
       });
+      setRun(started);
+      setSelectedRunId("");
+      setRevisionRequest("");
+      await refreshHistory();
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : "The document run could not be started.");
     } finally {
-      generationInFlightRef.current = false;
-      setIsGenerating(false);
+      setAction("");
     }
   }
 
-  async function attachStoredDocument(document: StoredDocument) {
-    if (!application || attachingDocumentId) return;
-    setAttachingDocumentId(document.id);
-    setDocumentsError("");
+  async function answer(response: "continue" | "stop") {
+    if (!run || action) return;
+    setAction("answer");
+    setError("");
     try {
-      const attached = await attachDocument<StoredDocument>(
-        document.id,
-        application.id,
-      );
-      updateStoredDocument(attached);
-      const version = currentStoredDocumentVersion(attached);
-      if (version?.artifact) {
-        onDocumentAttached(application.id, {
-          id: `artifact-${attached.id}`,
-          artifactId: attached.id,
-          kind: "generated",
-          title: attached.title,
-          fileName: storedDocumentFileName(attached),
-          fileSize: "",
-          fileType: version.artifact.contentType ?? "application/octet-stream",
-          uploadedAt: attached.updatedAt,
-          downloadUrl: documentDownloadUrl(attached.id),
-        });
-        selectSubmissionDocument(
-          attached.type,
-          attached.id,
-          attached.currentVersion,
-        );
-      }
+      const updated = await answerGenerationRun(applicationId, run, response);
+      setRun(updated);
+      await refreshHistory();
     } catch (caught) {
-      setDocumentsError(
-        caught instanceof Error
-          ? caught.message
-          : "The document could not be attached.",
-      );
+      setError(caught instanceof Error ? caught.message : "The decision could not be saved.");
+      await refreshRun();
     } finally {
-      setAttachingDocumentId("");
+      setAction("");
     }
   }
 
-  async function loadMoreVersions(document: StoredDocument) {
-    if (loadingVersionsDocumentId) return;
-    setLoadingVersionsDocumentId(document.id);
-    setDocumentsError("");
+  async function cancel() {
+    if (!run || action) return;
+    setAction("cancel");
+    setError("");
     try {
-      const page = await fetchDocumentVersions<StoredDocumentVersion>(
-        document.id,
-        document.versions.length,
-      );
-      updateStoredDocument({
-        ...document,
-        versions: mergeVersions(document.versions, page.items),
-        versionsTotal: page.total,
-        versionsHasMore:
-          document.versions.length + page.items.length < page.total,
-      });
+      setRun(await cancelGenerationRun(applicationId, run));
     } catch (caught) {
-      setDocumentsError(
-        caught instanceof Error
-          ? caught.message
-          : "Version history could not be loaded.",
-      );
+      setError(caught instanceof Error ? caught.message : "The run could not be cancelled.");
+      await refreshRun();
     } finally {
-      setLoadingVersionsDocumentId("");
+      setAction("");
     }
   }
 
@@ -747,21 +369,9 @@ export function ApplicationWorkspace({
     return (
       <section className="grid min-h-[520px] place-items-center px-5 py-10">
         <div className="max-w-md text-center">
-          <span className="mx-auto grid h-12 w-12 place-items-center rounded-2xl border border-border bg-[#fff8f1] text-muted">
-            <BriefcaseBusiness className="h-5 w-5" />
-          </span>
-          <h1 className="mt-4 text-xl font-bold text-foreground">
-            No application selected
-          </h1>
-          <p className="mt-2 text-sm leading-6 text-muted">
-            Return to your applications and choose one to view its details.
-          </p>
-          <Button
-            type="button"
-            variant="ghost"
-            onClick={onBack}
-            className="mt-5 h-10 rounded-xl border border-border px-4 text-xs font-bold"
-          >
+          <FileText className="mx-auto h-8 w-8 text-accent" />
+          <h1 className="mt-4 text-xl font-bold">No application selected</h1>
+          <Button type="button" variant="ghost" onClick={onBack} className="mt-5 border border-border">
             <ArrowLeft className="h-4 w-4" /> {backLabel}
           </Button>
         </div>
@@ -769,1199 +379,424 @@ export function ApplicationWorkspace({
     );
   }
 
-  const jobUrl = normalizeJobsChJobUrl(
-    application.job.applyUrl || application.job.sourceUrl || "",
-  );
-  const generationRunIsActive = isGenerating
-    || generationResult?.state === "queued"
-    || generationResult?.state === "running";
-  const canGenerate = Boolean(
-    settings.documentTypes.length
-    && generationAvailabilityStatus === "ready"
-    && generationAvailability?.available
-    && !generationRunIsActive,
-  );
+  const jobUrl = normalizeJobsChJobUrl(application.job.applyUrl || application.job.sourceUrl || "");
+  const versions = sourceVersions(run);
+  const isActive = Boolean(run && ["queued", "running", "awaiting_approval"].includes(run.status));
+  const isReady = displayedRun?.status === "completed";
+  const passedChecks = displayedRun?.checks.filter((check) => check.status === "passed") ?? [];
+  const failedChecks = displayedRun?.checks.filter((check) => check.status === "failed") ?? [];
+  const review = displayedRun?.result.review;
+  const fit = displayedRun?.result.fit;
+  const visualReview = displayedRun?.result.visualReview;
+  const completedRuns = runs.filter((candidate) => candidate.status === "completed");
 
   return (
-    <section className="job-scroll h-full overflow-y-auto">
-      <div className="mx-auto w-full max-w-7xl px-4 py-5 sm:px-6 sm:py-7">
-        <Button
-          type="button"
-          variant="ghost"
-          onClick={onBack}
-          className="h-9 rounded-xl px-2 text-xs font-bold text-muted hover:text-foreground"
-        >
-          <ArrowLeft className="h-4 w-4" /> {backLabel}
-        </Button>
-
-        <section
-          aria-labelledby="vacancy-summary-title"
-          className="workspace-card mt-4 overflow-hidden px-5 py-5 sm:px-6 sm:py-6"
-        >
-          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">
-                  Vacancy
-                </p>
-                <span
-                  className={cn(
-                    "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[9px] font-black uppercase tracking-wide",
-                    applicationStatusStyles[application.status],
-                  )}
-                >
-                  <CircleDot className="h-3 w-3" />
-                  {getApplicationStatusLabel(application.status)}
-                </span>
-              </div>
-              <h1
-                id="vacancy-summary-title"
-                className="mt-2 text-2xl font-bold tracking-[-0.02em] text-foreground"
-              >
+    <section className="application-workspace job-scroll h-full overflow-y-auto">
+      <div className="mx-auto w-full max-w-[1540px] px-4 py-5 sm:px-6 lg:px-8">
+        <header>
+          <button
+            type="button"
+            onClick={onBack}
+            className="inline-flex items-center gap-1 text-xs font-semibold text-muted transition hover:text-foreground"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" /> {backLabel}
+          </button>
+          <div className="mt-3 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div>
+              <h1 className="text-2xl font-black tracking-[-0.03em] text-foreground sm:text-[30px]">
                 {application.job.title}
               </h1>
-              <p className="mt-1 text-sm font-semibold text-[#4a4a47]">
+              <p className="mt-1.5 text-sm text-muted">
                 {application.job.company}
+                {application.job.location ? ` · ${application.job.location}` : ""}
+                {application.job.type ? ` · ${application.job.type}` : ""}
               </p>
-              <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-semibold text-muted">
-                {application.job.location ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-[#fff8f1] px-2.5 py-1.5">
-                    <MapPin className="h-3.5 w-3.5" />
-                    {application.job.location}
-                  </span>
-                ) : null}
-                {application.job.type ? (
-                  <span className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-[#fff8f1] px-2.5 py-1.5">
-                    <BriefcaseBusiness className="h-3.5 w-3.5" />
-                    {application.job.type}
-                  </span>
-                ) : null}
-              </div>
-              {application.job.overview ? (
-                <p className="mt-3 max-w-4xl text-sm leading-6 text-[#4a4a47]">
-                  {application.job.overview}
-                </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-2.5">
+              {isReady ? (
+                <span className="inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-50 px-4 text-xs font-bold text-emerald-800">
+                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-600" /> Ready for your review
+                </span>
+              ) : isActive ? (
+                <span className="inline-flex h-10 items-center gap-2 rounded-xl bg-[#fff3e8] px-4 text-xs font-bold text-accent">
+                  <LoaderCircle className="h-4 w-4 animate-spin" /> Run in progress
+                </span>
+              ) : null}
+              {isReady && displayedRun?.result.documents?.length ? (
+                <Button type="button" onClick={() => downloadAll(displayedRun.result.documents ?? [])} className="rounded-xl px-5 text-xs">
+                  <Download className="h-4 w-4" /> Download documents
+                </Button>
+              ) : null}
+              {jobUrl ? (
+                <a
+                  href={jobUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex h-10 items-center gap-2 rounded-xl border border-accent bg-white px-4 text-xs font-bold text-foreground transition hover:bg-[#fff3e8]"
+                >
+                  Open application <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              ) : null}
+              {isReady && application.status !== "applied" && onStatusChange ? (
+                <Button type="button" variant="ghost" onClick={() => onStatusChange(application.id, "applied")} className="rounded-xl border border-border text-xs">
+                  Mark submitted
+                </Button>
+              ) : application.status === "applied" ? (
+                <span className="inline-flex h-10 items-center gap-2 rounded-xl border border-emerald-200 bg-white px-4 text-xs font-bold text-emerald-700">
+                  <Check className="h-4 w-4" /> Submitted
+                </span>
               ) : null}
             </div>
-            {jobUrl ? (
-              <a
-                href={jobUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-xl border border-border px-3.5 text-xs font-bold text-foreground transition hover:bg-[#fff3e8]"
-              >
-                <ExternalLink className="h-4 w-4" /> View vacancy
-              </a>
-            ) : null}
           </div>
-        </section>
+        </header>
 
-        {application.legacyCandidateConfirmations?.length ? (
-          <section
-            aria-labelledby="imported-answers-title"
-            className="workspace-card mt-5 px-5 py-5 sm:px-6"
-          >
-            <div className="flex items-start gap-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#fff3e8] text-accent">
-                <Paperclip className="h-4.5 w-4.5" />
-              </span>
-              <div className="min-w-0">
-                <h2
-                  id="imported-answers-title"
-                  className="text-base font-bold text-foreground"
-                >
-                  Imported application answers
-                </h2>
-                <p className="mt-1 text-[10px] leading-4 text-muted">
-                  Preserved as application history only. These answers are not
-                  added to your master profile or treated as verified facts.
-                </p>
-              </div>
-            </div>
-            <div className="mt-4 grid gap-2">
-              {application.legacyCandidateConfirmations.map((confirmation) => (
-                <article
-                  key={confirmation.questionId}
-                  className="rounded-xl border border-border bg-[#fff8f1] px-4 py-3"
-                >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <p className="text-xs font-bold text-foreground">
-                      {confirmation.requirement || "Previous confirmation"}
-                    </p>
-                    <span className="rounded-full border border-border bg-white px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-muted">
-                      {confirmation.response}
-                    </span>
-                  </div>
-                  {confirmation.exampleText ? (
-                    <p className="mt-1.5 text-[10px] leading-4 text-[#4a4a47]">
-                      {confirmation.exampleText}
-                    </p>
-                  ) : null}
-                </article>
-              ))}
-            </div>
-          </section>
+        <WorkflowProgress run={run} />
+
+        {error ? (
+          <div role="alert" className="mt-4 flex items-start justify-between gap-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-xs text-red-800">
+            <span>{error}</span>
+            <button type="button" aria-label="Dismiss error" onClick={() => setError("")}>
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         ) : null}
 
-        <div className="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(300px,0.78fr)_minmax(0,1.35fr)] lg:items-stretch">
-          <section
-            aria-labelledby="document-settings-title"
-            className="workspace-card p-5 sm:p-6"
-          >
-            <div className="flex items-start gap-3">
-              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#fff3e8] text-accent">
-                <Settings2 className="h-4.5 w-4.5" />
-              </span>
-              <div>
-                <h2
-                  id="document-settings-title"
-                  className="text-base font-bold text-foreground"
-                >
-                  Document pack
-                </h2>
-                <p className="mt-1 text-[10px] leading-4 text-muted">
-                  Choose what to prepare and how the files should be formatted.
-                </p>
-              </div>
-            </div>
+        <div className="mt-5 grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(560px,1fr)_310px]">
+          <ApplicationBrief
+            application={application}
+            run={run}
+            masterResume={masterResume}
+            settings={settings}
+            versions={versions}
+          />
 
-            <fieldset className="mt-5">
-              <legend className="text-[10px] font-black uppercase tracking-[0.1em] text-muted">
-                Documents
-              </legend>
-              <div className="mt-2 grid gap-2 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                {[
-                  {
-                    type: "tailored_resume" as const,
-                    title: "Tailored CV",
-                    description: "Adapted to this vacancy",
-                  },
-                  {
-                    type: "cover_letter" as const,
-                    title: "Cover letter",
-                    description: "Personalized for the role",
-                  },
-                ].map((item) => {
-                  const selected = settings.documentTypes.includes(item.type);
-                  return (
-                    <label
-                      key={item.type}
-                      className={cn(
-                        "flex cursor-pointer items-start gap-3 rounded-xl border p-3 transition",
-                        selected
-                          ? "border-accent/50 bg-[#fff3e8]"
-                          : "border-border bg-white hover:bg-[#fff8f1]",
-                      )}
-                    >
-                      <input
-                        type="checkbox"
-                        aria-label={item.title}
-                        checked={selected}
-                        onChange={() => toggleDocumentType(item.type)}
-                        className="sr-only"
-                      />
-                      <span
-                        aria-hidden="true"
-                        className={cn(
-                          "mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-md border",
-                          selected
-                            ? "border-accent bg-accent text-white"
-                            : "border-border text-transparent",
-                        )}
-                      >
-                        <Check className="h-3 w-3" />
-                      </span>
-                      <span>
-                        <span className="block text-xs font-bold text-foreground">
-                          {item.title}
-                        </span>
-                        <span className="mt-0.5 block text-[9px] leading-4 text-muted">
-                          {item.description}
-                        </span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-              {!settings.documentTypes.length ? (
-                <p className="mt-2 text-[10px] font-semibold text-accent">
-                  Select at least one document to generate.
-                </p>
-              ) : null}
-            </fieldset>
-
-            <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-              <label className="block">
-                <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-muted">
-                  <Languages className="h-3.5 w-3.5" /> Language
-                </span>
-                <select
-                  aria-label="Document language"
-                  value={settings.language}
-                  onChange={(event) =>
-                    updateAndPersistSettings((current) => ({
-                      ...current,
-                      language: event.target.value as PreparationLanguage,
-                    }))
-                  }
-                  className="mt-2 h-10 w-full rounded-xl border border-border bg-white px-3 text-xs font-semibold text-foreground outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/15"
-                >
-                  <option value="English">English</option>
-                  <option value="German">German</option>
-                </select>
-              </label>
-              <label className="block">
-                <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.1em] text-muted">
-                  <FileOutput className="h-3.5 w-3.5" /> Page size
-                </span>
-                <select
-                  aria-label="Page size"
-                  value={settings.formatting.pageSize}
-                  onChange={(event) =>
-                    updateAndPersistSettings((current) => ({
-                      ...current,
-                      formatting: {
-                        ...current.formatting,
-                        pageSize: event.target.value as PreparationPageSize,
-                      },
-                    }))
-                  }
-                  className="mt-2 h-10 w-full rounded-xl border border-border bg-white px-3 text-xs font-semibold text-foreground outline-none transition focus:border-accent focus:ring-2 focus:ring-accent/15"
-                >
-                  <option value="A4">A4</option>
-                  <option value="Letter">US Letter</option>
-                </select>
-              </label>
-            </div>
-
-            {settings.documentTypes.includes("tailored_resume") ? (
-              <div className="mt-5 rounded-xl border border-border bg-[#fff8f1] p-4">
-                <p className="flex items-center gap-2 text-xs font-bold text-foreground">
-                  <LayoutTemplate className="h-4 w-4 text-accent" /> CV
-                  formatting
-                </p>
-                <div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
-                  <label className="block text-[9px] font-bold text-muted">
-                    Template
-                    <select
-                      aria-label="CV template"
-                      value={settings.formatting.resumeTemplateId}
-                      onChange={(event) =>
-                        updateAndPersistSettings((current) => ({
-                          ...current,
-                          formatting: {
-                            ...current.formatting,
-                            resumeTemplateId: event.target.value,
-                          },
-                        }))
-                      }
-                      className="mt-1.5 h-9 w-full rounded-lg border border-border bg-white px-2.5 text-[10px] font-semibold text-foreground outline-none focus:border-accent"
-                    >
-                      {settings.formatting.resumeTemplateId &&
-                      !resumeTemplates.some(
-                        (template) =>
-                          template.id === settings.formatting.resumeTemplateId,
-                      ) ? (
-                        <option value={settings.formatting.resumeTemplateId}>
-                          {settings.formatting.resumeTemplateId ===
-                          "classic_single"
-                            ? "Classic Single"
-                            : "Saved template"}
-                        </option>
-                      ) : null}
-                      {resumeTemplates.map((template) => (
-                        <option key={template.id} value={template.id}>
-                          {template.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <label className="block text-[9px] font-bold text-muted">
-                    Maximum length
-                    <select
-                      aria-label="CV maximum pages"
-                      value={settings.formatting.resumeMaxPages}
-                      onChange={(event) =>
-                        updateAndPersistSettings((current) => ({
-                          ...current,
-                          formatting: {
-                            ...current.formatting,
-                            resumeMaxPages: Number(
-                              event.target.value,
-                            ) as PreparationResumeMaxPages,
-                          },
-                        }))
-                      }
-                      className="mt-1.5 h-9 w-full rounded-lg border border-border bg-white px-2.5 text-[10px] font-semibold text-foreground outline-none focus:border-accent"
-                    >
-                      <option value={1}>1 page</option>
-                      <option value={2}>2 pages</option>
-                      <option value={3}>3 pages</option>
-                    </select>
-                  </label>
-                </div>
-              </div>
+          <main className="min-w-0">
+            {loadState === "loading" ? <LoadingWorkspace /> : null}
+            {loadState === "error" && !run ? (
+              <WorkspaceFailure message={error} onRetry={() => window.location.reload()} />
             ) : null}
-
-            {settings.documentTypes.includes("cover_letter") ? (
-              <label className="mt-4 block rounded-xl border border-border bg-[#fff8f1] p-4 text-[9px] font-bold text-muted">
-                <span className="flex items-center gap-2 text-xs font-bold text-foreground">
-                  <LayoutTemplate className="h-4 w-4 text-accent" /> Cover
-                  letter template
-                </span>
-                <select
-                  aria-label="Cover letter template"
-                  value={settings.formatting.coverLetterTemplateId}
-                  onChange={(event) =>
-                    updateAndPersistSettings((current) => ({
-                      ...current,
-                      formatting: {
-                        ...current.formatting,
-                        coverLetterTemplateId: event.target.value,
-                      },
-                    }))
-                  }
-                  className="mt-3 h-9 w-full rounded-lg border border-border bg-white px-2.5 text-[10px] font-semibold text-foreground outline-none focus:border-accent"
-                >
-                  <option value="">Standard template</option>
-                  {coverLetterTemplates.map((template) => (
-                    <option key={template.id} value={template.id}>
-                      {template.name}
-                    </option>
-                  ))}
-                  {settings.formatting.coverLetterTemplateId &&
-                  !coverLetterTemplates.some(
-                    (template) =>
-                      template.id === settings.formatting.coverLetterTemplateId,
-                  ) ? (
-                    <option value={settings.formatting.coverLetterTemplateId}>
-                      Saved template
-                    </option>
-                  ) : null}
-                </select>
-              </label>
+            {loadState !== "loading" && !run ? (
+              <PreparationPanel settings={settings} masterResume={masterResume} onChange={updateSettings} onStart={() => void startRun()} action={action} />
             ) : null}
-
-            <label className="mt-5 block">
-              <span className="text-[10px] font-black uppercase tracking-[0.1em] text-muted">
-                Additional instructions
-              </span>
-              <textarea
-                aria-label="Additional document instructions"
-                value={settings.userPreferences}
-                maxLength={10_000}
-                rows={3}
-                placeholder="For example: keep the tone concise and direct."
-                onChange={(event) => {
-                  setSettings((current) => ({
-                    ...current,
-                    userPreferences: event.target.value,
-                  }));
-                  setSettingsStatus("unsaved");
-                  setSettingsError("");
-                }}
-                onBlur={() => void persistSettings(settings)}
-                className="mt-2 w-full resize-y rounded-xl border border-border bg-white px-3 py-2.5 text-xs leading-5 text-foreground outline-none transition placeholder:text-muted/70 focus:border-accent focus:ring-2 focus:ring-accent/15"
+            {run?.status === "awaiting_approval" ? (
+              <FitApproval run={run} onAnswer={answer} action={action} />
+            ) : null}
+            {run && ["queued", "running"].includes(run.status) ? (
+              <RunProgress run={run} onCancel={() => void cancel()} action={action} />
+            ) : null}
+            {run?.status === "failed" ? (
+              <WorkspaceFailure message={runErrorMessage(run)} onRetry={() => void startRun()} />
+            ) : null}
+            {run?.status === "cancelled" ? (
+              <WorkspaceFailure cancelled message="This run was stopped. Your source documents were not changed." onRetry={() => void startRun()} />
+            ) : null}
+            {isReady && displayedRun ? (
+              <DocumentReview
+                run={displayedRun}
+                completedRuns={completedRuns}
+                selectedRunId={selectedRunId}
+                activeTab={activeTab}
+                revisionRequest={revisionRequest}
+                onSelectRun={setSelectedRunId}
+                onTabChange={setActiveTab}
+                onRevisionRequest={setRevisionRequest}
+                onRevise={() => void startRun(revisionRequest)}
+                action={action}
               />
-            </label>
-
-            <div className="mt-4 min-h-5" aria-live="polite">
-              {settingsStatus === "saving" ? (
-                <p className="flex items-center gap-1.5 text-[9px] font-semibold text-muted">
-                  <LoaderCircle className="h-3 w-3 animate-spin" /> Saving
-                  settings…
-                </p>
-              ) : settingsStatus === "saved" ? (
-                <p className="flex items-center gap-1.5 text-[9px] font-semibold text-success">
-                  <Check className="h-3 w-3" /> Settings saved
-                </p>
-              ) : settingsStatus === "unsaved" ? (
-                <p className="text-[9px] font-semibold text-muted">
-                  Save pending…
-                </p>
-              ) : (
-                <div
-                  role="alert"
-                  className="flex items-center justify-between gap-2 text-[9px] font-semibold text-accent"
-                >
-                  <span>{settingsError}</span>
-                  <button
-                    type="button"
-                    onClick={() => void persistSettings(settings)}
-                    className="shrink-0 underline underline-offset-2"
-                  >
-                    Retry
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div
-              role="status"
-              aria-live="polite"
-              aria-label="Generation availability"
-              className={cn(
-                "mt-3 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-[10px]",
-                generationAvailability?.available
-                  ? "border-success/30 bg-success/10 text-success"
-                  : generationAvailabilityStatus === "error"
-                    ? "border-accent/25 bg-accent/10 text-accent"
-                    : "border-border bg-[#fff8f1] text-muted",
-              )}
-            >
-              <span className="flex min-w-0 items-center gap-2 font-semibold">
-                {generationAvailabilityStatus === "loading" ? (
-                  <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin" />
-                ) : generationAvailability?.available ? (
-                  <Check className="h-3.5 w-3.5 shrink-0" />
-                ) : (
-                  <CircleDot className="h-3.5 w-3.5 shrink-0" />
-                )}
-                <span>
-                  {generationAvailabilityStatus === "loading"
-                    ? "Checking generator availability…"
-                    : generationAvailabilityStatus === "error"
-                      ? generationAvailabilityError
-                      : generationAvailability?.message
-                        ?? "Document generation is unavailable."}
-                </span>
-              </span>
-              {generationAvailabilityStatus === "error" ? (
-                <button
-                  type="button"
-                  onClick={() =>
-                    setGenerationAvailabilityRequest((current) => current + 1)
-                  }
-                  className="shrink-0 font-bold underline underline-offset-2"
-                >
-                  Retry
-                </button>
-              ) : null}
-            </div>
-
-            <Button
-              type="button"
-              disabled={!canGenerate}
-              title={
-                generationAvailabilityStatus === "ready"
-                && !generationAvailability?.available
-                  ? generationAvailability?.message
-                  : undefined
-              }
-              onClick={() => void generateDocuments()}
-              className="mt-3 h-11 w-full rounded-xl text-xs font-bold"
-            >
-              {generationRunIsActive ? (
-                <LoaderCircle className="h-4 w-4 animate-spin" />
-              ) : (
-                <Sparkles className="h-4 w-4" />
-              )}
-              {generationRunIsActive
-                ? "Preparing documents…"
-                : "Generate documents"}
-            </Button>
-          </section>
-
-          <section
-            aria-label="Existing documents"
-            className="workspace-card p-5 sm:p-6"
-          >
-            <div className="flex items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <FileText className="h-4 w-4 text-accent" />
-                <h2
-                  id="application-documents-title"
-                  className="text-sm font-bold text-foreground"
-                >
-                  Documents
-                </h2>
-              </div>
-              <span className="text-[10px] font-bold text-muted">
-                {attachedFiles.length + storedDocuments.length}
-              </span>
-            </div>
-
-            <div className="mt-4 rounded-2xl border border-border bg-[#fff8f1] p-3">
-              <p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">
-                Add your own document
-              </p>
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
-                <select
-                  aria-label="Upload document type"
-                  value={uploadDocumentType}
-                  disabled={uploadStatus !== "idle"}
-                  onChange={(event) =>
-                    setUploadDocumentType(
-                      event.target.value as PreparationDocumentType,
-                    )
-                  }
-                  className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-white px-3 text-[10px] font-bold text-foreground outline-none focus:border-accent"
-                >
-                  <option value="tailored_resume">CV</option>
-                  <option value="cover_letter">Cover letter</option>
-                </select>
-                <label
-                  className={cn(
-                    "inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-border bg-white px-3 text-[10px] font-bold text-foreground transition hover:border-accent/50 hover:bg-[#fff3e8]",
-                    uploadStatus !== "idle" && "pointer-events-none opacity-60",
-                  )}
-                >
-                  {uploadStatus === "uploading" ? (
-                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Upload className="h-3.5 w-3.5" />
-                  )}
-                  {uploadStatus === "uploading" ? "Uploading…" : "Upload file"}
-                  <input
-                    type="file"
-                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                    aria-label="Upload own document"
-                    className="sr-only"
-                    disabled={uploadStatus !== "idle"}
-                    onChange={(event) => {
-                      const file = event.currentTarget.files?.[0];
-                      event.currentTarget.value = "";
-                      void storeOwnDocument(file, uploadDocumentType, false);
-                    }}
-                  />
-                </label>
-              </div>
-              <p className="mt-2 text-[8px] leading-4 text-muted">
-                PDF, DOC, or DOCX · up to 5 MB. The upload is selected for the
-                chosen slot automatically.
-              </p>
-            </div>
-
-            <div
-              aria-label="Submission pack"
-              className="mt-4 rounded-2xl border border-border p-3"
-            >
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">
-                    Submission pack
-                  </p>
-                  <p className="mt-1 text-[10px] leading-4 text-muted">
-                    Choose the exact file and version you plan to submit.
-                  </p>
-                </div>
-                <span className="rounded-full border border-border bg-[#fff8f1] px-2.5 py-1 text-[8px] font-black text-muted">
-                  {[selectedResume, selectedCoverLetter].filter(Boolean).length}/2 selected
-                </span>
-              </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                {([
-                  ["tailored_resume", selectedResume],
-                  ["cover_letter", selectedCoverLetter],
-                ] as const).map(([documentType, selected]) => (
-                  <div
-                    key={documentType}
-                    className="rounded-xl border border-border bg-[#fff8f1] p-3"
-                  >
-                    <div className="flex items-start justify-between gap-2">
-                      <div className="min-w-0">
-                        <p className="text-[9px] font-black uppercase tracking-wide text-accent">
-                          {submissionDocumentLabel(documentType)}
-                        </p>
-                        <p className="mt-1 truncate text-[10px] font-bold text-foreground">
-                          {selected?.title ?? "Not selected"}
-                        </p>
-                        <p className="mt-0.5 truncate text-[8px] text-muted">
-                          {selected
-                            ? `${selected.fileName}${selected.selection.version ? ` · v${selected.selection.version}` : ""}`
-                            : "Select an existing version or upload a file."}
-                        </p>
-                      </div>
-                      {selected ? (
-                        <Check className="h-4 w-4 shrink-0 text-success" />
-                      ) : null}
-                    </div>
-                    {selected ? (
-                      <label
-                        className={cn(
-                          "mt-2 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-[9px] font-bold text-foreground hover:border-accent/50",
-                          uploadStatus !== "idle" && "pointer-events-none opacity-60",
-                        )}
-                      >
-                        {uploadStatus === "replacing" ? (
-                          <LoaderCircle className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <RefreshCw className="h-3 w-3" />
-                        )}
-                        Replace
-                        <input
-                          type="file"
-                          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-                          aria-label={`Replace selected ${submissionDocumentLabel(documentType)}`}
-                          className="sr-only"
-                          disabled={uploadStatus !== "idle"}
-                          onChange={(event) => {
-                            const file = event.currentTarget.files?.[0];
-                            event.currentTarget.value = "";
-                            void storeOwnDocument(file, documentType, true);
-                          }}
-                        />
-                      </label>
-                    ) : null}
-                  </div>
-                ))}
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled
-                  title="Available when the document generator is connected"
-                  className="h-8 rounded-lg border border-border px-2.5 text-[9px] font-bold"
-                >
-                  <Sparkles className="h-3 w-3" /> Edit with AI
-                </Button>
-                <Button
-                  type="button"
-                  variant="ghost"
-                  disabled
-                  title="Available when the document generator is connected"
-                  className="h-8 rounded-lg border border-border px-2.5 text-[9px] font-bold"
-                >
-                  <RefreshCw className="h-3 w-3" /> Regenerate selected
-                </Button>
-                <p className="basis-full text-[8px] leading-4 text-muted">
-                  AI edits and regeneration use the generator contract and will
-                  become available when its adapter is connected.
-                </p>
-              </div>
-            </div>
-
-            {settings.documentTypes.length || generationResult ? (
-              <div
-                role="region"
-                aria-label="Document generation states"
-                className="mt-4 rounded-2xl border border-border bg-[#fff8f1] p-4"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <div>
-                    <p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">
-                      {generationResult ? "Latest generation" : "Generation status"}
-                    </p>
-                    <p className="mt-1 text-xs font-bold text-foreground">
-                      {generationResult
-                        ? generationResult.state === "completed"
-                          ? "Generation finished"
-                          : generationResult.state === "failed"
-                            ? "Generation could not be completed"
-                            : "Generation in progress"
-                        : generationAvailabilityStatus === "loading"
-                          ? "Checking generator availability"
-                          : generationAvailability?.available
-                            ? "Ready to generate"
-                            : "Creation awaits the generator"}
-                    </p>
-                  </div>
-                  <span
-                    className={cn(
-                      "rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-wide",
-                      generationResult?.state === "completed"
-                      || (!generationResult && generationAvailability?.available)
-                        ? "border-success/30 bg-success/10 text-success"
-                        : generationResult?.state === "failed"
-                          ? "border-accent/25 bg-accent/10 text-accent"
-                          : "border-border bg-white text-muted",
-                    )}
-                  >
-                    {generationResult?.state
-                      ?? (generationAvailabilityStatus === "loading"
-                        ? "checking"
-                        : generationAvailability?.available
-                          ? "available"
-                          : "unavailable")}
-                  </span>
-                </div>
-                {generationResult?.error ? (
-                  <p
-                    role="alert"
-                    className="mt-3 text-[10px] leading-4 text-accent"
-                  >
-                    {generationResult.error.message}
-                  </p>
-                ) : null}
-                <div className="mt-3 grid gap-2">
-                  {(generationResult?.documents.map(
-                    (document) => document.documentType,
-                  ) ?? settings.documentTypes).map((documentType) => {
-                    const document = generationResult?.documents.find(
-                      (candidate) => candidate.documentType === documentType,
-                    );
-                    const passiveState = generationAvailabilityStatus === "loading"
-                      ? "Checking"
-                      : generationAvailabilityStatus === "error"
-                        ? "Unknown"
-                        : generationAvailability?.available
-                          ? "Ready"
-                          : "Unavailable";
-                    const statusLabel = document
-                      ? generationStateLabel(document.state)
-                      : passiveState;
-                    const message = document?.error?.message
-                      ?? (document?.state === "running"
-                        ? "The generator is preparing this document."
-                        : document?.state === "queued"
-                          ? "Waiting for this document to start."
-                          : !document && generationAvailabilityStatus === "error"
-                            ? generationAvailabilityError
-                            : !document
-                              ? generationAvailability?.message
-                                ?? "Generation availability is being checked."
-                              : "");
-                    const isPending = document?.state === "running"
-                      || document?.state === "queued"
-                      || (!document && generationAvailabilityStatus === "loading");
-                    const isCompleted = document?.state === "completed"
-                      || (!document && generationAvailability?.available === true);
-                    const isFailed = document?.state === "failed";
-                    return (
-                      <div
-                        key={documentType}
-                        role="group"
-                        aria-label={`${generationDocumentLabel(documentType)} generation status`}
-                        className="rounded-xl border border-border bg-white p-3"
-                      >
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="text-[10px] font-bold text-foreground">
-                            {generationDocumentLabel(documentType)}
-                          </p>
-                          <span
-                            className={cn(
-                              "inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wide",
-                              isCompleted && "text-success",
-                              isFailed && "text-accent",
-                              !isCompleted && !isFailed && "text-muted",
-                            )}
-                          >
-                            {isPending ? (
-                              <LoaderCircle className="h-2.5 w-2.5 animate-spin" />
-                            ) : isCompleted ? (
-                              <Check className="h-2.5 w-2.5" />
-                            ) : (
-                              <CircleDot className="h-2.5 w-2.5" />
-                            )}
-                            {statusLabel}
-                          </span>
-                        </div>
-                        {message ? (
-                          <p
-                            role={isFailed ? "alert" : undefined}
-                            className={cn(
-                              "mt-1 text-[9px] leading-4",
-                              isFailed ? "text-accent" : "text-muted",
-                            )}
-                          >
-                            {message}
-                          </p>
-                        ) : null}
-                        {document?.files.length ? (
-                          <div className="mt-2 grid gap-1.5">
-                            {document.files.map((file) => (
-                              <div
-                                key={`${file.downloadUrl}-${file.fileName}`}
-                                className="flex items-center gap-2 rounded-lg bg-[#fff8f1] px-2.5 py-2"
-                              >
-                                <span className="min-w-0 flex-1 truncate text-[9px] font-semibold text-foreground">
-                                  {file.fileName}
-                                </span>
-                                <a
-                                  href={file.downloadUrl}
-                                  target="_blank"
-                                  rel="noreferrer"
-                                  aria-label={`Open ${file.fileName}`}
-                                  className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border text-muted hover:bg-white hover:text-foreground"
-                                >
-                                  <Eye className="h-3 w-3" />
-                                </a>
-                                <a
-                                  href={file.downloadUrl}
-                                  download={file.fileName}
-                                  aria-label={`Download ${file.fileName}`}
-                                  className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border text-muted hover:bg-white hover:text-foreground"
-                                >
-                                  <Download className="h-3 w-3" />
-                                </a>
-                              </div>
-                            ))}
-                          </div>
-                        ) : null}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
             ) : null}
+          </main>
 
-            {documentsError ? (
-              <div
-                role="alert"
-                className="mt-4 flex items-center justify-between gap-3 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2.5 text-[10px] leading-4 text-accent"
-              >
-                <span>{documentsError}</span>
-                <button
-                  type="button"
-                  onClick={() => setDocumentsRequest((current) => current + 1)}
-                  className="inline-flex shrink-0 items-center gap-1 font-bold hover:text-foreground"
-                >
-                  <RefreshCw className="h-3 w-3" /> Retry
-                </button>
-              </div>
-            ) : null}
-
-            {documentsStatus === "loading" ? (
-              <div className="mt-4 flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-xs text-muted">
-                <LoaderCircle className="h-4 w-4 animate-spin text-accent" />
-                Loading saved documents…
-              </div>
-            ) : null}
-
-            {attachedFiles.length || storedDocuments.length ? (
-              <div className="mt-4 grid gap-2">
-                {attachedFiles.map((document) => (
-                  <article
-                    key={document.id}
-                    className="flex items-center gap-3 rounded-xl border border-border bg-[#fff8f1] p-3"
-                  >
-                    <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border bg-white text-[9px] font-black text-accent">
-                      {getDocumentBadge(document)}
-                    </span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-bold text-foreground">
-                        {document.title || document.fileName}
-                      </p>
-                      <p className="mt-1 truncate text-[9px] text-muted">
-                        {document.fileName}
-                        {document.fileSize ? ` · ${document.fileSize}` : ""}
-                        {document.uploadedAt
-                          ? ` · ${formatApplicationDate(document.uploadedAt)}`
-                          : ""}
-                      </p>
-                      <div className="mt-2 flex flex-wrap gap-1.5">
-                        {([
-                          ["tailored_resume", "CV"],
-                          ["cover_letter", "letter"],
-                        ] as const).map(([documentType, label]) => {
-                          const selected =
-                            settings.submission[documentType]?.documentId
-                            === document.id;
-                          return (
-                            <button
-                              key={documentType}
-                              type="button"
-                              aria-label={`Use ${document.title || document.fileName} as ${label}`}
-                              aria-pressed={selected}
-                              onClick={() =>
-                                selectSubmissionDocument(
-                                  documentType,
-                                  document.id,
-                                  null,
-                                )
-                              }
-                              className={cn(
-                                "inline-flex h-6 items-center gap-1 rounded-md border border-border bg-white px-2 text-[8px] font-bold text-muted hover:text-foreground",
-                                selected
-                                && "border-success/30 bg-success/10 text-success",
-                              )}
-                            >
-                              {selected ? <Check className="h-2.5 w-2.5" /> : null}
-                              Use as {label}
-                            </button>
-                          );
-                        })}
-                      </div>
-                    </div>
-                    {document.downloadUrl ? (
-                      <div className="flex shrink-0 gap-1.5">
-                        <a
-                          href={workspaceDocumentPreviewUrl(document.downloadUrl)}
-                          target="_blank"
-                          rel="noreferrer"
-                          aria-label={`Open ${document.title || document.fileName}`}
-                          className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:bg-white hover:text-foreground"
-                        >
-                          <Eye className="h-4 w-4" />
-                        </a>
-                        <a
-                          href={document.downloadUrl}
-                          download={document.fileName}
-                          aria-label={`Download ${document.title || document.fileName}`}
-                          className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:bg-white hover:text-foreground"
-                        >
-                          <Download className="h-4 w-4" />
-                        </a>
-                      </div>
-                    ) : null}
-                  </article>
-                ))}
-
-                {storedDocuments.map((document) => {
-                  const currentVersion = currentStoredDocumentVersion(document);
-                  const fileName = storedDocumentFileName(document);
-                  const fileType = currentVersion?.artifact?.contentType ?? "";
-                  const hasArtifact = Boolean(
-                    currentVersion?.hasRenderedArtifact,
-                  );
-                  const versions = [...document.versions].sort(
-                    (left, right) => right.version - left.version,
-                  );
-                  return (
-                    <article
-                      key={document.id}
-                      className="rounded-xl border border-border bg-[#fff8f1] p-3"
-                    >
-                      <div className="flex items-center gap-3">
-                        <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border bg-white text-[9px] font-black text-accent">
-                          {getFileBadge(fileName, fileType)}
-                        </span>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs font-bold text-foreground">
-                            {document.title}
-                          </p>
-                          <p className="mt-1 truncate text-[9px] text-muted">
-                            {fileName} · v{document.currentVersion}
-                          </p>
-                        </div>
-                        {hasArtifact ? (
-                          <div className="flex shrink-0 gap-1.5">
-                            <button
-                              type="button"
-                              aria-label={`Use current ${document.title} version ${document.currentVersion} for submission`}
-                              aria-pressed={
-                                settings.submission[document.type]?.documentId
-                                  === document.id
-                                && settings.submission[document.type]?.version
-                                  === document.currentVersion
-                              }
-                              onClick={() =>
-                                selectSubmissionDocument(
-                                  document.type,
-                                  document.id,
-                                  document.currentVersion,
-                                )
-                              }
-                              className={cn(
-                                "grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:bg-white hover:text-foreground",
-                                settings.submission[document.type]?.documentId
-                                  === document.id
-                                && settings.submission[document.type]?.version
-                                  === document.currentVersion
-                                && "border-success/30 bg-success/10 text-success",
-                              )}
-                            >
-                              <Check className="h-4 w-4" />
-                            </button>
-                            <button
-                              type="button"
-                              aria-label={`Open ${document.title}`}
-                              onClick={() =>
-                                setPreview({
-                                  documentId: document.id,
-                                  version: document.currentVersion,
-                                })
-                              }
-                              className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:bg-white hover:text-foreground"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </button>
-                            <a
-                              href={documentDownloadUrl(document.id)}
-                              download={fileName}
-                              aria-label={`Download ${document.title}`}
-                              className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:bg-white hover:text-foreground"
-                            >
-                              <Download className="h-4 w-4" />
-                            </a>
-                          </div>
-                        ) : null}
-                      </div>
-
-                      <details className="mt-3 border-t border-border pt-3">
-                        <summary className="cursor-pointer text-[10px] font-bold text-muted marker:text-accent">
-                          Version history · {document.versionsTotal}
-                        </summary>
-                        <div className="mt-2 grid gap-1.5">
-                          {versions.map((version) => {
-                            const versionFileName =
-                              version.artifact?.fileName ??
-                              `${document.title}-v${version.version}.docx`;
-                            return (
-                              <div
-                                key={version.id}
-                                className="flex items-center gap-2 rounded-lg border border-border bg-white px-2.5 py-2"
-                              >
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-[10px] font-bold text-foreground">
-                                    v{version.version}
-                                    {version.version === document.currentVersion
-                                      ? " · Current"
-                                      : ""}
-                                  </p>
-                                  <p className="mt-0.5 truncate text-[8px] text-muted">
-                                    {versionFileName} ·{" "}
-                                    {formatApplicationDate(version.createdAt)}
-                                  </p>
-                                </div>
-                                {version.hasRenderedArtifact ? (
-                                  <>
-                                    <button
-                                      type="button"
-                                      aria-label={`Use ${document.title} version ${version.version} for submission`}
-                                      aria-pressed={
-                                        settings.submission[document.type]?.documentId
-                                          === document.id
-                                        && settings.submission[document.type]?.version
-                                          === version.version
-                                      }
-                                      onClick={() =>
-                                        selectSubmissionDocument(
-                                          document.type,
-                                          document.id,
-                                          version.version,
-                                        )
-                                      }
-                                      className={cn(
-                                        "grid h-7 w-7 place-items-center rounded-md border border-border text-muted hover:text-foreground",
-                                        settings.submission[document.type]?.documentId
-                                          === document.id
-                                        && settings.submission[document.type]?.version
-                                          === version.version
-                                        && "border-success/30 bg-success/10 text-success",
-                                      )}
-                                    >
-                                      <Check className="h-3 w-3" />
-                                    </button>
-                                    <button
-                                      type="button"
-                                      aria-label={`Open ${document.title} version ${version.version}`}
-                                      onClick={() =>
-                                        setPreview({
-                                          documentId: document.id,
-                                          version: version.version,
-                                        })
-                                      }
-                                      className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted hover:text-foreground"
-                                    >
-                                      <Eye className="h-3 w-3" />
-                                    </button>
-                                    <a
-                                      href={documentDownloadUrl(
-                                        document.id,
-                                        version.version,
-                                      )}
-                                      download={versionFileName}
-                                      aria-label={`Download ${document.title} version ${version.version}`}
-                                      className="grid h-7 w-7 place-items-center rounded-md border border-border text-muted hover:text-foreground"
-                                    >
-                                      <Download className="h-3 w-3" />
-                                    </a>
-                                  </>
-                                ) : (
-                                  <span className="text-[8px] font-bold text-muted">
-                                    Unavailable
-                                  </span>
-                                )}
-                              </div>
-                            );
-                          })}
-                          {document.versionsHasMore ? (
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              disabled={
-                                loadingVersionsDocumentId === document.id
-                              }
-                              onClick={() => void loadMoreVersions(document)}
-                              className="h-8 rounded-lg border border-border text-[9px] font-bold"
-                            >
-                              {loadingVersionsDocumentId === document.id ? (
-                                <LoaderCircle className="h-3 w-3 animate-spin" />
-                              ) : null}
-                              Load older versions
-                            </Button>
-                          ) : null}
-                        </div>
-                      </details>
-                    </article>
-                  );
-                })}
-              </div>
-            ) : documentsStatus !== "loading" ? (
-              <div className="mt-4 rounded-xl border border-dashed border-border px-4 py-8 text-center">
-                <FileText className="mx-auto h-5 w-5 text-muted" />
-                <p className="mt-2 text-xs text-muted">
-                  No documents attached yet.
-                </p>
-              </div>
-            ) : null}
-
-            {availableJobDocuments.length ? (
-              <div className="mt-5 border-t border-border pt-4">
-                <p className="flex items-center gap-2 text-[10px] font-black uppercase tracking-[0.1em] text-muted">
-                  <Paperclip className="h-3.5 w-3.5" /> Available for this
-                  vacancy
-                </p>
-                <div className="mt-2 grid gap-2">
-                  {availableJobDocuments.map((document) => (
-                    <div
-                      key={document.id}
-                      className="flex items-center justify-between gap-3 rounded-lg border border-border px-3 py-2.5"
-                    >
-                      <div className="min-w-0">
-                        <p className="truncate text-[10px] font-bold text-foreground">
-                          {document.title}
-                        </p>
-                        <p className="mt-0.5 text-[8px] text-muted">
-                          v{document.currentVersion}
-                        </p>
-                      </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        disabled={Boolean(attachingDocumentId)}
-                        onClick={() => void attachStoredDocument(document)}
-                        className="h-8 rounded-lg border border-border px-2.5 text-[9px] font-bold"
-                      >
-                        {attachingDocumentId === document.id ? (
-                          <LoaderCircle className="h-3 w-3 animate-spin" />
-                        ) : (
-                          <Paperclip className="h-3 w-3" />
-                        )}
-                        Attach
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            ) : null}
-
-            {previewDocument ? (
-              <div className="mt-5 border-t border-border pt-5">
-                <div className="mb-3 flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => setPreview(null)}
-                    className="text-[10px] font-bold text-muted hover:text-foreground"
-                  >
-                    Close preview
-                  </button>
-                </div>
-                <DocumentPdfPreview
-                  document={previewDocument}
-                  label={
-                    previewDocument.type === "tailored_resume"
-                      ? "CV"
-                      : "Cover letter"
-                  }
-                />
-              </div>
-            ) : null}
-          </section>
+          <ReviewSummary
+            className="lg:col-span-2 2xl:col-span-1"
+            run={displayedRun}
+            fit={fit}
+            review={review}
+            visualSummary={visualReview?.summary}
+            passedChecks={passedChecks}
+            failedChecks={failedChecks}
+          />
         </div>
       </div>
     </section>
+  );
+}
+
+function WorkflowProgress({ run }: { run: GenerationRun | null }) {
+  const current = run ? stageOrder[run.stage] : 0;
+  return (
+    <ol aria-label="Application document workflow" className="mt-5 grid gap-2 sm:grid-cols-5 sm:gap-0">
+      {workflowStages.map((stage, index) => {
+        const complete = Boolean(run && (index < current || run.status === "completed"));
+        const active = !complete && index === current;
+        return (
+          <li key={stage.id} aria-current={active ? "step" : undefined} className="flex min-w-0 items-center">
+            <span className={cn(
+              "grid h-8 w-8 shrink-0 place-items-center rounded-full border text-xs font-black",
+              complete ? "border-accent bg-accent text-white" : active ? "border-accent bg-accent text-white" : "border-border bg-white text-muted",
+            )}>
+              {complete ? <Check className="h-4 w-4" /> : index + 1}
+            </span>
+            <span className={cn("ml-3 whitespace-nowrap text-xs font-bold", active || complete ? "text-foreground" : "text-muted")}>{stage.label}</span>
+            {index < workflowStages.length - 1 ? (
+              <span aria-hidden="true" className={cn("mx-4 hidden h-px min-w-4 flex-1 sm:block", index < current ? "bg-accent" : "bg-border")} />
+            ) : null}
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+function ApplicationBrief({
+  application,
+  run,
+  masterResume,
+  settings,
+  versions,
+}: {
+  application: WorkspaceApplication;
+  run: GenerationRun | null;
+  masterResume: MasterResumeSummary | null;
+  settings: DocumentPreparationSettings;
+  versions: ReturnType<typeof sourceVersions>;
+}) {
+  const recentEvents = (run?.events ?? []).slice(-5).reverse();
+  return (
+    <aside className="workspace-card p-5">
+      <h2 className="text-base font-black">Application brief</h2>
+      <div className="mt-4 grid gap-3">
+        <SourceRow title="Job description" subtitle={versions.vacancy ? `Snapshot · v${versions.vacancy}` : "Full posting saved"} ready={Boolean(application.job.overview || application.job.requirements.length)} />
+        <SourceRow title="Master Resume" subtitle={`Version ${versions.masterResume ?? masterResume?.version ?? "—"} · Confirmed`} ready={Boolean(masterResume || versions.masterResume)} />
+      </div>
+      <div className="my-5 h-px bg-border" />
+      <h3 className="text-sm font-black">Documents</h3>
+      <div className="mt-3 grid gap-2">
+        {["tailored_resume", "cover_letter"].map((type) => (
+          <div key={type} className="flex items-center gap-2 text-xs font-semibold">
+            <span className={cn("grid h-5 w-5 place-items-center rounded-md border", settings.documentTypes.includes(type as PreparationDocumentType) ? "border-accent bg-accent text-white" : "border-border text-transparent")}>
+              <Check className="h-3 w-3" />
+            </span>
+            {documentLabel(type as PreparationDocumentType)}
+          </div>
+        ))}
+      </div>
+      <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[11px]">
+        <dt className="text-muted">Language</dt><dd className="text-right font-semibold">{settings.language}</dd>
+        <dt className="text-muted">CV template</dt><dd className="truncate text-right font-semibold">ModernCV · Banking</dd>
+        <dt className="text-muted">Letter template</dt><dd className="truncate text-right font-semibold">Classic letter</dd>
+        {run ? <><dt className="text-muted">Executor</dt><dd className="truncate text-right font-semibold">{backendLabel(run.backend)}</dd></> : null}
+      </dl>
+      {recentEvents.length ? (
+        <div className="mt-5 border-t border-border pt-4">
+          <h3 className="text-[10px] font-black uppercase tracking-[0.12em] text-muted">Activity</h3>
+          <ol className="mt-3 grid gap-2.5">
+            {recentEvents.map((event) => (
+              <li key={event.sequence} className="flex gap-2 text-[10px] leading-4 text-muted">
+                <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+                <span><strong className="font-bold text-foreground">{titleCase(event.kind)}</strong><br />{new Date(event.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</span>
+              </li>
+            ))}
+          </ol>
+        </div>
+      ) : null}
+    </aside>
+  );
+}
+
+function SourceRow({ title, subtitle, ready }: { title: string; subtitle: string; ready: boolean }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className="grid h-9 w-9 shrink-0 place-items-center rounded-lg border border-border bg-[#fff8f1]"><FileText className="h-4 w-4" /></span>
+      <span className="min-w-0 flex-1"><span className="block text-xs font-semibold">{title}</span><span className="mt-0.5 block truncate text-[10px] text-muted">{subtitle}</span></span>
+      {ready ? <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" /> : <AlertTriangle className="h-4 w-4 shrink-0 text-amber-600" />}
+    </div>
+  );
+}
+
+function LoadingWorkspace() {
+  return <div className="workspace-card grid min-h-[520px] place-items-center"><div className="text-center"><LoaderCircle className="mx-auto h-7 w-7 animate-spin text-accent" /><p className="mt-3 text-xs font-semibold text-muted">Restoring application workspace…</p></div></div>;
+}
+
+function PreparationPanel({ settings, masterResume, onChange, onStart, action }: {
+  settings: DocumentPreparationSettings;
+  masterResume: MasterResumeSummary | null;
+  onChange: (update: (current: DocumentPreparationSettings) => DocumentPreparationSettings) => void;
+  onStart: () => void;
+  action: string;
+}) {
+  return (
+    <section className="workspace-card overflow-hidden">
+      <div className="border-b border-border px-5 py-4 sm:px-6">
+        <p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">Sources</p>
+        <h2 className="mt-1 text-lg font-black">Prepare your application pack</h2>
+        <p className="mt-1 text-xs leading-5 text-muted">Rufina snapshots the confirmed profile and full vacancy before the AI run starts.</p>
+      </div>
+      <div className="grid gap-5 p-5 sm:p-6">
+        {!masterResume ? (
+          <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">Confirm a Master Resume in Profile before generating application documents.</div>
+        ) : null}
+        <fieldset>
+          <legend className="text-xs font-black">Documents</legend>
+          <div className="mt-3 grid gap-3 sm:grid-cols-2">
+            {(["tailored_resume", "cover_letter"] as const).map((type) => {
+              const selected = settings.documentTypes.includes(type);
+              return (
+                <label key={type} className={cn("flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition", selected ? "border-accent bg-[#fff7ef]" : "border-border bg-white")}>
+                  <input type="checkbox" className="sr-only" checked={selected} onChange={() => onChange((current) => ({ ...current, documentTypes: selected ? current.documentTypes.filter((item) => item !== type) : [...current.documentTypes, type] }))} />
+                  <span className={cn("mt-0.5 grid h-5 w-5 place-items-center rounded-md border", selected ? "border-accent bg-accent text-white" : "border-border text-transparent")}><Check className="h-3 w-3" /></span>
+                  <span><span className="block text-xs font-bold">{documentLabel(type)}</span><span className="mt-1 block text-[10px] leading-4 text-muted">{type === "tailored_resume" ? "Tailored from confirmed profile facts" : "Written for this vacancy and company"}</span></span>
+                </label>
+              );
+            })}
+          </div>
+        </fieldset>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <label className="text-xs font-bold">Document language
+            <select aria-label="Document language" value={settings.language} onChange={(event) => onChange((current) => ({ ...current, language: event.target.value as PreparationLanguage }))} className="mt-2 h-11 w-full rounded-xl border px-3 text-xs font-semibold">
+              <option value="English">English</option><option value="German">German</option>
+            </select>
+          </label>
+          <label className="text-xs font-bold">CV page limit
+            <select aria-label="CV page limit" value={settings.formatting.resumeMaxPages} onChange={(event) => onChange((current) => ({ ...current, formatting: { ...current.formatting, resumeMaxPages: Number(event.target.value) as 1 | 2 | 3 } }))} className="mt-2 h-11 w-full rounded-xl border px-3 text-xs font-semibold">
+              <option value="1">1 page</option><option value="2">2 pages</option><option value="3">3 pages</option>
+            </select>
+          </label>
+        </div>
+        <div className="grid gap-3 rounded-xl border border-border bg-[#fffaf5] p-4 sm:grid-cols-2">
+          <div><p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted">CV template</p><p className="mt-1 text-xs font-bold">ModernCV · Banking</p><p className="mt-1 text-[10px] text-muted">Original upstream LaTeX template</p></div>
+          <div><p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted">Cover letter template</p><p className="mt-1 text-xs font-bold">Classic letter</p><p className="mt-1 text-[10px] text-muted">Original upstream LaTeX template</p></div>
+        </div>
+        <label className="text-xs font-bold">Your preferences
+          <textarea aria-label="Your preferences" value={settings.userPreferences} maxLength={10_000} onChange={(event) => onChange((current) => ({ ...current, userPreferences: event.target.value }))} placeholder="For example: emphasize design systems and keep the tone direct." className="mt-2 min-h-24 w-full resize-y rounded-xl border px-3 py-3 text-xs leading-5" />
+        </label>
+        <div className="flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
+          <p className="max-w-xl text-[10px] leading-4 text-muted">The first run evaluates fit and pauses for your approval before writing. Generation never marks the application as submitted.</p>
+          <Button type="button" onClick={onStart} disabled={!masterResume || !settings.documentTypes.length || Boolean(action)} className="rounded-xl px-5 text-xs">
+            {action === "start" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Start application
+          </Button>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function FitApproval({ run, onAnswer, action }: { run: GenerationRun; onAnswer: (response: "continue" | "stop") => void; action: string }) {
+  const fit = run.result.fit ?? {};
+  return (
+    <section className="workspace-card overflow-hidden">
+      <div className="border-b border-border px-5 py-4 sm:px-6"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">Fit</p><h2 className="mt-1 text-lg font-black">Review the match before writing</h2></div>
+      <div className="p-5 sm:p-6">
+        <div className="flex flex-col gap-5 rounded-2xl border border-border bg-[#fffaf5] p-5 sm:flex-row sm:items-center">
+          <div className="grid h-24 w-24 shrink-0 place-items-center rounded-full bg-[conic-gradient(var(--color-rufina-flame)_0deg,var(--color-rufina-flame)_var(--fit-score),#eadfd4_var(--fit-score),#eadfd4_360deg)] p-2" style={{ "--fit-score": `${Math.max(0, Math.min(100, fit.overallScore ?? 0)) * 3.6}deg` } as CSSProperties}><span className="grid h-full w-full place-items-center rounded-full bg-white text-2xl font-black">{fit.overallScore ?? "—"}</span></div>
+          <div><span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[9px] font-black uppercase tracking-wide text-emerald-800">{fit.recommendation ?? "Review"}</span><p className="mt-3 text-sm font-bold leading-6">{fit.summary ?? "The fit assessment is ready."}</p></div>
+        </div>
+        <div className="mt-5 grid gap-4 sm:grid-cols-2">
+          <FitList title="Strengths" items={fit.strengths ?? []} positive />
+          <FitList title="Honest gaps" items={fit.gaps ?? []} />
+        </div>
+        {(fit.keywords ?? []).length ? <div className="mt-5"><h3 className="text-xs font-black">Relevant terms</h3><div className="mt-2 flex flex-wrap gap-2">{fit.keywords?.map((keyword) => <span key={keyword.term} className={cn("rounded-full border px-2.5 py-1 text-[9px] font-bold", keyword.support === "supported" ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-amber-200 bg-amber-50 text-amber-800")}>{keyword.term}</span>)}</div></div> : null}
+        <div className="mt-6 flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between"><p className="text-xs font-semibold">{run.pendingQuestion?.prompt ?? "Continue with the CV and cover letter?"}</p><div className="flex gap-2"><Button type="button" variant="ghost" disabled={Boolean(action)} onClick={() => onAnswer("stop")} className="rounded-xl border border-border text-xs">Stop</Button><Button type="button" disabled={Boolean(action)} onClick={() => onAnswer("continue")} className="rounded-xl px-5 text-xs">{action === "answer" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <ChevronRight className="h-4 w-4" />} Continue</Button></div></div>
+      </div>
+    </section>
+  );
+}
+
+function FitList({ title, items, positive = false }: { title: string; items: string[]; positive?: boolean }) {
+  return <div className="rounded-xl border border-border p-4"><h3 className="text-xs font-black">{title}</h3><ul className="mt-3 grid gap-2">{items.length ? items.map((item) => <li key={item} className="flex gap-2 text-[11px] leading-5"><span className={cn("mt-1 grid h-4 w-4 shrink-0 place-items-center rounded-full", positive ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-800")}>{positive ? <Check className="h-2.5 w-2.5" /> : "!"}</span>{item}</li>) : <li className="text-[11px] text-muted">None identified.</li>}</ul></div>;
+}
+
+function RunProgress({ run, onCancel, action }: { run: GenerationRun; onCancel: () => void; action: string }) {
+  const current = stageOrder[run.stage];
+  const currentStage = workflowStages[current];
+  return (
+    <section className="workspace-card grid min-h-[560px] place-items-center p-6 text-center">
+      <div className="max-w-md"><span className="mx-auto grid h-16 w-16 place-items-center rounded-2xl bg-[#fff3e8] text-accent"><LoaderCircle className="h-7 w-7 animate-spin" /></span><p className="mt-5 text-[10px] font-black uppercase tracking-[0.14em] text-accent">{currentStage?.label}</p><h2 className="mt-2 text-xl font-black">{currentStage?.waitingLabel}</h2><p className="mt-2 text-xs leading-5 text-muted">The author and independent reviewer are working from immutable snapshots. You can leave this page; progress will be restored when you return.</p><div className="mt-5 rounded-xl border border-border bg-[#fffaf5] px-4 py-3 text-left text-[10px] leading-4 text-muted"><strong className="text-foreground">{backendLabel(run.backend)}</strong> · {run.model}<br />Run {run.id.slice(0, 8)} · revision {run.revision}</div><Button type="button" variant="ghost" disabled={Boolean(action) || run.cancelRequested} onClick={onCancel} className="mt-5 rounded-xl border border-border text-xs">{action === "cancel" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : null}{run.cancelRequested ? "Cancellation requested" : "Cancel run"}</Button></div>
+    </section>
+  );
+}
+
+function WorkspaceFailure({ message, onRetry, cancelled = false }: { message: string; onRetry: () => void; cancelled?: boolean }) {
+  return <section className="workspace-card grid min-h-[520px] place-items-center p-6 text-center"><div className="max-w-md"><span className={cn("mx-auto grid h-14 w-14 place-items-center rounded-2xl", cancelled ? "bg-[#fff3e8] text-accent" : "bg-red-50 text-red-700")}>{cancelled ? <Circle className="h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}</span><h2 className="mt-4 text-lg font-black">{cancelled ? "Run stopped" : "Generation needs attention"}</h2><p className="mt-2 text-xs leading-5 text-muted">{message}</p><Button type="button" onClick={onRetry} className="mt-5 rounded-xl text-xs"><RefreshCw className="h-4 w-4" /> Start a new run</Button></div></section>;
+}
+
+function DocumentReview({ run, completedRuns, selectedRunId, activeTab, revisionRequest, onSelectRun, onTabChange, onRevisionRequest, onRevise, action }: {
+  run: GenerationRun;
+  completedRuns: GenerationRun[];
+  selectedRunId: string;
+  activeTab: WorkspaceTab;
+  revisionRequest: string;
+  onSelectRun: (runId: string) => void;
+  onTabChange: (tab: WorkspaceTab) => void;
+  onRevisionRequest: (value: string) => void;
+  onRevise: () => void;
+  action: string;
+}) {
+  const document = run.result.documents?.find((item) => item.type === activeTab);
+  const artifact = activeTab === "changes" ? null : latestFinalArtifact(run, activeTab);
+  return (
+    <section className="workspace-card overflow-hidden">
+      <div className="flex flex-col gap-3 border-b border-border px-4 sm:flex-row sm:items-center sm:justify-between">
+        <div role="tablist" aria-label="Generated documents" className="flex gap-6">
+          {(["tailored_resume", "cover_letter", "changes"] as const).map((tab) => {
+            const disabled = tab !== "changes" && !run.documentTypes.includes(tab);
+            return <button key={tab} type="button" role="tab" aria-selected={activeTab === tab} disabled={disabled} onClick={() => onTabChange(tab)} className={cn("border-b-2 px-1 py-4 text-xs font-bold transition", activeTab === tab ? "border-accent text-accent" : "border-transparent text-muted", disabled && "opacity-40")}>{tab === "changes" ? "Changes" : documentLabel(tab)}</button>;
+          })}
+        </div>
+        <div className="flex items-center gap-2 pb-3 sm:pb-0">
+          <select aria-label="Document version" value={selectedRunId} onChange={(event) => onSelectRun(event.target.value)} className="h-9 rounded-lg border px-3 text-[10px] font-bold">
+            <option value="">Latest version</option>
+            {completedRuns.filter((item) => item.id !== completedRuns[0]?.id).map((item, index) => <option key={item.id} value={item.id}>{runVersionLabel(item, index + 1)} · {new Date(item.createdAt).toLocaleDateString()}</option>)}
+          </select>
+          {document ? <a href={documentDownloadUrl(document.id, document.version)} download className="grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:bg-[#fff3e8] hover:text-foreground" aria-label={`Download ${documentLabel(document.type)}`}><Download className="h-4 w-4" /></a> : null}
+        </div>
+      </div>
+      {activeTab === "changes" ? (
+        <ChangesPanel run={run} />
+      ) : document ? (
+        <div className="bg-[#f3f1ef] p-3 sm:p-5">
+          <DocumentPdfPreview document={{ id: document.id, title: documentLabel(document.type), currentVersion: document.version, versions: [{ version: document.version, artifact: { fileName: artifact?.fileName ?? `${document.type}.pdf`, contentType: "application/pdf" } }] }} label={documentLabel(document.type)} />
+        </div>
+      ) : (
+        <div className="grid min-h-[520px] place-items-center text-xs text-muted">This document was not included in the run.</div>
+      )}
+      <div className="border-t border-border p-4">
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="relative flex-1"><MessageSquareText className="absolute left-3 top-3 h-4 w-4 text-muted" /><textarea aria-label="Revision request" value={revisionRequest} maxLength={10_000} onChange={(event) => onRevisionRequest(event.target.value)} placeholder="Request a factual change or a different emphasis…" className="min-h-11 w-full resize-y rounded-xl border py-2.5 pl-10 pr-3 text-xs leading-5" /></div>
+          <Button type="button" variant="outline" onClick={onRevise} disabled={!revisionRequest.trim() || Boolean(action)} className="h-11 rounded-xl text-xs">{action === "start" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Create revision</Button>
+        </div>
+        <p className="mt-2 text-[9px] leading-4 text-muted">A revision starts a new immutable run and repeats author review, PDF compilation, and all checks.</p>
+      </div>
+    </section>
+  );
+}
+
+function ChangesPanel({ run }: { run: GenerationRun }) {
+  const changes = run.result.review?.meaningfulChanges ?? [];
+  return <div className="min-h-[520px] p-5 sm:p-6"><p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">Reviewer report</p><h2 className="mt-1 text-lg font-black">What changed</h2><p className="mt-2 text-xs leading-5 text-muted">{run.result.review?.summary ?? "The independent review completed."}</p><ol className="mt-5 grid gap-3">{changes.length ? changes.map((change, index) => <li key={`${change}-${index}`} className="flex gap-3 rounded-xl border border-border px-4 py-3 text-xs leading-5"><span className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border text-[10px] font-black">{index + 1}</span>{change}</li>) : <li className="rounded-xl border border-border px-4 py-3 text-xs text-muted">No content revisions were required.</li>}</ol></div>;
+}
+
+function ReviewSummary({ className, run, fit, review, visualSummary, passedChecks, failedChecks }: {
+  className?: string;
+  run: GenerationRun | null;
+  fit: GenerationRun["result"]["fit"];
+  review: GenerationRun["result"]["review"];
+  visualSummary?: string;
+  passedChecks: GenerationRunCheck[];
+  failedChecks: GenerationRunCheck[];
+}) {
+  const complete = run?.status === "completed" && failedChecks.length === 0;
+  return (
+    <aside className={cn("workspace-card p-5", className)}>
+      <h2 className="text-base font-black">Review summary</h2>
+      <div className={cn("mt-4 rounded-xl border p-4", complete ? "border-emerald-100 bg-emerald-50" : "border-border bg-[#fffaf5]")}>
+        <div className="flex gap-3"><span className={cn("grid h-9 w-9 shrink-0 place-items-center rounded-full text-white", complete ? "bg-emerald-600" : "bg-muted")}>{complete ? <Check className="h-5 w-5" /> : <ShieldCheck className="h-5 w-5" />}</span><div><p className="text-xs font-black">{complete ? "Checks complete" : run ? "Review in progress" : "Not started"}</p><p className="mt-1 text-[10px] leading-4 text-muted">{complete ? "Both documents are ready to inspect" : "Verified results appear here"}</p></div></div>
+      </div>
+      {passedChecks.length ? <ul className="mt-4 grid gap-3">{passedChecks.slice(-7).map((check) => <li key={check.id} className="flex gap-2 text-[11px] leading-4"><CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />{checkLabel(check)}</li>)}</ul> : null}
+      {failedChecks.length ? <ul className="mt-4 grid gap-3">{failedChecks.map((check) => <li key={check.id} className="flex gap-2 text-[11px] leading-4 text-red-800"><AlertTriangle className="h-4 w-4 shrink-0" />{checkLabel(check)}</li>)}</ul> : null}
+      {review?.meaningfulChanges?.length ? <div className="mt-5 border-t border-border pt-4"><h3 className="text-sm font-black">What changed</h3><ol className="mt-3 grid gap-3">{review.meaningfulChanges.slice(0, 4).map((change, index) => <li key={`${change}-${index}`} className="flex gap-2 text-[11px] leading-5"><span className="grid h-5 w-5 shrink-0 place-items-center rounded-full border border-border text-[9px] font-black">{index + 1}</span>{change}</li>)}</ol></div> : null}
+      {fit?.gaps?.length ? <div className="mt-5 border-t border-border pt-4"><h3 className="text-sm font-black">Honest gaps</h3><p className="mt-2 text-[11px] leading-5 text-muted">{fit.gaps[0]}</p></div> : null}
+      {visualSummary ? <div className="mt-5 border-t border-border pt-4"><h3 className="text-sm font-black">Visual review</h3><p className="mt-2 text-[11px] leading-5 text-muted">{visualSummary}</p></div> : null}
+      {run ? <p className="mt-5 border-t border-border pt-4 text-[9px] leading-4 text-muted"><FileCheck2 className="mr-1 inline h-3 w-3" />Checks are bound to this artifact SHA. Older results never validate a newer revision.</p> : null}
+    </aside>
   );
 }

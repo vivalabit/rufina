@@ -17,6 +17,9 @@ type ApplicationOverrides = Omit<Partial<WorkspaceApplication>, "job"> & {
 type WorkspaceApiOptions = {
   currentMasterResume?: unknown | null;
   documents?: unknown[];
+  currentGenerationRun?: unknown | null;
+  generationRuns?: unknown[];
+  startedGenerationRun?: unknown;
   generationAvailability?: unknown;
   resumeTemplates?: unknown[];
   templates?: unknown[];
@@ -69,6 +72,9 @@ export function installApplicationWorkspaceApiMock({
     updatedAt: "2026-07-25T10:00:00.000Z",
   },
   documents = [],
+  currentGenerationRun = null,
+  generationRuns = [],
+  startedGenerationRun,
   generationAvailability = {
     available: true,
     code: "available",
@@ -169,6 +175,27 @@ export function installApplicationWorkspaceApiMock({
       && method === "GET"
     ) {
       return Response.json(generationAvailability);
+    }
+    if (
+      url.pathname.endsWith("/generation/runs/current")
+      && method === "GET"
+    ) {
+      return currentGenerationRun
+        ? Response.json(currentGenerationRun)
+        : Response.json({ detail: "Generation run was not found" }, { status: 404 });
+    }
+    if (
+      url.pathname.endsWith("/generation/runs")
+      && method === "GET"
+    ) {
+      return Response.json(generationRuns);
+    }
+    if (
+      url.pathname.endsWith("/generation/runs")
+      && method === "POST"
+      && startedGenerationRun
+    ) {
+      return Response.json(startedGenerationRun, { status: 202 });
     }
     if (url.pathname === "/documents" && method === "GET") {
       return Response.json(documents);

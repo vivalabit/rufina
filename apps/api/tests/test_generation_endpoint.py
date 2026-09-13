@@ -210,3 +210,43 @@ def test_generation_availability_requires_an_owned_application(
 
     assert missing.status_code == 404
     assert foreign.status_code == 404
+
+
+def test_versioned_run_endpoint_lists_and_restores_the_immutable_run(
+    generation_api: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, _ = generation_api
+    payload = {
+        **generation_payload(),
+        "idempotencyKey": "application-ui-run",
+    }
+
+    started = client.post(
+        "/applications/application-1/generation/runs",
+        json=payload,
+    )
+    current = client.get(
+        "/applications/application-1/generation/runs/current",
+    )
+    history = client.get(
+        "/applications/application-1/generation/runs",
+    )
+    foreign_history = client.get(
+        "/applications/application-1/generation/runs",
+        headers={"X-Rufina-Owner-Id": "another-owner"},
+    )
+
+    assert started.status_code == 202
+    assert current.status_code == 200
+    assert current.json()["id"] == started.json()["id"]
+    assert current.json()["inputFingerprint"] == started.json()["inputFingerprint"]
+    assert history.status_code == 200
+    assert [run["id"] for run in history.json()] == [started.json()["id"]]
+    assert history.json()[0]["events"][0]["data"] == {
+        "inputFingerprint": started.json()["inputFingerprint"],
+        "applicationRevision": 1,
+        "vacancyRevision": 1,
+        "masterProfileVersion": 1,
+    }
+    assert foreign_history.status_code == 200
+    assert foreign_history.json() == []

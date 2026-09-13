@@ -11,6 +11,7 @@ from app.core.database import SessionLocal, get_db
 from app.core.identity import bind_request_identity, current_owner_id, get_bound_owner_id
 from app.core.settings import Settings, get_settings
 from app.models.generation_runs import (
+    ApplicationGenerationRunRecord,
     GenerationRunAnswerRequest,
     GenerationRunArtifactRecord,
     GenerationRunCancelRequest,
@@ -81,6 +82,26 @@ def start_generation_run(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Generation run storage is temporarily unavailable",
         ) from exc
+
+
+@router.get(
+    "/{application_id}/generation/runs",
+    response_model=list[GenerationRunPayload],
+    response_model_by_alias=True,
+)
+def list_application_generation_runs(
+    application_id: str,
+    db: Session = Depends(get_db),
+) -> list[GenerationRunPayload]:
+    runs = db.scalars(
+        select(ApplicationGenerationRunRecord)
+        .where(ApplicationGenerationRunRecord.application_id == application_id)
+        .order_by(
+            ApplicationGenerationRunRecord.created_at.desc(),
+            ApplicationGenerationRunRecord.id.desc(),
+        )
+    ).all()
+    return [generation_run_payload(db, run) for run in runs]
 
 
 @router.get(
