@@ -1,4 +1,5 @@
 import asyncio
+import base64
 import json
 import subprocess
 from pathlib import Path
@@ -109,30 +110,34 @@ def test_openclaw_adapter_preserves_cli_and_returns_neutral_result() -> None:
     assert result.session_id == "agent:rufina-assistant:test-session"
 
 
-def test_openclaw_adapter_materializes_page_images_for_local_review() -> None:
-    captured_path = ""
+def test_openclaw_adapter_sends_page_images_through_multimodal_runner() -> None:
+    captured_request_path = ""
 
     def fake_run(args: list[str], **_: object) -> subprocess.CompletedProcess[str]:
-        nonlocal captured_path
-        prompt = args[args.index("--message") + 1]
-        captured_path = prompt.rsplit("- ", 1)[-1]
-        assert Path(captured_path).read_bytes() == b"png-bytes"
+        nonlocal captured_request_path
+        assert Path(args[1]).name == "openclaw_multimodal_runner.mjs"
+        captured_request_path = args[2]
+        request = json.loads(Path(captured_request_path).read_text(encoding="utf-8"))
+        assert request["prompt"] == "Inspect the page"
+        assert Path(request["openclawExecutable"]).name == "openclaw"
+        assert request["images"][0]["mimeType"] == "image/png"
+        assert base64.b64decode(request["images"][0]["data"]) == b"png-bytes"
         return subprocess.CompletedProcess(
             args,
             0,
-            stdout=json.dumps({"result": {"payloads": [{"text": "reviewed"}]}}),
+            stdout=json.dumps({"payloads": [{"text": "reviewed"}]}),
             stderr="",
         )
 
-    OpenClawCodexBackend(command="openclaw", sync_runner=fake_run).generate(
+    result = OpenClawCodexBackend(command="openclaw", sync_runner=fake_run).generate(
         AIRequest(
             prompt="Inspect the page",
             image_inputs=(AIImageInput(content=b"png-bytes"),),
         )
     )
 
-    assert captured_path.endswith("page-1.png")
-    assert not Path(captured_path).exists()
+    assert result.text == "reviewed"
+    assert not Path(captured_request_path).exists()
 
 
 def test_openai_api_adapter_uses_responses_api_and_returns_same_contract() -> None:

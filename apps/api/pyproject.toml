@@ -41,6 +41,7 @@ include = ["app*"]
 
 [tool.setuptools.package-data]
 app = [
+  "services/*.mjs",
   "templates/resume_pdf/*/*",
   "generator_resources/**/*",
 ]

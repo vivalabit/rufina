@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal, Protocol
 
@@ -33,6 +33,8 @@ AI_BACKEND_PROVIDER_NAMES: dict[AIBackendMode, str] = {
     "openclaw_codex": "OpenAI via OpenClaw/Codex",
     "openai_api": "OpenAI Responses API",
 }
+
+OPENCLAW_MULTIMODAL_RUNNER = Path(__file__).with_name("openclaw_multimodal_runner.mjs")
 
 
 def ai_backend_provider_name(backend: str) -> str:
@@ -140,32 +142,55 @@ class OpenClawCodexBackend:
         self.model_after_timeout = model_after_timeout
 
     def generate(self, request: AIRequest) -> AIResult:
+        started_at = time.perf_counter()
         if request.image_inputs:
             with tempfile.TemporaryDirectory(prefix="tasko-ai-images-") as directory:
-                return self.generate(_materialize_openclaw_images(request, Path(directory)))
-        started_at = time.perf_counter()
-        try:
-            if self.prompt_transport == "file":
-                with tempfile.NamedTemporaryFile(
-                    mode="w", encoding="utf-8", suffix=".txt"
-                ) as prompt_file:
-                    prompt_file.write(request.prompt)
-                    prompt_file.flush()
-                    result = self.sync_runner(
-                        self._arguments(request, prompt_file=Path(prompt_file.name)),
-                        capture_output=True,
-                        check=True,
-                        text=True,
-                        timeout=request.timeout_seconds,
-                    )
-            else:
-                result = self.sync_runner(
-                    self._arguments(request),
-                    capture_output=True,
-                    check=True,
-                    text=True,
-                    timeout=request.timeout_seconds,
+                request_file = _write_openclaw_multimodal_request(
+                    request,
+                    directory=Path(directory),
+                    openclaw_executable=self.executable,
                 )
+                return self._generate_once(
+                    request,
+                    [
+                        shutil.which("node") or "node",
+                        str(OPENCLAW_MULTIMODAL_RUNNER),
+                        str(request_file),
+                    ],
+                    started_at=started_at,
+                )
+        if self.prompt_transport == "file":
+            with tempfile.NamedTemporaryFile(
+                mode="w", encoding="utf-8", suffix=".txt"
+            ) as prompt_file:
+                prompt_file.write(request.prompt)
+                prompt_file.flush()
+                return self._generate_once(
+                    request,
+                    self._arguments(request, prompt_file=Path(prompt_file.name)),
+                    started_at=started_at,
+                )
+        return self._generate_once(
+            request,
+            self._arguments(request),
+            started_at=started_at,
+        )
+
+    def _generate_once(
+        self,
+        request: AIRequest,
+        arguments: list[str],
+        *,
+        started_at: float,
+    ) -> AIResult:
+        try:
+            result = self.sync_runner(
+                arguments,
+                capture_output=True,
+                check=True,
+                text=True,
+                timeout=request.timeout_seconds + 5,
+            )
         except FileNotFoundError as exc:
             raise AIBackendError(
                 f"AI backend command was not found: {self.command}",
@@ -199,13 +224,39 @@ class OpenClawCodexBackend:
         )
 
     async def agenerate(self, request: AIRequest) -> AIResult:
+        started_at = time.perf_counter()
         if request.image_inputs:
             with tempfile.TemporaryDirectory(prefix="tasko-ai-images-") as directory:
-                return await self.agenerate(_materialize_openclaw_images(request, Path(directory)))
-        started_at = time.perf_counter()
+                request_file = _write_openclaw_multimodal_request(
+                    request,
+                    directory=Path(directory),
+                    openclaw_executable=self.executable,
+                )
+                return await self._agenerate_once(
+                    request,
+                    [
+                        shutil.which("node") or "node",
+                        str(OPENCLAW_MULTIMODAL_RUNNER),
+                        str(request_file),
+                    ],
+                    started_at=started_at,
+                )
+        return await self._agenerate_once(
+            request,
+            self._arguments(request),
+            started_at=started_at,
+        )
+
+    async def _agenerate_once(
+        self,
+        request: AIRequest,
+        arguments: list[str],
+        *,
+        started_at: float,
+    ) -> AIResult:
         try:
             process = await self.async_process_factory(
-                *self._arguments(request),
+                *arguments,
                 stdout=asyncio.subprocess.PIPE,
                 stderr=asyncio.subprocess.PIPE,
             )
@@ -460,25 +511,36 @@ def build_ai_result(
     )
 
 
-def _materialize_openclaw_images(request: AIRequest, directory: Path) -> AIRequest:
-    suffixes = {
-        "image/png": ".png",
-        "image/jpeg": ".jpg",
-        "image/webp": ".webp",
-    }
-    paths: list[str] = []
-    for index, image in enumerate(request.image_inputs, start=1):
-        path = directory / f"page-{index}{suffixes[image.media_type]}"
-        path.write_bytes(image.content)
-        paths.append(str(path))
-    attachment_note = "\n\nServer-rendered page images to inspect:\n" + "\n".join(
-        f"- {path}" for path in paths
+def _write_openclaw_multimodal_request(
+    request: AIRequest,
+    *,
+    directory: Path,
+    openclaw_executable: str,
+) -> Path:
+    request_file = directory / "request.json"
+    request_file.write_text(
+        json.dumps(
+            {
+                "prompt": request.prompt,
+                "model": request.model,
+                "agentId": request.agent_id,
+                "thinking": request.thinking,
+                "timeoutSeconds": request.timeout_seconds,
+                "sessionId": request.session_id,
+                "openclawExecutable": openclaw_executable,
+                "images": [
+                    {
+                        "data": base64.b64encode(image.content).decode("ascii"),
+                        "mimeType": image.media_type,
+                    }
+                    for image in request.image_inputs
+                ],
+            },
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
     )
-    return replace(
-        request,
-        prompt=request.prompt + attachment_note,
-        image_inputs=(),
-    )
+    return request_file
 
 
 def extract_json_values(value: str) -> list[Any]:
