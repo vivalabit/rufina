@@ -83,4 +83,47 @@ describe("useApplications", () => {
     expect(deleteCall?.[1]?.headers).toMatchObject({ "If-Match": '"2"' });
     await waitFor(() => expect(result.current.applications).toHaveLength(0));
   });
+
+  it("keeps generated history when legacy source attachments are unavailable", async () => {
+    const fetchMock = vi.fn(async (input: RequestInfo | URL) => {
+      const url = new URL(String(input));
+      if (url.pathname === "/applications") {
+        const payload = applicationPayload("Historical", 1);
+        delete (payload.data as { appliedAt?: string }).appliedAt;
+        return Response.json([payload]);
+      }
+      if (url.pathname === "/documents/workspace-sources/library") {
+        return Response.json({ detail: "Legacy source store unavailable" }, { status: 503 });
+      }
+      if (url.pathname === "/documents") {
+        return Response.json([{
+          id: "generated-history",
+          title: "Saved cover letter",
+          type: "cover_letter",
+          currentVersion: 2,
+          updatedAt: "2026-08-31T11:00:00Z",
+          versions: [{
+            version: 2,
+            artifact: {
+              fileName: "saved-cover-letter.docx",
+              contentType:
+                "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+            },
+          }],
+        }]);
+      }
+      throw new Error(`Unhandled GET ${url.pathname}`);
+    });
+    vi.stubGlobal("fetch", fetchMock);
+    const { result } = renderHook(() => useApplications(), { wrapper });
+
+    await waitFor(() => expect(result.current.applications).toHaveLength(1));
+    expect(result.current.applications[0]).toMatchObject({
+      appliedAt: "2026-08-31T10:00:00Z",
+      documents: [{
+        artifactId: "generated-history",
+        fileName: "saved-cover-letter.docx",
+      }],
+    });
+  });
 });

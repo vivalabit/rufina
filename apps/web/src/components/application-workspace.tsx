@@ -62,6 +62,7 @@ import { cn } from "@/lib/utils";
 import type {
   ApplicationDocument,
   ApplicationStatus,
+  LegacyCandidateConfirmation,
   SubmissionDocumentSelection,
 } from "@/shared/types/application";
 import type { Job } from "@/shared/types/job";
@@ -121,6 +122,7 @@ type WorkspaceApplication = {
   >;
   documents: WorkspaceApplicationDocument[];
   documentPreparation?: DocumentPreparationSettings;
+  legacyCandidateConfirmations?: LegacyCandidateConfirmation[];
 };
 
 type ApplicationWorkspaceProps = {
@@ -853,6 +855,53 @@ export function ApplicationWorkspace({
             ) : null}
           </div>
         </section>
+
+        {application.legacyCandidateConfirmations?.length ? (
+          <section
+            aria-labelledby="imported-answers-title"
+            className="workspace-card mt-5 px-5 py-5 sm:px-6"
+          >
+            <div className="flex items-start gap-3">
+              <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-[#fff3e8] text-accent">
+                <Paperclip className="h-4.5 w-4.5" />
+              </span>
+              <div className="min-w-0">
+                <h2
+                  id="imported-answers-title"
+                  className="text-base font-bold text-foreground"
+                >
+                  Imported application answers
+                </h2>
+                <p className="mt-1 text-[10px] leading-4 text-muted">
+                  Preserved as application history only. These answers are not
+                  added to your master profile or treated as verified facts.
+                </p>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-2">
+              {application.legacyCandidateConfirmations.map((confirmation) => (
+                <article
+                  key={confirmation.questionId}
+                  className="rounded-xl border border-border bg-[#fff8f1] px-4 py-3"
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="text-xs font-bold text-foreground">
+                      {confirmation.requirement || "Previous confirmation"}
+                    </p>
+                    <span className="rounded-full border border-border bg-white px-2 py-0.5 text-[8px] font-black uppercase tracking-wide text-muted">
+                      {confirmation.response}
+                    </span>
+                  </div>
+                  {confirmation.exampleText ? (
+                    <p className="mt-1.5 text-[10px] leading-4 text-[#4a4a47]">
+                      {confirmation.exampleText}
+                    </p>
+                  ) : null}
+                </article>
+              ))}
+            </div>
+          </section>
+        ) : null}
 
         <div className="mt-5 grid items-start gap-5 lg:grid-cols-[minmax(300px,0.78fr)_minmax(0,1.35fr)] lg:items-stretch">
           <section

@@ -78,6 +78,55 @@ describe("application API mappers", () => {
     });
   });
 
+  it("opens legacy applications without reviving their analytical state", () => {
+    const [application] = normalizeStoredApplications([{
+      id: "legacy-application",
+      status: "applied",
+      applied_at: "2026-07-05T09:15:00.000Z",
+      notes: "Keep the original note.",
+      job: {
+        id: "linkedin-legacy-role",
+        title: "Legacy role",
+        company: "Example AG",
+        aiMatch: {
+          version: "ai-match-v3",
+          score: 91,
+          status: "completed",
+        },
+      },
+      legacyCandidateConfirmations: [{
+        questionId: "cloud-experience",
+        requirement: "Cloud platform experience",
+        response: "partial",
+        exampleText: "Maintained a small production workload.",
+        blocking: true,
+        updatedAt: "2026-07-06T08:00:00.000Z",
+      }],
+    }]);
+
+    expect(application).toMatchObject({
+      id: "legacy-application",
+      status: "applied",
+      appliedAt: "2026-07-05T09:15:00.000Z",
+      nextStep: "",
+      notes: "Keep the original note.",
+      job: {
+        id: "linkedin-legacy-role",
+        title: "Legacy role",
+        company: "Example AG",
+      },
+      legacyCandidateConfirmations: [{
+        questionId: "cloud-experience",
+        response: "partial",
+        exampleText: "Maintained a small production workload.",
+      }],
+    });
+    expect(application.job.aiMatch).toBeUndefined();
+    expect(applicationPayloadForApi(application)).not.toHaveProperty(
+      "legacyCandidateConfirmations",
+    );
+  });
+
   it("maps workspace source metadata and resolves its URL", () => {
     expect(
       workspaceSourceToApplicationDocument({

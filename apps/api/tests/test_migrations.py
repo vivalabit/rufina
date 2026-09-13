@@ -239,7 +239,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260912_0053"
+            assert revision == "20260913_0055"
             entry_it = connection.execute(
                 text(
                     "SELECT id, owner_id, name, filters "
@@ -2058,7 +2058,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260912_0053"
+            assert revision == "20260913_0055"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
@@ -2098,7 +2098,7 @@ def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> Non
                     "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
                 )
             ).scalar_one()
-        assert revision == "20260912_0053"
+        assert revision == "20260913_0055"
         assert entry_it_count == 1
         assert LEGACY_RECOVERABLE_MISSING_TABLES <= set(
             inspect(engine).get_table_names()
@@ -2920,6 +2920,193 @@ def test_match_score_migration_preserves_scores_and_provenance(tmp_path) -> None
             assert row["score"] == 88
             assert json.loads(row["reasons"]) == []
             assert json.loads(row["breakdown"]) == {}
+        command.upgrade(config, "head")
+    finally:
+        engine.dispose()
+
+
+def test_application_history_migration_preserves_user_records_without_profile_promotion(
+    tmp_path,
+) -> None:
+    database_url = f"sqlite:///{tmp_path / 'application-history.sqlite'}"
+    config = get_alembic_config(database_url)
+    command.upgrade(config, "20260912_0053")
+    now = "2026-07-06 10:00:00+00:00"
+    application_data = {
+        "id": "application-history",
+        "status": "applied",
+        "appliedAt": "2026-07-05T09:15:00.000Z",
+        "nextStep": "Wait for recruiter",
+        "notes": "Keep the original note.",
+        "job": {
+            "id": "job-history",
+            "title": "Platform Engineer",
+            "company": "Example AG",
+            "aiMatch": {
+                "version": "ai-match-v3",
+                "score": 91,
+                "status": "completed",
+            },
+        },
+    }
+    event_data = {
+        "id": "event-history",
+        "applicationId": "application-history",
+        "type": "interview",
+        "status": "completed",
+        "outcome": "positive",
+        "title": "Recruiter interview",
+        "startsAt": "2026-07-06T10:00:00.000Z",
+        "durationMinutes": 30,
+        "timezone": "Europe/Zurich",
+        "location": "Remote",
+        "notes": "Keep the event note.",
+    }
+    engine = create_engine(database_url)
+    try:
+        with engine.begin() as connection:
+            connection.execute(
+                text(
+                    "INSERT INTO stored_applications "
+                    "(id, owner_id, data, created_at, updated_at, revision) "
+                    "VALUES ('application-history', 'local-owner', :data, :now, :now, 4)"
+                ),
+                {"data": json.dumps(application_data), "now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO stored_application_events "
+                    "(id, owner_id, application_id, data, created_at, updated_at, revision) "
+                    "VALUES ('event-history', 'local-owner', 'application-history', "
+                    ":data, :now, :now, 3)"
+                ),
+                {"data": json.dumps(event_data), "now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO stored_jobs "
+                    "(owner_id, id, data, status, updated_at, revision) "
+                    "VALUES ('local-owner', 'job-history', :data, 'active', :now, 2)"
+                ),
+                {
+                    "data": json.dumps(application_data["job"]),
+                    "now": now,
+                },
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO candidate_confirmations "
+                    "(owner_id, application_id, question_id, requirement, response, "
+                    "example_text, blocking, updated_at) VALUES "
+                    "('local-owner', 'application-history', 'cloud-experience', "
+                    "'Cloud platform experience', 'partial', "
+                    "'Maintained a small production workload.', 1, :now)"
+                ),
+                {"now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO profiles (id, owner_id, data, updated_at, revision) "
+                    "VALUES ('default', 'local-owner', :data, :now, 1)"
+                ),
+                {"data": json.dumps({"name": "Existing Candidate"}), "now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO documents "
+                    "(id, owner_id, type, title, job_id, current_version, "
+                    "created_at, updated_at) VALUES "
+                    "('history-document', 'local-owner', 'cover_letter', "
+                    "'Saved cover letter', 'job-history', 2, :now, :now)"
+                ),
+                {"now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO document_versions "
+                    "(id, document_id, version, content, created_at) VALUES "
+                    "('history-version-1', 'history-document', 1, 'Version one', :now), "
+                    "('history-version-2', 'history-document', 2, 'Version two', :now)"
+                ),
+                {"now": now},
+            )
+            connection.execute(
+                text(
+                    "INSERT INTO document_attachments "
+                    "(id, document_id, application_id, created_at) VALUES "
+                    "('history-attachment', 'history-document', "
+                    "'application-history', :now)"
+                ),
+                {"now": now},
+            )
+
+        command.upgrade(config, "head")
+
+        with engine.connect() as connection:
+            migrated_application = connection.execute(
+                text("SELECT data FROM stored_applications WHERE id = 'application-history'")
+            ).scalar_one()
+            migrated_job = connection.execute(
+                text(
+                    "SELECT data FROM stored_jobs "
+                    "WHERE owner_id = 'local-owner' AND id = 'job-history'"
+                )
+            ).scalar_one()
+            stored_event = connection.execute(
+                text(
+                    "SELECT data, revision FROM stored_application_events "
+                    "WHERE id = 'event-history'"
+                )
+            ).one()
+            profile = connection.execute(
+                text("SELECT data FROM profiles WHERE id = 'default'")
+            ).scalar_one()
+
+            migrated_application = json.loads(migrated_application)
+            migrated_job = json.loads(migrated_job)
+            assert migrated_application["appliedAt"] == application_data["appliedAt"]
+            assert migrated_application["notes"] == application_data["notes"]
+            assert migrated_application["nextStep"] == application_data["nextStep"]
+            assert "aiMatch" not in migrated_application["job"]
+            assert "documentPreparation" not in migrated_application
+            assert migrated_application["legacyCandidateConfirmations"] == [
+                {
+                    "questionId": "cloud-experience",
+                    "requirement": "Cloud platform experience",
+                    "response": "partial",
+                    "exampleText": "Maintained a small production workload.",
+                    "blocking": True,
+                    "updatedAt": now,
+                }
+            ]
+            assert "aiMatch" not in migrated_job
+            assert json.loads(stored_event.data) == event_data
+            assert stored_event.revision == 3
+            assert json.loads(profile) == {"name": "Existing Candidate"}
+            assert connection.execute(
+                text("SELECT COUNT(*) FROM document_versions")
+            ).scalar_one() == 2
+            assert connection.execute(
+                text("SELECT COUNT(*) FROM document_attachments")
+            ).scalar_one() == 1
+            assert connection.execute(
+                text("SELECT COUNT(*) FROM candidate_confirmations")
+            ).scalar_one() == 1
+
+        command.downgrade(config, "20260912_0053")
+        with engine.connect() as connection:
+            downgraded = json.loads(
+                connection.execute(
+                    text(
+                        "SELECT data FROM stored_applications "
+                        "WHERE id = 'application-history'"
+                    )
+                ).scalar_one()
+            )
+            assert "legacyCandidateConfirmations" not in downgraded
+            assert connection.execute(
+                text("SELECT COUNT(*) FROM candidate_confirmations")
+            ).scalar_one() == 1
         command.upgrade(config, "head")
     finally:
         engine.dispose()

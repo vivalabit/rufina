@@ -85,7 +85,7 @@ export async function fetchApplicationDocuments(
   applicationId: string,
   signal?: AbortSignal,
 ): Promise<ApplicationDocument[]> {
-  const [sources, generated] = await Promise.all([
+  const [sources, generated] = await Promise.allSettled([
     apiClient.json<WorkspaceSourceFilePayload[]>({
       path: "/documents/workspace-sources/library",
       query: { applicationId },
@@ -101,11 +101,15 @@ export async function fetchApplicationDocuments(
       errorMessage: "Application documents could not be loaded",
     }),
   ]);
+  if (signal?.aborted) throw new DOMException("Aborted", "AbortError");
+  if (sources.status === "rejected" && generated.status === "rejected") {
+    throw sources.reason;
+  }
   return [
-    ...sources.data
+    ...(sources.status === "fulfilled" ? sources.value.data : [])
       .filter((source) => source.category === "Application Attachment")
       .map(workspaceSourceToApplicationDocument),
-    ...generated.data.map((document) =>
+    ...(generated.status === "fulfilled" ? generated.value.data : []).map((document) =>
       generatedDocumentToApplicationDocument(document),
     ),
   ];

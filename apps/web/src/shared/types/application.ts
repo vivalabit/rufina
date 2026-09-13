@@ -86,6 +86,15 @@ export type ApplicationDocument = {
   pendingFile?: File;
 };
 
+export type LegacyCandidateConfirmation = {
+  questionId: string;
+  requirement: string;
+  response: "yes" | "no" | "partial";
+  exampleText: string;
+  blocking: boolean;
+  updatedAt: string;
+};
+
 export type TrackedApplication = {
   id: string;
   job: Job;
@@ -95,6 +104,7 @@ export type TrackedApplication = {
   notes: string;
   documents: ApplicationDocument[];
   documentPreparation?: DocumentPreparationSettings;
+  legacyCandidateConfirmations?: LegacyCandidateConfirmation[];
 };
 
 export type ApplicationEvent = {

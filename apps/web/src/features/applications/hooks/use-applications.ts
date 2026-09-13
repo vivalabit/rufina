@@ -31,7 +31,17 @@ type ApplicationsSnapshot = {
 };
 
 function normalizePayload(payload: StoredApplicationPayload) {
-  const application = normalizeStoredApplications([payload.data])[0];
+  const data = payload.data && typeof payload.data === "object"
+    ? payload.data as Record<string, unknown>
+    : {};
+  const application = normalizeStoredApplications([{
+    ...data,
+    id: typeof data.id === "string" && data.id.trim() ? data.id : payload.id,
+    appliedAt:
+      typeof data.appliedAt === "string" && data.appliedAt.trim()
+        ? data.appliedAt
+        : payload.created_at ?? "",
+  }])[0];
   return application ? { application, revision: payload.revision ?? 0 } : null;
 }
 

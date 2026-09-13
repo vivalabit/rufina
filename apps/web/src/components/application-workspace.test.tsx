@@ -86,6 +86,29 @@ describe("ApplicationWorkspace", () => {
     ).toBeInTheDocument();
   });
 
+  it("shows imported confirmations as history without promoting them to facts", () => {
+    renderApplicationWorkspace(
+      createWorkspaceApplication({
+        legacyCandidateConfirmations: [{
+          questionId: "cloud-experience",
+          requirement: "Cloud platform experience",
+          response: "partial",
+          exampleText: "Maintained a small production workload.",
+          blocking: true,
+          updatedAt: "2026-07-06T08:00:00.000Z",
+        }],
+      }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Imported application answers" }),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Cloud platform experience")).toBeInTheDocument();
+    expect(
+      screen.getByText(/not added to your master profile or treated as verified facts/i),
+    ).toBeInTheDocument();
+  });
+
   it("restores document preparation settings and saves changes", async () => {
     const { props } = renderApplicationWorkspace(
       createWorkspaceApplication({

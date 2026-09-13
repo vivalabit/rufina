@@ -27,7 +27,21 @@ type ApplicationEventsSnapshot = {
 };
 
 function normalizePayload(payload: StoredApplicationEventPayload) {
-  const event = normalizeStoredApplicationEvents([payload.data])[0];
+  const data = payload.data && typeof payload.data === "object"
+    ? payload.data as Record<string, unknown>
+    : {};
+  const event = normalizeStoredApplicationEvents([{
+    ...data,
+    id: typeof data.id === "string" && data.id.trim() ? data.id : payload.id,
+    applicationId:
+      typeof data.applicationId === "string" && data.applicationId.trim()
+        ? data.applicationId
+        : payload.application_id,
+    startsAt:
+      typeof data.startsAt === "string" && data.startsAt.trim()
+        ? data.startsAt
+        : payload.created_at ?? "",
+  }])[0];
   return event ? { event, revision: payload.revision ?? 0 } : null;
 }
 

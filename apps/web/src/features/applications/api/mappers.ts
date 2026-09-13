@@ -1,15 +1,21 @@
 import { resolveApiUrl } from "@/shared/api/config";
 import { formatFileSize } from "@/shared/formatting/files";
-import { normalizeStoredJobs } from "@/features/jobs/api/mappers";
+import {
+  normalizeStoredJobLogo,
+  normalizeStoredJobs,
+} from "@/features/jobs/api/mappers";
 import { normalizeDocumentPreparationSettings } from "@/features/applications/model/document-preparation";
+import { getAiMatchAnalysisStatus } from "@/lib/ai-match";
 import type {
   ApplicationDocument,
   ApplicationEvent,
   ApplicationEventOutcome,
   ApplicationEventStatus,
   ApplicationStatus,
+  LegacyCandidateConfirmation,
   TrackedApplication,
 } from "@/shared/types/application";
+import type { Job } from "@/shared/types/job";
 
 import type {
   ApplicationEventApiPayload,
@@ -26,7 +32,80 @@ import {
 export function applicationPayloadForApi(application: TrackedApplication) {
   const payload: Partial<TrackedApplication> = { ...application };
   delete payload.documents;
+  // Migrated confirmations are read-only historical context. Keeping them out
+  // of writes prevents an ordinary edit from turning them into current input.
+  delete payload.legacyCandidateConfirmations;
   return payload;
+}
+
+function stringValue(value: unknown, fallback = "") {
+  return typeof value === "string" ? value : fallback;
+}
+
+function stringList(value: unknown) {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === "string")
+    : [];
+}
+
+function normalizeApplicationJob(value: unknown, applicationId: string): Job | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<Job>;
+  const normalized = normalizeStoredJobs([candidate])[0];
+  const base = normalized ?? {
+    id: stringValue(candidate.id, `legacy-job-${applicationId}`),
+    title: stringValue(candidate.title, "Saved vacancy"),
+    company: stringValue(candidate.company, "Unknown company"),
+    location: stringValue(candidate.location),
+    type: stringValue(candidate.type),
+    salary: stringValue(candidate.salary),
+    posted: stringValue(candidate.posted),
+    experience: stringValue(candidate.experience),
+    department: stringValue(candidate.department),
+    match: typeof candidate.match === "number" ? candidate.match : 0,
+    logo: "manual" as const,
+    overview: stringValue(candidate.overview),
+    responsibilities: stringList(candidate.responsibilities),
+    requirements: stringList(candidate.requirements),
+    skills: stringList(candidate.skills),
+    salaryAverage: stringValue(candidate.salaryAverage),
+    salaryMin: stringValue(candidate.salaryMin),
+    salaryMax: stringValue(candidate.salaryMax),
+    recommendations: Array.isArray(candidate.recommendations)
+      ? candidate.recommendations
+      : [],
+    companyInfo: stringValue(candidate.companyInfo),
+    reviews: stringList(candidate.reviews),
+    similarJobs: stringList(candidate.similarJobs),
+    applyUrl: stringValue(candidate.applyUrl) || undefined,
+    sourceUrl: stringValue(candidate.sourceUrl) || undefined,
+    addedAt: stringValue(candidate.addedAt) || undefined,
+  } satisfies Job;
+  const aiMatch = getAiMatchAnalysisStatus(candidate.aiMatch) === "current"
+    ? candidate.aiMatch
+    : undefined;
+  const job = { ...base, aiMatch };
+  return { ...job, logo: normalizeStoredJobLogo(job) };
+}
+
+function normalizeLegacyConfirmations(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item): LegacyCandidateConfirmation[] => {
+    if (!item || typeof item !== "object") return [];
+    const candidate = item as Partial<LegacyCandidateConfirmation>;
+    if (
+      typeof candidate.questionId !== "string"
+      || !["yes", "no", "partial"].includes(candidate.response ?? "")
+    ) return [];
+    return [{
+      questionId: candidate.questionId,
+      requirement: stringValue(candidate.requirement),
+      response: candidate.response as LegacyCandidateConfirmation["response"],
+      exampleText: stringValue(candidate.exampleText),
+      blocking: candidate.blocking === true,
+      updatedAt: stringValue(candidate.updatedAt),
+    }];
+  });
 }
 
 export function normalizeApplicationDocuments(value: unknown) {
@@ -62,28 +141,39 @@ export function normalizeStoredApplications(value: unknown) {
 
   return value.flatMap((application): TrackedApplication[] => {
     if (!application || typeof application !== "object") return [];
-    const candidate = application as Partial<TrackedApplication>;
-    const normalizedJobs = normalizeStoredJobs([candidate.job]);
-    if (
-      typeof candidate.id !== "string" ||
-      normalizedJobs.length !== 1 ||
-      !applicationStatuses.some((item) => item.status === candidate.status) ||
-      typeof candidate.appliedAt !== "string" ||
-      typeof candidate.nextStep !== "string" ||
-      typeof candidate.notes !== "string"
-    ) return [];
+    const candidate = application as Partial<TrackedApplication> & {
+      applied_at?: unknown;
+      next_step?: unknown;
+    };
+    const id = stringValue(candidate.id).trim();
+    const job = normalizeApplicationJob(candidate.job, id);
+    if (!id || !job) return [];
+
+    const status = applicationStatuses.some((item) => item.status === candidate.status)
+      ? candidate.status as ApplicationStatus
+      : "draft";
+    const appliedAt = stringValue(candidate.appliedAt)
+      || stringValue(candidate.applied_at);
+    const nextStep = stringValue(candidate.nextStep)
+      || stringValue(candidate.next_step);
+    const legacyCandidateConfirmations = normalizeLegacyConfirmations(
+      candidate.legacyCandidateConfirmations,
+    );
 
     return [{
-      id: candidate.id,
-      job: normalizedJobs[0],
-      status: candidate.status as ApplicationStatus,
-      appliedAt: candidate.appliedAt,
-      nextStep: candidate.nextStep,
-      notes: candidate.notes,
+      id,
+      job,
+      status,
+      appliedAt,
+      nextStep,
+      notes: stringValue(candidate.notes),
       documents: normalizeApplicationDocuments(candidate.documents),
       documentPreparation: normalizeDocumentPreparationSettings(
         candidate.documentPreparation,
       ),
+      ...(legacyCandidateConfirmations.length
+        ? { legacyCandidateConfirmations }
+        : {}),
     }];
   });
 }
