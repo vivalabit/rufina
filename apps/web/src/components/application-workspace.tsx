@@ -34,7 +34,11 @@ import {
   type DocumentTemplateSummary,
 } from "@/features/applications/api/document-access-client";
 import {
+  fetchApplicationGenerationAvailability,
   startApplicationGeneration,
+  type GenerationAvailability,
+  type GenerationDocumentState,
+  type GenerationError,
   type GenerationResult,
 } from "@/features/applications/api/generation-client";
 import {
@@ -184,6 +188,13 @@ function generationDocumentLabel(documentType: PreparationDocumentType) {
   return documentType === "tailored_resume" ? "Tailored CV" : "Cover letter";
 }
 
+function generationStateLabel(state: GenerationDocumentState) {
+  if (state === "queued") return "Queued";
+  if (state === "running") return "In progress";
+  if (state === "completed") return "Ready";
+  return "Failed";
+}
+
 function submissionDocumentLabel(documentType: PreparationDocumentType) {
   return documentType === "tailored_resume" ? "CV" : "cover letter";
 }
@@ -216,6 +227,20 @@ function validateWorkspaceFile(file: File) {
 
 function workspaceDocumentPreviewUrl(downloadUrl: string) {
   return `${downloadUrl}${downloadUrl.includes("?") ? "&" : "?"}preview=true`;
+}
+
+function restoreGenerationResult(
+  settings: DocumentPreparationSettings,
+): GenerationResult | null {
+  const restored = settings.latestGeneration;
+  return restored
+    ? {
+        executionId: restored.executionId,
+        state: restored.state,
+        documents: restored.documentResults,
+        error: restored.error,
+      }
+    : null;
 }
 
 export function ApplicationWorkspace({
@@ -259,9 +284,22 @@ export function ApplicationWorkspace({
   >([]);
   const [isGenerating, setIsGenerating] = useState(false);
   const [generationResult, setGenerationResult] =
-    useState<GenerationResult | null>(null);
-  const [generationError, setGenerationError] = useState("");
+    useState<GenerationResult | null>(() =>
+      restoreGenerationResult(normalizeDocumentPreparationSettings(
+        application?.documentPreparation,
+      )),
+    );
+  const [generationAvailability, setGenerationAvailability] = useState<
+    GenerationAvailability | null
+  >(null);
+  const [generationAvailabilityStatus, setGenerationAvailabilityStatus] =
+    useState<"idle" | "loading" | "ready" | "error">("idle");
+  const [generationAvailabilityError, setGenerationAvailabilityError] =
+    useState("");
+  const [generationAvailabilityRequest, setGenerationAvailabilityRequest] =
+    useState(0);
   const saveSequenceRef = useRef(0);
+  const generationInFlightRef = useRef(false);
   const applicationId = application?.id ?? "";
   const jobId = application?.job.id ?? "";
   const hydratedApplicationIdRef = useRef(applicationId);
@@ -269,13 +307,49 @@ export function ApplicationWorkspace({
   useEffect(() => {
     if (hydratedApplicationIdRef.current === applicationId) return;
     hydratedApplicationIdRef.current = applicationId;
-    setSettings(normalizeDocumentPreparationSettings(application?.documentPreparation));
+    const restoredSettings = normalizeDocumentPreparationSettings(
+      application?.documentPreparation,
+    );
+    setSettings(restoredSettings);
     setSettingsStatus("saved");
     setSettingsError("");
-    setGenerationResult(null);
-    setGenerationError("");
+    setGenerationResult(restoreGenerationResult(restoredSettings));
+    setIsGenerating(false);
+    generationInFlightRef.current = false;
     saveSequenceRef.current += 1;
   }, [applicationId, application?.documentPreparation]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setGenerationAvailability(null);
+    setGenerationAvailabilityError("");
+    if (!applicationId) {
+      setGenerationAvailabilityStatus("idle");
+      return () => controller.abort();
+    }
+    setGenerationAvailabilityStatus("loading");
+    void fetchApplicationGenerationAvailability(
+      applicationId,
+      controller.signal,
+    )
+      .then((availability) => {
+        if (controller.signal.aborted) return;
+        setGenerationAvailability(availability);
+        setGenerationAvailabilityStatus("ready");
+      })
+      .catch((caught) => {
+        if (caught instanceof DOMException && caught.name === "AbortError") {
+          return;
+        }
+        setGenerationAvailabilityStatus("error");
+        setGenerationAvailabilityError(
+          caught instanceof Error
+            ? caught.message
+            : "Generation availability could not be checked.",
+        );
+      });
+    return () => controller.abort();
+  }, [applicationId, generationAvailabilityRequest]);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -523,31 +597,79 @@ export function ApplicationWorkspace({
     }
   }
 
+  async function saveGenerationResult(result: GenerationResult) {
+    const nextSettings = {
+      ...settings,
+      latestGeneration: {
+        executionId: result.executionId,
+        state: result.state,
+        documentResults: result.documents,
+        error: result.error,
+      },
+    };
+    setSettings(nextSettings);
+    setGenerationResult(result);
+    await persistSettings(nextSettings);
+  }
+
   async function generateDocuments() {
-    if (!applicationId || !settings.documentTypes.length || isGenerating)
-      return;
+    const restoredRunIsActive = generationResult?.state === "queued"
+      || generationResult?.state === "running";
+    if (
+      !applicationId
+      || !settings.documentTypes.length
+      || generationAvailability?.available !== true
+      || generationInFlightRef.current
+      || restoredRunIsActive
+    ) return;
+    generationInFlightRef.current = true;
     setIsGenerating(true);
-    setGenerationError("");
-    setGenerationResult(null);
     if (settingsStatus === "unsaved" || settingsStatus === "error") {
       await persistSettings(settings);
     }
+    const executionId = `pending-${applicationId}-${Date.now()}`;
+    const runningResult: GenerationResult = {
+      executionId,
+      state: "running",
+      documents: settings.documentTypes.map((documentType, index) => ({
+        documentType,
+        state: index === 0 ? "running" : "queued",
+        files: [],
+        error: null,
+      })),
+      error: null,
+    };
+    await saveGenerationResult(runningResult);
     try {
       const result = await startApplicationGeneration(
         applicationId,
         generationRequestFromSettings(settings),
       );
-      setGenerationResult(result);
+      await saveGenerationResult(result);
       if (result.state === "completed") {
         setDocumentsRequest((current) => current + 1);
       }
     } catch (caught) {
-      setGenerationError(
-        caught instanceof Error
+      const error: GenerationError = {
+        code: "generation_request_failed",
+        message: caught instanceof Error
           ? caught.message
           : "Document generation could not be started.",
-      );
+        retryable: true,
+      };
+      await saveGenerationResult({
+        executionId,
+        state: "failed",
+        documents: settings.documentTypes.map((documentType) => ({
+          documentType,
+          state: "failed",
+          files: [],
+          error,
+        })),
+        error,
+      });
     } finally {
+      generationInFlightRef.current = false;
       setIsGenerating(false);
     }
   }
@@ -647,6 +769,15 @@ export function ApplicationWorkspace({
 
   const jobUrl = normalizeJobsChJobUrl(
     application.job.applyUrl || application.job.sourceUrl || "",
+  );
+  const generationRunIsActive = isGenerating
+    || generationResult?.state === "queued"
+    || generationResult?.state === "running";
+  const canGenerate = Boolean(
+    settings.documentTypes.length
+    && generationAvailabilityStatus === "ready"
+    && generationAvailability?.available
+    && !generationRunIsActive,
   );
 
   return (
@@ -1016,18 +1147,69 @@ export function ApplicationWorkspace({
               )}
             </div>
 
+            <div
+              role="status"
+              aria-live="polite"
+              aria-label="Generation availability"
+              className={cn(
+                "mt-3 flex items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-[10px]",
+                generationAvailability?.available
+                  ? "border-success/30 bg-success/10 text-success"
+                  : generationAvailabilityStatus === "error"
+                    ? "border-accent/25 bg-accent/10 text-accent"
+                    : "border-border bg-[#fff8f1] text-muted",
+              )}
+            >
+              <span className="flex min-w-0 items-center gap-2 font-semibold">
+                {generationAvailabilityStatus === "loading" ? (
+                  <LoaderCircle className="h-3.5 w-3.5 shrink-0 animate-spin" />
+                ) : generationAvailability?.available ? (
+                  <Check className="h-3.5 w-3.5 shrink-0" />
+                ) : (
+                  <CircleDot className="h-3.5 w-3.5 shrink-0" />
+                )}
+                <span>
+                  {generationAvailabilityStatus === "loading"
+                    ? "Checking generator availability…"
+                    : generationAvailabilityStatus === "error"
+                      ? generationAvailabilityError
+                      : generationAvailability?.message
+                        ?? "Document generation is unavailable."}
+                </span>
+              </span>
+              {generationAvailabilityStatus === "error" ? (
+                <button
+                  type="button"
+                  onClick={() =>
+                    setGenerationAvailabilityRequest((current) => current + 1)
+                  }
+                  className="shrink-0 font-bold underline underline-offset-2"
+                >
+                  Retry
+                </button>
+              ) : null}
+            </div>
+
             <Button
               type="button"
-              disabled={!settings.documentTypes.length || isGenerating}
+              disabled={!canGenerate}
+              title={
+                generationAvailabilityStatus === "ready"
+                && !generationAvailability?.available
+                  ? generationAvailability?.message
+                  : undefined
+              }
               onClick={() => void generateDocuments()}
               className="mt-3 h-11 w-full rounded-xl text-xs font-bold"
             >
-              {isGenerating ? (
+              {generationRunIsActive ? (
                 <LoaderCircle className="h-4 w-4 animate-spin" />
               ) : (
                 <Sparkles className="h-4 w-4" />
               )}
-              {isGenerating ? "Preparing documents…" : "Generate documents"}
+              {generationRunIsActive
+                ? "Preparing documents…"
+                : "Generate documents"}
             </Button>
           </section>
 
@@ -1201,47 +1383,51 @@ export function ApplicationWorkspace({
               </div>
             </div>
 
-            {generationError ? (
+            {settings.documentTypes.length || generationResult ? (
               <div
-                role="alert"
-                className="mt-4 rounded-xl border border-accent/25 bg-accent/10 px-3 py-2.5 text-[10px] leading-4 text-accent"
-              >
-                {generationError}
-              </div>
-            ) : null}
-
-            {generationResult ? (
-              <div
-                aria-label="Latest generation"
+                role="region"
+                aria-label="Document generation states"
                 className="mt-4 rounded-2xl border border-border bg-[#fff8f1] p-4"
               >
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">
-                      Latest generation
+                      {generationResult ? "Latest generation" : "Generation status"}
                     </p>
                     <p className="mt-1 text-xs font-bold text-foreground">
-                      {generationResult.state === "completed"
-                        ? "Generation finished"
-                        : generationResult.state === "failed"
-                          ? "Generation could not be completed"
-                          : "Generation in progress"}
+                      {generationResult
+                        ? generationResult.state === "completed"
+                          ? "Generation finished"
+                          : generationResult.state === "failed"
+                            ? "Generation could not be completed"
+                            : "Generation in progress"
+                        : generationAvailabilityStatus === "loading"
+                          ? "Checking generator availability"
+                          : generationAvailability?.available
+                            ? "Ready to generate"
+                            : "Creation awaits the generator"}
                     </p>
                   </div>
                   <span
                     className={cn(
                       "rounded-full border px-2.5 py-1 text-[8px] font-black uppercase tracking-wide",
-                      generationResult.state === "completed"
+                      generationResult?.state === "completed"
+                      || (!generationResult && generationAvailability?.available)
                         ? "border-success/30 bg-success/10 text-success"
-                        : generationResult.state === "failed"
+                        : generationResult?.state === "failed"
                           ? "border-accent/25 bg-accent/10 text-accent"
                           : "border-border bg-white text-muted",
                     )}
                   >
-                    {generationResult.state}
+                    {generationResult?.state
+                      ?? (generationAvailabilityStatus === "loading"
+                        ? "checking"
+                        : generationAvailability?.available
+                          ? "available"
+                          : "unavailable")}
                   </span>
                 </div>
-                {generationResult.error ? (
+                {generationResult?.error ? (
                   <p
                     role="alert"
                     className="mt-3 text-[10px] leading-4 text-accent"
@@ -1250,57 +1436,113 @@ export function ApplicationWorkspace({
                   </p>
                 ) : null}
                 <div className="mt-3 grid gap-2">
-                  {generationResult.documents.map((document) => (
-                    <div
-                      key={document.documentType}
-                      className="rounded-xl border border-border bg-white p-3"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-[10px] font-bold text-foreground">
-                          {generationDocumentLabel(document.documentType)}
-                        </p>
-                        <span className="text-[8px] font-black uppercase tracking-wide text-muted">
-                          {document.state}
-                        </span>
-                      </div>
-                      {document.error ? (
-                        <p className="mt-1 text-[9px] leading-4 text-accent">
-                          {document.error.message}
-                        </p>
-                      ) : null}
-                      {document.files.length ? (
-                        <div className="mt-2 grid gap-1.5">
-                          {document.files.map((file) => (
-                            <div
-                              key={`${file.downloadUrl}-${file.fileName}`}
-                              className="flex items-center gap-2 rounded-lg bg-[#fff8f1] px-2.5 py-2"
-                            >
-                              <span className="min-w-0 flex-1 truncate text-[9px] font-semibold text-foreground">
-                                {file.fileName}
-                              </span>
-                              <a
-                                href={file.downloadUrl}
-                                target="_blank"
-                                rel="noreferrer"
-                                aria-label={`Open ${file.fileName}`}
-                                className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border text-muted hover:bg-white hover:text-foreground"
-                              >
-                                <Eye className="h-3 w-3" />
-                              </a>
-                              <a
-                                href={file.downloadUrl}
-                                download={file.fileName}
-                                aria-label={`Download ${file.fileName}`}
-                                className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border text-muted hover:bg-white hover:text-foreground"
-                              >
-                                <Download className="h-3 w-3" />
-                              </a>
-                            </div>
-                          ))}
+                  {(generationResult?.documents.map(
+                    (document) => document.documentType,
+                  ) ?? settings.documentTypes).map((documentType) => {
+                    const document = generationResult?.documents.find(
+                      (candidate) => candidate.documentType === documentType,
+                    );
+                    const passiveState = generationAvailabilityStatus === "loading"
+                      ? "Checking"
+                      : generationAvailabilityStatus === "error"
+                        ? "Unknown"
+                        : generationAvailability?.available
+                          ? "Ready"
+                          : "Unavailable";
+                    const statusLabel = document
+                      ? generationStateLabel(document.state)
+                      : passiveState;
+                    const message = document?.error?.message
+                      ?? (document?.state === "running"
+                        ? "The generator is preparing this document."
+                        : document?.state === "queued"
+                          ? "Waiting for this document to start."
+                          : !document && generationAvailabilityStatus === "error"
+                            ? generationAvailabilityError
+                            : !document
+                              ? generationAvailability?.message
+                                ?? "Generation availability is being checked."
+                              : "");
+                    const isPending = document?.state === "running"
+                      || document?.state === "queued"
+                      || (!document && generationAvailabilityStatus === "loading");
+                    const isCompleted = document?.state === "completed"
+                      || (!document && generationAvailability?.available === true);
+                    const isFailed = document?.state === "failed";
+                    return (
+                      <div
+                        key={documentType}
+                        role="group"
+                        aria-label={`${generationDocumentLabel(documentType)} generation status`}
+                        className="rounded-xl border border-border bg-white p-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-[10px] font-bold text-foreground">
+                            {generationDocumentLabel(documentType)}
+                          </p>
+                          <span
+                            className={cn(
+                              "inline-flex items-center gap-1 text-[8px] font-black uppercase tracking-wide",
+                              isCompleted && "text-success",
+                              isFailed && "text-accent",
+                              !isCompleted && !isFailed && "text-muted",
+                            )}
+                          >
+                            {isPending ? (
+                              <LoaderCircle className="h-2.5 w-2.5 animate-spin" />
+                            ) : isCompleted ? (
+                              <Check className="h-2.5 w-2.5" />
+                            ) : (
+                              <CircleDot className="h-2.5 w-2.5" />
+                            )}
+                            {statusLabel}
+                          </span>
                         </div>
-                      ) : null}
-                    </div>
-                  ))}
+                        {message ? (
+                          <p
+                            role={isFailed ? "alert" : undefined}
+                            className={cn(
+                              "mt-1 text-[9px] leading-4",
+                              isFailed ? "text-accent" : "text-muted",
+                            )}
+                          >
+                            {message}
+                          </p>
+                        ) : null}
+                        {document?.files.length ? (
+                          <div className="mt-2 grid gap-1.5">
+                            {document.files.map((file) => (
+                              <div
+                                key={`${file.downloadUrl}-${file.fileName}`}
+                                className="flex items-center gap-2 rounded-lg bg-[#fff8f1] px-2.5 py-2"
+                              >
+                                <span className="min-w-0 flex-1 truncate text-[9px] font-semibold text-foreground">
+                                  {file.fileName}
+                                </span>
+                                <a
+                                  href={file.downloadUrl}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  aria-label={`Open ${file.fileName}`}
+                                  className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border text-muted hover:bg-white hover:text-foreground"
+                                >
+                                  <Eye className="h-3 w-3" />
+                                </a>
+                                <a
+                                  href={file.downloadUrl}
+                                  download={file.fileName}
+                                  aria-label={`Download ${file.fileName}`}
+                                  className="grid h-7 w-7 shrink-0 place-items-center rounded-md border border-border text-muted hover:bg-white hover:text-foreground"
+                                >
+                                  <Download className="h-3 w-3" />
+                                </a>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             ) : null}

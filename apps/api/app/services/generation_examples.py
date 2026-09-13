@@ -7,6 +7,7 @@ from typing import Literal
 from app.models.documents import DocumentType
 from app.models.generation import (
     GeneratedFile,
+    GenerationAvailability,
     GenerationDocumentResult,
     GenerationError,
     GenerationRequest,
@@ -30,6 +31,13 @@ class ExampleDocumentGenerator:
             raise ValueError(f"Unknown generation example scenario: {scenario}")
         self.scenario = scenario
         self.execution_id = execution_id or f"example-{scenario}"
+
+    def availability(self) -> GenerationAvailability:
+        return GenerationAvailability(
+            available=True,
+            code="available",
+            message="Document generation is available.",
+        )
 
     def generate(self, request: GenerationRequest) -> GenerationResult:
         return generation_result_example(

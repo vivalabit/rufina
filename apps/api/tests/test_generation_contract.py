@@ -204,6 +204,11 @@ def test_unavailable_generator_is_a_safe_contract_compatible_stub() -> None:
     generator = UnavailableDocumentGenerator(execution_id_factory=lambda: "stub-generation-1")
 
     assert isinstance(generator, DocumentGenerator)
+    assert generator.availability().model_dump() == {
+        "available": False,
+        "code": "generator_unavailable",
+        "message": "Document generation is not configured yet.",
+    }
     result = generator.generate(generation_request())
 
     assert result.execution_id == "stub-generation-1"
@@ -245,6 +250,7 @@ def test_opt_in_example_generators_cover_ui_states(
     generator = ExampleDocumentGenerator(scenario, execution_id=f"fixture-{scenario}")
 
     assert isinstance(generator, DocumentGenerator)
+    assert generator.availability().available is True
     result = generator.generate(generation_request())
 
     assert result.execution_id == f"fixture-{scenario}"

@@ -6,6 +6,7 @@ import {
   installApplicationWorkspaceApiMock,
   renderApplicationWorkspace,
 } from "@/test/application-workspace-harness";
+import { defaultDocumentPreparationSettings } from "@/features/applications/model/document-preparation";
 
 function storedDocument(overrides: Record<string, unknown> = {}) {
   return {
@@ -101,6 +102,7 @@ describe("ApplicationWorkspace", () => {
             tailored_resume: null,
             cover_letter: null,
           },
+          latestGeneration: null,
           userPreferences: "Use a direct tone.",
         },
       }),
@@ -176,11 +178,15 @@ describe("ApplicationWorkspace", () => {
             tailored_resume: null,
             cover_letter: null,
           },
+          latestGeneration: null,
           userPreferences: "Keep it concise.",
         },
       }),
     );
 
+    await waitFor(() => expect(
+      screen.getByRole("button", { name: "Generate documents" }),
+    ).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "Generate documents" }));
 
     expect(await screen.findByText("Generation finished")).toBeInTheDocument();
@@ -218,7 +224,176 @@ describe("ApplicationWorkspace", () => {
     );
   });
 
-  it("lists existing application documents with their actions", () => {
+  it("keeps existing document actions available when generation is unavailable", async () => {
+    installApplicationWorkspaceApiMock({
+      generationAvailability: {
+        available: false,
+        code: "generator_unavailable",
+        message: "Document generation is not configured yet.",
+      },
+    });
+    renderApplicationWorkspace(createWorkspaceApplication({
+      documents: [{
+        id: "source-existing-cv",
+        sourceId: "existing-cv",
+        kind: "uploaded",
+        title: "Existing CV",
+        fileName: "existing-cv.pdf",
+        fileSize: "128 KB",
+        fileType: "application/pdf",
+        uploadedAt: "2026-09-12T10:00:00.000Z",
+        downloadUrl: "/documents/existing-cv/download",
+      }],
+    }));
+
+    await screen.findByText("Creation awaits the generator");
+    expect(screen.getByRole("button", { name: "Generate documents" }))
+      .toBeDisabled();
+    expect(screen.getAllByText("Unavailable")).toHaveLength(2);
+    expect(screen.getByRole("link", { name: "Open Existing CV" }))
+      .toHaveAttribute("href", "/documents/existing-cv/download?preview=true");
+    expect(screen.getByRole("link", { name: "Download Existing CV" }))
+      .toHaveAttribute("href", "/documents/existing-cv/download");
+    expect(screen.getByRole("button", { name: "Use Existing CV as CV" }))
+      .toBeEnabled();
+  });
+
+  it("shows per-document progress and prevents a double start", async () => {
+    let finishGeneration: ((response: Response) => void) | undefined;
+    const pendingGeneration = new Promise<Response>((resolve) => {
+      finishGeneration = resolve;
+    });
+    const fetchMock = installApplicationWorkspaceApiMock({
+      requestHandler: (url, method) => {
+        if (url.pathname === "/applications/application/generation" && method === "POST") {
+          return pendingGeneration;
+        }
+        return undefined;
+      },
+    });
+    const { props } = renderApplicationWorkspace(
+      createWorkspaceApplication({
+        documentPreparation: defaultDocumentPreparationSettings,
+        documents: [{
+          id: "source-existing-letter",
+          sourceId: "existing-letter",
+          kind: "uploaded",
+          title: "Existing letter",
+          fileName: "existing-letter.pdf",
+          fileSize: "64 KB",
+          fileType: "application/pdf",
+          uploadedAt: "2026-09-12T10:00:00.000Z",
+          downloadUrl: "/documents/existing-letter/download",
+        }],
+      }),
+    );
+    const generateButton = screen.getByRole("button", {
+      name: "Generate documents",
+    });
+    await waitFor(() => expect(generateButton).toBeEnabled());
+
+    fireEvent.click(generateButton);
+    fireEvent.click(generateButton);
+
+    const resumeState = await screen.findByRole("group", {
+      name: "Tailored CV generation status",
+    });
+    const letterState = screen.getByRole("group", {
+      name: "Cover letter generation status",
+    });
+    expect(within(resumeState).getByText("In progress")).toBeInTheDocument();
+    expect(within(letterState).getByText("Queued")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Download Existing letter" }))
+      .toBeInTheDocument();
+    await waitFor(() => expect(
+      fetchMock.mock.calls.filter(([, init]) => init?.method === "POST"),
+    ).toHaveLength(1));
+
+    finishGeneration?.(Response.json({
+      executionId: "generation-partial",
+      state: "completed",
+      documents: [
+        {
+          documentType: "tailored_resume",
+          state: "completed",
+          files: [{
+            fileName: "tailored-cv.pdf",
+            contentType: "application/pdf",
+            downloadUrl: "/generated/tailored-cv.pdf",
+          }],
+          error: null,
+        },
+        {
+          documentType: "cover_letter",
+          state: "failed",
+          files: [],
+          error: {
+            code: "render_failed",
+            message: "The cover letter could not be rendered.",
+            retryable: true,
+          },
+        },
+      ],
+      error: null,
+    }));
+
+    expect(await screen.findByText("Generation finished")).toBeInTheDocument();
+    expect(within(resumeState).getByText("Ready")).toBeInTheDocument();
+    expect(within(letterState).getByText("Failed")).toBeInTheDocument();
+    expect(within(letterState).getByRole("alert"))
+      .toHaveTextContent("The cover letter could not be rendered.");
+    await waitFor(() => expect(props.onPreparationSettingsChange)
+      .toHaveBeenLastCalledWith(
+        "application",
+        expect.objectContaining({
+          latestGeneration: expect.objectContaining({
+            executionId: "generation-partial",
+            state: "completed",
+          }),
+        }),
+      ));
+  });
+
+  it("restores a running generation after reload without allowing a duplicate", async () => {
+    const runningGeneration = {
+      executionId: "generation-running",
+      state: "running" as const,
+      documentResults: [
+        {
+          documentType: "tailored_resume" as const,
+          state: "running" as const,
+          files: [],
+          error: null,
+        },
+        {
+          documentType: "cover_letter" as const,
+          state: "queued" as const,
+          files: [],
+          error: null,
+        },
+      ],
+      error: null,
+    };
+    const fetchMock = installApplicationWorkspaceApiMock();
+    renderApplicationWorkspace(createWorkspaceApplication({
+      documentPreparation: {
+        ...defaultDocumentPreparationSettings,
+        latestGeneration: runningGeneration,
+      },
+    }));
+
+    expect(screen.getByText("Generation in progress")).toBeInTheDocument();
+    const generateButton = screen.getByRole("button", {
+      name: "Preparing documents…",
+    });
+    expect(generateButton).toBeDisabled();
+    fireEvent.click(generateButton);
+    await waitFor(() => expect(
+      fetchMock.mock.calls.some(([, init]) => init?.method === "POST"),
+    ).toBe(false));
+  });
+
+  it("lists existing application documents with their actions", async () => {
     renderApplicationWorkspace(
       createWorkspaceApplication({
         documents: [
@@ -251,7 +426,7 @@ describe("ApplicationWorkspace", () => {
       name: "Existing documents",
     });
 
-    expect(within(documents).getByText("Tailored CV")).toBeInTheDocument();
+    expect(within(documents).getAllByText("Tailored CV")).not.toHaveLength(0);
     expect(within(documents).getAllByText("Cover letter")).not.toHaveLength(0);
     expect(
       within(documents).getByRole("link", { name: "Download Tailored CV" }),
@@ -262,9 +437,9 @@ describe("ApplicationWorkspace", () => {
     expect(
       within(documents).getByRole("link", { name: "Download Cover letter" }),
     ).toHaveAttribute("href", "/documents/document-2/download");
-    expect(
+    await waitFor(() => expect(
       screen.getByRole("button", { name: "Generate documents" }),
-    ).toBeEnabled();
+    ).toBeEnabled());
   });
 
   it("uploads an own file and selects it for submission", async () => {
@@ -352,6 +527,7 @@ describe("ApplicationWorkspace", () => {
             },
             cover_letter: null,
           },
+          latestGeneration: null,
           userPreferences: "",
         },
       }),

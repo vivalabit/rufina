@@ -18,7 +18,11 @@ from app.models.applications import (
     StoredApplicationRecord,
 )
 from app.models.documents import WorkspaceSourceDocumentRecord
-from app.models.generation import GenerationResult, GenerationStartRequest
+from app.models.generation import (
+    GenerationAvailability,
+    GenerationResult,
+    GenerationStartRequest,
+)
 from app.models.jobs import StoredJobRecord
 from app.services.candidate_snapshot import get_current_profile_version
 from app.services.document_generator import DocumentGenerator, get_document_generator
@@ -160,6 +164,32 @@ def list_applications(db: Session = Depends(get_db)) -> list[StoredApplicationPa
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Applications database is unavailable",
+        ) from exc
+
+
+@router.get(
+    "/{application_id}/generation/availability",
+    response_model=GenerationAvailability,
+    response_model_by_alias=True,
+)
+def get_application_generation_availability(
+    application_id: str,
+    db: Session = Depends(get_db),
+    generator: DocumentGenerator = Depends(get_document_generator),
+) -> GenerationAvailability:
+    try:
+        if db.get(StoredApplicationRecord, application_id) is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Application not found",
+            )
+        return generator.availability()
+    except HTTPException:
+        raise
+    except SQLAlchemyError as exc:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Generation availability is temporarily unavailable",
         ) from exc
 
 

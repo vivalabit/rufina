@@ -17,6 +17,7 @@ type ApplicationOverrides = Omit<Partial<WorkspaceApplication>, "job"> & {
 type WorkspaceApiOptions = {
   currentMasterResume?: unknown | null;
   documents?: unknown[];
+  generationAvailability?: unknown;
   resumeTemplates?: unknown[];
   templates?: unknown[];
   requestHandler?: (
@@ -68,6 +69,11 @@ export function installApplicationWorkspaceApiMock({
     updatedAt: "2026-07-25T10:00:00.000Z",
   },
   documents = [],
+  generationAvailability = {
+    available: true,
+    code: "available",
+    message: "Document generation is available.",
+  },
   resumeTemplates = [
     {
       id: "classic_single",
@@ -157,6 +163,12 @@ export function installApplicationWorkspaceApiMock({
 
     if (url.pathname === "/health" && method === "GET") {
       return Response.json({ status: "ok" });
+    }
+    if (
+      url.pathname.endsWith("/generation/availability")
+      && method === "GET"
+    ) {
+      return Response.json(generationAvailability);
     }
     if (url.pathname === "/documents" && method === "GET") {
       return Response.json(documents);

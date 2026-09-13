@@ -16,6 +16,7 @@ from app.models.documents import DocumentType
 
 GenerationExecutionState = Literal["queued", "running", "completed", "failed"]
 GenerationDocumentState = Literal["queued", "running", "completed", "failed"]
+GenerationAvailabilityCode = Literal["available", "generator_unavailable"]
 
 _PROHIBITED_CONTEXT_KEYS = {
     "analysis",
@@ -199,6 +200,20 @@ class GenerationError(GenerationContractModel):
     retryable: bool = False
 
 
+class GenerationAvailability(GenerationContractModel):
+    """Whether the configured adapter can accept a new generation request."""
+
+    available: bool
+    code: GenerationAvailabilityCode
+    message: str = Field(min_length=1, max_length=1_000)
+
+    @model_validator(mode="after")
+    def validate_availability(self) -> GenerationAvailability:
+        if self.available != (self.code == "available"):
+            raise ValueError("Generation availability code does not match available")
+        return self
+
+
 class GeneratedFile(GenerationContractModel):
     """A generated artifact exposed through application-owned file storage."""
 
@@ -259,6 +274,8 @@ class GenerationResult(GenerationContractModel):
 __all__ = [
     "GeneratedFile",
     "GenerationApplicationSnapshot",
+    "GenerationAvailability",
+    "GenerationAvailabilityCode",
     "GenerationDocumentResult",
     "GenerationDocumentState",
     "GenerationError",

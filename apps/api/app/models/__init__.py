@@ -3,6 +3,7 @@
 from app.models.generation import (
     GeneratedFile,
     GenerationApplicationSnapshot,
+    GenerationAvailability,
     GenerationDocumentResult,
     GenerationError,
     GenerationMasterProfileVersion,
@@ -60,6 +61,7 @@ __all__ = [
     "FinalResume",
     "GeneratedFile",
     "GenerationApplicationSnapshot",
+    "GenerationAvailability",
     "GenerationDocumentResult",
     "GenerationError",
     "GenerationMasterProfileVersion",

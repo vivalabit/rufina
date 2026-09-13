@@ -44,6 +44,25 @@ describe("application API mappers", () => {
           resumeMaxPages: 1,
           coverLetterTemplateId: "standard-letter",
         },
+        latestGeneration: {
+          executionId: "generation-restored",
+          state: "failed",
+          documentResults: [{
+            documentType: "cover_letter",
+            state: "failed",
+            files: [],
+            error: {
+              code: "generator_unavailable",
+              message: "Document generation is not configured yet.",
+              retryable: false,
+            },
+          }],
+          error: {
+            code: "generator_unavailable",
+            message: "Document generation is not configured yet.",
+            retryable: false,
+          },
+        },
         userPreferences: "Use a direct tone.",
       },
     }]);
@@ -52,6 +71,7 @@ describe("application API mappers", () => {
       documentTypes: ["cover_letter"],
       language: "German",
       formatting: { coverLetterTemplateId: "standard-letter" },
+      latestGeneration: { executionId: "generation-restored" },
     });
     expect(applicationPayloadForApi(application)).toMatchObject({
       documentPreparation: application.documentPreparation,

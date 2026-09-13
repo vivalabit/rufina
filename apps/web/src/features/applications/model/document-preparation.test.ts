@@ -49,8 +49,55 @@ describe("document preparation settings", () => {
         tailored_resume: { documentId: "stored-resume", version: 3 },
         cover_letter: null,
       },
+      latestGeneration: null,
       userPreferences: "Keep the letter concise.",
     });
+  });
+
+  it("restores a valid per-document generation result", () => {
+    const latestGeneration = {
+      executionId: "generation-12",
+      state: "completed" as const,
+      documentResults: [
+        {
+          documentType: "tailored_resume" as const,
+          state: "completed" as const,
+          files: [
+            {
+              fileName: "tailored-cv.pdf",
+              contentType: "application/pdf",
+              downloadUrl: "/generated/tailored-cv.pdf",
+            },
+          ],
+          error: null,
+        },
+        {
+          documentType: "cover_letter" as const,
+          state: "failed" as const,
+          files: [],
+          error: {
+            code: "render_failed",
+            message: "The cover letter could not be rendered.",
+            retryable: true,
+          },
+        },
+      ],
+      error: null,
+    };
+
+    expect(normalizeDocumentPreparationSettings({ latestGeneration }))
+      .toEqual(expect.objectContaining({ latestGeneration }));
+    expect(normalizeDocumentPreparationSettings({
+      latestGeneration: {
+        ...latestGeneration,
+        documentResults: [{
+          documentType: "cover_letter",
+          state: "completed",
+          files: [],
+          error: null,
+        }],
+      },
+    }).latestGeneration).toBeNull();
   });
 
   it("sends formatting only for selected document types", () => {

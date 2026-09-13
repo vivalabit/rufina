@@ -1,5 +1,10 @@
 import type {
   DocumentPreparationSettings,
+  GeneratedFile,
+  GenerationDocumentResult,
+  GenerationDocumentState,
+  GenerationError,
+  PersistedGenerationResult,
   PreparationDocumentType,
   PreparationLanguage,
   PreparationPageSize,
@@ -29,6 +34,7 @@ export const defaultDocumentPreparationSettings: DocumentPreparationSettings = {
     tailored_resume: null,
     cover_letter: null,
   },
+  latestGeneration: null,
   userPreferences: "",
 };
 
@@ -39,6 +45,12 @@ const documentTypes: PreparationDocumentType[] = [
 const languages: PreparationLanguage[] = ["English", "German"];
 const pageSizes: PreparationPageSize[] = ["A4", "Letter"];
 const resumePageCounts: PreparationResumeMaxPages[] = [1, 2, 3];
+const generationStates: GenerationDocumentState[] = [
+  "queued",
+  "running",
+  "completed",
+  "failed",
+];
 
 function normalizeSubmissionSelection(
   value: unknown,
@@ -55,6 +67,104 @@ function normalizeSubmissionSelection(
       ? Number(candidate.version)
       : null;
   return { documentId, version };
+}
+
+function normalizeGenerationError(value: unknown): GenerationError | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<GenerationError>;
+  const code = typeof candidate.code === "string"
+    ? candidate.code.trim().slice(0, 80)
+    : "";
+  const message = typeof candidate.message === "string"
+    ? candidate.message.trim().slice(0, 1_000)
+    : "";
+  if (!code || !message || typeof candidate.retryable !== "boolean") {
+    return null;
+  }
+  return { code, message, retryable: candidate.retryable };
+}
+
+function normalizeGeneratedFile(value: unknown): GeneratedFile | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<GeneratedFile>;
+  const fileName = typeof candidate.fileName === "string"
+    ? candidate.fileName.trim().slice(0, 240)
+    : "";
+  const contentType = typeof candidate.contentType === "string"
+    ? candidate.contentType.trim().slice(0, 160)
+    : "";
+  const downloadUrl = typeof candidate.downloadUrl === "string"
+    ? candidate.downloadUrl.trim().slice(0, 2_000)
+    : "";
+  const safeDownloadUrl = (
+    downloadUrl.startsWith("/") && !downloadUrl.startsWith("//")
+  ) || /^https?:\/\//i.test(downloadUrl);
+  if (!fileName || !contentType || !safeDownloadUrl) return null;
+  return { fileName, contentType, downloadUrl };
+}
+
+function normalizeGenerationDocument(
+  value: unknown,
+): GenerationDocumentResult | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<GenerationDocumentResult>;
+  if (
+    !documentTypes.includes(candidate.documentType as PreparationDocumentType)
+    || !generationStates.includes(candidate.state as GenerationDocumentState)
+  ) return null;
+  const state = candidate.state as GenerationDocumentState;
+  const files = Array.isArray(candidate.files)
+    ? candidate.files
+        .map(normalizeGeneratedFile)
+        .filter((file): file is GeneratedFile => file !== null)
+    : [];
+  const error = normalizeGenerationError(candidate.error);
+  if (state === "completed" && (!files.length || error)) return null;
+  if (state === "failed" && !error) return null;
+  if ((state === "queued" || state === "running") && (files.length || error)) {
+    return null;
+  }
+  return {
+    documentType: candidate.documentType as PreparationDocumentType,
+    state,
+    files,
+    error,
+  };
+}
+
+export function normalizeGenerationResult(
+  value: unknown,
+): PersistedGenerationResult | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<PersistedGenerationResult>;
+  const executionId = typeof candidate.executionId === "string"
+    ? candidate.executionId.trim().slice(0, 160)
+    : "";
+  if (
+    !executionId
+    || !generationStates.includes(candidate.state as GenerationDocumentState)
+    || !Array.isArray(candidate.documentResults)
+  ) return null;
+  const documents = candidate.documentResults
+    .map(normalizeGenerationDocument)
+    .filter((document): document is GenerationDocumentResult => document !== null);
+  if (
+    !documents.length
+    || documents.length > 2
+    || documents.length !== candidate.documentResults.length
+    || new Set(documents.map((document) => document.documentType)).size
+      !== documents.length
+  ) return null;
+  const state = candidate.state as GenerationDocumentState;
+  const error = normalizeGenerationError(candidate.error);
+  if (state === "failed" && !error) return null;
+  if ((state === "queued" || state === "running") && error) return null;
+  if (
+    (state === "completed" || state === "failed")
+    && documents.some((document) =>
+      document.state === "queued" || document.state === "running")
+  ) return null;
+  return { executionId, state, documentResults: documents, error };
 }
 
 export function normalizeDocumentPreparationSettings(
@@ -106,6 +216,7 @@ export function normalizeDocumentPreparationSettings(
       ),
       cover_letter: normalizeSubmissionSelection(submission.cover_letter),
     },
+    latestGeneration: normalizeGenerationResult(candidate.latestGeneration),
     userPreferences:
       typeof candidate.userPreferences === "string"
         ? candidate.userPreferences.slice(0, 10_000)

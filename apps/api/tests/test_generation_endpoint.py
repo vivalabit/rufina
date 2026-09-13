@@ -133,11 +133,20 @@ def test_endpoint_uses_safe_stub_without_ai_documents_or_application_changes(
     monkeypatch.setattr(ai_backend.OpenAIAPIBackend, "generate", reject_ai_call)
     monkeypatch.setattr(ai_backend.OpenClawCodexBackend, "generate", reject_ai_call)
 
+    availability = client.get(
+        "/applications/application-1/generation/availability",
+    )
     response = client.post(
         "/applications/application-1/generation",
         json=generation_payload(),
     )
 
+    assert availability.status_code == 200
+    assert availability.json() == {
+        "available": False,
+        "code": "generator_unavailable",
+        "message": "Document generation is not configured yet.",
+    }
     assert response.status_code == 200
     assert response.json()["state"] == "failed"
     assert response.json()["error"] == {
@@ -168,11 +177,17 @@ def test_endpoint_generator_dependency_is_replaceable_for_development(
         execution_id="dev-partial",
     )
 
+    availability = client.get(
+        "/applications/application-1/generation/availability",
+    )
     response = client.post(
         "/applications/application-1/generation",
         json=generation_payload(),
     )
 
+    assert availability.status_code == 200
+    assert availability.json()["available"] is True
+    assert availability.json()["code"] == "available"
     assert response.status_code == 200
     assert response.json()["executionId"] == "dev-partial"
     assert response.json()["state"] == "completed"
@@ -180,3 +195,18 @@ def test_endpoint_generator_dependency_is_replaceable_for_development(
         "completed",
         "failed",
     ]
+
+
+def test_generation_availability_requires_an_owned_application(
+    generation_api: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, _ = generation_api
+
+    missing = client.get("/applications/missing/generation/availability")
+    foreign = client.get(
+        "/applications/application-1/generation/availability",
+        headers={"X-Rufina-Owner-Id": "another-owner"},
+    )
+
+    assert missing.status_code == 404
+    assert foreign.status_code == 404

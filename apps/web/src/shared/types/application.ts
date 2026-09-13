@@ -5,6 +5,46 @@ export type PreparationLanguage = "English" | "German";
 export type PreparationPageSize = "A4" | "Letter";
 export type PreparationResumeMaxPages = 1 | 2 | 3;
 
+export type GenerationDocumentState =
+  | "queued"
+  | "running"
+  | "completed"
+  | "failed";
+export type GenerationExecutionState = GenerationDocumentState;
+
+export type GenerationError = {
+  code: string;
+  message: string;
+  retryable: boolean;
+};
+
+export type GeneratedFile = {
+  fileName: string;
+  contentType: string;
+  downloadUrl: string;
+};
+
+export type GenerationDocumentResult = {
+  documentType: PreparationDocumentType;
+  state: GenerationDocumentState;
+  files: GeneratedFile[];
+  error: GenerationError | null;
+};
+
+export type GenerationResult = {
+  executionId: string;
+  state: GenerationExecutionState;
+  documents: GenerationDocumentResult[];
+  error: GenerationError | null;
+};
+
+export type PersistedGenerationResult = {
+  executionId: string;
+  state: GenerationExecutionState;
+  documentResults: GenerationDocumentResult[];
+  error: GenerationError | null;
+};
+
 export type SubmissionDocumentSelection = {
   documentId: string;
   version: number | null;
@@ -23,6 +63,7 @@ export type DocumentPreparationSettings = {
     PreparationDocumentType,
     SubmissionDocumentSelection | null
   >;
+  latestGeneration: PersistedGenerationResult | null;
   userPreferences: string;
 };
 

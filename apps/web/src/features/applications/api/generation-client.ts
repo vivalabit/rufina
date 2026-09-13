@@ -2,38 +2,45 @@ import {
   AI_GENERATION_REQUEST_TIMEOUT_MS,
   apiClient,
 } from "@/shared/api/client";
+import type {
+  GeneratedFile,
+  GenerationDocumentResult,
+  GenerationDocumentState,
+  GenerationError,
+  GenerationExecutionState,
+  GenerationResult,
+} from "@/shared/types/application";
 
 import type { generationRequestFromSettings } from "../model/document-preparation";
 
-export type GenerationDocumentState =
-  "queued" | "running" | "completed" | "failed";
-export type GenerationExecutionState = GenerationDocumentState;
+export type {
+  GeneratedFile,
+  GenerationDocumentResult,
+  GenerationDocumentState,
+  GenerationError,
+  GenerationExecutionState,
+  GenerationResult,
+};
 
-export type GenerationError = {
-  code: string;
+export type GenerationAvailability = {
+  available: boolean;
+  code: "available" | "generator_unavailable";
   message: string;
-  retryable: boolean;
 };
 
-export type GeneratedFile = {
-  fileName: string;
-  contentType: string;
-  downloadUrl: string;
-};
-
-export type GenerationDocumentResult = {
-  documentType: "tailored_resume" | "cover_letter";
-  state: GenerationDocumentState;
-  files: GeneratedFile[];
-  error: GenerationError | null;
-};
-
-export type GenerationResult = {
-  executionId: string;
-  state: GenerationExecutionState;
-  documents: GenerationDocumentResult[];
-  error: GenerationError | null;
-};
+export async function fetchApplicationGenerationAvailability(
+  applicationId: string,
+  signal?: AbortSignal,
+) {
+  return (
+    await apiClient.json<GenerationAvailability>({
+      path: `/applications/${encodeURIComponent(applicationId)}/generation/availability`,
+      cache: "no-store",
+      signal,
+      errorMessage: "Generation availability could not be checked",
+    })
+  ).data;
+}
 
 export async function startApplicationGeneration(
   applicationId: string,

@@ -50,6 +50,29 @@ def test_applications_and_events_can_be_created_updated_and_read() -> None:
                 "appliedAt": "2026-07-06T10:00:00.000Z",
                 "nextStep": "Follow up in 5 days",
                 "notes": "Moved from Jobs after applying.",
+                "documentPreparation": {
+                    "latestGeneration": {
+                        "executionId": "generation-unavailable",
+                        "state": "failed",
+                        "documentResults": [
+                            {
+                                "documentType": "cover_letter",
+                                "state": "failed",
+                                "files": [],
+                                "error": {
+                                    "code": "generator_unavailable",
+                                    "message": "Document generation is not configured yet.",
+                                    "retryable": False,
+                                },
+                            }
+                        ],
+                        "error": {
+                            "code": "generator_unavailable",
+                            "message": "Document generation is not configured yet.",
+                            "retryable": False,
+                        },
+                    }
+                },
                 "job": {
                     "id": "linkedin-product-designer",
                     "company": "Stripe",
@@ -84,6 +107,11 @@ def test_applications_and_events_can_be_created_updated_and_read() -> None:
         assert applications_read_response.status_code == 200
         assert applications_read_response.json()[0]["id"] == "application-linkedin-product-designer"
         assert applications_read_response.json()[0]["data"]["status"] == "applied"
+        assert (
+            applications_read_response.json()[0]["data"]["documentPreparation"]
+            ["latestGeneration"]["executionId"]
+            == "generation-unavailable"
+        )
 
         assert event_create_response.status_code == 201
         assert events_read_response.status_code == 200

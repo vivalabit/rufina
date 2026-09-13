@@ -7,6 +7,7 @@ from typing import Protocol, runtime_checkable
 from uuid import uuid4
 
 from app.models.generation import (
+    GenerationAvailability,
     GenerationDocumentResult,
     GenerationError,
     GenerationRequest,
@@ -18,6 +19,8 @@ from app.models.generation import (
 class DocumentGenerator(Protocol):
     """Boundary implemented by the document-generation subsystem."""
 
+    def availability(self) -> GenerationAvailability: ...
+
     def generate(self, request: GenerationRequest) -> GenerationResult: ...
 
 
@@ -27,10 +30,18 @@ class UnavailableDocumentGenerator:
     def __init__(self, *, execution_id_factory: Callable[[], str] | None = None) -> None:
         self._execution_id_factory = execution_id_factory or (lambda: uuid4().hex)
 
-    def generate(self, request: GenerationRequest) -> GenerationResult:
-        error = GenerationError(
+    def availability(self) -> GenerationAvailability:
+        return GenerationAvailability(
+            available=False,
             code="generator_unavailable",
             message="Document generation is not configured yet.",
+        )
+
+    def generate(self, request: GenerationRequest) -> GenerationResult:
+        availability = self.availability()
+        error = GenerationError(
+            code=availability.code,
+            message=availability.message,
             retryable=False,
         )
         return GenerationResult(
