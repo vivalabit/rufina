@@ -2948,9 +2948,6 @@ export function AppWorkspaceRoot({
             backLabel={workspaceApplication?.status === "draft" ? "Jobs" : "Applications"}
             onBack={() => changeView(workspaceApplication?.status === "draft" ? "Jobs" : "Applications")}
             onPreparationSettingsChange={updateDocumentPreparationSettings}
-            onDocumentAttached={syncApplicationDocumentToApplication}
-            onUploadDocument={applicationState.uploadAttachment}
-            onReplaceDocument={applicationState.replaceAttachment}
             onStatusChange={updateApplicationStatus}
           />
         ) : activeView === "Applications" ? (

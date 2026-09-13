@@ -199,6 +199,34 @@ OPENCLAW_AGENT_ID=rufina-assistant
 pnpm openclaw:setup
 ```
 
+### Application Document Pipeline
+
+The application workspace runs document preparation as a recoverable server
+workflow: source snapshot, fit approval, author draft, independent review, PDF
+checks, and final review. The selected backend and all source/template versions
+are frozen when a run starts. Changing `AI_BACKEND` affects only new runs.
+
+- `AI_BACKEND=openai_api` uses the OpenAI Responses API with structured output,
+  web search for the independent company review, and rendered-page image input
+  for visual checks. Set `OPENAI_API_KEY`; the API key remains server-side.
+- `AI_BACKEND=openclaw_codex` runs the same contracts through the configured
+  OpenClaw agent. Run `pnpm openclaw:setup` and keep the OpenClaw volumes from
+  `compose.yaml` mounted so the agent and its state are available to the API.
+- The Docker API image includes LuaLaTeX, XeLaTeX, Poppler, the versioned fonts,
+  and the original ModernCV/cover-letter assets. For local development install
+  `lualatex`, `xelatex`, `pdftotext`, and `pdftoppm` on `PATH` before generating.
+- `GENERATION_WORKER_POLL_INTERVAL_SECONDS` controls queue polling. Runs, events,
+  raw provider responses, checks, source hashes, and final files are stored in
+  PostgreSQL. Generated PDF checks are bound to the artifact SHA they validated.
+- On API restart, an expired running lease is requeued and an audit event is
+  recorded. Refreshing the browser restores the current run; a fit response and
+  cancellation both use optimistic revisions to reject stale actions.
+
+Only a successful final review publishes PDFs into the existing Documents
+library. A requested correction starts a new immutable run and creates the next
+version of the attached document. Opening an employer form and marking an
+application submitted remain separate user actions.
+
 ### Vacancy Sources
 
 - LinkedIn — through Bright Data

@@ -84,21 +84,6 @@ export type ApplicationWorkspaceProps = {
     applicationId: string,
     settings: DocumentPreparationSettings,
   ) => Promise<unknown> | void;
-  onDocumentAttached: (
-    applicationId: string,
-    document: ApplicationDocument,
-  ) => void;
-  onUploadDocument: (
-    applicationId: string,
-    file: File,
-    metadata: { fileName: string; title: string },
-  ) => Promise<ApplicationDocument>;
-  onReplaceDocument: (
-    applicationId: string,
-    document: ApplicationDocument,
-    file: File,
-    metadata: { fileName: string; title: string },
-  ) => Promise<ApplicationDocument>;
   onStatusChange?: (applicationId: string, status: ApplicationStatus) => void;
 };
 

@@ -5059,7 +5059,7 @@ it("shows seeded vacancies and calendar events only in demo mode", async () => {
   ).toBe(true);
 });
 
-it("preserves the prepared version while promoting a draft to Applications", async () => {
+it("keeps document preparation separate from marking a draft as applied", async () => {
   window.history.replaceState(null, "", "#jobs");
   vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "1");
   const savedApplicationStatuses: string[] = [];
@@ -5142,31 +5142,17 @@ it("preserves the prepared version while promoting a draft to Applications", asy
     await screen.findByRole("button", { name: "Create application" }),
   );
   expect(
-    await screen.findByRole("region", { name: "Existing documents" }),
+    await screen.findByRole("heading", { name: "Prepare your application pack" }),
   ).toBeInTheDocument();
-  fireEvent.click(
-    await screen.findByRole("button", {
-      name: "Use current Prepared cover letter version 2 for submission",
-    }),
-  );
   await waitFor(() =>
     expect(savedApplicationPayloads).toContainEqual(
       expect.objectContaining({
         status: "draft",
-        documentPreparation: expect.objectContaining({
-          submission: expect.objectContaining({
-            cover_letter: {
-              documentId: "prepared-cover-letter",
-              version: 2,
-            },
-          }),
-        }),
       }),
     ),
   );
-  expect(screen.getByText("Draft")).toBeInTheDocument();
   expect(
-    screen.queryByRole("button", { name: "Mark as applied" }),
+    screen.queryByRole("button", { name: "Mark submitted" }),
   ).not.toBeInTheDocument();
   expect(
     await screen.findByRole("button", { name: "Jobs" }),
@@ -5181,14 +5167,6 @@ it("preserves the prepared version while promoting a draft to Applications", asy
     expect(savedApplicationPayloads).toContainEqual(
       expect.objectContaining({
         status: "applied",
-        documentPreparation: expect.objectContaining({
-          submission: expect.objectContaining({
-            cover_letter: {
-              documentId: "prepared-cover-letter",
-              version: 2,
-            },
-          }),
-        }),
       }),
     ),
   );

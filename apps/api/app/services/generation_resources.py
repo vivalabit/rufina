@@ -5,7 +5,6 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
-
 RESOURCE_ROOT = Path(__file__).resolve().parent.parent / "generator_resources"
 INSTRUCTION_ROOT = RESOURCE_ROOT / "instructions"
 UPSTREAM_SHA = "c7bd494f11e792508534c1c795e24694498395c4"
@@ -48,4 +47,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
