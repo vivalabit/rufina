@@ -254,6 +254,46 @@ class ResumeMasterVersionRecord(OwnerScoped, Base):
     )
 
 
+class ConfirmedProfileFactRecord(OwnerScoped, Base):
+    """Audit entry for a user-approved fact promoted into the master resume."""
+
+    __tablename__ = "confirmed_profile_facts"
+    __table_args__ = (
+        CheckConstraint(
+            "from_version >= 1 AND to_version = from_version + 1",
+            name="ck_confirmed_profile_facts_versions",
+        ),
+        UniqueConstraint(
+            "owner_id",
+            "idempotency_key",
+            name="uq_confirmed_profile_facts_owner_idempotency",
+        ),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True)
+    resume_master_id: Mapped[str] = mapped_column(
+        String(36),
+        ForeignKey(
+            "resume_masters.id",
+            ondelete="CASCADE",
+            name="fk_confirmed_profile_facts_master",
+        ),
+        nullable=False,
+        index=True,
+    )
+    source_run_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    from_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    to_version: Mapped[int] = mapped_column(Integer, nullable=False)
+    fact_text: Mapped[str] = mapped_column(String(MAX_TEXT_LENGTH), nullable=False)
+    evidence_id: Mapped[str] = mapped_column(String(160), nullable=False)
+    idempotency_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=utc_now,
+    )
+
+
 @event.listens_for(ResumeSourceFileRecord, "before_update")
 def prevent_resume_source_file_mutation(
     _mapper: object,
@@ -717,6 +757,24 @@ class MasterResumeConfirmationResponse(StrictResumeModel):
     created_at: datetime = Field(alias="createdAt")
 
 
+class ConfirmedProfileFactRequest(StrictResumeModel):
+    fact_text: StrictText = Field(alias="factText")
+    expected_version: int = Field(alias="expectedVersion", ge=1)
+    idempotency_key: CanonicalId = Field(alias="idempotencyKey")
+    source_run_id: CanonicalId | None = Field(default=None, alias="sourceRunId")
+
+
+class ConfirmedProfileFactResponse(StrictResumeModel):
+    id: CanonicalId
+    master_resume_id: ResumeId = Field(alias="masterResumeId")
+    from_version: int = Field(alias="fromVersion", ge=1)
+    to_version: int = Field(alias="toVersion", ge=2)
+    evidence_id: EvidenceId = Field(alias="evidenceId")
+    fact_text: StrictText = Field(alias="factText")
+    source_run_id: CanonicalId | None = Field(default=None, alias="sourceRunId")
+    created_at: datetime = Field(alias="createdAt")
+
+
 class CurrentMasterResumeResponse(StrictResumeModel):
     master_resume_id: ResumeId = Field(alias="masterResumeId")
     version: int = Field(ge=1)
@@ -828,6 +886,9 @@ __all__ = [
     "AdditionalResumeSection",
     "CanonicalId",
     "CanonicalMasterResume",
+    "ConfirmedProfileFactRecord",
+    "ConfirmedProfileFactRequest",
+    "ConfirmedProfileFactResponse",
     "CurrentMasterResumeResponse",
     "Evidence",
     "EvidenceBackedText",

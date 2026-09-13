@@ -28,6 +28,9 @@ from app.models.notifications import (
     CriticalNotificationRecord,
 )
 from app.models.resume import (
+    ConfirmedProfileFactRecord,
+    ConfirmedProfileFactRequest,
+    ConfirmedProfileFactResponse,
     FinalResume,
     MasterResume,
     MasterResumeConfirmationRequest,
@@ -55,6 +58,9 @@ from app.models.resume_templates import (
 )
 
 __all__ = [
+    "ConfirmedProfileFactRecord",
+    "ConfirmedProfileFactRequest",
+    "ConfirmedProfileFactResponse",
     "CriticalNotificationPayload",
     "CriticalNotificationRecord",
     "DiscoveredVacancyRecord",

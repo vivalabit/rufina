@@ -25,6 +25,8 @@ from app.models.profile import (
     ResumeSkillsImportResponse,
 )
 from app.models.resume import (
+    ConfirmedProfileFactRequest,
+    ConfirmedProfileFactResponse,
     CurrentMasterResumeResponse,
     MasterResumeConfirmationRequest,
     MasterResumeConfirmationResponse,
@@ -34,6 +36,7 @@ from app.models.resume import (
     ResumeSourceExtraction,
 )
 from app.services.ai_privacy import record_ai_activity
+from app.services.profile_fact_sync import ProfileFactSyncError, confirm_profile_fact
 from app.services.profile_files import (
     ProfileFileAlreadyExistsError,
     ProfileFileValidationError,
@@ -74,6 +77,7 @@ from app.services.resume_source_extraction import ResumeSourceExtractionError
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
 
 default_profile = ProfilePayload()
+
 
 def parse_resume_experience_with_selected_backend(
     text: str,
@@ -578,6 +582,41 @@ def get_current_master_resume(
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Master Resume is temporarily unavailable",
+        ) from exc
+
+
+@router.post(
+    "/master-resume/{master_resume_id}/confirmed-facts",
+    response_model=ConfirmedProfileFactResponse,
+)
+def add_confirmed_profile_fact(
+    master_resume_id: str,
+    payload: ConfirmedProfileFactRequest,
+    db: Session = Depends(get_db),
+) -> ConfirmedProfileFactResponse:
+    try:
+        return confirm_profile_fact(
+            db,
+            master_resume_id=master_resume_id,
+            fact_text=payload.fact_text,
+            expected_version=payload.expected_version,
+            idempotency_key=payload.idempotency_key,
+            source_run_id=payload.source_run_id,
+        )
+    except ProfileFactSyncError as exc:
+        db.rollback()
+        status_code = {
+            "not_found": status.HTTP_404_NOT_FOUND,
+            "version_not_found": status.HTTP_409_CONFLICT,
+            "stale_version": status.HTTP_409_CONFLICT,
+            "idempotency_conflict": status.HTTP_409_CONFLICT,
+        }.get(exc.code, status.HTTP_409_CONFLICT)
+        raise HTTPException(status_code=status_code, detail=str(exc)) from exc
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Confirmed fact storage is temporarily unavailable",
         ) from exc
 
 
