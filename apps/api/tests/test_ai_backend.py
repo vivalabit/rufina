@@ -11,6 +11,7 @@ from pydantic import BaseModel
 
 from app.services.ai_backend import (
     AIBackendError,
+    AIImageInput,
     AIRequest,
     AIResult,
     AIUsage,
@@ -93,9 +94,7 @@ def test_openclaw_adapter_preserves_cli_and_returns_neutral_result() -> None:
         "--agent",
         "rufina-assistant",
     ]
-    assert captured[captured.index("--session-key") + 1] == (
-        "agent:rufina-assistant:test-session"
-    )
+    assert captured[captured.index("--session-key") + 1] == ("agent:rufina-assistant:test-session")
     assert captured[captured.index("--message") + 1] == "Return JSON"
     assert captured[-1] == "--json"
     assert result.text == '{"answer":"ready"}'
@@ -221,9 +220,7 @@ def test_openai_api_adapter_supports_async_chat_calls() -> None:
 
     async def invoke() -> AIResult:
         backend = OpenAIAPIBackend(api_key="test-key", async_client=async_client)
-        return await backend.agenerate(
-            AIRequest(prompt="Answer", model="gpt-5.6-terra")
-        )
+        return await backend.agenerate(AIRequest(prompt="Answer", model="gpt-5.6-terra"))
 
     result = asyncio.run(invoke())
 
@@ -238,10 +235,46 @@ def test_openai_api_adapter_supports_async_chat_calls() -> None:
     )
 
 
+def test_openai_api_adapter_supports_web_search_and_pdf_page_images() -> None:
+    create = Mock(
+        return_value=fake_openai_response(
+            text='{"answer":"looks clean"}',
+            response_id="resp_review_123",
+        )
+    )
+    client = SimpleNamespace(responses=SimpleNamespace(create=create))
+
+    OpenAIAPIBackend(api_key="test-key", client=client).generate(
+        AIRequest(
+            prompt="Inspect the rendered page and research Acme.",
+            model="gpt-5.6-terra",
+            enable_web_search=True,
+            image_inputs=(AIImageInput(content=b"png-bytes"),),
+        )
+    )
+
+    request = create.call_args.kwargs
+    assert request["tools"] == [{"type": "web_search"}]
+    assert request["include"] == ["web_search_call.action.sources"]
+    assert request["max_tool_calls"] == 6
+    content = request["input"][0]["content"]
+    assert content[0] == {
+        "type": "input_text",
+        "text": "Inspect the rendered page and research Acme.",
+    }
+    assert content[1]["type"] == "input_image"
+    assert content[1]["image_url"].startswith("data:image/png;base64,")
+    assert content[1]["detail"] == "high"
+
+
 @pytest.mark.parametrize(
     ("sdk_error", "code", "retryable"),
     [
-        (APITimeoutError(httpx.Request("POST", "https://api.openai.test/v1/responses")), "timeout", True),
+        (
+            APITimeoutError(httpx.Request("POST", "https://api.openai.test/v1/responses")),
+            "timeout",
+            True,
+        ),
         (
             RateLimitError(
                 "rate limit",
@@ -273,9 +306,7 @@ def test_openai_api_adapter_classifies_sdk_errors(
     code: str,
     retryable: bool,
 ) -> None:
-    client = SimpleNamespace(
-        responses=SimpleNamespace(create=Mock(side_effect=sdk_error))
-    )
+    client = SimpleNamespace(responses=SimpleNamespace(create=Mock(side_effect=sdk_error)))
 
     with pytest.raises(AIBackendError) as exc_info:
         OpenAIAPIBackend(api_key="test-key", client=client).generate(
