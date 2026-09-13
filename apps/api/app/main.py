@@ -9,6 +9,7 @@ from app.api.applications import router as applications_router
 from app.api.assistant import router as assistant_router
 from app.api.conversations import router as conversations_router
 from app.api.documents import router as documents_router
+from app.api.generation_runs import router as generation_runs_router
 from app.api.health import router as health_router
 from app.api.job_filter import router as job_filter_router
 from app.api.job_search import router as job_search_router
@@ -88,6 +89,11 @@ app.include_router(job_search_router, prefix="/job-search", tags=["job search"])
 app.include_router(job_filter_router, prefix="/job-search", tags=["job filter"])
 app.include_router(notifications_router, prefix="/notifications", tags=["notifications"])
 app.include_router(applications_router, prefix="/applications", tags=["applications"])
+app.include_router(
+    generation_runs_router,
+    prefix="/applications",
+    tags=["application generation"],
+)
 app.include_router(assistant_router, prefix="/assistant", tags=["assistant"])
 app.include_router(
     conversations_router,

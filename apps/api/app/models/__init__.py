@@ -12,6 +12,13 @@ from app.models.generation import (
     GenerationStartRequest,
     GenerationVacancySnapshot,
 )
+from app.models.generation_runs import (
+    ApplicationGenerationRunRecord,
+    GenerationRunArtifactRecord,
+    GenerationRunCheckRecord,
+    GenerationRunEventRecord,
+    GenerationRunMessageRecord,
+)
 from app.models.job_screening import JobScreeningDecisionRecord
 from app.models.job_search import (
     JobSearchConfigRecord,
@@ -58,6 +65,7 @@ from app.models.resume_templates import (
 )
 
 __all__ = [
+    "ApplicationGenerationRunRecord",
     "ConfirmedProfileFactRecord",
     "ConfirmedProfileFactRequest",
     "ConfirmedProfileFactResponse",
@@ -73,6 +81,10 @@ __all__ = [
     "GenerationMasterProfileVersion",
     "GenerationRequest",
     "GenerationResult",
+    "GenerationRunArtifactRecord",
+    "GenerationRunCheckRecord",
+    "GenerationRunEventRecord",
+    "GenerationRunMessageRecord",
     "GenerationStartRequest",
     "GenerationVacancySnapshot",
     "JobScreeningDecisionRecord",

@@ -143,6 +143,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             ).scalar_one()
         assert definition_count == 0
         owner_tables = {
+            "application_generation_runs",
             "stored_applications",
             "stored_application_events",
             "documents",
@@ -153,6 +154,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "job_matches",
             "job_match_feedback",
             "candidate_match_snapshots",
+            "confirmed_profile_facts",
             "stored_jobs",
             "job_search_configs",
             "job_source_configs",
@@ -166,6 +168,10 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             "resume_source_files",
             "resume_template_definitions",
             "critical_notifications",
+            "generation_run_artifacts",
+            "generation_run_checks",
+            "generation_run_events",
+            "generation_run_messages",
             "profiles",
             "profile_versions",
             "profile_files",
@@ -186,7 +192,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260913_0056"
+            assert revision == "20260913_0058"
             entry_it = connection.execute(
                 text(
                     "SELECT id, owner_id, name, filters "
@@ -1775,7 +1781,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260913_0056"
+            assert revision == "20260913_0058"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
@@ -1815,7 +1821,7 @@ def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> Non
                     "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
                 )
             ).scalar_one()
-        assert revision == "20260913_0056"
+        assert revision == "20260913_0058"
         assert entry_it_count == 1
         assert LEGACY_RECOVERABLE_MISSING_TABLES.isdisjoint(
             inspect(engine).get_table_names()
