@@ -40,4 +40,7 @@ pythonpath = ["."]
 include = ["app*"]
 
 [tool.setuptools.package-data]
-app = ["templates/resume_pdf/*/*"]
+app = [
+  "templates/resume_pdf/*/*",
+  "generator_resources/**/*",
+]

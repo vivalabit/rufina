@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import json
 import re
 import shutil
@@ -25,7 +26,6 @@ from openai import (
     RateLimitError,
 )
 from pydantic import BaseModel
-
 
 AIBackendMode = Literal["openclaw_codex", "openai_api"]
 
@@ -83,6 +83,15 @@ class AIRequest:
     session_id: str = ""
     structured: bool = False
     response_model: type[BaseModel] | None = None
+    enable_web_search: bool = False
+    image_inputs: tuple[AIImageInput, ...] = ()
+
+
+@dataclass(frozen=True)
+class AIImageInput:
+    content: bytes
+    media_type: Literal["image/png", "image/jpeg", "image/webp"] = "image/png"
+    detail: Literal["low", "high", "auto"] = "high"
 
 
 @dataclass(frozen=True)
@@ -331,9 +340,24 @@ class OpenAIAPIBackend:
         return self.async_client
 
     def _request_options(self, request: AIRequest) -> dict[str, Any]:
+        input_value: str | list[dict[str, Any]] = request.prompt
+        if request.image_inputs:
+            content: list[dict[str, Any]] = [{"type": "input_text", "text": request.prompt}]
+            content.extend(
+                {
+                    "type": "input_image",
+                    "image_url": (
+                        f"data:{image.media_type};base64,"
+                        f"{base64.b64encode(image.content).decode('ascii')}"
+                    ),
+                    "detail": image.detail,
+                }
+                for image in request.image_inputs
+            )
+            input_value = [{"role": "user", "content": content}]
         options: dict[str, Any] = {
             "model": normalize_openai_model(request.model or self.default_model),
-            "input": request.prompt,
+            "input": input_value,
             "store": False,
             "timeout": request.timeout_seconds,
         }
@@ -341,6 +365,10 @@ class OpenAIAPIBackend:
             options["reasoning"] = {"effort": request.thinking}
         if request.structured and request.response_model is None:
             options["text"] = {"format": {"type": "json_object"}}
+        if request.enable_web_search:
+            options["tools"] = [{"type": "web_search"}]
+            options["include"] = ["web_search_call.action.sources"]
+            options["max_tool_calls"] = 6
         return options
 
     def _result(
@@ -452,13 +480,17 @@ def extract_ai_text(payloads: list[Any]) -> str:
         if isinstance(value, dict):
             for key, item in value.items():
                 normalized = key.replace("_", "").lower()
-                if normalized in {
-                    "outputtext",
-                    "finalassistantvisibletext",
-                    "finalassistantrawtext",
-                } and isinstance(item, str):
-                    texts.append(item)
-                elif key == "text" and isinstance(item, str):
+                if (
+                    normalized
+                    in {
+                        "outputtext",
+                        "finalassistantvisibletext",
+                        "finalassistantrawtext",
+                    }
+                    and isinstance(item, str)
+                    or key == "text"
+                    and isinstance(item, str)
+                ):
                     texts.append(item)
                 else:
                     visit(item)
@@ -494,7 +526,9 @@ def extract_ai_usage(payloads: list[Any]) -> AIUsage:
     def visit(value: Any) -> None:
         if isinstance(value, dict):
             for key, item in value.items():
-                if key.replace("_", "").lower() in {"usage", "tokenusage", "tokens"} and isinstance(item, dict):
+                if key.replace("_", "").lower() in {"usage", "tokenusage", "tokens"} and isinstance(
+                    item, dict
+                ):
                     usage_values.append(item)
                 visit(item)
         elif isinstance(value, list):
@@ -505,9 +539,20 @@ def extract_ai_usage(payloads: list[Any]) -> AIUsage:
         visit(payload)
     best = AIUsage()
     for usage in usage_values:
-        input_tokens = usage_int(usage, "input_tokens", "inputTokens", "prompt_tokens", "promptTokens", "input")
-        output_tokens = usage_int(usage, "output_tokens", "outputTokens", "completion_tokens", "completionTokens", "output")
-        total_tokens = usage_int(usage, "total_tokens", "totalTokens", "total") or input_tokens + output_tokens
+        input_tokens = usage_int(
+            usage, "input_tokens", "inputTokens", "prompt_tokens", "promptTokens", "input"
+        )
+        output_tokens = usage_int(
+            usage,
+            "output_tokens",
+            "outputTokens",
+            "completion_tokens",
+            "completionTokens",
+            "output",
+        )
+        total_tokens = (
+            usage_int(usage, "total_tokens", "totalTokens", "total") or input_tokens + output_tokens
+        )
         if total_tokens >= best.total_tokens:
             best = AIUsage(input_tokens, output_tokens, total_tokens, source="provider")
     return best

@@ -13,6 +13,10 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libreoffice-writer \
         poppler-utils \
+        texlive-fonts-extra \
+        texlive-latex-extra \
+        texlive-luatex \
+        texlive-xetex \
         tesseract-ocr \
         tesseract-ocr-deu \
         tesseract-ocr-eng \
