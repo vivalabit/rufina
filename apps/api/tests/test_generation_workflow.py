@@ -4,12 +4,13 @@ from collections import deque
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import create_engine, select, update
+from sqlalchemy import create_engine, func, select, update
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 from test_generation_input import seed_complete_sources
 
 from app.core.database import Base
+from app.models.documents import DocumentRecord
 from app.models.generation_runs import (
     GenerationRunArtifactRecord,
     GenerationRunCheckRecord,
@@ -26,7 +27,7 @@ from app.services.generation_grounding import (
 from app.services.generation_latex import CompiledDocument, build_resume_tex
 from app.services.generation_store import create_generation_run
 from app.services.generation_verification import PdfCheck, PdfVerificationReport, VerifiedPdf
-from app.services.generation_workflow import GenerationWorkflow
+from app.services.generation_workflow import GenerationWorkflow, GenerationWorkflowError
 
 
 class FakeBackend:
@@ -306,6 +307,47 @@ def test_declining_fit_finishes_without_drafting(sessions: sessionmaker[Session]
 
     assert run.status == "cancelled"
     assert len(backend.requests) == 1
+
+
+def test_recovered_pdf_failure_is_terminal_and_does_not_publish_partial_documents(
+    sessions: sessionmaker[Session],
+) -> None:
+    _seed(sessions)
+
+    def unavailable_compiler(_bundle: DraftBundle):
+        raise GenerationWorkflowError(
+            "No supported TeX compiler is installed",
+            code="pdf_compiler_unavailable",
+        )
+
+    workflow = GenerationWorkflow(
+        settings=_settings(),
+        backend=FakeBackend([]),
+        renderer=unavailable_compiler,
+        verifier=_verifier,
+    )
+    with sessions() as db:
+        run = create_generation_run(
+            db,
+            application_id="application-1",
+            request=_start(),
+            settings=_settings(),
+        )
+        run.status = "queued"
+        run.stage = "pdf_checks"
+        run.result = {"fit": _fit(), "draft": _draft(), "review": _review()}
+        db.commit()
+
+        with pytest.raises(GenerationWorkflowError, match="No supported TeX"):
+            workflow.resume_pdf_checks(db, run)
+
+        assert run.status == "failed"
+        assert run.error == {
+            "code": "pdf_compiler_unavailable",
+            "message": "No supported TeX compiler is installed",
+            "retryable": False,
+        }
+        assert db.scalar(select(func.count()).select_from(DocumentRecord)) == 0
 
 
 def test_grounding_rejects_modified_canonical_evidence() -> None:

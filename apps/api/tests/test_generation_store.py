@@ -7,12 +7,14 @@ from sqlalchemy.pool import StaticPool
 from test_generation_input import seed_complete_sources
 
 from app.core.database import Base
+from app.models.applications import StoredApplicationRecord
 from app.models.generation_runs import (
     GenerationRunArtifactRecord,
     GenerationRunCheckRecord,
     GenerationRunEventRecord,
     GenerationRunStartRequest,
 )
+from app.models.jobs import StoredJobRecord
 from app.services.generation_store import (
     GenerationStoreError,
     create_generation_run,
@@ -35,9 +37,9 @@ def sessions() -> sessionmaker[Session]:
     return sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
-def _settings() -> SimpleNamespace:
+def _settings(backend: str = "openclaw_codex") -> SimpleNamespace:
     return SimpleNamespace(
-        ai_backend_mode="openclaw_codex",
+        ai_backend_mode=backend,
         openai_api_model="gpt-direct",
         openai_api_reasoning_effort="medium",
         openai_api_timeout_seconds=120,
@@ -152,3 +154,104 @@ def test_cancellation_uses_optimistic_revision(sessions: sessionmaker[Session]) 
         assert db.scalar(select(func.count()).select_from(GenerationRunEventRecord)) == 2
         assert db.scalar(select(func.count()).select_from(GenerationRunArtifactRecord)) == 0
         assert db.scalar(select(func.count()).select_from(GenerationRunCheckRecord)) == 0
+
+
+def test_parallel_applications_are_isolated_and_backend_changes_only_affect_new_runs(
+    sessions: sessionmaker[Session],
+) -> None:
+    seed_complete_sources(sessions)
+    with sessions() as db:
+        db.add_all(
+            [
+                StoredApplicationRecord(
+                    id="application-2",
+                    revision=1,
+                    data={
+                        "id": "application-2",
+                        "status": "draft",
+                        "job": {"id": "vacancy-2"},
+                    },
+                ),
+                StoredJobRecord(
+                    id="vacancy-2",
+                    revision=1,
+                    data={
+                        "id": "vacancy-2",
+                        "title": "Reliability Engineer",
+                        "company": "Second AG",
+                        "overview": "Improve production reliability.",
+                    },
+                ),
+            ]
+        )
+        db.commit()
+
+        first = create_generation_run(
+            db,
+            application_id="application-1",
+            request=_request("application-one"),
+            settings=_settings("openclaw_codex"),
+        )
+        parallel = create_generation_run(
+            db,
+            application_id="application-2",
+            request=_request("application-two"),
+            settings=_settings("openai_api"),
+        )
+        old_artifact = persist_run_artifact(
+            db,
+            run=first,
+            artifact_type="resume_pdf",
+            document_type="tailored_resume",
+            file_name="first.pdf",
+            content_type="application/pdf",
+            content=b"%PDF-first",
+        )
+        persist_run_check(
+            db,
+            run=first,
+            artifact=old_artifact,
+            check_type="text_layer",
+            status="passed",
+        )
+        transition_generation_run(
+            db,
+            run=first,
+            status="completed",
+            stage="final_review",
+            event_kind="run.completed",
+        )
+        replacement = create_generation_run(
+            db,
+            application_id="application-1",
+            request=_request("application-one-revision"),
+            settings=_settings("openai_api"),
+        )
+        replacement_artifact = persist_run_artifact(
+            db,
+            run=replacement,
+            artifact_type="resume_pdf_attempt",
+            document_type="tailored_resume",
+            file_name="replacement-attempt.pdf",
+            content_type="application/pdf",
+            content=b"%PDF-replacement",
+        )
+        replacement_payload = generation_run_payload(db, replacement)
+        first_backend = first.backend
+        first_snapshot_backend = first.settings_snapshot["backend"]
+        parallel_backend = parallel.backend
+        replacement_backend = replacement.backend
+        parallel_application_id = parallel.application_id
+        replacement_application_id = replacement.application_id
+        old_sha256 = old_artifact.content_sha256
+
+    assert first_backend == "openclaw_codex"
+    assert first_snapshot_backend == "openclaw_codex"
+    assert parallel_backend == "openai_api"
+    assert replacement_backend == "openai_api"
+    assert parallel_application_id != replacement_application_id
+    assert replacement_payload.checks == []
+    assert replacement_payload.artifacts[0].content_sha256 == (
+        replacement_artifact.content_sha256
+    )
+    assert replacement_payload.artifacts[0].content_sha256 != old_sha256

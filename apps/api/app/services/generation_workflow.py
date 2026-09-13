@@ -191,14 +191,18 @@ class GenerationWorkflow:
                 "Persisted reviewed draft is not recoverable",
                 code="invalid_recovery_state",
             ) from exc
-        return self._render_verify_finalize(
-            db,
-            run,
-            draft=draft,
-            review=review,
-            master_resume=master_resume,
-            target_job_id=snapshot.request.vacancy.id,
-        )
+        try:
+            return self._render_verify_finalize(
+                db,
+                run,
+                draft=draft,
+                review=review,
+                master_resume=master_resume,
+                target_job_id=snapshot.request.vacancy.id,
+            )
+        except Exception as exc:
+            self._fail(db, run, exc)
+            raise
 
     def _draft_and_review(
         self,
