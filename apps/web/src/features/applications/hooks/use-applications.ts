@@ -13,6 +13,7 @@ import {
   fetchApplication,
   fetchApplications,
   patchApplication,
+  replaceApplicationAttachment,
   uploadApplicationAttachment,
 } from "../api/client";
 import type { StoredApplicationPayload } from "../api/dto";
@@ -255,6 +256,28 @@ export function useApplications() {
     updateCached,
     uploadAttachment: (applicationId: string, file: Blob, metadata: { fileName: string; title: string }) =>
       withSignal((signal) => uploadApplicationAttachment(applicationId, file, metadata, signal)),
+    replaceAttachment: (
+      applicationId: string,
+      document: ApplicationDocument,
+      file: Blob,
+      metadata: { fileName: string; title: string },
+    ) => {
+      const sourceId = document.sourceId;
+      return sourceId
+        ? withSignal((signal) => replaceApplicationAttachment(
+          applicationId,
+          sourceId,
+          file,
+          metadata,
+          signal,
+        ))
+        : withSignal((signal) => uploadApplicationAttachment(
+          applicationId,
+          file,
+          metadata,
+          signal,
+        ));
+    },
     deleteAttachment: (applicationId: string, document: ApplicationDocument) =>
       withSignal((signal) => deleteApplicationAttachment(applicationId, document, signal)),
     refresh,

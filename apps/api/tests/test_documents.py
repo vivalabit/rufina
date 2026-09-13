@@ -127,6 +127,11 @@ def test_workspace_sources_reject_resume_uploads_but_keep_cover_letters() -> Non
     output = BytesIO()
     document.save(output)
     original_content = output.getvalue()
+    replacement_document = Document()
+    replacement_document.add_paragraph("Updated professional profile")
+    replacement_output = BytesIO()
+    replacement_document.save(replacement_output)
+    replacement_content = replacement_output.getvalue()
     docx_content_type = "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
 
     app.dependency_overrides[get_db] = override_get_db
@@ -165,7 +170,36 @@ def test_workspace_sources_reject_resume_uploads_but_keep_cover_letters() -> Non
             params={"applicationId": "application-other"},
         )
         source_id = created.json()["id"]
-        downloaded = client.get(created.json()["downloadUrl"])
+        replacement_params = {
+            "applicationId": "application-sources",
+            "category": "Cover Letter",
+            "title": "Updated source cover letter",
+            "language": "German",
+            "fileName": "Updated-Cover-Letter.docx",
+        }
+        wrong_workspace_replace = client.put(
+            f"/documents/workspace-sources/{source_id}",
+            params={**replacement_params, "applicationId": "application-other"},
+            content=replacement_content,
+            headers={"Content-Type": docx_content_type},
+        )
+        wrong_owner_replace = client.put(
+            f"/documents/workspace-sources/{source_id}",
+            params=replacement_params,
+            content=replacement_content,
+            headers={
+                "Content-Type": docx_content_type,
+                "X-Rufina-Owner-Id": "another-owner",
+            },
+        )
+        replaced = client.put(
+            f"/documents/workspace-sources/{source_id}",
+            params=replacement_params,
+            content=replacement_content,
+            headers={"Content-Type": docx_content_type},
+        )
+        downloaded = client.get(replaced.json()["downloadUrl"])
+        previewed = client.get(f"{replaced.json()['downloadUrl']}&preview=true")
         wrong_workspace_download = client.get(
             f"/documents/workspace-sources/{source_id}/download",
             params={"applicationId": "application-other"},
@@ -208,9 +242,21 @@ def test_workspace_sources_reject_resume_uploads_but_keep_cover_letters() -> Non
     assert [source["id"] for source in listed.json()] == [source_id]
     assert "dataUrl" not in listed.json()[0]
     assert downloaded.status_code == 200
-    assert downloaded.content == original_content
+    assert replaced.status_code == 200
+    assert replaced.json()["id"] == source_id
+    assert replaced.json()["title"] == "Updated source cover letter"
+    assert replaced.json()["language"] == "German"
+    assert replaced.json()["fileName"] == "Updated-Cover-Letter.docx"
+    assert replaced.json()["contentSha256"] == hashlib.sha256(replacement_content).hexdigest()
+    assert wrong_workspace_replace.status_code == 404
+    assert wrong_owner_replace.status_code == 404
+    assert downloaded.content == replacement_content
     assert downloaded.headers["content-type"] == docx_content_type
-    assert downloaded.headers["content-length"] == str(len(original_content))
+    assert downloaded.headers["content-length"] == str(len(replacement_content))
+    assert downloaded.headers["content-disposition"].startswith("attachment;")
+    assert previewed.status_code == 200
+    assert previewed.content == replacement_content
+    assert previewed.headers["content-disposition"].startswith("inline;")
     assert downloaded.headers["x-content-type-options"] == "nosniff"
     assert downloaded.headers["cross-origin-resource-policy"] == "same-site"
     assert wrong_workspace_download.status_code == 404

@@ -19,6 +19,7 @@ import {
   RefreshCw,
   Settings2,
   Sparkles,
+  Upload,
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
@@ -54,19 +55,14 @@ import { fetchResumeTemplates } from "@/features/profile/api/template-client";
 import { normalizeJobsChJobUrl } from "@/lib/job-url";
 import type { ResumeTemplate } from "@/lib/resume-templates";
 import { cn } from "@/lib/utils";
-import type { ApplicationStatus } from "@/shared/types/application";
+import type {
+  ApplicationDocument,
+  ApplicationStatus,
+  SubmissionDocumentSelection,
+} from "@/shared/types/application";
 import type { Job } from "@/shared/types/job";
 
-type WorkspaceApplicationDocument = {
-  id: string;
-  artifactId?: string;
-  title: string;
-  fileName: string;
-  fileSize: string;
-  fileType: string;
-  uploadedAt: string;
-  downloadUrl: string;
-};
+type WorkspaceApplicationDocument = ApplicationDocument;
 
 type StoredDocumentVersion = {
   id: string;
@@ -91,6 +87,13 @@ type StoredDocument = {
   versions: StoredDocumentVersion[];
   versionsTotal: number;
   versionsHasMore: boolean;
+};
+
+type ResolvedSubmissionDocument = {
+  selection: SubmissionDocumentSelection;
+  title: string;
+  fileName: string;
+  applicationDocument?: ApplicationDocument;
 };
 
 type WorkspaceApplication = {
@@ -126,15 +129,19 @@ type ApplicationWorkspaceProps = {
   ) => Promise<unknown> | void;
   onDocumentAttached: (
     applicationId: string,
-    document: {
-      artifactId: string;
-      title: string;
-      fileName: string;
-      fileType: string;
-      uploadedAt: string;
-      downloadUrl: string;
-    },
+    document: ApplicationDocument,
   ) => void;
+  onUploadDocument: (
+    applicationId: string,
+    file: File,
+    metadata: { fileName: string; title: string },
+  ) => Promise<ApplicationDocument>;
+  onReplaceDocument: (
+    applicationId: string,
+    document: ApplicationDocument,
+    file: File,
+    metadata: { fileName: string; title: string },
+  ) => Promise<ApplicationDocument>;
 };
 
 function getFileBadge(fileName: string, fileType: string) {
@@ -177,12 +184,48 @@ function generationDocumentLabel(documentType: PreparationDocumentType) {
   return documentType === "tailored_resume" ? "Tailored CV" : "Cover letter";
 }
 
+function submissionDocumentLabel(documentType: PreparationDocumentType) {
+  return documentType === "tailored_resume" ? "CV" : "cover letter";
+}
+
+function uploadedDocumentTitle(file: File) {
+  return (
+    file.name
+      .replace(/\.[^.]+$/, "")
+      .replace(/[_-]+/g, " ")
+      .trim() || file.name
+  );
+}
+
+function validateWorkspaceFile(file: File) {
+  const extensions = [".pdf", ".doc", ".docx"];
+  const contentTypes = new Set([
+    "application/pdf",
+    "application/msword",
+    "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  ]);
+  const validExtension = extensions.some((extension) =>
+    file.name.toLowerCase().endsWith(extension),
+  );
+  if (!contentTypes.has(file.type) && !validExtension) {
+    return "Upload a PDF, DOC, or DOCX file.";
+  }
+  if (file.size > 5_000_000) return "Document file must be under 5 MB.";
+  return "";
+}
+
+function workspaceDocumentPreviewUrl(downloadUrl: string) {
+  return `${downloadUrl}${downloadUrl.includes("?") ? "&" : "?"}preview=true`;
+}
+
 export function ApplicationWorkspace({
   application,
   backLabel = "Applications",
   onBack,
   onPreparationSettingsChange,
   onDocumentAttached,
+  onUploadDocument,
+  onReplaceDocument,
 }: ApplicationWorkspaceProps) {
   const [storedDocuments, setStoredDocuments] = useState<StoredDocument[]>([]);
   const [jobDocuments, setJobDocuments] = useState<StoredDocument[]>([]);
@@ -192,6 +235,11 @@ export function ApplicationWorkspace({
   const [documentsError, setDocumentsError] = useState("");
   const [documentsRequest, setDocumentsRequest] = useState(0);
   const [attachingDocumentId, setAttachingDocumentId] = useState("");
+  const [uploadDocumentType, setUploadDocumentType] =
+    useState<PreparationDocumentType>("tailored_resume");
+  const [uploadStatus, setUploadStatus] = useState<
+    "idle" | "uploading" | "replacing"
+  >("idle");
   const [loadingVersionsDocumentId, setLoadingVersionsDocumentId] =
     useState("");
   const [preview, setPreview] = useState<{
@@ -325,6 +373,41 @@ export function ApplicationWorkspace({
     return document ? { ...document, currentVersion: preview.version } : null;
   }, [preview, storedDocuments]);
 
+  function resolveSubmissionDocument(
+    documentType: PreparationDocumentType,
+  ): ResolvedSubmissionDocument | null {
+    const selection = settings.submission[documentType];
+    if (!selection) return null;
+    const applicationDocument = attachedFiles.find(
+      (document) => document.id === selection.documentId,
+    );
+    if (applicationDocument) {
+      return {
+        selection,
+        title: applicationDocument.title || applicationDocument.fileName,
+        fileName: applicationDocument.fileName,
+        applicationDocument,
+      };
+    }
+    const storedDocument = storedDocuments.find(
+      (document) => document.id === selection.documentId,
+    );
+    if (!storedDocument) return null;
+    const version = storedDocument.versions.find(
+      (candidate) => candidate.version === selection.version,
+    );
+    return {
+      selection,
+      title: storedDocument.title,
+      fileName:
+        version?.artifact?.fileName
+        ?? `${storedDocument.title}-v${selection.version ?? storedDocument.currentVersion}.docx`,
+    };
+  }
+
+  const selectedResume = resolveSubmissionDocument("tailored_resume");
+  const selectedCoverLetter = resolveSubmissionDocument("cover_letter");
+
   const updateStoredDocument = useCallback((updated: StoredDocument) => {
     setStoredDocuments((current) => {
       const existingIndex = current.findIndex(
@@ -381,6 +464,65 @@ export function ApplicationWorkspace({
     }));
   }
 
+  function selectSubmissionDocument(
+    documentType: PreparationDocumentType,
+    documentId: string,
+    version: number | null,
+  ) {
+    updateAndPersistSettings((current) => ({
+      ...current,
+      documentTypes: current.documentTypes.includes(documentType)
+        ? current.documentTypes
+        : [...current.documentTypes, documentType],
+      submission: {
+        ...current.submission,
+        [documentType]: { documentId, version },
+      },
+    }));
+  }
+
+  async function storeOwnDocument(
+    file: File | undefined,
+    documentType: PreparationDocumentType,
+    replace: boolean,
+  ) {
+    if (!file || !application || uploadStatus !== "idle") return;
+    const validationError = validateWorkspaceFile(file);
+    if (validationError) {
+      setDocumentsError(validationError);
+      return;
+    }
+    const selected = replace
+      ? resolveSubmissionDocument(documentType)
+      : null;
+    setUploadStatus(replace ? "replacing" : "uploading");
+    setDocumentsError("");
+    try {
+      const metadata = {
+        fileName: file.name,
+        title: uploadedDocumentTitle(file),
+      };
+      const document = selected?.applicationDocument
+        ? await onReplaceDocument(
+            application.id,
+            selected.applicationDocument,
+            file,
+            metadata,
+          )
+        : await onUploadDocument(application.id, file, metadata);
+      onDocumentAttached(application.id, document);
+      selectSubmissionDocument(documentType, document.id, null);
+    } catch (caught) {
+      setDocumentsError(
+        caught instanceof Error
+          ? caught.message
+          : "The document could not be saved.",
+      );
+    } finally {
+      setUploadStatus("idle");
+    }
+  }
+
   async function generateDocuments() {
     if (!applicationId || !settings.documentTypes.length || isGenerating)
       return;
@@ -423,13 +565,21 @@ export function ApplicationWorkspace({
       const version = currentStoredDocumentVersion(attached);
       if (version?.artifact) {
         onDocumentAttached(application.id, {
+          id: `artifact-${attached.id}`,
           artifactId: attached.id,
+          kind: "generated",
           title: attached.title,
           fileName: storedDocumentFileName(attached),
+          fileSize: "",
           fileType: version.artifact.contentType ?? "application/octet-stream",
           uploadedAt: attached.updatedAt,
           downloadUrl: documentDownloadUrl(attached.id),
         });
+        selectSubmissionDocument(
+          attached.type,
+          attached.id,
+          attached.currentVersion,
+        );
       }
     } catch (caught) {
       setDocumentsError(
@@ -900,6 +1050,157 @@ export function ApplicationWorkspace({
               </span>
             </div>
 
+            <div className="mt-4 rounded-2xl border border-border bg-[#fff8f1] p-3">
+              <p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">
+                Add your own document
+              </p>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                <select
+                  aria-label="Upload document type"
+                  value={uploadDocumentType}
+                  disabled={uploadStatus !== "idle"}
+                  onChange={(event) =>
+                    setUploadDocumentType(
+                      event.target.value as PreparationDocumentType,
+                    )
+                  }
+                  className="h-9 min-w-0 flex-1 rounded-lg border border-border bg-white px-3 text-[10px] font-bold text-foreground outline-none focus:border-accent"
+                >
+                  <option value="tailored_resume">CV</option>
+                  <option value="cover_letter">Cover letter</option>
+                </select>
+                <label
+                  className={cn(
+                    "inline-flex h-9 cursor-pointer items-center justify-center gap-1.5 rounded-lg border border-border bg-white px-3 text-[10px] font-bold text-foreground transition hover:border-accent/50 hover:bg-[#fff3e8]",
+                    uploadStatus !== "idle" && "pointer-events-none opacity-60",
+                  )}
+                >
+                  {uploadStatus === "uploading" ? (
+                    <LoaderCircle className="h-3.5 w-3.5 animate-spin" />
+                  ) : (
+                    <Upload className="h-3.5 w-3.5" />
+                  )}
+                  {uploadStatus === "uploading" ? "Uploading…" : "Upload file"}
+                  <input
+                    type="file"
+                    accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                    aria-label="Upload own document"
+                    className="sr-only"
+                    disabled={uploadStatus !== "idle"}
+                    onChange={(event) => {
+                      const file = event.currentTarget.files?.[0];
+                      event.currentTarget.value = "";
+                      void storeOwnDocument(file, uploadDocumentType, false);
+                    }}
+                  />
+                </label>
+              </div>
+              <p className="mt-2 text-[8px] leading-4 text-muted">
+                PDF, DOC, or DOCX · up to 5 MB. The upload is selected for the
+                chosen slot automatically.
+              </p>
+            </div>
+
+            <div
+              aria-label="Submission pack"
+              className="mt-4 rounded-2xl border border-border p-3"
+            >
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[9px] font-black uppercase tracking-[0.1em] text-muted">
+                    Submission pack
+                  </p>
+                  <p className="mt-1 text-[10px] leading-4 text-muted">
+                    Choose the exact file and version you plan to submit.
+                  </p>
+                </div>
+                <span className="rounded-full border border-border bg-[#fff8f1] px-2.5 py-1 text-[8px] font-black text-muted">
+                  {[selectedResume, selectedCoverLetter].filter(Boolean).length}/2 selected
+                </span>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {([
+                  ["tailored_resume", selectedResume],
+                  ["cover_letter", selectedCoverLetter],
+                ] as const).map(([documentType, selected]) => (
+                  <div
+                    key={documentType}
+                    className="rounded-xl border border-border bg-[#fff8f1] p-3"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="text-[9px] font-black uppercase tracking-wide text-accent">
+                          {submissionDocumentLabel(documentType)}
+                        </p>
+                        <p className="mt-1 truncate text-[10px] font-bold text-foreground">
+                          {selected?.title ?? "Not selected"}
+                        </p>
+                        <p className="mt-0.5 truncate text-[8px] text-muted">
+                          {selected
+                            ? `${selected.fileName}${selected.selection.version ? ` · v${selected.selection.version}` : ""}`
+                            : "Select an existing version or upload a file."}
+                        </p>
+                      </div>
+                      {selected ? (
+                        <Check className="h-4 w-4 shrink-0 text-success" />
+                      ) : null}
+                    </div>
+                    {selected ? (
+                      <label
+                        className={cn(
+                          "mt-2 inline-flex h-8 cursor-pointer items-center gap-1.5 rounded-lg border border-border bg-white px-2.5 text-[9px] font-bold text-foreground hover:border-accent/50",
+                          uploadStatus !== "idle" && "pointer-events-none opacity-60",
+                        )}
+                      >
+                        {uploadStatus === "replacing" ? (
+                          <LoaderCircle className="h-3 w-3 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3" />
+                        )}
+                        Replace
+                        <input
+                          type="file"
+                          accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                          aria-label={`Replace selected ${submissionDocumentLabel(documentType)}`}
+                          className="sr-only"
+                          disabled={uploadStatus !== "idle"}
+                          onChange={(event) => {
+                            const file = event.currentTarget.files?.[0];
+                            event.currentTarget.value = "";
+                            void storeOwnDocument(file, documentType, true);
+                          }}
+                        />
+                      </label>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2 border-t border-border pt-3">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled
+                  title="Available when the document generator is connected"
+                  className="h-8 rounded-lg border border-border px-2.5 text-[9px] font-bold"
+                >
+                  <Sparkles className="h-3 w-3" /> Edit with AI
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  disabled
+                  title="Available when the document generator is connected"
+                  className="h-8 rounded-lg border border-border px-2.5 text-[9px] font-bold"
+                >
+                  <RefreshCw className="h-3 w-3" /> Regenerate selected
+                </Button>
+                <p className="basis-full text-[8px] leading-4 text-muted">
+                  AI edits and regeneration use the generator contract and will
+                  become available when its adapter is connected.
+                </p>
+              </div>
+            </div>
+
             {generationError ? (
               <div
                 role="alert"
@@ -1048,11 +1349,44 @@ export function ApplicationWorkspace({
                           ? ` · ${formatApplicationDate(document.uploadedAt)}`
                           : ""}
                       </p>
+                      <div className="mt-2 flex flex-wrap gap-1.5">
+                        {([
+                          ["tailored_resume", "CV"],
+                          ["cover_letter", "letter"],
+                        ] as const).map(([documentType, label]) => {
+                          const selected =
+                            settings.submission[documentType]?.documentId
+                            === document.id;
+                          return (
+                            <button
+                              key={documentType}
+                              type="button"
+                              aria-label={`Use ${document.title || document.fileName} as ${label}`}
+                              aria-pressed={selected}
+                              onClick={() =>
+                                selectSubmissionDocument(
+                                  documentType,
+                                  document.id,
+                                  null,
+                                )
+                              }
+                              className={cn(
+                                "inline-flex h-6 items-center gap-1 rounded-md border border-border bg-white px-2 text-[8px] font-bold text-muted hover:text-foreground",
+                                selected
+                                && "border-success/30 bg-success/10 text-success",
+                              )}
+                            >
+                              {selected ? <Check className="h-2.5 w-2.5" /> : null}
+                              Use as {label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
                     {document.downloadUrl ? (
                       <div className="flex shrink-0 gap-1.5">
                         <a
-                          href={document.downloadUrl}
+                          href={workspaceDocumentPreviewUrl(document.downloadUrl)}
                           target="_blank"
                           rel="noreferrer"
                           aria-label={`Open ${document.title || document.fileName}`}
@@ -1102,6 +1436,33 @@ export function ApplicationWorkspace({
                         </div>
                         {hasArtifact ? (
                           <div className="flex shrink-0 gap-1.5">
+                            <button
+                              type="button"
+                              aria-label={`Use current ${document.title} version ${document.currentVersion} for submission`}
+                              aria-pressed={
+                                settings.submission[document.type]?.documentId
+                                  === document.id
+                                && settings.submission[document.type]?.version
+                                  === document.currentVersion
+                              }
+                              onClick={() =>
+                                selectSubmissionDocument(
+                                  document.type,
+                                  document.id,
+                                  document.currentVersion,
+                                )
+                              }
+                              className={cn(
+                                "grid h-9 w-9 place-items-center rounded-lg border border-border text-muted transition hover:bg-white hover:text-foreground",
+                                settings.submission[document.type]?.documentId
+                                  === document.id
+                                && settings.submission[document.type]?.version
+                                  === document.currentVersion
+                                && "border-success/30 bg-success/10 text-success",
+                              )}
+                            >
+                              <Check className="h-4 w-4" />
+                            </button>
                             <button
                               type="button"
                               aria-label={`Open ${document.title}`}
@@ -1155,6 +1516,33 @@ export function ApplicationWorkspace({
                                 </div>
                                 {version.hasRenderedArtifact ? (
                                   <>
+                                    <button
+                                      type="button"
+                                      aria-label={`Use ${document.title} version ${version.version} for submission`}
+                                      aria-pressed={
+                                        settings.submission[document.type]?.documentId
+                                          === document.id
+                                        && settings.submission[document.type]?.version
+                                          === version.version
+                                      }
+                                      onClick={() =>
+                                        selectSubmissionDocument(
+                                          document.type,
+                                          document.id,
+                                          version.version,
+                                        )
+                                      }
+                                      className={cn(
+                                        "grid h-7 w-7 place-items-center rounded-md border border-border text-muted hover:text-foreground",
+                                        settings.submission[document.type]?.documentId
+                                          === document.id
+                                        && settings.submission[document.type]?.version
+                                          === version.version
+                                        && "border-success/30 bg-success/10 text-success",
+                                      )}
+                                    >
+                                      <Check className="h-3 w-3" />
+                                    </button>
                                     <button
                                       type="button"
                                       aria-label={`Open ${document.title} version ${version.version}`}

@@ -1,5 +1,5 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   createWorkspaceApplication,
@@ -97,6 +97,10 @@ describe("ApplicationWorkspace", () => {
             resumeMaxPages: 1,
             coverLetterTemplateId: "4a9260bb-dc6a-5b9d-8a3a-1caa1e1433e8",
           },
+          submission: {
+            tailored_resume: null,
+            cover_letter: null,
+          },
           userPreferences: "Use a direct tone.",
         },
       }),
@@ -168,6 +172,10 @@ describe("ApplicationWorkspace", () => {
             resumeMaxPages: 1,
             coverLetterTemplateId: "",
           },
+          submission: {
+            tailored_resume: null,
+            cover_letter: null,
+          },
           userPreferences: "Keep it concise.",
         },
       }),
@@ -216,6 +224,7 @@ describe("ApplicationWorkspace", () => {
         documents: [
           {
             id: "document-1",
+            kind: "uploaded",
             title: "Tailored CV",
             fileName: "alex-morgan-cv.pdf",
             fileSize: "128 KB",
@@ -225,6 +234,7 @@ describe("ApplicationWorkspace", () => {
           },
           {
             id: "document-2",
+            kind: "uploaded",
             title: "Cover letter",
             fileName: "alex-morgan-letter.docx",
             fileSize: "64 KB",
@@ -242,16 +252,175 @@ describe("ApplicationWorkspace", () => {
     });
 
     expect(within(documents).getByText("Tailored CV")).toBeInTheDocument();
-    expect(within(documents).getByText("Cover letter")).toBeInTheDocument();
+    expect(within(documents).getAllByText("Cover letter")).not.toHaveLength(0);
     expect(
       within(documents).getByRole("link", { name: "Download Tailored CV" }),
     ).toHaveAttribute("href", "/documents/document-1/download");
+    expect(
+      within(documents).getByRole("link", { name: "Open Tailored CV" }),
+    ).toHaveAttribute("href", "/documents/document-1/download?preview=true");
     expect(
       within(documents).getByRole("link", { name: "Download Cover letter" }),
     ).toHaveAttribute("href", "/documents/document-2/download");
     expect(
       screen.getByRole("button", { name: "Generate documents" }),
     ).toBeEnabled();
+  });
+
+  it("uploads an own file and selects it for submission", async () => {
+    const uploaded = {
+      id: "source-uploaded-cv",
+      sourceId: "uploaded-cv",
+      kind: "uploaded" as const,
+      title: "Own CV",
+      fileName: "own-cv.pdf",
+      fileSize: "1 KB",
+      fileType: "application/pdf",
+      uploadedAt: "2026-09-13T11:00:00.000Z",
+      downloadUrl: "/documents/workspace-sources/uploaded-cv/download",
+    };
+    const { props } = renderApplicationWorkspace(
+      createWorkspaceApplication(),
+      {
+        onUploadDocument: vi.fn().mockResolvedValue(uploaded),
+      },
+    );
+    const file = new File(["%PDF-1.7 own cv"], "own-cv.pdf", {
+      type: "application/pdf",
+    });
+
+    fireEvent.change(screen.getByLabelText("Upload own document"), {
+      target: { files: [file] },
+    });
+
+    await waitFor(() => expect(props.onUploadDocument).toHaveBeenCalledWith(
+      "application",
+      file,
+      { fileName: "own-cv.pdf", title: "own cv" },
+    ));
+    expect(props.onDocumentAttached).toHaveBeenCalledWith(
+      "application",
+      uploaded,
+    );
+    await waitFor(() => expect(props.onPreparationSettingsChange).toHaveBeenCalledWith(
+      "application",
+      expect.objectContaining({
+        submission: expect.objectContaining({
+          tailored_resume: {
+            documentId: "source-uploaded-cv",
+            version: null,
+          },
+        }),
+      }),
+    ));
+  });
+
+  it("replaces a selected uploaded file without changing its selection", async () => {
+    const existing = {
+      id: "source-existing-cv",
+      sourceId: "existing-cv",
+      kind: "uploaded" as const,
+      title: "Existing CV",
+      fileName: "existing-cv.pdf",
+      fileSize: "1 KB",
+      fileType: "application/pdf",
+      uploadedAt: "2026-09-12T11:00:00.000Z",
+      downloadUrl: "/documents/workspace-sources/existing-cv/download",
+    };
+    const replacement = {
+      ...existing,
+      title: "Updated CV",
+      fileName: "updated-cv.pdf",
+      uploadedAt: "2026-09-13T11:00:00.000Z",
+    };
+    const { props } = renderApplicationWorkspace(
+      createWorkspaceApplication({
+        documents: [existing],
+        documentPreparation: {
+          documentTypes: ["tailored_resume", "cover_letter"],
+          language: "English",
+          formatting: {
+            pageSize: "A4",
+            resumeTemplateId: "classic_single",
+            resumeMaxPages: 2,
+            coverLetterTemplateId: "",
+          },
+          submission: {
+            tailored_resume: {
+              documentId: "source-existing-cv",
+              version: null,
+            },
+            cover_letter: null,
+          },
+          userPreferences: "",
+        },
+      }),
+      {
+        onReplaceDocument: vi.fn().mockResolvedValue(replacement),
+      },
+    );
+    const file = new File(["%PDF-1.7 updated cv"], "updated-cv.pdf", {
+      type: "application/pdf",
+    });
+
+    fireEvent.change(screen.getByLabelText("Replace selected CV"), {
+      target: { files: [file] },
+    });
+
+    await waitFor(() => expect(props.onReplaceDocument).toHaveBeenCalledWith(
+      "application",
+      existing,
+      file,
+      { fileName: "updated-cv.pdf", title: "updated cv" },
+    ));
+    expect(props.onDocumentAttached).toHaveBeenCalledWith(
+      "application",
+      replacement,
+    );
+    await waitFor(() => expect(props.onPreparationSettingsChange).toHaveBeenCalledWith(
+      "application",
+      expect.objectContaining({
+        submission: expect.objectContaining({
+          tailored_resume: {
+            documentId: "source-existing-cv",
+            version: null,
+          },
+        }),
+      }),
+    ));
+  });
+
+  it("persists the exact stored version selected for submission", async () => {
+    installApplicationWorkspaceApiMock({ documents: [storedDocument()] });
+    const { props } = renderApplicationWorkspace(createWorkspaceApplication());
+
+    fireEvent.click(await screen.findByRole("button", {
+      name: "Use current Saved cover letter version 2 for submission",
+    }));
+
+    await waitFor(() => expect(props.onPreparationSettingsChange).toHaveBeenCalledWith(
+      "application",
+      expect.objectContaining({
+        submission: expect.objectContaining({
+          cover_letter: {
+            documentId: "stored-document-1",
+            version: 2,
+          },
+        }),
+      }),
+    ));
+    expect(screen.getByRole("button", {
+      name: "Use current Saved cover letter version 2 for submission",
+    })).toHaveAttribute("aria-pressed", "true");
+  });
+
+  it("exposes future generator actions without pretending they are available", () => {
+    renderApplicationWorkspace(createWorkspaceApplication());
+
+    expect(screen.getByRole("button", { name: "Edit with AI" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Regenerate selected" }),
+    ).toBeDisabled();
   });
 
   it("does not render any legacy preparation content", () => {

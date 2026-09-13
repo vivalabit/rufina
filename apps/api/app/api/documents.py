@@ -89,6 +89,88 @@ def private_workspace_file_headers() -> dict[str, str]:
     }
 
 
+async def read_workspace_source_upload(
+    request: Request,
+    *,
+    category: WorkspaceSourceCategory,
+    file_name: str,
+    content_type_header: str | None,
+) -> tuple[str, str, bytes, str]:
+    declared_length = request.headers.get("content-length")
+    if declared_length is not None:
+        try:
+            parsed_length = int(declared_length)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Content-Length must be an integer",
+            ) from exc
+        if parsed_length < 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Content-Length must not be negative",
+            )
+        if parsed_length > MAX_APPLICATION_ATTACHMENT_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail="Application file must be no larger than 5 MB",
+            )
+
+    body = bytearray()
+    async for chunk in request.stream():
+        if len(body) + len(chunk) > MAX_APPLICATION_ATTACHMENT_BYTES:
+            raise HTTPException(
+                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                detail="Application file must be no larger than 5 MB",
+            )
+        body.extend(chunk)
+    content = bytes(body)
+    if not content:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Application file must not be empty",
+        )
+
+    content_type = workspace_source_content_type(
+        category=category,
+        file_name=file_name,
+        content_type_header=content_type_header,
+    )
+    safe_file_name = safe_upload_filename(file_name)
+    if category == "Application Attachment":
+        try:
+            safe_file_name, content_type = validate_profile_file_upload(
+                kind="supporting_document",
+                file_name=file_name,
+                content_type=content_type,
+                content=content,
+            )
+        except ProfileFileValidationError as exc:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(exc),
+            ) from exc
+    if category == "Cover Letter":
+        try:
+            analyze_docx_source(content, "cover_letter")
+        except DocumentSecurityError as exc:
+            raise HTTPException(
+                status_code=(
+                    status.HTTP_413_CONTENT_TOO_LARGE
+                    if exc.limit_exceeded
+                    else status.HTTP_422_UNPROCESSABLE_ENTITY
+                ),
+                detail=str(exc),
+            ) from exc
+
+    return (
+        safe_file_name,
+        content_type,
+        content,
+        hashlib.sha256(content).hexdigest(),
+    )
+
+
 @router.get("", response_model=list[DocumentPayload])
 def list_documents(
     job_id: str | None = Query(default=None, alias="jobId"),
@@ -755,74 +837,14 @@ async def upload_workspace_source_document(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
             detail="Workspace source title must not be blank",
         )
-    declared_length = request.headers.get("content-length")
-    if declared_length is not None:
-        try:
-            parsed_length = int(declared_length)
-        except ValueError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Content-Length must be an integer",
-            ) from exc
-        if parsed_length < 0:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="Content-Length must not be negative",
-            )
-        if parsed_length > MAX_APPLICATION_ATTACHMENT_BYTES:
-            raise HTTPException(
-                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                detail="Application file must be no larger than 5 MB",
-            )
-
-    body = bytearray()
-    async for chunk in request.stream():
-        if len(body) + len(chunk) > MAX_APPLICATION_ATTACHMENT_BYTES:
-            raise HTTPException(
-                status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                detail="Application file must be no larger than 5 MB",
-            )
-        body.extend(chunk)
-    content = bytes(body)
-    if not content:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Application file must not be empty",
+    safe_file_name, content_type, content, content_sha256 = (
+        await read_workspace_source_upload(
+            request,
+            category=category,
+            file_name=file_name,
+            content_type_header=content_type_header,
         )
-
-    content_type = workspace_source_content_type(
-        category=category,
-        file_name=file_name,
-        content_type_header=content_type_header,
     )
-    safe_file_name = safe_upload_filename(file_name)
-    if category == "Application Attachment":
-        try:
-            safe_file_name, content_type = validate_profile_file_upload(
-                kind="supporting_document",
-                file_name=file_name,
-                content_type=content_type,
-                content=content,
-            )
-        except ProfileFileValidationError as exc:
-            raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=str(exc),
-            ) from exc
-    if category == "Cover Letter":
-        try:
-            analyze_docx_source(content, "cover_letter")
-        except DocumentSecurityError as exc:
-            raise HTTPException(
-                status_code=(
-                    status.HTTP_413_CONTENT_TOO_LARGE
-                    if exc.limit_exceeded
-                    else status.HTTP_422_UNPROCESSABLE_ENTITY
-                ),
-                detail=str(exc),
-            ) from exc
-
-    content_sha256 = hashlib.sha256(content).hexdigest()
     try:
         require_stored_application(db, application_id)
         now = utc_now()
@@ -859,10 +881,82 @@ async def upload_workspace_source_document(
         raise database_unavailable(exc) from exc
 
 
+@router.put(
+    "/workspace-sources/{source_id}",
+    response_model=WorkspaceSourceDocumentPayload,
+)
+async def replace_workspace_source_document(
+    source_id: str,
+    request: Request,
+    response: Response,
+    application_id: str = Query(min_length=1, max_length=160, alias="applicationId"),
+    category: WorkspaceSourceCategory = Query(),
+    title: str = Query(min_length=1, max_length=240),
+    file_name: str = Query(min_length=1, max_length=240, alias="fileName"),
+    language: str = Query(default="", max_length=40),
+    content_type_header: str | None = Header(default=None, alias="Content-Type"),
+    db: Session = Depends(get_db),
+) -> WorkspaceSourceDocumentPayload:
+    if category == "CV / Resume":
+        raise HTTPException(
+            status_code=status.HTTP_410_GONE,
+            detail=(
+                "Application-level CV sources were removed; import and confirm "
+                "one canonical Master Resume in My Profile"
+            ),
+        )
+    normalized_title = title.strip()
+    if not normalized_title:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Workspace source title must not be blank",
+        )
+    safe_file_name, content_type, content, content_sha256 = (
+        await read_workspace_source_upload(
+            request,
+            category=category,
+            file_name=file_name,
+            content_type_header=content_type_header,
+        )
+    )
+    try:
+        record = db.scalar(
+            select(WorkspaceSourceDocumentRecord).where(
+                WorkspaceSourceDocumentRecord.id == source_id,
+                WorkspaceSourceDocumentRecord.application_id == application_id,
+            )
+        )
+        if record is None:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail="Workspace source not found",
+            )
+        record.category = category
+        record.title = normalized_title
+        record.language = language.strip()
+        record.file_name = safe_file_name
+        record.content_type = content_type
+        record.size_bytes = len(content)
+        record.content_sha256 = content_sha256
+        record.content = content
+        record.updated_at = utc_now()
+        db.commit()
+        db.refresh(record)
+        response.headers.update(private_workspace_file_headers())
+        return workspace_source_document_payload(record)
+    except HTTPException:
+        db.rollback()
+        raise
+    except SQLAlchemyError as exc:
+        db.rollback()
+        raise database_unavailable(exc) from exc
+
+
 @router.get("/workspace-sources/{source_id}/download")
 def download_workspace_source_document(
     source_id: str,
     application_id: str = Query(min_length=1, max_length=160, alias="applicationId"),
+    preview: bool = Query(default=False),
     db: Session = Depends(get_db),
 ) -> Response:
     try:
@@ -882,7 +976,10 @@ def download_workspace_source_document(
             media_type=record.content_type,
             headers={
                 **private_workspace_file_headers(),
-                "Content-Disposition": content_disposition(record.file_name),
+                "Content-Disposition": content_disposition(
+                    record.file_name,
+                    disposition="inline" if preview else "attachment",
+                ),
                 "Content-Length": str(record.size_bytes),
             },
         )
@@ -1448,11 +1545,14 @@ def workspace_source_content_type(
     return normalized_content_type
 
 
-def content_disposition(filename: str) -> str:
+def content_disposition(filename: str, disposition: str = "attachment") -> str:
     ascii_filename = re.sub(r"[^A-Za-z0-9._-]+", "-", filename).strip("-._")
     ascii_filename = re.sub(r"-+", "-", ascii_filename)
     ascii_filename = ascii_filename or "rufina-document.docx"
-    return f"attachment; filename=\"{ascii_filename}\"; filename*=UTF-8''{quote(filename, safe='')}"
+    return (
+        f"{disposition}; filename=\"{ascii_filename}\"; "
+        f"filename*=UTF-8''{quote(filename, safe='')}"
+    )
 
 
 def decode_data_url(value: str) -> tuple[str, bytes]:

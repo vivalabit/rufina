@@ -1053,14 +1053,21 @@ export function AppWorkspaceRoot({
     applicationId: string,
     settings: DocumentPreparationSettings,
   ) {
-    const application = applications.find((item) => item.id === applicationId);
-    if (!application) {
+    let updatedApplication: TrackedApplication | undefined;
+    setApplications((currentApplications) =>
+      currentApplications.map((application) => {
+        if (application.id !== applicationId) return application;
+        updatedApplication = {
+          ...application,
+          documentPreparation: settings,
+        };
+        return updatedApplication;
+      }),
+    );
+    if (!updatedApplication) {
       return Promise.reject(new Error("Application is no longer available"));
     }
-    return applicationState.upsert({
-      ...application,
-      documentPreparation: settings,
-    }).catch((error) => {
+    return applicationState.upsert(updatedApplication).catch((error) => {
       appendAppLog({
         level: "error",
         area: "Applications",
@@ -1098,35 +1105,44 @@ export function AppWorkspaceRoot({
     setProfileDraft(apply);
   }
 
-  function attachGeneratedDocumentToApplication(
+  function syncApplicationDocumentToApplication(
     applicationId: string,
-    document: AssistantDocumentAttachment,
+    document: ApplicationDocument,
   ) {
     setApplications((currentApplications) =>
       currentApplications.map((application) => {
         if (application.id !== applicationId) return application;
-        const generatedDocument: ApplicationDocument = {
-          id: `artifact-${document.artifactId}`,
-          artifactId: document.artifactId,
-          kind: "generated",
-          title: document.title,
-          fileName: document.fileName,
-          fileSize: "",
-          fileType: document.fileType,
-          uploadedAt: document.uploadedAt,
-          downloadUrl: document.downloadUrl,
-        };
         const existingIndex = application.documents.findIndex(
-          (item) => item.artifactId === document.artifactId,
+          (item) =>
+            (document.artifactId && item.artifactId === document.artifactId)
+            || (document.sourceId && item.sourceId === document.sourceId)
+            || item.id === document.id,
         );
         const nextDocuments = existingIndex >= 0
           ? application.documents.map((item, index) => (
-              index === existingIndex ? generatedDocument : item
+              index === existingIndex ? document : item
             ))
-          : [...application.documents, generatedDocument];
+          : [...application.documents, document];
         return { ...application, documents: nextDocuments };
       }),
     );
+  }
+
+  function attachGeneratedDocumentToApplication(
+    applicationId: string,
+    document: AssistantDocumentAttachment,
+  ) {
+    syncApplicationDocumentToApplication(applicationId, {
+      id: `artifact-${document.artifactId}`,
+      artifactId: document.artifactId,
+      kind: "generated",
+      title: document.title,
+      fileName: document.fileName,
+      fileSize: "",
+      fileType: document.fileType,
+      uploadedAt: document.uploadedAt,
+      downloadUrl: document.downloadUrl,
+    });
   }
 
   function syncAssistantAppliedAction(result: AssistantAppliedAction) {
@@ -2932,7 +2948,9 @@ export function AppWorkspaceRoot({
             backLabel={workspaceApplication?.status === "draft" ? "Jobs" : "Applications"}
             onBack={() => changeView(workspaceApplication?.status === "draft" ? "Jobs" : "Applications")}
             onPreparationSettingsChange={updateDocumentPreparationSettings}
-            onDocumentAttached={attachGeneratedDocumentToApplication}
+            onDocumentAttached={syncApplicationDocumentToApplication}
+            onUploadDocument={applicationState.uploadAttachment}
+            onReplaceDocument={applicationState.replaceAttachment}
           />
         ) : activeView === "Applications" ? (
           <ApplicationsView

@@ -5,6 +5,11 @@ export type PreparationLanguage = "English" | "German";
 export type PreparationPageSize = "A4" | "Letter";
 export type PreparationResumeMaxPages = 1 | 2 | 3;
 
+export type SubmissionDocumentSelection = {
+  documentId: string;
+  version: number | null;
+};
+
 export type DocumentPreparationSettings = {
   documentTypes: PreparationDocumentType[];
   language: PreparationLanguage;
@@ -14,6 +19,10 @@ export type DocumentPreparationSettings = {
     resumeMaxPages: PreparationResumeMaxPages;
     coverLetterTemplateId: string;
   };
+  submission: Record<
+    PreparationDocumentType,
+    SubmissionDocumentSelection | null
+  >;
   userPreferences: string;
 };
 

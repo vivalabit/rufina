@@ -4,6 +4,7 @@ import type {
   PreparationLanguage,
   PreparationPageSize,
   PreparationResumeMaxPages,
+  SubmissionDocumentSelection,
 } from "@/shared/types/application";
 
 export type {
@@ -12,6 +13,7 @@ export type {
   PreparationLanguage,
   PreparationPageSize,
   PreparationResumeMaxPages,
+  SubmissionDocumentSelection,
 } from "@/shared/types/application";
 
 export const defaultDocumentPreparationSettings: DocumentPreparationSettings = {
@@ -22,6 +24,10 @@ export const defaultDocumentPreparationSettings: DocumentPreparationSettings = {
     resumeTemplateId: "classic_single",
     resumeMaxPages: 2,
     coverLetterTemplateId: "",
+  },
+  submission: {
+    tailored_resume: null,
+    cover_letter: null,
   },
   userPreferences: "",
 };
@@ -34,6 +40,23 @@ const languages: PreparationLanguage[] = ["English", "German"];
 const pageSizes: PreparationPageSize[] = ["A4", "Letter"];
 const resumePageCounts: PreparationResumeMaxPages[] = [1, 2, 3];
 
+function normalizeSubmissionSelection(
+  value: unknown,
+): SubmissionDocumentSelection | null {
+  if (!value || typeof value !== "object") return null;
+  const candidate = value as Partial<SubmissionDocumentSelection>;
+  const documentId = typeof candidate.documentId === "string"
+    ? candidate.documentId.trim().slice(0, 240)
+    : "";
+  if (!documentId) return null;
+  const version = candidate.version === null
+    ? null
+    : Number.isInteger(candidate.version) && Number(candidate.version) > 0
+      ? Number(candidate.version)
+      : null;
+  return { documentId, version };
+}
+
 export function normalizeDocumentPreparationSettings(
   value: unknown,
 ): DocumentPreparationSettings {
@@ -45,6 +68,10 @@ export function normalizeDocumentPreparationSettings(
   const formatting: Partial<DocumentPreparationSettings["formatting"]> =
     candidate.formatting && typeof candidate.formatting === "object"
       ? candidate.formatting
+      : {};
+  const submission: Partial<DocumentPreparationSettings["submission"]> =
+    candidate.submission && typeof candidate.submission === "object"
+      ? candidate.submission
       : {};
   const normalizedDocumentTypes = Array.isArray(candidate.documentTypes)
     ? documentTypes.filter((type) => candidate.documentTypes?.includes(type))
@@ -72,6 +99,12 @@ export function normalizeDocumentPreparationSettings(
         typeof formatting.coverLetterTemplateId === "string"
           ? formatting.coverLetterTemplateId.trim().slice(0, 160)
           : defaultDocumentPreparationSettings.formatting.coverLetterTemplateId,
+    },
+    submission: {
+      tailored_resume: normalizeSubmissionSelection(
+        submission.tailored_resume,
+      ),
+      cover_letter: normalizeSubmissionSelection(submission.cover_letter),
     },
     userPreferences:
       typeof candidate.userPreferences === "string"

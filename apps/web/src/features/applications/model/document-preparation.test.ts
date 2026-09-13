@@ -24,6 +24,16 @@ describe("document preparation settings", () => {
           resumeMaxPages: 12,
           coverLetterTemplateId: "letter-template",
         },
+        submission: {
+          tailored_resume: {
+            documentId: " stored-resume ",
+            version: 3,
+          },
+          cover_letter: {
+            documentId: "",
+            version: -1,
+          },
+        },
         userPreferences: "Keep the letter concise.",
       }),
     ).toEqual({
@@ -34,6 +44,10 @@ describe("document preparation settings", () => {
         resumeTemplateId: "modern_single",
         resumeMaxPages: 2,
         coverLetterTemplateId: "letter-template",
+      },
+      submission: {
+        tailored_resume: { documentId: "stored-resume", version: 3 },
+        cover_letter: null,
       },
       userPreferences: "Keep the letter concise.",
     });

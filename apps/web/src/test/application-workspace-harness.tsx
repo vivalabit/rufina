@@ -248,6 +248,12 @@ export function renderApplicationWorkspace(
     onBack: vi.fn(),
     onPreparationSettingsChange: vi.fn().mockResolvedValue(undefined),
     onDocumentAttached: vi.fn(),
+    onUploadDocument: vi.fn().mockRejectedValue(
+      new Error("Upload mock is not configured"),
+    ),
+    onReplaceDocument: vi.fn().mockRejectedValue(
+      new Error("Replace mock is not configured"),
+    ),
     ...overrides,
   };
 

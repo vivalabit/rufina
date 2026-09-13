@@ -135,6 +135,31 @@ export async function uploadApplicationAttachment(
   return workspaceSourceToApplicationDocument(source);
 }
 
+export async function replaceApplicationAttachment(
+  applicationId: string,
+  sourceId: string,
+  file: Blob,
+  metadata: { fileName: string; title: string },
+  signal?: AbortSignal,
+) {
+  const query = new URLSearchParams({
+    applicationId,
+    category: "Application Attachment",
+    title: metadata.title,
+    fileName: metadata.fileName,
+  });
+  const source = (await apiClient.json<WorkspaceSourceFilePayload>({
+    path: `/documents/workspace-sources/${encodeURIComponent(sourceId)}`,
+    query,
+    method: "PUT",
+    headers: { "Content-Type": file.type || "application/octet-stream" },
+    body: file,
+    signal,
+    errorMessage: "Application document could not be replaced",
+  })).data;
+  return workspaceSourceToApplicationDocument(source);
+}
+
 export async function deleteApplicationAttachment(
   applicationId: string,
   document: ApplicationDocument,
