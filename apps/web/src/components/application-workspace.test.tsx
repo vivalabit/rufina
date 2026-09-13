@@ -202,6 +202,34 @@ describe("ApplicationWorkspace", () => {
     expect(await screen.findByText("Preparing sources")).toBeInTheDocument();
   });
 
+  it("keeps the idempotency key within the API limit for long application ids", async () => {
+    const applicationId = `application-${"x".repeat(148)}`;
+    const started = generationRun({
+      applicationId,
+      status: "queued",
+      stage: "sources",
+      revision: 1,
+    });
+    const fetchMock = installApplicationWorkspaceApiMock({ startedGenerationRun: started });
+    const application = createWorkspaceApplication({ id: applicationId });
+    renderApplicationWorkspace(application);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Start application" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/generation/runs"),
+      expect.objectContaining({ method: "POST" }),
+    ));
+    const request = fetchMock.mock.calls.find(([input, init]) => (
+      init?.method === "POST" && String(input).includes("/generation/runs")
+    ));
+    const body = JSON.parse(String(request?.[1]?.body)) as { idempotencyKey: string };
+
+    expect(body.idempotencyKey).toMatch(/^generation-/);
+    expect(body.idempotencyKey.length).toBeLessThanOrEqual(160);
+    expect(body.idempotencyKey).not.toContain(application.id);
+  });
+
   it("restores the fit decision and continues the exact run", async () => {
     const awaiting = generationRun({
       status: "awaiting_approval",

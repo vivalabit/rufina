@@ -327,7 +327,7 @@ export function ApplicationWorkspace({
               }
             : {}),
         },
-        idempotencyKey: `${applicationId}-${Date.now()}-${crypto.randomUUID?.() ?? "run"}`,
+        idempotencyKey: `generation-${crypto.randomUUID?.() ?? Date.now().toString(36)}`,
       });
       setRun(started);
       setSelectedRunId("");
