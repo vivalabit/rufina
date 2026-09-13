@@ -18,7 +18,6 @@ from app.models.generation_workflow import (
 from app.models.resume import MasterResume
 from app.services.ai_backend import (
     AIBackend,
-    AIBackendError,
     AIImageInput,
     AIRequest,
     AIResult,
@@ -498,8 +497,9 @@ class GenerationWorkflow:
                 return current_draft
             if attempt == 3:
                 raise GenerationWorkflowError(
-                    "PDF verification did not pass after three attempts",
+                    _verification_failure_message(verified_documents, visual),
                     code="pdf_verification_failed",
+                    retryable=True,
                 )
             current_draft = self._request_model(
                 db,
@@ -621,7 +621,7 @@ class GenerationWorkflow:
     ) -> None:
         if run.status in {"completed", "failed", "cancelled"}:
             return
-        retryable = isinstance(exc, AIBackendError) and exc.retryable
+        retryable = bool(getattr(exc, "retryable", False))
         code = getattr(exc, "code", "workflow_failed")
         try:
             transition_generation_run(
@@ -635,6 +635,44 @@ class GenerationWorkflow:
             )
         except GenerationStoreError:
             db.rollback()
+
+
+def _brief_diagnostic(value: str, limit: int = 300) -> str:
+    compact = " ".join(value.split())
+    return compact if len(compact) <= limit else f"{compact[: limit - 1]}…"
+
+
+def _verification_failure_message(
+    verified_documents: list[tuple[CompiledDocument, VerifiedPdf]],
+    visual: VisualReview,
+) -> str:
+    deterministic_reasons = [
+        (
+            f"{'CV' if document.document_type == 'tailored_resume' else 'cover letter'}: "
+            f"{_brief_diagnostic(check.message)}"
+        )
+        for document, verified in verified_documents
+        for check in verified.report.checks
+        if check.status == "failed"
+    ][:3]
+    visual_reasons: list[str] = []
+    if not visual.approved:
+        visual_reasons.append(f"visual review: {_brief_diagnostic(visual.summary)}")
+        visual_reasons.extend(
+            f"visual review: {_brief_diagnostic(finding.message)}"
+            for finding in visual.findings
+            if finding.severity == "blocking"
+        )
+        visual_reasons = visual_reasons[:3]
+
+    reasons = [*deterministic_reasons, *visual_reasons]
+    concise_reasons: list[str] = []
+    for reason in reasons:
+        if reason and reason not in concise_reasons:
+            concise_reasons.append(reason)
+    detail = "; ".join(concise_reasons)
+    base = "PDF verification did not pass after three attempts"
+    return f"{base}: {detail}" if detail else base
 
 
 def _run_snapshot(run: ApplicationGenerationRunRecord) -> GenerationRunSnapshot:

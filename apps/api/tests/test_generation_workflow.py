@@ -350,6 +350,143 @@ def test_recovered_pdf_failure_is_terminal_and_does_not_publish_partial_document
         assert db.scalar(select(func.count()).select_from(DocumentRecord)) == 0
 
 
+def test_pdf_verification_failure_preserves_actionable_terminal_diagnostics(
+    sessions: sessionmaker[Session],
+) -> None:
+    _seed(sessions)
+    visual_failure = {
+        "approved": False,
+        "summary": "The last page is visually unsafe.",
+        "findings": [
+            {
+                "document": "resume",
+                "page": 1,
+                "severity": "blocking",
+                "message": "Experience text overlaps the footer.",
+            }
+        ],
+    }
+
+    def failing_verifier(document: CompiledDocument, **_kwargs) -> VerifiedPdf:
+        return VerifiedPdf(
+            report=PdfVerificationReport(
+                documentType=document.document_type,
+                pageCount=3,
+                extractedText="Ada Lovelace builds reliable platforms.",
+                checks=(
+                    PdfCheck(name="text_layer", status="passed", message="Readable"),
+                    PdfCheck(
+                        name="page_count",
+                        status="failed",
+                        message="Found 3 page(s); allowed 1-2",
+                    ),
+                    PdfCheck(
+                        name="keyword:Python",
+                        status="warning",
+                        message="Keyword missing: Python",
+                    ),
+                ),
+            ),
+            page_images=(b"fake-png",),
+        )
+
+    backend = FakeBackend(
+        [visual_failure, _draft(), visual_failure, _draft(), visual_failure]
+    )
+    workflow = GenerationWorkflow(
+        settings=_settings(),
+        backend=backend,
+        renderer=_renderer,
+        verifier=failing_verifier,
+    )
+    with sessions() as db:
+        run = create_generation_run(
+            db,
+            application_id="application-1",
+            request=_start(),
+            settings=_settings(),
+        )
+        run.status = "queued"
+        run.stage = "pdf_checks"
+        run.result = {"fit": _fit(), "draft": _draft(), "review": _review()}
+        db.commit()
+
+        with pytest.raises(GenerationWorkflowError) as exc_info:
+            workflow.resume_pdf_checks(db, run)
+
+        message = str(exc_info.value)
+        assert exc_info.value.code == "pdf_verification_failed"
+        assert exc_info.value.retryable is True
+        assert message.startswith("PDF verification did not pass after three attempts:")
+        assert "Found 3 page(s); allowed 1-2" in message
+        assert "The last page is visually unsafe." in message
+        assert "Experience text overlaps the footer." in message
+        assert "Readable" not in message
+        assert "Keyword missing: Python" not in message
+        assert run.status == "failed"
+        assert run.error == {
+            "code": "pdf_verification_failed",
+            "message": message,
+            "retryable": True,
+        }
+        assert db.scalar(select(func.count()).select_from(DocumentRecord)) == 0
+        visual_artifacts = db.scalars(
+            select(GenerationRunArtifactRecord).where(
+                GenerationRunArtifactRecord.run_id == run.id,
+                GenerationRunArtifactRecord.artifact_type == "visual_review_json",
+            )
+        ).all()
+        assert len(visual_artifacts) == 3
+
+
+def test_visual_rejection_blocks_publication_after_deterministic_checks_pass(
+    sessions: sessionmaker[Session],
+) -> None:
+    _seed(sessions)
+    visual_failure = {
+        "approved": False,
+        "summary": "The rendered page could not be safely approved.",
+        "findings": [
+            {
+                "document": "resume",
+                "page": 1,
+                "severity": "blocking",
+                "message": "Experience text overlaps the footer.",
+            }
+        ],
+    }
+    backend = FakeBackend(
+        [visual_failure, _draft(), visual_failure, _draft(), visual_failure]
+    )
+    workflow = GenerationWorkflow(
+        settings=_settings(),
+        backend=backend,
+        renderer=_renderer,
+        verifier=_verifier,
+    )
+    with sessions() as db:
+        run = create_generation_run(
+            db,
+            application_id="application-1",
+            request=_start(),
+            settings=_settings(),
+        )
+        run.status = "queued"
+        run.stage = "pdf_checks"
+        run.result = {"fit": _fit(), "draft": _draft(), "review": _review()}
+        db.commit()
+
+        with pytest.raises(GenerationWorkflowError) as exc_info:
+            workflow.resume_pdf_checks(db, run)
+
+        message = str(exc_info.value)
+        assert "The rendered page could not be safely approved." in message
+        assert "Experience text overlaps the footer." in message
+        assert "CV:" not in message
+        assert run.status == "failed"
+        assert db.scalar(select(func.count()).select_from(DocumentRecord)) == 0
+
+
 def test_grounding_rejects_modified_canonical_evidence() -> None:
     master = MasterResume.model_validate(
         {

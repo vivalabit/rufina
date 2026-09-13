@@ -109,7 +109,8 @@ def verify_compiled_document(
             else "Broken glyph markers found",
         )
     )
-    if basics is not None:
+    is_resume = document.document_type == "tailored_resume"
+    if basics is not None and is_resume:
         for label, value in (("email", basics.email), ("phone", basics.phone)):
             if value:
                 present = _contains(extracted, value)
@@ -129,7 +130,13 @@ def verify_compiled_document(
                     f"Role period {experience.period!r} is {'present' if present else 'missing'}",
                 )
             )
-    checks.extend(_keyword_checks(extracted, keywords))
+    checks.extend(
+        _keyword_checks(
+            extracted,
+            keywords,
+            strict_required=is_resume,
+        )
+    )
 
     with tempfile.TemporaryDirectory(prefix="tasko-pdf-check-") as temp_directory:
         workdir = Path(temp_directory)
@@ -193,7 +200,12 @@ def _layout_check(pdf_path: Path) -> PdfCheck:
     )
 
 
-def _keyword_checks(text: str, keywords: tuple[FitKeyword, ...]) -> list[PdfCheck]:
+def _keyword_checks(
+    text: str,
+    keywords: tuple[FitKeyword, ...],
+    *,
+    strict_required: bool,
+) -> list[PdfCheck]:
     checks: list[PdfCheck] = []
     for keyword in keywords:
         present = _contains(text, keyword.term)
@@ -203,7 +215,11 @@ def _keyword_checks(text: str, keywords: tuple[FitKeyword, ...]) -> list[PdfChec
         elif present:
             status = "passed"
             message = f"Keyword present: {keyword.term}"
-        elif keyword.importance == "required" and keyword.support == "supported":
+        elif (
+            strict_required
+            and keyword.importance == "required"
+            and keyword.support == "supported"
+        ):
             status = "failed"
             message = f"Supported required keyword is missing: {keyword.term}"
         else:
