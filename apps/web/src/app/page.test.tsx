@@ -5059,12 +5059,40 @@ it("shows seeded vacancies and calendar events only in demo mode", async () => {
   ).toBe(true);
 });
 
-it("keeps drafts out of Applications while showing the compact workspace", async () => {
+it("preserves the prepared version while promoting a draft to Applications", async () => {
   window.history.replaceState(null, "", "#jobs");
   vi.stubEnv("NEXT_PUBLIC_DEMO_MODE", "1");
   const savedApplicationStatuses: string[] = [];
+  const savedApplicationPayloads: Array<Record<string, unknown>> = [];
 
   installApplicationWorkspaceApiMock({
+    documents: [
+      {
+        id: "prepared-cover-letter",
+        type: "cover_letter",
+        title: "Prepared cover letter",
+        jobId: "job-product-designer",
+        applicationIds: [],
+        currentVersion: 2,
+        createdAt: "2026-09-12T10:00:00.000Z",
+        updatedAt: "2026-09-13T10:00:00.000Z",
+        versionsTotal: 2,
+        versionsHasMore: false,
+        versions: [
+          {
+            id: "prepared-cover-letter-v2",
+            version: 2,
+            content: "Prepared content",
+            createdAt: "2026-09-13T10:00:00.000Z",
+            hasRenderedArtifact: true,
+            artifact: {
+              fileName: "prepared-cover-letter.pdf",
+              contentType: "application/pdf",
+            },
+          },
+        ],
+      },
+    ],
     requestHandler: async (url, method, init) => {
       if (url.pathname === "/job-search/configs" && method === "GET")
         return Response.json([]);
@@ -5085,17 +5113,19 @@ it("keeps drafts out of Applications while showing the compact workspace", async
       if (url.pathname === "/applications" && method === "POST") {
         const payload = JSON.parse(String(init?.body)) as {
           id: string;
-          data: { status: string };
+          data: Record<string, unknown> & { status: string };
         };
         savedApplicationStatuses.push(payload.data.status);
+        savedApplicationPayloads.push(payload.data);
         return Response.json({ ...payload, revision: 1 });
       }
       if (/^\/applications\/[^/]+$/.test(url.pathname) && method === "PATCH") {
         const payload = JSON.parse(String(init?.body)) as {
-          data: { id: string; status: string };
+          data: Record<string, unknown> & { id: string; status: string };
           revision: number;
         };
         savedApplicationStatuses.push(payload.data.status);
+        savedApplicationPayloads.push(payload.data);
         return Response.json({
           id: payload.data.id,
           data: payload.data,
@@ -5114,6 +5144,26 @@ it("keeps drafts out of Applications while showing the compact workspace", async
   expect(
     await screen.findByRole("region", { name: "Existing documents" }),
   ).toBeInTheDocument();
+  fireEvent.click(
+    await screen.findByRole("button", {
+      name: "Use current Prepared cover letter version 2 for submission",
+    }),
+  );
+  await waitFor(() =>
+    expect(savedApplicationPayloads).toContainEqual(
+      expect.objectContaining({
+        status: "draft",
+        documentPreparation: expect.objectContaining({
+          submission: expect.objectContaining({
+            cover_letter: {
+              documentId: "prepared-cover-letter",
+              version: 2,
+            },
+          }),
+        }),
+      }),
+    ),
+  );
   expect(screen.getByText("Draft")).toBeInTheDocument();
   expect(
     screen.queryByRole("button", { name: "Mark as applied" }),
@@ -5124,9 +5174,28 @@ it("keeps drafts out of Applications while showing the compact workspace", async
   await waitFor(() => expect(savedApplicationStatuses).toContain("draft"));
 
   fireEvent.click(screen.getByRole("button", { name: "Jobs" }));
+  fireEvent.click(
+    await screen.findByRole("button", { name: "Mark as Applied" }),
+  );
+  await waitFor(() =>
+    expect(savedApplicationPayloads).toContainEqual(
+      expect.objectContaining({
+        status: "applied",
+        documentPreparation: expect.objectContaining({
+          submission: expect.objectContaining({
+            cover_letter: {
+              documentId: "prepared-cover-letter",
+              version: 2,
+            },
+          }),
+        }),
+      }),
+    ),
+  );
   fireEvent.click(screen.getByRole("link", { name: "Applications" }));
-  expect(await screen.findByText("No applications yet")).toBeInTheDocument();
-  expect(savedApplicationStatuses).not.toContain("applied");
+  expect(await screen.findAllByText("Applied")).not.toHaveLength(0);
+  expect(screen.queryByText("No applications yet")).not.toBeInTheDocument();
+  expect(savedApplicationStatuses).toContain("applied");
 });
 
 it("restores an application and reports a failed application deletion", async () => {
