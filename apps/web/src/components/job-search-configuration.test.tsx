@@ -192,4 +192,76 @@ describe("JobSearchConfiguration", () => {
       "design",
     );
   });
+
+  it("explains jobs.ch capabilities without clearing saved unsupported filters", () => {
+    const onFormChange = vi.fn();
+    render(
+      <JobSearchConfiguration
+        {...configurationProps({
+          activeSource: "jobs_ch",
+          form: {
+            ...defaultParserSearchForm,
+            remote: "Hybrid",
+            jobType: "Contract",
+            country: "Germany",
+            experienceLevel: "Entry level",
+          },
+          onFormChange,
+        })}
+      />,
+    );
+
+    const remote = screen.getByRole("combobox", { name: /^Remote/ });
+    expect(remote).toBeDisabled();
+    expect(remote).toHaveValue("Hybrid");
+    const jobType = screen.getByRole("combobox", { name: /^Job type/ });
+    expect(jobType).toBeDisabled();
+    expect(jobType).toHaveValue("Contract");
+    const country = screen.getByRole("combobox", { name: /^Country/ });
+    expect(country).toHaveValue("Germany");
+    expect(screen.getByRole("option", { name: "Germany" })).toBeDisabled();
+    expect(screen.getByRole("option", { name: "Switzerland" })).toBeEnabled();
+    expect(screen.getByRole("status")).toHaveTextContent(
+      "Saved filters are not applied to jobs.ch: Remote: Hybrid; Job type: Contract; Country: Germany.",
+    );
+    expect(onFormChange).not.toHaveBeenCalled();
+
+    expect(
+      screen.getByText("Leave empty to search all jobs.ch locations"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Applied after collection alongside the Vacancy Filter"),
+    ).toBeInTheDocument();
+    const experience = screen.getByRole("combobox", {
+      name: /^Experience level/,
+    });
+    expect(experience).toBeEnabled();
+    fireEvent.change(experience, { target: { value: "Associate" } });
+    expect(onFormChange).toHaveBeenCalledWith("experienceLevel", "Associate");
+    fireEvent.change(country, { target: { value: "Any" } });
+    expect(onFormChange).toHaveBeenCalledWith("country", "Any");
+    expect(screen.getByRole("combobox", { name: /^Date posted/ })).toBeEnabled();
+  });
+
+  it.each(["linkedin", "indeed"] as const)(
+    "keeps %s filters editable when switching from jobs.ch",
+    (activeSource) => {
+      const props = configurationProps({ activeSource: "jobs_ch" });
+      const { rerender } = render(<JobSearchConfiguration {...props} />);
+
+      expect(screen.queryByRole("status")).not.toBeInTheDocument();
+      expect(screen.getByRole("combobox", { name: /^Remote/ })).toBeDisabled();
+      rerender(<JobSearchConfiguration {...props} activeSource={activeSource} />);
+
+      expect(screen.getByRole("combobox", { name: /^Remote/ })).toBeEnabled();
+      expect(screen.getByRole("combobox", { name: /^Job type/ })).toBeEnabled();
+      expect(screen.getByRole("option", { name: "Germany" })).toBeEnabled();
+      expect(
+        screen.queryByText(/jobs.ch searches by keywords and location/),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.getByText("Leave empty to search worldwide"),
+      ).toBeInTheDocument();
+    },
+  );
 });

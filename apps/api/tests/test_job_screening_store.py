@@ -9,6 +9,7 @@ from app.core.identity import current_owner_id
 from app.models.jobs import StoredJobRecord
 from app.services.job_screening import JOB_SCREENING_PROMPT_VERSION
 from app.services.job_screening_store import (
+    build_screening_cache_config_hash,
     build_screening_config_hash,
     build_screening_vacancy_hash,
     latest_screening_decision,
@@ -169,6 +170,94 @@ def test_screening_hashes_are_deterministic_and_input_sensitive() -> None:
     )
 
 
+def test_rolling_posting_age_hash_reuses_unchanged_rules_across_runs() -> None:
+    earlier = {
+        **screening_config(),
+        "postedAfter": "2026-09-07T12:00:00+00:00",
+        "maxPostingAgeDays": 7,
+    }
+    later = {**earlier, "postedAfter": "2026-09-07T12:01:00+00:00"}
+
+    assert build_screening_config_hash(earlier, rolling_posting_age=True) == (
+        build_screening_config_hash(later, rolling_posting_age=True)
+    )
+    # Manual absolute cutoffs remain sensitive to their precise timestamp.
+    assert build_screening_config_hash(earlier) != build_screening_config_hash(later)
+    assert build_screening_config_hash(earlier, rolling_posting_age=True) != (
+        build_screening_config_hash(earlier)
+    )
+    assert earlier["postedAfter"] == "2026-09-07T12:00:00+00:00"
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"maxPostingAgeDays": 30},
+        {"targetRoles": ["Product Manager"]},
+        {"excludedRoles": ["Support Engineer"]},
+        {"allowedSeniority": ["senior"]},
+        {"targetTechnologies": ["Python"]},
+        {"excludedTechnologies": ["Java"]},
+        {"hardRules": []},
+        {"enabled": False},
+    ],
+)
+def test_rolling_posting_age_hash_keeps_other_rules_sensitive(
+    overrides: dict[str, object],
+) -> None:
+    config = {
+        **screening_config(),
+        "postedAfter": "2026-09-07T12:00:00+00:00",
+        "maxPostingAgeDays": 7,
+    }
+    assert build_screening_config_hash(config, rolling_posting_age=True) != (
+        build_screening_config_hash(
+            {**config, **overrides},
+            rolling_posting_age=True,
+        )
+    )
+
+
+def test_rolling_posting_age_opt_in_does_not_change_configs_without_age() -> None:
+    assert build_screening_config_hash(screening_config(), rolling_posting_age=True) == (
+        build_screening_config_hash(screening_config())
+    )
+
+
+@pytest.mark.parametrize("posted_at", ["2026-09-14T10:00:00+00:00", "2026-09-14"])
+def test_parseable_dates_can_use_rolling_cache_identity(posted_at: str) -> None:
+    earlier = {
+        **screening_config(),
+        "postedAfter": "2026-09-07T12:00:00+00:00",
+        "maxPostingAgeDays": 7,
+    }
+    later = {**earlier, "postedAfter": "2026-09-07T12:01:00+00:00"}
+    job = vacancy(postedAt=posted_at)
+    assert build_screening_cache_config_hash(earlier, job, rolling_posting_age=True) == (
+        build_screening_cache_config_hash(later, job, rolling_posting_age=True)
+    )
+    assert build_screening_cache_config_hash(earlier, job) != (
+        build_screening_cache_config_hash(later, job)
+    )
+
+
+@pytest.mark.parametrize("posted_at", [None, "", "published recently", "today", "2 days ago"])
+def test_unknown_dates_keep_exact_cutoff_cache_identity(posted_at: str | None) -> None:
+    earlier = {
+        **screening_config(),
+        "postedAfter": "2026-09-07T12:00:00+00:00",
+        "maxPostingAgeDays": 7,
+    }
+    later = {**earlier, "postedAfter": "2026-09-07T12:01:00+00:00"}
+    job = vacancy(postedAt=posted_at)
+    assert build_screening_cache_config_hash(earlier, job, rolling_posting_age=True) == (
+        build_screening_config_hash(earlier)
+    )
+    assert build_screening_cache_config_hash(earlier, job, rolling_posting_age=True) != (
+        build_screening_cache_config_hash(later, job, rolling_posting_age=True)
+    )
+
+
 @pytest.mark.parametrize(
     ("vacancy_hash", "config_hash"),
     [
@@ -183,18 +272,17 @@ def test_persistence_rejects_invalid_hashes(
     engine = create_engine("sqlite://")
     Base.metadata.create_all(engine)
     try:
-        with Session(engine) as db:
-            with pytest.raises(ValueError, match="SHA-256"):
-                persist_screening_decision(
-                    db,
-                    vacancy_hash=vacancy_hash,
-                    config_hash=config_hash,
-                    decision=rejected_decision(),
-                    model="openai/gpt-5-mini",
-                    prompt_version=JOB_SCREENING_PROMPT_VERSION,
-                    title="Backend Engineer",
-                    company="Example AG",
-                    source_url="https://example.test/jobs/1",
-                )
+        with Session(engine) as db, pytest.raises(ValueError, match="SHA-256"):
+            persist_screening_decision(
+                db,
+                vacancy_hash=vacancy_hash,
+                config_hash=config_hash,
+                decision=rejected_decision(),
+                model="openai/gpt-5-mini",
+                prompt_version=JOB_SCREENING_PROMPT_VERSION,
+                title="Backend Engineer",
+                company="Example AG",
+                source_url="https://example.test/jobs/1",
+            )
     finally:
         engine.dispose()

@@ -50,7 +50,7 @@ afterEach(() => {
 });
 
 describe("AutoSearchDialog", () => {
-  it("shows persisted rules and runs one immediately", async () => {
+  it("shows persisted rules and preserves partial-result warnings after running one", async () => {
     const requests: Array<{ path: string; method: string }> = [];
     const onVacanciesChanged = vi.fn();
     vi.stubGlobal(
@@ -69,7 +69,7 @@ describe("AutoSearchDialog", () => {
             status: "completed",
             jobsFound: 12,
             jobsAdded: 7,
-            warning: null,
+            warning: "jobs.ch: page 2 could not be loaded; results are incomplete",
           });
         }
         throw new Error(`Unexpected request: ${method} ${path}`);
@@ -104,7 +104,9 @@ describe("AutoSearchDialog", () => {
     expect(onVacanciesChanged).toHaveBeenCalledTimes(1);
     expect(
       await screen.findByText(/12 found · 7 added/),
-    ).toBeInTheDocument();
+    ).toHaveTextContent(
+      "jobs.ch: page 2 could not be loaded; results are incomplete",
+    );
   });
 
   it("keeps rejected vacancies in a separate actionable screening audit", async () => {

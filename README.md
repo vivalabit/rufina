@@ -231,7 +231,7 @@ application submitted remain separate user actions.
 
 - LinkedIn — through Bright Data
 - Indeed — through Bright Data
-- jobs.ch — direct public search
+- [jobs.ch](docs/jobs-ch-parser.md) — direct public search
 - [Direct Companies](docs/direct-companies.md) — official company career pages
 - Manual vacancy entry
 

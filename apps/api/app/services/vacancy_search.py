@@ -29,6 +29,7 @@ from app.services.parsers.jobs_ch import (
     JobsChParser,
     JobsChRequestError,
     is_within_date_posted_window,
+    parse_jobs_ch_datetime,
 )
 from app.services.parsers.linkedin import (
     BrightDataConfigurationError,
@@ -252,7 +253,13 @@ class VacancySearchRunner:
                         completed_results[source] = result
                         continue
 
-                    if attempt < self.max_source_attempts:
+                    # A parser with bounded per-request retries owns its retry budget.
+                    # Restarting the whole search would repeat successful requests and
+                    # multiply its deadline when the upstream service is unavailable.
+                    handles_retries = getattr(
+                        self.parsers.get(source), "handles_request_retries", False
+                    )
+                    if not handles_retries and attempt < self.max_source_attempts:
                         log_source_retry_scheduled(
                             source=source,
                             error=error,
@@ -327,6 +334,7 @@ def log_source_finished(
                 "snapshotId": result.snapshot_id,
                 "attempts": attempts,
                 "durationSeconds": round(duration_seconds, 3),
+                "warnings": result.warnings,
             },
             ensure_ascii=False,
             separators=(",", ":"),
@@ -414,6 +422,8 @@ def create_vacancy_search_runner(settings: Settings) -> VacancySearchRunner:
             timeout_seconds=settings.jobs_ch_timeout_seconds,
             max_pages=settings.jobs_ch_max_pages,
             detail_workers=settings.jobs_ch_detail_workers,
+            deadline_seconds=settings.jobs_ch_deadline_seconds,
+            max_retries=settings.jobs_ch_max_retries,
         ),
     }
     parsers.update(create_direct_company_parsers(settings))
@@ -486,7 +496,10 @@ def filter_jobs_by_date_posted(
         filter_date = job.posted_at
         if job.source == "jobs_ch":
             initial_publication_date = job.raw.get("initialPublicationDate")
-            if isinstance(initial_publication_date, str) and initial_publication_date.strip():
+            if (
+                isinstance(initial_publication_date, str)
+                and parse_jobs_ch_datetime(initial_publication_date) is not None
+            ):
                 filter_date = initial_publication_date
 
         if is_within_date_posted_window(

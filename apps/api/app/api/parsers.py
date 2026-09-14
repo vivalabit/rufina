@@ -44,6 +44,8 @@ def _jobs_ch_parser() -> JobsChParser:
         timeout_seconds=settings.jobs_ch_timeout_seconds,
         max_pages=settings.jobs_ch_max_pages,
         detail_workers=settings.jobs_ch_detail_workers,
+        deadline_seconds=settings.jobs_ch_deadline_seconds,
+        max_retries=settings.jobs_ch_max_retries,
     )
 
 

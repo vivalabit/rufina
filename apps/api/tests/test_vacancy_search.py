@@ -87,6 +87,27 @@ class FailingIndeedParser:
         raise BrightDataRequestError("Indeed upstream failed")
 
 
+def test_runner_does_not_repeat_searches_with_internal_request_retries() -> None:
+    from app.services.parsers.jobs_ch import JobsChRequestError
+
+    class RetryingParser:
+        handles_request_retries = True
+        calls = 0
+
+        def search(self, request):
+            self.calls += 1
+            raise JobsChRequestError("jobs.ch search request failed")
+
+    parser = RetryingParser()
+    runner = VacancySearchRunner(
+        {"jobs_ch": parser}, max_source_attempts=3, source_retry_backoff_seconds=0
+    )
+    result = runner.run(sources=["jobs_ch"], request=LinkedInSearchRequest())
+    assert parser.calls == 1
+    assert result.source_attempts == {"jobs_ch": 1}
+    assert result.source_errors == {"jobs_ch": "jobs.ch search request failed"}
+
+
 class QueueRecordingParser(CompletedParser):
     def __init__(
         self,
@@ -376,6 +397,20 @@ def test_runner_filters_old_jobs_after_parser_results_are_collected() -> None:
 
     assert [job.title for job in result.jobs] == ["Fresh job"]
     assert len(result.source_results["jobs_ch"].jobs) == 3
+
+
+def test_runner_keeps_jobs_ch_detail_date_when_initial_date_is_invalid() -> None:
+    job = ParsedJob(
+        source="jobs_ch",
+        title="Fresh vacancy",
+        posted_at=(datetime.now(UTC) - timedelta(hours=2)).isoformat(),
+        raw={"initialPublicationDate": "unknown"},
+    )
+    runner = VacancySearchRunner({"jobs_ch": CompletedParser("jobs_ch", [job])})
+    result = runner.run(
+        sources=["jobs_ch"], request=LinkedInSearchRequest(date_posted="Past 24 hours")
+    )
+    assert result.jobs == [job]
 
 
 def test_runner_applies_one_common_config_to_every_source() -> None:

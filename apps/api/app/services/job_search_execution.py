@@ -69,17 +69,21 @@ from app.services.job_screening import (
     uncertain_or_keep_decision,
 )
 from app.services.job_screening_store import (
+    build_screening_cache_config_hash,
     build_screening_config_hash,
     build_screening_vacancy_hash,
     latest_screening_decision,
     persist_screening_decision,
 )
 from app.services.job_search_schedule import calculate_next_run_at
+from app.services.job_source_screening import screening_policies_for_jobs
+from app.services.parsers.jobs_ch import JobsChParser
 from app.services.profile_versions import get_profile_record
 from app.services.vacancy_search import (
     VacancySearchRunner,
     VacancySearchRunResult,
     canonical_job_url,
+    filter_jobs_by_date_posted,
     job_identity,
     normalize_identity_part,
 )
@@ -303,6 +307,62 @@ def combine_screening_with_job_filter(
     )
 
 
+def jobs_ch_screening_config(
+    config: JobSearchConfigV2,
+    request: LinkedInSearchRequest,
+    *,
+    screening_required: bool,
+    job_filter: JobFilterSettings | None,
+    now: datetime,
+) -> ScreeningConfig:
+    """Apply jobs.ch source experience together with explicit and global rules."""
+    levels = EXPERIENCE_LEVEL_SENIORITY.get(request.experience_level, [])
+    screening = config.screening
+    if levels:
+        allowed = [
+            level for level in levels
+            if (not screening.allowed_seniority or level in screening.allowed_seniority)
+            and level not in screening.excluded_seniority
+        ]
+        if not allowed:
+            raise ScreeningConfigConflict(
+                "jobs.ch experience level conflicts with the search screening rules"
+            )
+        screening = screening.model_copy(update={"allowed_seniority": allowed})
+    source_config = config.model_copy(update={
+        "search": config.search.model_copy(update={
+            "experience_level": request.experience_level,
+        }),
+        "screening": screening,
+    })
+    return effective_screening_config(
+        source_config,
+        screening_required=screening_required,
+        job_filter=job_filter,
+        now=now,
+    )
+
+
+def parser_warnings(
+    result: VacancySearchRunResult,
+    *,
+    requests: dict[str, LinkedInSearchRequest],
+) -> str | None:
+    messages: list[str | None] = []
+    for source, response in result.source_results.items():
+        messages.extend(response.warnings)
+        if source == "jobs_ch":
+            request = requests.get(source)
+            # Experience is enforced by screening; the remaining unsupported
+            # source parameters must still be visible to users of saved configs.
+            messages.append(
+                JobsChParser.unsupported_filters_message(
+                    request.model_copy(update={"experience_level": "Any"})
+                ) if request is not None else response.message
+            )
+    return combine_warnings(*messages)
+
+
 def execute_job_search(
     db: Session,
     *,
@@ -394,6 +454,16 @@ def execute_job_search(
             config.filters if config is not None else {},
         )
         normalized_config = normalize_job_search_config(config_data)
+        original_config = normalized_config
+        source_requests = source_requests_from_snapshot(run.config_snapshot)
+        if set(run.sources) == {"jobs_ch"} and "jobs_ch" in source_requests:
+            # An unused base-search experience must not conflict with the
+            # actual jobs.ch override before its global rules are combined.
+            normalized_config = normalized_config.model_copy(update={
+                "search": normalized_config.search.model_copy(update={
+                    "experience_level": source_requests["jobs_ch"].experience_level,
+                }),
+            })
         job_filter = job_filter_settings_from_snapshot(
             run.config_snapshot.get(JOB_FILTER_SNAPSHOT_KEY)
         )
@@ -417,9 +487,6 @@ def execute_job_search(
         request = search_request_from_config(
             run.config_snapshot["filters"],
         )
-        source_requests = source_requests_from_snapshot(
-            run.config_snapshot,
-        )
         max_posting_age_days = normalized_config.screening.max_posting_age_days
         request = tighten_request_posting_age(
             request,
@@ -431,6 +498,22 @@ def execute_job_search(
                 max_posting_age_days=max_posting_age_days,
             )
             for source, source_request in source_requests.items()
+        }
+        source_screening_configs = {}
+        if "jobs_ch" in run.sources:
+            source_screening_configs["jobs_ch"] = jobs_ch_screening_config(
+                original_config,
+                source_requests.get("jobs_ch", request),
+                screening_required=screening_required,
+                job_filter=job_filter,
+                now=started_at,
+            )
+        run.config_snapshot = {
+            **run.config_snapshot,
+            "sourceScreening": {
+                source: policy.model_dump(by_alias=True, exclude_none=True)
+                for source, policy in source_screening_configs.items()
+            },
         }
         search_result = runner.run(
             sources=list(run.sources),
@@ -475,6 +558,11 @@ def execute_job_search(
         log_job_search_finished(run)
         raise
 
+    source_warning = parser_warnings(
+        search_result,
+        requests={source: source_requests.get(source, request) for source in run.sources},
+    )
+    run.warning = source_warning
     run.source_errors = search_result.source_errors
     create_parser_failure_notifications(
         db,
@@ -512,10 +600,27 @@ def execute_job_search(
             snapshot.job_id for snapshot in inventory_result.vacancies
         ],
     )
-    screening_result = screen_new_job_candidates(
+    candidate_policies = dict(zip(
+        (candidate.job_id for candidate in candidates),
+        screening_policies_for_jobs(
+            [candidate.job for candidate in candidates],
+            source_jobs=filter_jobs_by_date_posted(
+                [job for response in search_result.source_results.values() for job in response.jobs],
+                request=request,
+                source_requests=source_requests,
+            ),
+            default_policy=normalized_config.screening,
+            source_policies=source_screening_configs,
+        ),
+        strict=True,
+    ))
+    screening_result = screen_candidates_by_source(
         db,
         candidates=candidates,
         screening_config=normalized_config.screening,
+        source_screening_configs=source_screening_configs,
+        candidate_screening_configs=candidate_policies,
+        rolling_posting_age=normalized_config.screening.max_posting_age_days is not None,
         settings=settings,
         search_config_id=(
             config.id
@@ -550,6 +655,18 @@ def execute_job_search(
                 exclude_none=True,
             ),
         ),
+        candidate_provenance={
+            job_id: JobImportProvenance(
+                search_config_id=(
+                    config.id if config is not None
+                    else str(run.config_snapshot.get("id") or "") or None
+                ),
+                search_config_version=str(run.config_snapshot.get("updatedAt") or "") or None,
+                screening_config_hash=build_screening_config_hash(policy),
+                screening_config_snapshot=policy.model_dump(by_alias=True, exclude_none=True),
+            )
+            for job_id, policy in candidate_policies.items()
+        },
     )
     run.jobs_already_known = jobs_already_known
     run.jobs_screened = screening_result.jobs_screened
@@ -560,7 +677,7 @@ def execute_job_search(
     run.jobs_analyzed = 0
     run.screening_errors = screening_result.screening_errors
     run.jobs_screening_ai_calls = screening_result.jobs_screening_ai_calls
-    run.warning = screening_result.warning
+    run.warning = combine_warnings(source_warning, screening_result.warning)
     run.source_errors = search_result.source_errors
     run.status = (
         "partial"
@@ -592,7 +709,7 @@ def execute_job_search(
         if analysis_enabled and new_jobs and match_warning is None
         else 0
     )
-    run.warning = combine_warnings(screening_result.warning, match_warning)
+    run.warning = combine_warnings(source_warning, screening_result.warning, match_warning)
     completed_at = datetime.now(UTC)
     run.completed_at = completed_at
     if schedule is not None:
@@ -981,6 +1098,76 @@ def prepare_new_job_candidates(
     return candidates, len(jobs) - len(candidates)
 
 
+def screen_candidates_by_source(
+    db: Session,
+    *,
+    candidates: list[NewJobCandidate],
+    screening_config: ScreeningConfig,
+    source_screening_configs: dict[str, ScreeningConfig],
+    settings: Settings,
+    candidate_screening_configs: dict[str, ScreeningConfig] | None = None,
+    rolling_posting_age: bool = False,
+    search_config_id: str | None = None,
+    progress_callback: Callable[[ScreeningProgress], None] | None = None,
+) -> ScreeningPipelineResult:
+    """Batch identical policies together without leaking source-specific filters."""
+    groups: dict[str, tuple[ScreeningConfig, list[NewJobCandidate]]] = {}
+    for candidate in candidates:
+        policy = (candidate_screening_configs or {}).get(
+            candidate.job_id,
+            source_screening_configs.get(candidate.job.source, screening_config),
+        )
+        key = build_screening_config_hash(policy)
+        if key not in groups:
+            groups[key] = (policy, [])
+        groups[key][1].append(candidate)
+
+    results: list[ScreeningPipelineResult] = []
+    decisions: dict[str, JobScreeningDecision] = {}
+    kept_ids: set[str] = set()
+
+    def report(progress: ScreeningProgress) -> None:
+        if progress_callback is None:
+            return
+        progress_callback(ScreeningProgress(
+            total=len(candidates),
+            processed=sum(item.jobs_screened for item in results) + progress.processed,
+            passed=sum(item.jobs_passed for item in results) + progress.passed,
+            rejected=sum(item.jobs_rejected for item in results) + progress.rejected,
+            uncertain=sum(item.jobs_uncertain for item in results) + progress.uncertain,
+            errors=sum(item.screening_errors for item in results) + progress.errors,
+            ai_calls=sum(item.jobs_screening_ai_calls for item in results) + progress.ai_calls,
+        ))
+
+    for policy, group in groups.values():
+        result = screen_new_job_candidates(
+            db,
+            candidates=group,
+            screening_config=policy,
+            settings=settings,
+            rolling_posting_age=rolling_posting_age,
+            search_config_id=search_config_id,
+            progress_callback=report,
+        )
+        results.append(result)
+        decisions.update({decision.id: decision for decision in result.decisions})
+        kept_ids.update(candidate.job_id for candidate in result.keep)
+    return ScreeningPipelineResult(
+        keep=[candidate for candidate in candidates if candidate.job_id in kept_ids],
+        decisions=[
+            decisions[candidate.job_id]
+            for candidate in candidates if candidate.job_id in decisions
+        ],
+        jobs_screened=sum(item.jobs_screened for item in results),
+        jobs_passed=sum(item.jobs_passed for item in results),
+        jobs_rejected=sum(item.jobs_rejected for item in results),
+        jobs_uncertain=sum(item.jobs_uncertain for item in results),
+        screening_errors=sum(item.screening_errors for item in results),
+        jobs_screening_ai_calls=sum(item.jobs_screening_ai_calls for item in results),
+        warning=combine_warnings(*(item.warning for item in results)),
+    )
+
+
 def screen_new_job_candidates(
     db: Session,
     *,
@@ -989,6 +1176,7 @@ def screen_new_job_candidates(
     settings: Settings,
     search_config_id: str | None = None,
     progress_callback: Callable[[ScreeningProgress], None] | None = None,
+    rolling_posting_age: bool = False,
 ) -> ScreeningPipelineResult:
     if not candidates:
         return ScreeningPipelineResult(keep=[])
@@ -999,6 +1187,14 @@ def screen_new_job_candidates(
     model = settings.job_screening_model
     compact_jobs = {
         candidate.job_id: compact_screening_job(candidate)
+        for candidate in candidates
+    }
+    cache_config_hashes = {
+        candidate.job_id: build_screening_cache_config_hash(
+            screening_config,
+            compact_jobs[candidate.job_id],
+            rolling_posting_age=rolling_posting_age,
+        )
         for candidate in candidates
     }
     vacancy_hashes = {
@@ -1020,6 +1216,9 @@ def screen_new_job_candidates(
         )
         if posting_age_decision is not None:
             decisions_by_id[candidate.job_id] = posting_age_decision
+            # Age decisions describe this exact cutoff. Keeping them out of
+            # the rolling cache also handles a clock/cutoff moving backwards.
+            cache_config_hashes[candidate.job_id] = config_hash
             deterministic.append(candidate)
             continue
         seniority_decision = deterministic_seniority_decision(
@@ -1034,7 +1233,7 @@ def screen_new_job_candidates(
         cached = latest_screening_decision(
             db,
             vacancy_hash=vacancy_hashes[candidate.job_id],
-            config_hash=config_hash,
+            config_hash=cache_config_hashes[candidate.job_id],
             model=model,
             prompt_version=JOB_SCREENING_PROMPT_VERSION,
         )
@@ -1068,7 +1267,7 @@ def screen_new_job_candidates(
         batch_size = settings.job_screening_batch_size
         try:
             facade = create_job_screening_ai_facade(settings)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 - provider failures become per-vacancy decisions
             for candidate in uncached:
                 decisions_by_id[candidate.job_id] = screening_error_decision(
                     candidate.job_id,
@@ -1081,13 +1280,29 @@ def screen_new_job_candidates(
                 ai_calls=ai_calls,
             )
         else:
-            for offset in range(0, len(uncached), batch_size):
-                batch = uncached[offset : offset + batch_size]
+            candidates_by_age_check: dict[bool, list[NewJobCandidate]] = {}
+            for candidate in uncached:
+                needs_ai_age_check = cache_config_hashes[candidate.job_id] == config_hash
+                candidates_by_age_check.setdefault(needs_ai_age_check, []).append(candidate)
+            batches: list[tuple[ScreeningConfig, list[NewJobCandidate]]] = []
+            for needs_ai_age_check, group in candidates_by_age_check.items():
+                ai_config = (
+                    screening_config
+                    if needs_ai_age_check
+                    else screening_config.model_copy(
+                        update={"posted_after": None, "max_posting_age_days": None}
+                    )
+                )
+                # Known ISO dates already passed the deterministic check. AI
+                # evaluates only stable rules for decisions in the rolling cache.
+                for offset in range(0, len(group), batch_size):
+                    batches.append((ai_config, group[offset : offset + batch_size]))
+            for ai_config, batch in batches:
                 expected_ids = [candidate.job_id for candidate in batch]
                 try:
                     ai_calls += 1
                     raw_decisions = facade.screen(
-                        screening_config,
+                        ai_config,
                         [compact_jobs[job_id] for job_id in expected_ids],
                     )
                     payload = JobScreeningPayload.model_validate(
@@ -1107,7 +1322,7 @@ def screen_new_job_candidates(
                             )
                         }
                     )
-                except Exception as exc:
+                except Exception as exc:  # noqa: BLE001 - isolate a failed AI batch
                     decisions_by_id.update(
                         {
                             candidate.job_id: screening_error_decision(
@@ -1136,7 +1351,7 @@ def screen_new_job_candidates(
         persist_screening_decision(
             db,
             vacancy_hash=vacancy_hashes[candidate.job_id],
-            config_hash=config_hash,
+            config_hash=cache_config_hashes[candidate.job_id],
             decision=decisions_by_id[candidate.job_id],
             model=model,
             prompt_version=JOB_SCREENING_PROMPT_VERSION,
@@ -1248,6 +1463,7 @@ def persist_new_jobs(
     jobs: list[NewJobCandidate] | list[ParsedJob],
     added_at: datetime,
     provenance: JobImportProvenance | None = None,
+    candidate_provenance: dict[str, JobImportProvenance] | None = None,
 ) -> list[dict[str, Any]]:
     if jobs and isinstance(jobs[0], ParsedJob):
         candidates, _ = prepare_new_job_candidates(
@@ -1305,8 +1521,9 @@ def persist_new_jobs(
         else:
             record = StoredJobRecord(id=job_id, data=data, status="active")
             db.add(record)
-        if provenance is not None:
-            apply_job_import_provenance(record, provenance)
+        import_provenance = (candidate_provenance or {}).get(job_id, provenance)
+        if import_provenance is not None:
+            apply_job_import_provenance(record, import_provenance)
         records_by_id[job_id] = record
         existing_ids.add(job_id)
         if url_key:
@@ -1475,7 +1692,9 @@ def parsed_job_to_stored_job(
 
 def run_status(result: VacancySearchRunResult) -> str:
     if not result.source_errors:
-        return "completed"
+        return "partial" if any(
+            response.warnings for response in result.source_results.values()
+        ) else "completed"
     successful_sources = set(result.source_results) - set(result.source_errors)
     if successful_sources or any(source.jobs for source in result.source_results.values()):
         return "partial"

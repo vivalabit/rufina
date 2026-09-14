@@ -119,4 +119,25 @@ describe("JobSearchDialog", () => {
     fireEvent.click(searchButton);
     expect(onStartSearch).not.toHaveBeenCalled();
   });
+
+  it("keeps partial-result warnings visible after a manual search finishes", () => {
+    const message =
+      "8 vacancies found · jobs.ch: page 2 could not be loaded; results are incomplete";
+    render(
+      <JobSearchDialog
+        {...dialogProps({
+          activeSource: "jobs_ch",
+          status: "ready",
+          message,
+        })}
+      />,
+    );
+
+    expect(screen.getByText(message)).toBeInTheDocument();
+    expect(screen.getByText(message).closest("p")).toHaveAttribute(
+      "aria-live",
+      "polite",
+    );
+    expect(screen.getByRole("button", { name: "Start search" })).toBeEnabled();
+  });
 });

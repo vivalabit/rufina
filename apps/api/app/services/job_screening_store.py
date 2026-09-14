@@ -22,14 +22,57 @@ from app.services.job_screening import (
 
 def build_screening_config_hash(
     screening_config: ScreeningConfig | dict[str, Any],
+    *,
+    rolling_posting_age: bool = False,
 ) -> str:
+    """Hash screening rules, optionally identifying a generated rolling cutoff.
+
+    Absolute cutoffs remain part of the cache identity by default. Callers may
+    opt in only for a cutoff generated from ``maxPostingAgeDays``, and must
+    validate the vacancy's current posting age before reusing a cached decision.
+    """
     config = validate_screening_config(screening_config)
-    return sha256_json(
-        config.model_dump(
-            by_alias=True,
-            exclude_none=True,
-        )
+    payload = config.model_dump(
+        by_alias=True,
+        exclude_none=True,
     )
+    if rolling_posting_age and config.max_posting_age_days is not None:
+        # Keep the window length and every other rule in the hash, while
+        # distinguishing this cache from a manually specified absolute cutoff.
+        payload.pop("postedAfter", None)
+        payload["postingAgeMode"] = "rolling"
+    return sha256_json(payload)
+
+
+def build_screening_cache_config_hash(
+    screening_config: ScreeningConfig | dict[str, Any],
+    vacancy: CompactScreeningJob | dict[str, Any],
+    *,
+    rolling_posting_age: bool = False,
+) -> str:
+    """Use rolling cache identity only for a fixed, locally checkable ISO date.
+
+    Relative and unknown dates retain the exact cutoff, since interpreting them
+    can depend on the run date. This helper selects the key; callers must apply
+    the current date check before consulting the cache.
+    """
+    config = validate_screening_config(screening_config)
+    use_rolling_age = False
+    if rolling_posting_age and config.posted_after and config.max_posting_age_days:
+        posted_at = (
+            vacancy.posted_at
+            if isinstance(vacancy, CompactScreeningJob)
+            else str(
+                vacancy.get("posted_at") or vacancy.get("postedAt") or vacancy.get("posted") or ""
+            )
+        )
+        try:
+            datetime.fromisoformat(posted_at.strip())
+        except ValueError:
+            pass
+        else:
+            use_rolling_age = True
+    return build_screening_config_hash(config, rolling_posting_age=use_rolling_age)
 
 
 def build_screening_vacancy_hash(

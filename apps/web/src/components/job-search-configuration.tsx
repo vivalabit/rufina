@@ -78,6 +78,16 @@ export function JobSearchConfiguration({
     .filter(({ query }) => isLinkedInProfessionQuery(query));
   const supportingQueryCount =
     form.linkedinQueries.length - professionQueries.length;
+  const isJobsCh = activeSource === "jobs_ch";
+  const jobsChIgnoredFilters = isJobsCh
+    ? [
+        form.remote && form.remote !== "Any" ? `Remote: ${form.remote}` : null,
+        form.jobType && form.jobType !== "Any" ? `Job type: ${form.jobType}` : null,
+        form.country && !["Any", "Switzerland"].includes(form.country)
+          ? `Country: ${form.country}`
+          : null,
+      ].filter(Boolean)
+    : [];
 
   return (
     <section className="min-w-0 p-4 md:border-l md:border-border 2xl:p-5">
@@ -188,6 +198,18 @@ export function JobSearchConfiguration({
 
         {activeSource !== "direct_companies" ? (
           <>
+            {isJobsCh ? (
+              <div className="rounded-md border border-border bg-[#fff8f1] p-3 text-xs font-medium leading-5 text-muted">
+                jobs.ch searches by keywords and location. Posting date and
+                experience level are checked after vacancies are collected.
+                {jobsChIgnoredFilters.length > 0 ? (
+                  <p role="status" className="mt-2 font-semibold text-amber-800">
+                    Saved filters are not applied to jobs.ch:{" "}
+                    {jobsChIgnoredFilters.join("; ")}.
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
             <label className="grid gap-2">
               <span className="text-xs font-bold text-[#1d1e1c]">
                 Job title or keywords
@@ -303,11 +325,17 @@ export function JobSearchConfiguration({
                   onChange={(event) =>
                     onFormChange("location", event.target.value)
                   }
-                  placeholder="e.g. Remote, United States, Europe"
+                  placeholder={
+                    isJobsCh
+                      ? "e.g. Zurich, Bern, Geneva"
+                      : "e.g. Remote, United States, Europe"
+                  }
                   className="h-9 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
                 />
                 <span className="text-xs font-medium text-muted">
-                  Leave empty to search worldwide
+                  {isJobsCh
+                    ? "Leave empty to search all jobs.ch locations"
+                    : "Leave empty to search worldwide"}
                 </span>
               </label>
 
@@ -317,10 +345,11 @@ export function JobSearchConfiguration({
                 </span>
                 <select
                   value={form.remote}
+                  disabled={isJobsCh}
                   onChange={(event) =>
                     onFormChange("remote", event.target.value)
                   }
-                  className="h-9 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
+                  className="h-9 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <option>Any</option>
                   <option>Remote only</option>
@@ -328,7 +357,9 @@ export function JobSearchConfiguration({
                   <option>On-site</option>
                 </select>
                 <span className="text-xs font-medium text-muted">
-                  Filter by remote work options
+                  {isJobsCh
+                    ? "Remote filtering is not available for jobs.ch"
+                    : "Filter by remote work options"}
                 </span>
               </label>
 
@@ -350,7 +381,9 @@ export function JobSearchConfiguration({
                   <option>Director</option>
                 </select>
                 <span className="text-xs font-medium text-muted">
-                  Filter by experience level
+                  {isJobsCh
+                    ? "Applied after collection alongside the Vacancy Filter"
+                    : "Filter by experience level"}
                 </span>
               </label>
 
@@ -360,10 +393,11 @@ export function JobSearchConfiguration({
                 </span>
                 <select
                   value={form.jobType}
+                  disabled={isJobsCh}
                   onChange={(event) =>
                     onFormChange("jobType", event.target.value)
                   }
-                  className="h-9 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
+                  className="h-9 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70 disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   <option>Any</option>
                   <option>Full-time</option>
@@ -372,7 +406,9 @@ export function JobSearchConfiguration({
                   <option>Internship</option>
                 </select>
                 <span className="text-xs font-medium text-muted">
-                  Full-time, Part-time, Contract, etc.
+                  {isJobsCh
+                    ? "Job type filtering is not available for jobs.ch"
+                    : "Full-time, Part-time, Contract, etc."}
                 </span>
               </label>
 
@@ -437,13 +473,15 @@ export function JobSearchConfiguration({
                     className="h-9 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                   >
                     <option>Any</option>
-                    <option>United States</option>
-                    <option>United Kingdom</option>
-                    <option>Germany</option>
+                    <option disabled={isJobsCh}>United States</option>
+                    <option disabled={isJobsCh}>United Kingdom</option>
+                    <option disabled={isJobsCh}>Germany</option>
                     <option>Switzerland</option>
                   </select>
                   <span className="text-xs font-medium text-muted">
-                    Filter by country
+                    {isJobsCh
+                      ? "jobs.ch covers the Swiss job market; other country filters are not applied"
+                      : "Filter by country"}
                   </span>
                 </label>
               </div>

@@ -117,6 +117,8 @@ class Settings(BaseSettings):
     jobs_ch_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     jobs_ch_max_pages: int = Field(default=50, ge=1, le=100)
     jobs_ch_detail_workers: int = Field(default=6, ge=1, le=20)
+    jobs_ch_deadline_seconds: float = Field(default=150.0, ge=1, le=600)
+    jobs_ch_max_retries: int = Field(default=2, ge=0, le=3)
     sbb_jobs_base_url: str = (
         "https://company.sbb.ch/de/jobs-karriere/jobs/"
         "offene-stellen.html"
