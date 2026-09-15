@@ -56,7 +56,7 @@ export function JobSearchDialog({
   selectedSourceConfigIds,
   selectedParserSearchConfigId,
   directCompanies,
-  newLinkedInProfession,
+  newProfession,
   status,
   message,
   onClose,
@@ -69,9 +69,9 @@ export function JobSearchDialog({
   onSelectSourceConfig,
   onSaveSourceConfig,
   onSelectedDirectCompaniesChange,
-  onNewLinkedInProfessionChange,
-  onAddLinkedInProfession,
-  onRemoveLinkedInProfession,
+  onNewProfessionChange,
+  onAddProfession,
+  onRemoveProfession,
 }: JobSearchDialogProps) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 p-2 backdrop-blur-sm sm:p-3">
@@ -146,9 +146,7 @@ export function JobSearchDialog({
                         onClick={() => onToggleParser(parserOption.id)}
                         className={cn(
                           "grid h-8 w-8 shrink-0 place-items-center rounded outline-none transition focus-visible:ring-2 focus-visible:ring-accent/70",
-                          isSelected
-                            ? "bg-accent/10"
-                            : "hover:bg-[#fff3e8]",
+                          isSelected ? "bg-accent/10" : "hover:bg-[#fff3e8]",
                         )}
                       >
                         <span
@@ -232,19 +230,15 @@ export function JobSearchDialog({
               selectedSourceConfigIds={selectedSourceConfigIds}
               selectedParserSearchConfigId={selectedParserSearchConfigId}
               directCompanies={directCompanies}
-              newLinkedInProfession={newLinkedInProfession}
+              newProfession={newProfession}
               onFormChange={onFormChange}
               onReset={onReset}
               onSelectSourceConfig={onSelectSourceConfig}
               onSaveSourceConfig={onSaveSourceConfig}
-              onSelectedDirectCompaniesChange={
-                onSelectedDirectCompaniesChange
-              }
-              onNewLinkedInProfessionChange={
-                onNewLinkedInProfessionChange
-              }
-              onAddLinkedInProfession={onAddLinkedInProfession}
-              onRemoveLinkedInProfession={onRemoveLinkedInProfession}
+              onSelectedDirectCompaniesChange={onSelectedDirectCompaniesChange}
+              onNewProfessionChange={onNewProfessionChange}
+              onAddProfession={onAddProfession}
+              onRemoveProfession={onRemoveProfession}
             />
           </div>
         </div>

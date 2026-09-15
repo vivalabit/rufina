@@ -233,30 +233,11 @@ def run_match_jobs(
         if not jobs_to_match:
             return AiMatchJobStatus(status="completed")
         profile = get_current_profile(db)
-        candidate_snapshot = get_candidate_match_snapshot(
-            db,
-            profile=profile,
-            settings=settings,
-            allow_ai=True,
-            strict_ai=True,
-        )
-        jobs_to_match = [
-            hydrate_job_data(
-                db,
-                job_id=str(job.get("id") or ""),
-                job_data=job,
-                profile_hash=candidate_snapshot.profile_input_hash,
-            )
-            for job in jobs_to_match
-        ]
-        db.commit()
         session_factory = sessionmaker(bind=db.get_bind(), autoflush=False, autocommit=False)
         started, current_status = ai_match_jobs.start(
             owner_id=identity.owner_id,
             profile=profile,
             jobs=jobs_to_match,
-            profile_hash=candidate_snapshot.profile_input_hash,
-            candidate_snapshot=candidate_snapshot.data,
             settings=settings,
             session_factory=session_factory,
             force=force,
@@ -266,13 +247,6 @@ def run_match_jobs(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Jobs database is unavailable",
         ) from exc
-    except CandidateSnapshotError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail=str(exc),
-        ) from exc
-
     if not started:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,

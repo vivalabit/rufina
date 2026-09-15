@@ -87,6 +87,10 @@ def create_generation_run(
     )
     db.add(run)
     db.flush()
+    resume_template = next(
+        (template for template in snapshot.templates if template.document_type == "tailored_resume"),
+        None,
+    )
     append_run_event(
         db,
         run=run,
@@ -96,6 +100,7 @@ def create_generation_run(
             "applicationRevision": snapshot.request.application.revision,
             "vacancyRevision": snapshot.request.vacancy.revision,
             "masterProfileVersion": snapshot.request.master_profile_version.version,
+            **({"resumeTemplateId": resume_template.template_id} if resume_template else {}),
         },
     )
     db.commit()

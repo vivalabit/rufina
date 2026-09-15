@@ -4,14 +4,27 @@ import { defaultParserSearchForm } from "@/features/job-search/model/constants";
 import {
   directCompanyDirectionFromFilters,
   directCompanySearchFiltersFromForm,
+  keywordsFromProfessions,
   normalizeDirectCompanyIds,
   normalizeParserIds,
   parserSearchFiltersFromForm,
   parserSearchSourceIds,
+  professionsFromKeywords,
   sourceSearchDraftFromFilters,
 } from "@/features/job-search/model/form-mappers";
 
 describe("job-search form mappers", () => {
+  it("converts keyword expressions to profession lists and back", () => {
+    expect(
+      professionsFromKeywords(
+        "Product Engineer OR Data Engineer or product engineer",
+      ),
+    ).toEqual(["Product Engineer", "Data Engineer"]);
+    expect(keywordsFromProfessions(["Product Engineer", "Data Engineer"])).toBe(
+      "Product Engineer OR Data Engineer",
+    );
+  });
+
   it("normalizes current and legacy source identifiers", () => {
     expect(
       normalizeParserIds({
@@ -25,10 +38,9 @@ describe("job-search form mappers", () => {
         parser: "jobs_ch",
       } as typeof defaultParserSearchForm & { parser: string }),
     ).toEqual(["jobs_ch"]);
-    expect(normalizeDirectCompanyIds([" acme ", { id: "acme" }, { id: "beta" }])).toEqual([
-      "acme",
-      "beta",
-    ]);
+    expect(
+      normalizeDirectCompanyIds([" acme ", { id: "acme" }, { id: "beta" }]),
+    ).toEqual(["acme", "beta"]);
   });
 
   it("combines parser and direct-company sources without duplicates", () => {

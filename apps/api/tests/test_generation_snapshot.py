@@ -9,7 +9,15 @@ from test_generation_input import seed_complete_sources
 
 from app.core.database import Base
 from app.models.generation import GenerationStartRequest
-from app.services.generation_snapshot import build_generation_run_snapshot
+from app.services.generation_input import GenerationInputError
+from app.services.generation_resume_templates import (
+    LEGACY_GENERATION_RESUME_TEMPLATE_IDS,
+    resolve_generation_resume_template,
+)
+from app.services.generation_snapshot import (
+    build_generation_run_snapshot,
+    resolve_run_resume_template,
+)
 
 
 @pytest.fixture
@@ -79,7 +87,11 @@ def test_generation_snapshot_pins_sources_templates_and_backend(
         "tailored_resume",
         "cover_letter",
     ]
-    assert snapshot.templates[0].template_version == "1.0.1"
+    assert snapshot.templates[0].template_id == "moderncv_banking"
+    assert snapshot.templates[0].template_version == "1.0.0"
+    assert snapshot.templates[0].content_sha256 == (
+        resolve_generation_resume_template("moderncv_banking").content_sha256
+    )
     assert snapshot.templates[0].content_sha256
     assert snapshot.templates[1].content_sha256
     assert len(snapshot.fingerprint) == 64
@@ -116,3 +128,64 @@ def test_generation_snapshot_fingerprint_is_stable_for_identical_inputs(
         )
 
     assert first.fingerprint == second.fingerprint
+
+
+@pytest.mark.parametrize("template_id", ["moderncv_banking", "ishchenko_classic"])
+def test_generation_snapshot_pins_selected_latex_template(sessions, template_id: str) -> None:
+    seed_complete_sources(sessions)
+    start = GenerationStartRequest(
+        document_types=("tailored_resume",),
+        language="English",
+        formatting_parameters={"tailored_resume": {"templateId": template_id}},
+        user_preferences="",
+    )
+    with sessions() as db:
+        snapshot = build_generation_run_snapshot(
+            db,
+            application_id="application-1",
+            start=start,
+            settings=runtime_settings(),
+        )
+        default = build_generation_run_snapshot(
+            db,
+            application_id="application-1",
+            start=start.model_copy(update={"formatting_parameters": {}}),
+            settings=runtime_settings(),
+        )
+
+    template = resolve_run_resume_template(snapshot)
+    assert template.template_id == template_id
+    assert template.renderer == "lualatex"
+    assert default.templates[0].template_id == "moderncv_banking"
+    if template_id == "ishchenko_classic":
+        assert template.content_sha256 != default.templates[0].content_sha256
+        assert snapshot.fingerprint != default.fingerprint
+
+
+@pytest.mark.parametrize("template_id", sorted(LEGACY_GENERATION_RESUME_TEMPLATE_IDS))
+def test_saved_legacy_resume_selections_resolve_to_original_banking_renderer(template_id: str) -> None:
+    assert resolve_generation_resume_template(template_id) == resolve_generation_resume_template(
+        "moderncv_banking"
+    )
+
+
+@pytest.mark.parametrize(
+    "template_id",
+    ["not-a-template", "../../outside.tex", "b426540f-a1e2-4e8b-965e-10ab38b28b40", 42],
+)
+def test_generation_snapshot_rejects_unsupported_resume_templates(sessions, template_id) -> None:
+    seed_complete_sources(sessions)
+    start = GenerationStartRequest(
+        document_types=("tailored_resume",),
+        language="English",
+        formatting_parameters={"tailored_resume": {"templateId": template_id}},
+        user_preferences="",
+    )
+    with sessions() as db, pytest.raises(GenerationInputError) as failure:
+        build_generation_run_snapshot(
+            db,
+            application_id="application-1",
+            start=start,
+            settings=runtime_settings(),
+        )
+    assert failure.value.code == "resume_template_unsupported"

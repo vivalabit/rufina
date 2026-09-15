@@ -23,7 +23,7 @@ function dialogProps(
     selectedSourceConfigIds: {},
     selectedParserSearchConfigId: "",
     directCompanies: directCompanyCatalog.slice(0, 2),
-    newLinkedInProfession: "",
+    newProfession: "",
     status: "idle",
     message: "",
     onClose: vi.fn(),
@@ -36,9 +36,9 @@ function dialogProps(
     onSelectSourceConfig: vi.fn(),
     onSaveSourceConfig: vi.fn(),
     onSelectedDirectCompaniesChange: vi.fn(),
-    onNewLinkedInProfessionChange: vi.fn(),
-    onAddLinkedInProfession: vi.fn(),
-    onRemoveLinkedInProfession: vi.fn(),
+    onNewProfessionChange: vi.fn(),
+    onAddProfession: vi.fn(),
+    onRemoveProfession: vi.fn(),
     ...overrides,
   };
 }
@@ -73,16 +73,16 @@ describe("JobSearchDialog", () => {
       screen.getByRole("button", { name: "Include LinkedIn in search" }),
     ).toHaveAttribute("aria-pressed", "true");
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Configure jobs.ch" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Configure jobs.ch" }));
     expect(onActivateSource).toHaveBeenCalledWith("jobs_ch");
     fireEvent.click(
       screen.getByRole("button", { name: "Include Indeed in search" }),
     );
     expect(onToggleParser).toHaveBeenCalledWith("indeed");
     fireEvent.click(
-      screen.getByRole("button", { name: "Include Direct Companies in search" }),
+      screen.getByRole("button", {
+        name: "Include Direct Companies in search",
+      }),
     );
     expect(onToggleDirectCompanies).toHaveBeenCalledOnce();
 

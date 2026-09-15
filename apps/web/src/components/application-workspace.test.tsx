@@ -1,7 +1,9 @@
-import { fireEvent, screen, waitFor } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { ApplicationWorkspace } from "@/components/application-workspace";
 import type { GenerationRun } from "@/features/applications/api/generation-runs-client";
+import { defaultDocumentPreparationSettings } from "@/features/applications/model/document-preparation";
 import {
   createWorkspaceApplication,
   installApplicationWorkspaceApiMock,
@@ -202,6 +204,51 @@ describe("ApplicationWorkspace", () => {
     expect(await screen.findByText("Preparing sources")).toBeInTheDocument();
   });
 
+  it("persists a selected CV template and sends it to generation", async () => {
+    const started = generationRun({ status: "queued", stage: "sources", revision: 1 });
+    const fetchMock = installApplicationWorkspaceApiMock({ startedGenerationRun: started });
+    const { props } = renderApplicationWorkspace(createWorkspaceApplication());
+
+    const template = await screen.findByRole("radio", { name: "Ishchenko · Classic" });
+    fireEvent.click(template);
+
+    expect(template).toBeChecked();
+    expect(screen.getByRole("radio", { name: "ModernCV · Banking" })).not.toBeChecked();
+    expect(props.onPreparationSettingsChange).toHaveBeenLastCalledWith(
+      "application",
+      expect.objectContaining({
+        formatting: expect.objectContaining({ resumeTemplateId: "ishchenko_classic" }),
+      }),
+    );
+    const brief = screen.getByRole("heading", { name: "Application brief" }).closest("aside")!;
+    expect(within(brief).getByText("Ishchenko · Classic")).toBeInTheDocument();
+    expect(within(brief).queryByText("ModernCV · Banking")).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Start application" }));
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/generation/runs"),
+      expect.objectContaining({ method: "POST" }),
+    ));
+    const request = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
+    expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
+      formattingParameters: {
+        tailored_resume: { templateId: "ishchenko_classic", pageSize: "A4", maxPages: 2 },
+      },
+    });
+  });
+
+  it("restores the saved template when reopening preparation", async () => {
+    installApplicationWorkspaceApiMock();
+    renderApplicationWorkspace(createWorkspaceApplication({
+      documentPreparation: {
+        ...defaultDocumentPreparationSettings,
+        formatting: { ...defaultDocumentPreparationSettings.formatting, resumeTemplateId: "ishchenko_classic" },
+      },
+    }));
+
+    expect(await screen.findByRole("radio", { name: "Ishchenko · Classic" })).toBeChecked();
+  });
+
   it("keeps the idempotency key within the API limit for long application ids", async () => {
     const applicationId = `application-${"x".repeat(148)}`;
     const started = generationRun({
@@ -349,5 +396,161 @@ describe("ApplicationWorkspace", () => {
       );
       expect(request).toBeDefined();
     });
+  });
+
+  it("creates a revision for a template change and keeps the current PDF label accurate", async () => {
+    const current = completedRun();
+    const next = generationRun({ id: "run-2", status: "queued", stage: "sources", revision: 1 });
+    const fetchMock = installApplicationWorkspaceApiMock({
+      currentGenerationRun: current,
+      generationRuns: [current],
+      startedGenerationRun: next,
+      requestHandler: (url, method) => {
+        if (url.pathname.endsWith("/pdf") && method === "GET") {
+          return new Response(new Blob(["%PDF"], { type: "application/pdf" }));
+        }
+      },
+    });
+    renderApplicationWorkspace(createWorkspaceApplication({
+      documentPreparation: { ...defaultDocumentPreparationSettings, userPreferences: "Keep the tone direct." },
+    }));
+
+    expect(await screen.findByRole("button", { name: "Create revision" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("radio", { name: "Ishchenko · Classic" }));
+    const brief = screen.getByRole("heading", { name: "Application brief" }).closest("aside")!;
+    expect(within(brief).getByText("ModernCV · Banking")).toBeInTheDocument();
+    expect(within(brief).queryByText("Ishchenko · Classic")).not.toBeInTheDocument();
+    expect(screen.getByRole("textbox", { name: "Revision request" })).toHaveValue("");
+    expect(screen.getByRole("button", { name: "Create revision" })).toBeEnabled();
+    fireEvent.click(screen.getByRole("button", { name: "Create revision" }));
+
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+      expect.stringContaining("/generation/runs"),
+      expect.objectContaining({ method: "POST" }),
+    ));
+    const request = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
+    expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
+      userPreferences: "Keep the tone direct.",
+      formattingParameters: { tailored_resume: { templateId: "ishchenko_classic" } },
+    });
+  });
+
+  it.each(["moderncv_banking", "ishchenko_classic"])(
+    "opens regeneration from the header and creates a new version with %s",
+    async (templateId) => {
+      const current = completedRun();
+      const next = generationRun({ id: "run-2", status: "queued", stage: "sources", revision: 1 });
+      const fetchMock = installApplicationWorkspaceApiMock({
+        currentGenerationRun: current,
+        generationRuns: [current],
+        startedGenerationRun: next,
+      });
+      const onStatusChange = vi.fn();
+      renderApplicationWorkspace(createWorkspaceApplication({
+        documentPreparation: {
+          ...defaultDocumentPreparationSettings,
+          userPreferences: "Keep the tone direct.",
+        },
+      }), { onStatusChange });
+
+      const regenerate = await screen.findByRole("button", { name: "Regenerate CV" });
+      expect(regenerate.closest("header")).not.toBeNull();
+      fireEvent.click(regenerate);
+
+      expect(screen.getByRole("heading", { name: "Create a new version" })).toBeInTheDocument();
+      expect(screen.queryByLabelText("CV PDF preview panel")).not.toBeInTheDocument();
+      expect(screen.getAllByRole("radio")).toHaveLength(2);
+      expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
+      if (templateId === "ishchenko_classic") {
+        fireEvent.click(screen.getByRole("radio", { name: "Ishchenko · Classic" }));
+      }
+      const generate = screen.getByRole("button", { name: "Generate new version" });
+      expect(generate).toBeEnabled();
+      fireEvent.click(generate);
+
+      await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
+        expect.stringContaining("/generation/runs"),
+        expect.objectContaining({ method: "POST" }),
+      ));
+      const request = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
+      expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
+        userPreferences: "Keep the tone direct.",
+        formattingParameters: { tailored_resume: { templateId } },
+      });
+      await waitFor(() => expect(screen.queryByRole("button", { name: "Generate new version" })).not.toBeInTheDocument());
+      expect(onStatusChange).not.toHaveBeenCalled();
+    },
+  );
+
+  it("returns from regeneration options to the existing PDF without starting a run", async () => {
+    const current = completedRun();
+    const fetchMock = installApplicationWorkspaceApiMock({
+      currentGenerationRun: current,
+      generationRuns: [current],
+    });
+    renderApplicationWorkspace(createWorkspaceApplication());
+
+    fireEvent.click(await screen.findByRole("button", { name: "Regenerate CV" }));
+    fireEvent.click(screen.getByRole("button", { name: "Back to documents" }));
+
+    expect(screen.getByRole("tablist", { name: "Generated documents" })).toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Create a new version" })).not.toBeInTheDocument();
+    expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
+  });
+
+  it("offers regeneration for existing documents without a generation run", async () => {
+    installApplicationWorkspaceApiMock();
+    renderApplicationWorkspace(createWorkspaceApplication({
+      documents: [{
+        id: "legacy-cv", kind: "generated", title: "CV", fileName: "cv.pdf",
+        fileSize: "10 KB", fileType: "PDF", uploadedAt: "2026-08-01",
+        downloadUrl: "/documents/legacy-cv/download",
+      }],
+    }));
+
+    expect(await screen.findByRole("button", { name: "Generate new version" })).toBeEnabled();
+    expect(screen.getByRole("heading", { name: "Create a new version" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Regenerate CV" })).toBeEnabled();
+  });
+
+  it("shows the template recorded on a run rather than later preparation settings", async () => {
+    const current = generationRun();
+    current.events[0].data.resumeTemplateId = "ishchenko_classic";
+    installApplicationWorkspaceApiMock({ currentGenerationRun: current, generationRuns: [current] });
+    renderApplicationWorkspace(createWorkspaceApplication());
+
+    await screen.findByText("Writing drafts");
+    const brief = screen.getByRole("heading", { name: "Application brief" }).closest("aside")!;
+    expect(within(brief).getByText("Ishchenko · Classic")).toBeInTheDocument();
+    expect(within(brief).queryByText("ModernCV · Banking")).not.toBeInTheDocument();
+  });
+
+  it("keeps the reviewed historical PDF selected when the parent persists a revision template", async () => {
+    const current = completedRun();
+    current.events[0].data.resumeTemplateId = "ishchenko_classic";
+    const older = completedRun({ id: "older-run", createdAt: "2026-09-12T10:00:00.000Z" });
+    installApplicationWorkspaceApiMock({
+      currentGenerationRun: current,
+      generationRuns: [current, older],
+      requestHandler: (url, method) => {
+        if (url.pathname.endsWith("/pdf") && method === "GET") {
+          return new Response(new Blob(["%PDF"], { type: "application/pdf" }));
+        }
+      },
+    });
+    const application = createWorkspaceApplication();
+    const { props, rerender } = renderApplicationWorkspace(application);
+
+    const versions = await screen.findByRole("combobox", { name: "Document version" });
+    fireEvent.change(versions, { target: { value: older.id } });
+    fireEvent.click(screen.getByRole("radio", { name: "Ishchenko · Classic" }));
+    const savedSettings = vi.mocked(props.onPreparationSettingsChange).mock.calls.at(-1)![1];
+    rerender(<ApplicationWorkspace {...props} application={{ ...application, documentPreparation: savedSettings }} />);
+
+    expect(screen.getByRole("combobox", { name: "Document version" })).toHaveValue(older.id);
+    expect(screen.getByRole("radio", { name: "Ishchenko · Classic" })).toBeChecked();
+    const brief = screen.getByRole("heading", { name: "Application brief" }).closest("aside")!;
+    expect(within(brief).getByText("ModernCV · Banking")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Create revision" })).toBeEnabled();
   });
 });

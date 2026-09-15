@@ -105,6 +105,7 @@ def test_run_persists_snapshot_events_artifacts_checks_and_transition(
     assert run.settings_snapshot["backend"] == "openclaw_codex"
     assert payload.status == "completed"
     assert [event.sequence for event in payload.events] == [1, 2, 3]
+    assert payload.events[0].data["resumeTemplateId"] == "moderncv_banking"
     assert payload.artifacts[0].content_sha256 == artifact.content_sha256
     assert payload.checks[0].artifact_sha256 == artifact.content_sha256
 

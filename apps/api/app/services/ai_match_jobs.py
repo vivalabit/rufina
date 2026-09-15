@@ -23,6 +23,7 @@ from app.services.ai_match import (
     VacancyMatchingAIFacade,
     create_vacancy_matching_ai_facade,
 )
+from app.services.candidate_snapshot import get_candidate_match_snapshot
 from app.services.job_match_store import hydrate_job_data, persist_job_and_match
 
 SessionFactory = Callable[[], Session]
@@ -39,15 +40,14 @@ class AiMatchJobManager:
         owner_id: str,
         profile: ProfilePayload,
         jobs: list[dict[str, Any]],
-        profile_hash: str,
-        candidate_snapshot: dict[str, Any],
         settings: Settings,
         session_factory: SessionFactory,
         force: bool = False,
     ) -> tuple[bool, AiMatchJobStatus]:
-        # Capture backend, model and retry policy before the worker starts. Settings cache
+        # Pin backend, model and retry policy before the worker starts. Settings cache
         # changes can only affect subsequently launched jobs.
-        facade = create_vacancy_matching_ai_facade(settings)
+        launch_settings = settings.model_copy(deep=True)
+        facade = create_vacancy_matching_ai_facade(launch_settings)
         facade = replace(facade, max_jobs=max(1, facade.max_jobs))
         with self._lock:
             owner_status = self._statuses.get(owner_id, AiMatchJobStatus())
@@ -70,8 +70,7 @@ class AiMatchJobManager:
                 "owner_id": owner_id,
                 "profile": profile,
                 "jobs": jobs,
-                "profile_hash": profile_hash,
-                "candidate_snapshot": candidate_snapshot,
+                "settings": launch_settings,
                 "facade": facade,
                 "session_factory": session_factory,
                 "force": force,
@@ -92,8 +91,7 @@ class AiMatchJobManager:
         owner_id: str,
         profile: ProfilePayload,
         jobs: list[dict[str, Any]],
-        profile_hash: str,
-        candidate_snapshot: dict[str, Any],
+        settings: Settings,
         facade: VacancyMatchingAIFacade,
         session_factory: SessionFactory,
         force: bool,
@@ -102,6 +100,13 @@ class AiMatchJobManager:
         self._update(owner_id, run_id, status="running")
 
         try:
+            profile_hash, candidate_snapshot, jobs = self._prepare_candidate_context(
+                profile=profile,
+                jobs=jobs,
+                settings=settings,
+                session_factory=session_factory,
+            )
+
             batch_size = max(1, facade.max_jobs)
             for start in range(0, len(jobs), batch_size):
                 batch = jobs[start : start + batch_size]
@@ -122,6 +127,40 @@ class AiMatchJobManager:
             self._update(owner_id, run_id, status="failed", error=str(exc)[:240])
         finally:
             current_owner_id.reset(owner_token)
+
+    def _prepare_candidate_context(
+        self,
+        *,
+        profile: ProfilePayload,
+        jobs: list[dict[str, Any]],
+        settings: Settings,
+        session_factory: SessionFactory,
+    ) -> tuple[str, dict[str, Any], list[dict[str, Any]]]:
+        db = session_factory()
+        try:
+            snapshot = get_candidate_match_snapshot(
+                db,
+                profile=profile,
+                settings=settings,
+                allow_ai=True,
+                strict_ai=True,
+            )
+            hydrated_jobs = [
+                hydrate_job_data(
+                    db,
+                    job_id=str(job.get("id") or ""),
+                    job_data=job,
+                    profile_hash=snapshot.profile_input_hash,
+                )
+                for job in jobs
+            ]
+            db.commit()
+            return snapshot.profile_input_hash, snapshot.data, hydrated_jobs
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
 
     def _process_batch(
         self,

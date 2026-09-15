@@ -12,6 +12,7 @@ from app.core.database import Base, get_db
 from app.main import app
 from app.models.applications import StoredApplicationRecord
 from app.models.documents import DocumentRecord
+from app.models.generation_runs import ApplicationGenerationRunRecord
 from app.models.jobs import StoredJobRecord
 from app.models.resume import ResumeMasterRecord, ResumeMasterVersionRecord
 from app.services import ai_backend
@@ -119,6 +120,51 @@ def generation_payload() -> dict[str, object]:
         "formattingParameters": {"tailored_resume": {"maxPages": 2}},
         "userPreferences": "Keep it concise.",
     }
+
+
+@pytest.mark.parametrize("template_id", ["moderncv_banking", "ishchenko_classic"])
+def test_run_endpoint_persists_selected_resume_template(
+    generation_api: tuple[TestClient, sessionmaker[Session]],
+    template_id: str,
+) -> None:
+    client, sessions = generation_api
+    response = client.post(
+        "/applications/application-1/generation/runs",
+        json={
+            **generation_payload(),
+            "documentTypes": ["tailored_resume"],
+            "formattingParameters": {"tailored_resume": {"templateId": template_id}},
+            "idempotencyKey": "template-selection",
+        },
+    )
+
+    assert response.status_code == 202
+    payload = response.json()
+    assert payload["events"][0]["data"]["resumeTemplateId"] == template_id
+    with sessions() as db:
+        run = db.get(ApplicationGenerationRunRecord, payload["id"])
+        assert run is not None
+        assert run.input_snapshot["templates"][0]["templateId"] == template_id
+
+
+def test_run_endpoint_rejects_unknown_resume_template_without_creating_a_run(
+    generation_api: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, sessions = generation_api
+    response = client.post(
+        "/applications/application-1/generation/runs",
+        json={
+            **generation_payload(),
+            "documentTypes": ["tailored_resume"],
+            "formattingParameters": {"tailored_resume": {"templateId": "not-a-template"}},
+            "idempotencyKey": "template-selection",
+        },
+    )
+
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "resume_template_unsupported"
+    with sessions() as db:
+        assert db.scalar(select(func.count()).select_from(ApplicationGenerationRunRecord)) == 0
 
 
 def test_endpoint_uses_safe_stub_without_ai_documents_or_application_changes(
@@ -247,6 +293,7 @@ def test_versioned_run_endpoint_lists_and_restores_the_immutable_run(
         "applicationRevision": 1,
         "vacancyRevision": 1,
         "masterProfileVersion": 1,
+        "resumeTemplateId": "moderncv_banking",
     }
     assert foreign_history.status_code == 200
     assert foreign_history.json() == []

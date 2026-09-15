@@ -21,12 +21,32 @@ export type {
   SubmissionDocumentSelection,
 } from "@/shared/types/application";
 
+export const generationResumeTemplates = [
+  {
+    id: "moderncv_banking",
+    name: "ModernCV · Banking",
+    description: "A spacious layout with blue section headings and a centered header.",
+  },
+  {
+    id: "ishchenko_classic",
+    name: "Ishchenko · Classic",
+    description: "Times New Roman, a centered header, and bold section titles with thin black rules.",
+  },
+] as const;
+
+export function generationResumeTemplate(templateId: unknown) {
+  const id = typeof templateId === "string" ? templateId.trim() : "";
+  // Previously saved HTML template ids all used the Banking renderer.
+  return generationResumeTemplates.find((template) => template.id === id)
+    ?? generationResumeTemplates[0];
+}
+
 export const defaultDocumentPreparationSettings: DocumentPreparationSettings = {
   documentTypes: ["tailored_resume", "cover_letter"],
   language: "English",
   formatting: {
     pageSize: "A4",
-    resumeTemplateId: "classic_single",
+    resumeTemplateId: generationResumeTemplates[0].id,
     resumeMaxPages: 2,
     coverLetterTemplateId: "",
   },
@@ -196,10 +216,7 @@ export function normalizeDocumentPreparationSettings(
       pageSize: pageSizes.includes(formatting.pageSize as PreparationPageSize)
         ? (formatting.pageSize as PreparationPageSize)
         : defaultDocumentPreparationSettings.formatting.pageSize,
-      resumeTemplateId:
-        typeof formatting.resumeTemplateId === "string"
-          ? formatting.resumeTemplateId.trim().slice(0, 160)
-          : defaultDocumentPreparationSettings.formatting.resumeTemplateId,
+      resumeTemplateId: generationResumeTemplate(formatting.resumeTemplateId).id,
       resumeMaxPages: resumePageCounts.includes(
         formatting.resumeMaxPages as PreparationResumeMaxPages,
       )
@@ -235,7 +252,7 @@ export function generationRequestFromSettings(
   if (settings.documentTypes.includes("tailored_resume")) {
     formattingParameters.tailored_resume = {
       pageSize: settings.formatting.pageSize,
-      templateId: settings.formatting.resumeTemplateId,
+      templateId: generationResumeTemplate(settings.formatting.resumeTemplateId).id,
       maxPages: settings.formatting.resumeMaxPages,
     };
   }

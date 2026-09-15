@@ -10,7 +10,7 @@ from sqlalchemy.pool import StaticPool
 from test_generation_input import seed_complete_sources
 
 from app.core.database import Base
-from app.models.documents import DocumentRecord
+from app.models.documents import DocumentFileRecord, DocumentRecord
 from app.models.generation_runs import (
     GenerationRunArtifactRecord,
     GenerationRunCheckRecord,
@@ -24,7 +24,9 @@ from app.services.generation_grounding import (
     GenerationGroundingError,
     validate_grounded_bundle,
 )
+from app.services.generation_input import GenerationInputError
 from app.services.generation_latex import CompiledDocument, build_resume_tex
+from app.services.generation_resume_templates import resolve_generation_resume_template
 from app.services.generation_store import create_generation_run
 from app.services.generation_verification import PdfCheck, PdfVerificationReport, VerifiedPdf
 from app.services.generation_workflow import GenerationWorkflow, GenerationWorkflowError
@@ -284,6 +286,179 @@ def test_workflow_pauses_after_fit_then_uses_separate_author_and_reviewer_sessio
     }
     assert checks and all(check.artifact_sha256 for check in checks)
     assert run.result["documents"][0]["pdfUrl"].endswith("/pdf")
+
+
+@pytest.mark.parametrize("template_id", ["moderncv_banking", "ishchenko_classic"])
+@pytest.mark.parametrize("recovered", [False, True])
+def test_selected_resume_template_survives_draft_repair_recovery_and_import(
+    sessions: sessionmaker[Session],
+    template_id: str,
+    recovered: bool,
+) -> None:
+    _seed(sessions)
+    seen_templates: list[str] = []
+
+    def selected_renderer(bundle: DraftBundle, *, resume_template_id: str):
+        seen_templates.append(resume_template_id)
+        return _renderer(bundle)
+
+    visual_failure = {
+        "approved": False,
+        "summary": "Shorten the last paragraph to fit the page.",
+        "findings": [],
+    }
+    payloads = [visual_failure, _draft(), _visual_review()]
+    if not recovered:
+        payloads = [_fit(), _draft(), _review(), *payloads]
+    workflow = GenerationWorkflow(
+        settings=_settings(),
+        backend=FakeBackend(payloads),
+        renderer=selected_renderer,
+        verifier=_verifier,
+    )
+    with sessions() as db:
+        run = create_generation_run(
+            db,
+            application_id="application-1",
+            request=_start().model_copy(
+                update={"formatting_parameters": {"tailored_resume": {"templateId": template_id}}}
+            ),
+            settings=_settings(),
+        )
+        if recovered:
+            run.stage = "pdf_checks"
+            run.result = {"fit": _fit(), "draft": _draft(), "review": _review()}
+            db.commit()
+            workflow.resume_pdf_checks(db, run)
+        else:
+            workflow.evaluate_fit(db, run)
+            workflow.respond_to_fit(db, run, continue_generation=True)
+        assert run.status == "completed"
+        document_file = db.scalar(select(DocumentFileRecord))
+        assert document_file is not None
+        assert document_file.renderer_template_id == template_id
+        assert document_file.renderer_design_sha256 == (
+            resolve_generation_resume_template(template_id).content_sha256
+        )
+        pdf = db.scalar(
+            select(GenerationRunArtifactRecord).where(
+                GenerationRunArtifactRecord.run_id == run.id,
+                GenerationRunArtifactRecord.artifact_type == "resume_pdf",
+            )
+        )
+        assert pdf is not None and pdf.artifact_metadata["templateId"] == template_id
+    assert seen_templates == [template_id, template_id]
+
+
+@pytest.mark.parametrize(
+    ("legacy_id", "legacy_version"),
+    [("classic_single", "1.0.1"), ("b426540f-a1e2-4e8b-965e-10ab38b28b40", "2")],
+)
+def test_recovered_legacy_snapshot_keeps_input_and_records_actual_banking_artifact_metadata(
+    sessions: sessionmaker[Session],
+    legacy_id: str,
+    legacy_version: str,
+) -> None:
+    _seed(sessions)
+    workflow = GenerationWorkflow(
+        settings=_settings(),
+        backend=FakeBackend([_visual_review()]),
+        renderer=_renderer,
+        verifier=_verifier,
+    )
+    with sessions() as db:
+        run = create_generation_run(
+            db,
+            application_id="application-1",
+            request=_start(),
+            settings=_settings(),
+        )
+        legacy = {
+            **run.input_snapshot["templates"][0],
+            "templateId": legacy_id,
+            "templateVersion": legacy_version,
+            "contentSha256": "f" * 64,
+        }
+        run.input_snapshot = {**run.input_snapshot, "templates": [legacy]}
+        run.stage = "pdf_checks"
+        run.result = {"fit": _fit(), "draft": _draft(), "review": _review()}
+        db.commit()
+        workflow.resume_pdf_checks(db, run)
+
+        assert run.status == "completed"
+        assert run.input_snapshot["templates"] == [legacy]
+        document_file = db.scalar(select(DocumentFileRecord))
+        assert document_file is not None
+        assert document_file.renderer_template_id == "moderncv_banking"
+        assert document_file.renderer_design_sha256 != legacy["contentSha256"]
+
+
+def test_recovery_rejects_changed_template_before_rendering_or_publication(
+    sessions: sessionmaker[Session],
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path,
+) -> None:
+    _seed(sessions)
+    from app.services import generation_resume_templates
+
+    workflow = GenerationWorkflow(
+        settings=_settings(),
+        backend=FakeBackend([]),
+        renderer=lambda _bundle: pytest.fail("Changed template must not be rendered"),
+        verifier=_verifier,
+    )
+    with sessions() as db:
+        run = create_generation_run(
+            db,
+            application_id="application-1",
+            request=_start(),
+            settings=_settings(),
+        )
+        run.stage = "pdf_checks"
+        run.result = {"fit": _fit(), "draft": _draft(), "review": _review()}
+        db.commit()
+        changed_source = tmp_path / "generation_latex.py"
+        changed_source.write_text("# A different deployed renderer\n")
+        monkeypatch.setattr(generation_resume_templates, "_RENDERER_SOURCE", changed_source)
+
+        with pytest.raises(GenerationInputError, match="Start a new generation run") as failure:
+            workflow.resume_pdf_checks(db, run)
+
+        assert failure.value.code == "resume_template_changed"
+        assert run.status == "failed"
+        assert db.scalar(select(func.count()).select_from(DocumentRecord)) == 0
+
+
+def test_renderer_type_error_is_not_retried_without_template_selection(
+    sessions: sessionmaker[Session],
+) -> None:
+    _seed(sessions)
+    calls: list[str] = []
+
+    def broken_renderer(_bundle: DraftBundle, *, resume_template_id: str):
+        calls.append(resume_template_id)
+        raise TypeError("An internal rendering error")
+
+    workflow = GenerationWorkflow(
+        settings=_settings(),
+        backend=FakeBackend([]),
+        renderer=broken_renderer,
+        verifier=_verifier,
+    )
+    with sessions() as db:
+        run = create_generation_run(
+            db,
+            application_id="application-1",
+            request=_start(),
+            settings=_settings(),
+        )
+        run.stage = "pdf_checks"
+        run.result = {"fit": _fit(), "draft": _draft(), "review": _review()}
+        db.commit()
+        with pytest.raises(TypeError, match="internal rendering error"):
+            workflow.resume_pdf_checks(db, run)
+        assert run.status == "failed"
+    assert calls == ["moderncv_banking"]
 
 
 def test_declining_fit_finishes_without_drafting(sessions: sessionmaker[Session]) -> None:

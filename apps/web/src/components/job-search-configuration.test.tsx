@@ -40,15 +40,15 @@ function configurationProps(
     selectedSourceConfigIds: {},
     selectedParserSearchConfigId: "entry-it",
     directCompanies: directCompanyCatalog.slice(0, 2),
-    newLinkedInProfession: "",
+    newProfession: "",
     onFormChange: vi.fn(),
     onReset: vi.fn(),
     onSelectSourceConfig: vi.fn(),
     onSaveSourceConfig: vi.fn(),
     onSelectedDirectCompaniesChange: vi.fn(),
-    onNewLinkedInProfessionChange: vi.fn(),
-    onAddLinkedInProfession: vi.fn(),
-    onRemoveLinkedInProfession: vi.fn(),
+    onNewProfessionChange: vi.fn(),
+    onAddProfession: vi.fn(),
+    onRemoveProfession: vi.fn(),
     ...overrides,
   };
 }
@@ -59,9 +59,9 @@ describe("JobSearchConfiguration", () => {
     const onReset = vi.fn();
     const onSelectSourceConfig = vi.fn();
     const onSaveSourceConfig = vi.fn();
-    const onNewLinkedInProfessionChange = vi.fn();
-    const onAddLinkedInProfession = vi.fn();
-    const onRemoveLinkedInProfession = vi.fn();
+    const onNewProfessionChange = vi.fn();
+    const onAddProfession = vi.fn();
+    const onRemoveProfession = vi.fn();
     const form = {
       ...defaultParserSearchForm,
       keywords: "Platform Engineer",
@@ -88,14 +88,14 @@ describe("JobSearchConfiguration", () => {
           selectedSourceConfigIds: {
             linkedin: "entry-it-linkedin",
           },
-          newLinkedInProfession: "Security Analyst",
+          newProfession: "Security Analyst",
           onFormChange,
           onReset,
           onSelectSourceConfig,
           onSaveSourceConfig,
-          onNewLinkedInProfessionChange,
-          onAddLinkedInProfession,
-          onRemoveLinkedInProfession,
+          onNewProfessionChange,
+          onAddProfession,
+          onRemoveProfession,
         })}
       />,
     );
@@ -104,7 +104,9 @@ describe("JobSearchConfiguration", () => {
       name: "LinkedIn query config",
     });
     expect(configSelect).toHaveValue("entry-it-linkedin");
-    expect(screen.getByRole("option", { name: "Entry IT" })).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Entry IT" }),
+    ).toBeInTheDocument();
     fireEvent.change(configSelect, { target: { value: "" } });
     expect(onSelectSourceConfig).toHaveBeenCalledWith("linkedin", "");
 
@@ -115,14 +117,9 @@ describe("JobSearchConfiguration", () => {
     );
     expect(onSaveSourceConfig).toHaveBeenCalledWith("linkedin");
 
-    fireEvent.change(
-      screen.getByRole("textbox", { name: /^Job title or keywords/ }),
-      { target: { value: "Product Engineer" } },
-    );
-    expect(onFormChange).toHaveBeenCalledWith(
-      "keywords",
-      "Product Engineer",
-    );
+    expect(
+      screen.queryByRole("textbox", { name: /^Job title or keywords/ }),
+    ).not.toBeInTheDocument();
 
     expect(
       screen.getByText(/1 supporting entry-level search term stays active/),
@@ -132,7 +129,7 @@ describe("JobSearchConfiguration", () => {
         name: "Remove profession Software Engineer",
       }),
     );
-    expect(onRemoveLinkedInProfession).toHaveBeenCalledWith(1);
+    expect(onRemoveProfession).toHaveBeenCalledWith(1);
 
     const professionInput = screen.getByRole("textbox", {
       name: "New LinkedIn profession",
@@ -140,19 +137,54 @@ describe("JobSearchConfiguration", () => {
     fireEvent.change(professionInput, {
       target: { value: "Data Engineer" },
     });
-    expect(onNewLinkedInProfessionChange).toHaveBeenCalledWith(
-      "Data Engineer",
-    );
+    expect(onNewProfessionChange).toHaveBeenCalledWith("Data Engineer");
     fireEvent.keyDown(professionInput, { key: "Enter" });
     fireEvent.click(
       screen.getByRole("button", { name: "Add LinkedIn profession" }),
     );
-    expect(onAddLinkedInProfession).toHaveBeenCalledTimes(2);
+    expect(onAddProfession).toHaveBeenCalledTimes(2);
 
-    fireEvent.click(
-      screen.getByRole("button", { name: "Reset to defaults" }),
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Reset to defaults" }));
     expect(onReset).toHaveBeenCalledOnce();
+  });
+
+  it("shows professions for non-LinkedIn parsers", () => {
+    const onNewProfessionChange = vi.fn();
+    const onAddProfession = vi.fn();
+    const onRemoveProfession = vi.fn();
+
+    render(
+      <JobSearchConfiguration
+        {...configurationProps({
+          activeSource: "indeed",
+          form: {
+            ...defaultParserSearchForm,
+            keywords: "Product Engineer OR Data Engineer",
+          },
+          newProfession: "Security Analyst",
+          onNewProfessionChange,
+          onAddProfession,
+          onRemoveProfession,
+        })}
+      />,
+    );
+
+    expect(screen.queryByText("Job title or keywords")).not.toBeInTheDocument();
+    expect(screen.getByText("Product Engineer")).toBeInTheDocument();
+    expect(screen.getByText("Data Engineer")).toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Remove profession Data Engineer" }),
+    );
+    expect(onRemoveProfession).toHaveBeenCalledWith(1);
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "New Indeed profession" }),
+      { target: { value: "QA Engineer" } },
+    );
+    expect(onNewProfessionChange).toHaveBeenCalledWith("QA Engineer");
+    fireEvent.click(
+      screen.getByRole("button", { name: "Add Indeed profession" }),
+    );
+    expect(onAddProfession).toHaveBeenCalledOnce();
   });
 
   it("delegates direct-company selection and direction changes", () => {
@@ -240,7 +272,9 @@ describe("JobSearchConfiguration", () => {
     expect(onFormChange).toHaveBeenCalledWith("experienceLevel", "Associate");
     fireEvent.change(country, { target: { value: "Any" } });
     expect(onFormChange).toHaveBeenCalledWith("country", "Any");
-    expect(screen.getByRole("combobox", { name: /^Date posted/ })).toBeEnabled();
+    expect(
+      screen.getByRole("combobox", { name: /^Date posted/ }),
+    ).toBeEnabled();
   });
 
   it.each(["linkedin", "indeed"] as const)(
@@ -251,13 +285,15 @@ describe("JobSearchConfiguration", () => {
 
       expect(screen.queryByRole("status")).not.toBeInTheDocument();
       expect(screen.getByRole("combobox", { name: /^Remote/ })).toBeDisabled();
-      rerender(<JobSearchConfiguration {...props} activeSource={activeSource} />);
+      rerender(
+        <JobSearchConfiguration {...props} activeSource={activeSource} />,
+      );
 
       expect(screen.getByRole("combobox", { name: /^Remote/ })).toBeEnabled();
       expect(screen.getByRole("combobox", { name: /^Job type/ })).toBeEnabled();
       expect(screen.getByRole("option", { name: "Germany" })).toBeEnabled();
       expect(
-        screen.queryByText(/jobs.ch searches by keywords and location/),
+        screen.queryByText(/jobs.ch searches by profession and location/),
       ).not.toBeInTheDocument();
       expect(
         screen.getByText("Leave empty to search worldwide"),

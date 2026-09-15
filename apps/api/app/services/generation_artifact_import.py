@@ -19,7 +19,11 @@ from app.models.generation_runs import (
 )
 from app.models.generation_workflow import DraftBundle
 from app.services.generation_latex import CompiledDocument, safe_document_stem
-from app.services.generation_snapshot import GenerationRunSnapshot, GenerationTemplateSnapshot
+from app.services.generation_snapshot import (
+    GenerationRunSnapshot,
+    GenerationTemplateSnapshot,
+    resolve_run_resume_template,
+)
 from app.services.generation_store import persist_run_artifact
 
 
@@ -36,6 +40,8 @@ def import_compiled_generation_documents(
     company = str(vacancy.get("company") or "")
     stem = safe_document_stem(f"{company}-{role}")
     templates = {item.document_type: item for item in snapshot.templates}
+    if "tailored_resume" in snapshot.request.document_types:
+        templates["tailored_resume"] = resolve_run_resume_template(snapshot)
     documents: list[DocumentRecord] = []
     for rendered in compiled:
         structured = (

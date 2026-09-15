@@ -8,10 +8,15 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Literal
+from urllib.parse import urlparse
 
 from app.models.generation_workflow import CoverLetterDraft, DraftBundle
 from app.models.resume import FinalResume, ResumeBasics
 from app.services.generation_resources import RESOURCE_ROOT
+from app.services.generation_resume_templates import (
+    DEFAULT_GENERATION_RESUME_TEMPLATE_ID,
+    resolve_generation_resume_template,
+)
 
 LatexEngine = Literal["lualatex", "xelatex"]
 LatexRunner = Callable[..., subprocess.CompletedProcess[str]]
@@ -35,6 +40,7 @@ class CompiledDocument:
 def render_generation_bundle(
     bundle: DraftBundle,
     *,
+    resume_template_id: str = DEFAULT_GENERATION_RESUME_TEMPLATE_ID,
     runner: LatexRunner = subprocess.run,
 ) -> tuple[CompiledDocument, ...]:
     rendered: list[CompiledDocument] = []
@@ -44,7 +50,7 @@ def render_generation_bundle(
                 document_type="tailored_resume",
                 engine="lualatex",
                 file_name="cv.pdf",
-                tex_source=build_resume_tex(bundle.resume),
+                tex_source=build_resume_tex(bundle.resume, template_id=resume_template_id),
                 runner=runner,
             )
         )
@@ -128,7 +134,18 @@ def compile_latex_document(
         )
 
 
-def build_resume_tex(resume: FinalResume) -> str:
+def build_resume_tex(
+    resume: FinalResume,
+    *,
+    template_id: str = DEFAULT_GENERATION_RESUME_TEMPLATE_ID,
+) -> str:
+    template = resolve_generation_resume_template(template_id)
+    if template.id == "ishchenko_classic":
+        return _build_ishchenko_resume_tex(resume)
+    return _build_moderncv_resume_tex(resume)
+
+
+def _build_moderncv_resume_tex(resume: FinalResume) -> str:
     first_name, last_name = _split_name(resume.basics.full_name)
     lines = [
         r"\documentclass[11pt,a4paper,sans]{moderncv}",
@@ -202,6 +219,187 @@ def build_resume_tex(resume: FinalResume) -> str:
                 _append_bullet_section(lines, extra.title, [item.text for item in extra.items])
     lines.append(r"\end{document}")
     return "\n".join(lines) + "\n"
+
+
+def _build_ishchenko_resume_tex(resume: FinalResume) -> str:
+    """Typeset the supplied DOCX's serif layout with structured resume content."""
+    lines = [
+        r"\documentclass[10pt,a4paper]{article}",
+        r"\usepackage[top=20mm,right=20mm,bottom=25mm,left=25mm]{geometry}",
+        r"\usepackage{fontspec}",
+        (
+            r"\IfFontExistsTF{Times New Roman}{\setmainfont{Times New Roman}}"
+            r"{\setmainfont{Liberation Serif}}"
+        ),
+        r"\usepackage{enumitem,tabularx,needspace,xurl}",
+        r"\usepackage[hidelinks,unicode]{hyperref}",
+        r"\urlstyle{same}",
+        r"\pagestyle{empty}",
+        r"\setlength{\parindent}{0pt}",
+        r"\setlength{\parskip}{0pt}",
+        r"\setlength{\emergencystretch}{3em}",
+        r"\setlength{\tabcolsep}{0pt}",
+        (
+            r"\setlist[itemize]{leftmargin=12.6mm,labelsep=6mm,rightmargin=0pt,"
+            r"topsep=1pt,itemsep=0pt,parsep=0pt,partopsep=0pt}"
+        ),
+        (
+            r"\newcommand{\cvsection}[1]{\par\addvspace{11pt}\Needspace{5\baselineskip}"
+            r"{\fontsize{13}{15}\selectfont\bfseries #1\par}\nobreak"
+            r"\vspace{1pt}\hrule height 0.5pt\nobreak\vspace{2pt}}"
+        ),
+        (
+            r"\newcommand{\cvrow}[2]{\noindent\begin{tabularx}{\linewidth}"
+            r"{@{}>{\raggedright\arraybackslash}X@{\hspace{6mm}}"
+            r">{\raggedleft\arraybackslash}p{0.27\linewidth}@{}}"
+            r"#1 & #2\end{tabularx}\par\nobreak}"
+        ),
+        r"\begin{document}",
+        r"\raggedright",
+        r"\fontsize{10}{12}\selectfont",
+        r"{\centering",
+        (
+            rf"{{\fontsize{{14}}{{16}}\selectfont\bfseries "
+            rf"{latex_escape(resume.basics.full_name)}\par}}"
+        ),
+    ]
+    if resume.basics.headline:
+        lines.append(
+            rf"{{\fontsize{{12}}{{14}}\selectfont "
+            rf"{latex_escape(resume.basics.headline)}\par}}"
+        )
+    location = [resume.basics.location, resume.basics.work_authorization]
+    if any(location):
+        text = r" \textbar{} ".join(latex_escape(value) for value in location if value)
+        lines.append(rf"{{\fontsize{{9}}{{11}}\selectfont {text}\par}}")
+    contacts = [
+        latex_escape(value) for value in (resume.basics.email, resume.basics.phone) if value
+    ]
+    for label, value in (
+        ("LinkedIn", resume.basics.linkedin),
+        ("GitHub", resume.basics.github),
+        ("Portfolio", resume.basics.portfolio),
+    ):
+        if value:
+            contacts.append(_resume_link(value, label))
+    if contacts:
+        text = r" \textbar{} \allowbreak ".join(contacts)
+        lines.append(rf"{{\fontsize{{9}}{{11}}\selectfont {text}\par}}")
+    lines.extend([r"}", r"\vspace{12pt}"])
+
+    for section in resume.section_order:
+        if section == "summary" and resume.summary is not None:
+            lines.append(latex_escape(resume.summary.text) + r"\par")
+        elif section == "experience" and resume.experiences:
+            lines.append(r"\cvsection{Experience}")
+            for index, item in enumerate(resume.experiences):
+                if index:
+                    lines.append(r"\addvspace{10pt}")
+                lines.extend(
+                    [
+                        r"\Needspace{5\baselineskip}",
+                        (
+                            rf"\cvrow{{\textbf{{{latex_escape(item.title)}}}}}"
+                            rf"{{{latex_escape(item.period)}}}"
+                        ),
+                        (
+                            rf"\cvrow{{\textit{{{latex_escape(item.company)}}}}}"
+                            rf"{{\textit{{{latex_escape(item.location)}}}}}"
+                        ),
+                    ]
+                )
+                _append_classic_bullets(lines, [bullet.text for bullet in item.bullets])
+        elif section == "education" and resume.education:
+            lines.append(r"\cvsection{Education}")
+            for index, item in enumerate(resume.education):
+                if index:
+                    lines.append(r"\addvspace{8pt}")
+                credential = " in ".join(
+                    value for value in (item.credential, item.field_of_study) if value
+                )
+                period = " – ".join(value for value in (item.start_date, item.end_date) if value)
+                lines.extend(
+                    [
+                        r"\Needspace{4\baselineskip}",
+                        (
+                            rf"\cvrow{{\textbf{{{latex_escape(credential)}}}}}"
+                            rf"{{{latex_escape(period)}}}"
+                        ),
+                        (
+                            rf"\cvrow{{\textit{{{latex_escape(item.institution)}}}}}"
+                            rf"{{\textit{{{latex_escape(item.location)}}}}}"
+                        ),
+                    ]
+                )
+                _append_classic_bullets(lines, [detail.text for detail in item.details])
+        elif section == "languages" and resume.languages:
+            lines.append(r"\cvsection{Languages}")
+            lines.append(
+                r" \hfill\allowbreak ".join(
+                    rf"\textbf{{{latex_escape(item.name)}:}} {latex_escape(item.proficiency)}"
+                    for item in resume.languages
+                )
+                + r"\par"
+            )
+        elif section == "skills" and resume.skills:
+            lines.append(r"\cvsection{Skills}")
+            categories: dict[str, list[str]] = {}
+            for item in resume.skills:
+                categories.setdefault(item.category, []).append(item.name)
+            for category, names in categories.items():
+                label = rf"\textbf{{{latex_escape(category)}:}} " if category else ""
+                lines.append(label + latex_escape(", ".join(names)) + r"\par")
+        elif section == "projects" and resume.projects:
+            lines.append(r"\cvsection{Projects}")
+            for index, item in enumerate(resume.projects):
+                if index:
+                    lines.append(r"\addvspace{8pt}")
+                lines.extend(
+                    [
+                        r"\Needspace{4\baselineskip}",
+                        (
+                            rf"\cvrow{{\textbf{{{latex_escape(item.name)}}}}}"
+                            rf"{{{latex_escape(item.role)}}}"
+                        ),
+                    ]
+                )
+                if item.url:
+                    lines.append(_resume_link(item.url, item.url) + r"\par\nobreak")
+                _append_classic_bullets(lines, [bullet.text for bullet in item.bullets])
+        elif section == "certifications" and resume.certifications:
+            lines.append(r"\cvsection{Certifications}")
+            for item in resume.certifications:
+                lines.append(
+                    rf"\cvrow{{\textbf{{{latex_escape(item.name)}}}, "
+                    rf"{latex_escape(item.issuer)}}}{{{latex_escape(item.issued_on)}}}"
+                )
+        elif section == "additional" and resume.additional_sections:
+            for extra in resume.additional_sections:
+                lines.append(rf"\cvsection{{{latex_escape(extra.title)}}}")
+                _append_classic_bullets(lines, [item.text for item in extra.items])
+    lines.append(r"\end{document}")
+    return "\n".join(lines) + "\n"
+
+
+def _append_classic_bullets(lines: list[str], items: list[str]) -> None:
+    if items:
+        lines.append(r"\begin{itemize}")
+        lines.extend(rf"\item {latex_escape(text)}" for text in items)
+        lines.append(r"\end{itemize}")
+
+
+def _resume_link(value: str, label: str) -> str:
+    """Only web links become clickable; all values still pass through TeX escaping."""
+    try:
+        parsed = urlparse(value)
+        is_web_link = parsed.scheme in {"https", "http"} and bool(parsed.netloc)
+    except ValueError:
+        is_web_link = False
+    if not is_web_link:
+        return latex_escape(value)
+    if label == value:
+        return rf"\href{{{latex_escape(value)}}}{{\nolinkurl{{{latex_escape(label)}}}}}"
+    return rf"\href{{{latex_escape(value)}}}{{\underline{{{latex_escape(label)}}}}}"
 
 
 def build_cover_letter_tex(letter: CoverLetterDraft) -> str:

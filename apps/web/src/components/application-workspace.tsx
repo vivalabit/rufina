@@ -38,6 +38,8 @@ import {
 } from "@/features/applications/api/generation-runs-client";
 import {
   generationRequestFromSettings,
+  generationResumeTemplate,
+  generationResumeTemplates,
   normalizeDocumentPreparationSettings,
   type DocumentPreparationSettings,
   type PreparationDocumentType,
@@ -133,6 +135,12 @@ function sourceVersions(run: GenerationRun | null) {
   };
 }
 
+function runResumeTemplate(run: GenerationRun) {
+  const event = run.events.find((item) => item.kind === "run.created");
+  const artifact = latestFinalArtifact(run, "tailored_resume");
+  return generationResumeTemplate(event?.data.resumeTemplateId ?? artifact?.metadata.templateId);
+}
+
 function latestFinalArtifact(
   run: GenerationRun,
   type: "tailored_resume" | "cover_letter",
@@ -205,6 +213,7 @@ export function ApplicationWorkspace({
   const [error, setError] = useState("");
   const [activeTab, setActiveTab] = useState<WorkspaceTab>("tailored_resume");
   const [revisionRequest, setRevisionRequest] = useState("");
+  const [isPreparingRevision, setIsPreparingRevision] = useState(false);
   const terminalRefreshRef = useRef("");
 
   const displayedRun = useMemo(
@@ -231,11 +240,15 @@ export function ApplicationWorkspace({
   }, [applicationId]);
 
   useEffect(() => {
-    const controller = new AbortController();
     setSettings(normalizeDocumentPreparationSettings(application?.documentPreparation));
+  }, [application?.documentPreparation, applicationId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
     setRun(null);
     setRuns([]);
     setSelectedRunId("");
+    setIsPreparingRevision(false);
     setError("");
     setLoadState("loading");
     if (!applicationId) return () => controller.abort();
@@ -251,7 +264,7 @@ export function ApplicationWorkspace({
         setLoadState("error");
       });
     return () => controller.abort();
-  }, [application?.documentPreparation, applicationId, refreshHistory, refreshRun]);
+  }, [applicationId, refreshHistory, refreshRun]);
 
   useEffect(() => {
     if (!run || !["queued", "running", "awaiting_approval"].includes(run.status)) return;
@@ -332,6 +345,7 @@ export function ApplicationWorkspace({
       setRun(started);
       setSelectedRunId("");
       setRevisionRequest("");
+      setIsPreparingRevision(false);
       await refreshHistory();
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "The document run could not be started.");
@@ -385,7 +399,7 @@ export function ApplicationWorkspace({
   }
 
   const jobUrl = normalizeJobsChJobUrl(application.job.applyUrl || application.job.sourceUrl || "");
-  const versions = sourceVersions(run);
+  const versions = sourceVersions(displayedRun);
   const isActive = Boolean(run && ["queued", "running", "awaiting_approval"].includes(run.status));
   const isReady = displayedRun?.status === "completed";
   const passedChecks = displayedRun?.checks.filter((check) => check.status === "passed") ?? [];
@@ -394,6 +408,11 @@ export function ApplicationWorkspace({
   const fit = displayedRun?.result.fit;
   const visualReview = displayedRun?.result.visualReview;
   const completedRuns = runs.filter((candidate) => candidate.status === "completed");
+  const hasPreviousDocuments = Boolean(
+    isReady
+    || application.documents.length
+    || settings.latestGeneration?.documentResults.some((result) => result.state === "completed"),
+  );
 
   return (
     <section className="application-workspace job-scroll h-full overflow-y-auto">
@@ -430,6 +449,18 @@ export function ApplicationWorkspace({
               {isReady && displayedRun?.result.documents?.length ? (
                 <Button type="button" onClick={() => downloadAll(displayedRun.result.documents ?? [])} className="rounded-xl px-5 text-xs">
                   <Download className="h-4 w-4" /> Download documents
+                </Button>
+              ) : null}
+              {(isReady || (!run && hasPreviousDocuments)) && !isPreparingRevision ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  disabled={loadState !== "ready" || isActive || Boolean(action)}
+                  onClick={() => setIsPreparingRevision(true)}
+                  className="rounded-xl border-accent px-5 text-xs"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                  {displayedRun && !displayedRun.documentTypes.includes("tailored_resume") ? "Regenerate documents" : "Regenerate CV"}
                 </Button>
               ) : null}
               {jobUrl ? (
@@ -469,7 +500,7 @@ export function ApplicationWorkspace({
         <div className="mt-5 grid items-start gap-4 lg:grid-cols-[280px_minmax(0,1fr)] 2xl:grid-cols-[300px_minmax(560px,1fr)_310px]">
           <ApplicationBrief
             application={application}
-            run={run}
+            run={displayedRun}
             masterResume={masterResume}
             settings={settings}
             versions={versions}
@@ -480,8 +511,16 @@ export function ApplicationWorkspace({
             {loadState === "error" && !run ? (
               <WorkspaceFailure message={error} onRetry={() => window.location.reload()} />
             ) : null}
-            {loadState !== "loading" && !run ? (
-              <PreparationPanel settings={settings} masterResume={masterResume} onChange={updateSettings} onStart={() => void startRun()} action={action} />
+            {loadState === "ready" && (!run || (isPreparingRevision && !isActive)) ? (
+              <PreparationPanel
+                settings={settings}
+                masterResume={masterResume}
+                onChange={updateSettings}
+                onStart={() => void startRun()}
+                action={action}
+                isRevision={hasPreviousDocuments}
+                onCancel={run ? () => setIsPreparingRevision(false) : undefined}
+              />
             ) : null}
             {run?.status === "awaiting_approval" ? (
               <FitApproval run={run} onAnswer={answer} action={action} />
@@ -495,7 +534,12 @@ export function ApplicationWorkspace({
             {run?.status === "cancelled" ? (
               <WorkspaceFailure cancelled message="This run was stopped. Your source documents were not changed." onRetry={() => void startRun()} />
             ) : null}
-            {isReady && displayedRun ? (
+            {run && ["failed", "cancelled"].includes(run.status) && settings.documentTypes.includes("tailored_resume") ? (
+              <div className="workspace-card mt-4 p-5">
+                <ResumeTemplateSelector settings={settings} onChange={updateSettings} disabled={Boolean(action)} legend="CV template for the next run" />
+              </div>
+            ) : null}
+            {isReady && displayedRun && !isPreparingRevision ? (
               <DocumentReview
                 run={displayedRun}
                 completedRuns={completedRuns}
@@ -505,7 +549,9 @@ export function ApplicationWorkspace({
                 onSelectRun={setSelectedRunId}
                 onTabChange={setActiveTab}
                 onRevisionRequest={setRevisionRequest}
-                onRevise={() => void startRun(revisionRequest)}
+                onRevise={() => void startRun(revisionRequest.trim() || settings.userPreferences)}
+                settings={settings}
+                onSettingsChange={updateSettings}
                 action={action}
               />
             ) : null}
@@ -588,7 +634,7 @@ function ApplicationBrief({
       <dl className="mt-4 grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-[11px]">
         <dt className="text-muted">CV language</dt><dd className="text-right font-semibold">{masterResume?.masterResume.language || settings.language}</dd>
         <dt className="text-muted">Letter language</dt><dd className="text-right font-semibold">{settings.language}</dd>
-        <dt className="text-muted">CV template</dt><dd className="truncate text-right font-semibold">ModernCV · Banking</dd>
+        <dt className="text-muted">CV template</dt><dd className="text-right font-semibold">{(run ? runResumeTemplate(run) : generationResumeTemplate(settings.formatting.resumeTemplateId)).name}</dd>
         <dt className="text-muted">Letter template</dt><dd className="truncate text-right font-semibold">Classic letter</dd>
         {run ? <><dt className="text-muted">Executor</dt><dd className="truncate text-right font-semibold">{backendLabel(run.backend)}</dd></> : null}
       </dl>
@@ -623,19 +669,53 @@ function LoadingWorkspace() {
   return <div className="workspace-card grid min-h-[520px] place-items-center"><div className="text-center"><LoaderCircle className="mx-auto h-7 w-7 animate-spin text-accent" /><p className="mt-3 text-xs font-semibold text-muted">Restoring application workspace…</p></div></div>;
 }
 
-function PreparationPanel({ settings, masterResume, onChange, onStart, action }: {
+function ResumeTemplateSelector({ settings, onChange, disabled = false, legend = "CV template" }: {
+  settings: DocumentPreparationSettings;
+  onChange: (update: (current: DocumentPreparationSettings) => DocumentPreparationSettings) => void;
+  disabled?: boolean;
+  legend?: string;
+}) {
+  return (
+    <fieldset disabled={disabled}>
+      <legend className="text-xs font-black">{legend}</legend>
+      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+        {generationResumeTemplates.map((template) => {
+          const selected = settings.formatting.resumeTemplateId === template.id;
+          return (
+            <label key={template.id} className={cn("flex cursor-pointer items-start gap-3 rounded-xl border p-4 transition has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-accent has-[:focus-visible]:ring-offset-2", selected ? "border-accent bg-[#fff7ef]" : "border-border bg-white", disabled && "cursor-default opacity-60")}>
+              <input
+                type="radio"
+                name="generation-resume-template"
+                aria-label={template.name}
+                value={template.id}
+                checked={selected}
+                onChange={() => onChange((current) => ({ ...current, formatting: { ...current.formatting, resumeTemplateId: template.id } }))}
+                className="mt-0.5 h-4 w-4 shrink-0 accent-accent"
+              />
+              <span><span className="block text-xs font-bold">{template.name}</span><span className="mt-1 block text-[10px] leading-4 text-muted">{template.description}</span></span>
+            </label>
+          );
+        })}
+      </div>
+    </fieldset>
+  );
+}
+
+function PreparationPanel({ settings, masterResume, onChange, onStart, action, isRevision = false, onCancel }: {
   settings: DocumentPreparationSettings;
   masterResume: MasterResumeSummary | null;
   onChange: (update: (current: DocumentPreparationSettings) => DocumentPreparationSettings) => void;
   onStart: () => void;
   action: string;
+  isRevision?: boolean;
+  onCancel?: () => void;
 }) {
   return (
     <section className="workspace-card overflow-hidden">
       <div className="border-b border-border px-5 py-4 sm:px-6">
         <p className="text-[10px] font-black uppercase tracking-[0.14em] text-accent">Sources</p>
-        <h2 className="mt-1 text-lg font-black">Prepare your application pack</h2>
-        <p className="mt-1 text-xs leading-5 text-muted">Rufina snapshots the confirmed profile and full vacancy before the AI run starts.</p>
+        <h2 className="mt-1 text-lg font-black">{isRevision ? "Create a new version" : "Prepare your application pack"}</h2>
+        <p className="mt-1 text-xs leading-5 text-muted">{isRevision ? "Choose a template and update any preferences, then generate a new version. Your previous documents stay available." : "Rufina snapshots the confirmed profile and full vacancy before the AI run starts."}</p>
       </div>
       <div className="grid gap-5 p-5 sm:p-6">
         {!masterResume ? (
@@ -669,18 +749,21 @@ function PreparationPanel({ settings, masterResume, onChange, onStart, action }:
             </select>
           </label>
         </div>
-        <div className="grid gap-3 rounded-xl border border-border bg-[#fffaf5] p-4 sm:grid-cols-2">
-          <div><p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted">CV template</p><p className="mt-1 text-xs font-bold">ModernCV · Banking</p><p className="mt-1 text-[10px] text-muted">Original upstream LaTeX template</p></div>
-          <div><p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted">Cover letter template</p><p className="mt-1 text-xs font-bold">Classic letter</p><p className="mt-1 text-[10px] text-muted">Original upstream LaTeX template</p></div>
-        </div>
+        {settings.documentTypes.includes("tailored_resume") ? <ResumeTemplateSelector settings={settings} onChange={onChange} disabled={Boolean(action)} /> : null}
+        {settings.documentTypes.includes("cover_letter") ? (
+          <div className="rounded-xl border border-border bg-[#fffaf5] p-4"><p className="text-[10px] font-black uppercase tracking-[0.12em] text-muted">Cover letter template</p><p className="mt-1 text-xs font-bold">Classic letter</p></div>
+        ) : null}
         <label className="text-xs font-bold">Your preferences
           <textarea aria-label="Your preferences" value={settings.userPreferences} maxLength={10_000} onChange={(event) => onChange((current) => ({ ...current, userPreferences: event.target.value }))} placeholder="For example: emphasize design systems and keep the tone direct." className="mt-2 min-h-24 w-full resize-y rounded-xl border px-3 py-3 text-xs leading-5" />
         </label>
         <div className="flex flex-col gap-3 border-t border-border pt-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="max-w-xl text-[10px] leading-4 text-muted">The first run evaluates fit and pauses for your approval before writing. Generation never marks the application as submitted.</p>
-          <Button type="button" onClick={onStart} disabled={!masterResume || !settings.documentTypes.length || Boolean(action)} className="rounded-xl px-5 text-xs">
-            {action === "start" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />} Start application
-          </Button>
+          <p className="max-w-xl text-[10px] leading-4 text-muted">{isRevision ? "The new version uses your confirmed profile and repeats the fit, content, and PDF checks." : "The first run evaluates fit and pauses for your approval before writing. Generation never marks the application as submitted."}</p>
+          <div className="flex shrink-0 gap-2">
+            {onCancel ? <Button type="button" variant="ghost" onClick={onCancel} disabled={Boolean(action)} className="rounded-xl text-xs">Back to documents</Button> : null}
+            <Button type="button" onClick={onStart} disabled={!masterResume || !settings.documentTypes.length || Boolean(action)} className="rounded-xl px-5 text-xs">
+              {action === "start" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : isRevision ? <RefreshCw className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />} {isRevision ? "Generate new version" : "Start application"}
+            </Button>
+          </div>
         </div>
       </div>
     </section>
@@ -727,7 +810,7 @@ function WorkspaceFailure({ message, onRetry, cancelled = false }: { message: st
   return <section className="workspace-card grid min-h-[520px] place-items-center p-6 text-center"><div className="max-w-md"><span className={cn("mx-auto grid h-14 w-14 place-items-center rounded-2xl", cancelled ? "bg-[#fff3e8] text-accent" : "bg-red-50 text-red-700")}>{cancelled ? <Circle className="h-6 w-6" /> : <AlertTriangle className="h-6 w-6" />}</span><h2 className="mt-4 text-lg font-black">{cancelled ? "Run stopped" : "Generation needs attention"}</h2><p className="mt-2 text-xs leading-5 text-muted">{message}</p><Button type="button" onClick={onRetry} className="mt-5 rounded-xl text-xs"><RefreshCw className="h-4 w-4" /> Start a new run</Button></div></section>;
 }
 
-function DocumentReview({ run, completedRuns, selectedRunId, activeTab, revisionRequest, onSelectRun, onTabChange, onRevisionRequest, onRevise, action }: {
+function DocumentReview({ run, completedRuns, selectedRunId, activeTab, revisionRequest, onSelectRun, onTabChange, onRevisionRequest, onRevise, settings, onSettingsChange, action }: {
   run: GenerationRun;
   completedRuns: GenerationRun[];
   selectedRunId: string;
@@ -737,10 +820,14 @@ function DocumentReview({ run, completedRuns, selectedRunId, activeTab, revision
   onTabChange: (tab: WorkspaceTab) => void;
   onRevisionRequest: (value: string) => void;
   onRevise: () => void;
+  settings: DocumentPreparationSettings;
+  onSettingsChange: (update: (current: DocumentPreparationSettings) => DocumentPreparationSettings) => void;
   action: string;
 }) {
   const document = run.result.documents?.find((item) => item.type === activeTab);
   const artifact = activeTab === "changes" ? null : latestFinalArtifact(run, activeTab);
+  const templateChanged = settings.documentTypes.includes("tailored_resume")
+    && settings.formatting.resumeTemplateId !== runResumeTemplate(run).id;
   return (
     <section className="workspace-card overflow-hidden">
       <div className="flex flex-col gap-3 border-b border-border px-4 sm:flex-row sm:items-center sm:justify-between">
@@ -768,9 +855,10 @@ function DocumentReview({ run, completedRuns, selectedRunId, activeTab, revision
         <div className="grid min-h-[520px] place-items-center text-xs text-muted">This document was not included in the run.</div>
       )}
       <div className="border-t border-border p-4">
-        <div className="flex flex-col gap-2 sm:flex-row">
+        {settings.documentTypes.includes("tailored_resume") ? <ResumeTemplateSelector settings={settings} onChange={onSettingsChange} disabled={Boolean(action)} legend="CV template for the next revision" /> : null}
+        <div className="mt-4 flex flex-col gap-2 sm:flex-row">
           <div className="relative flex-1"><MessageSquareText className="absolute left-3 top-3 h-4 w-4 text-muted" /><textarea aria-label="Revision request" value={revisionRequest} maxLength={10_000} onChange={(event) => onRevisionRequest(event.target.value)} placeholder="Request a factual change or a different emphasis…" className="min-h-11 w-full resize-y rounded-xl border py-2.5 pl-10 pr-3 text-xs leading-5" /></div>
-          <Button type="button" variant="outline" onClick={onRevise} disabled={!revisionRequest.trim() || Boolean(action)} className="h-11 rounded-xl text-xs">{action === "start" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Create revision</Button>
+          <Button type="button" variant="outline" onClick={onRevise} disabled={(!revisionRequest.trim() && !templateChanged) || Boolean(action)} className="h-11 rounded-xl text-xs">{action === "start" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />} Create revision</Button>
         </div>
         <p className="mt-2 text-[9px] leading-4 text-muted">A revision starts a new immutable run and repeats author review, PDF compilation, and all checks.</p>
       </div>

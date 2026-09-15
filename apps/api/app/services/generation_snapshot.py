@@ -6,6 +6,7 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from typing import Any
+from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy.orm import Session
@@ -15,12 +16,15 @@ from app.models.generation import GenerationRequest, GenerationStartRequest
 from app.services.cover_letter_template_registry import (
     ensure_bundled_cover_letter_template,
 )
-from app.services.generation_input import build_generation_input
+from app.services.generation_input import GenerationInputError, build_generation_input
+from app.services.generation_resume_templates import (
+    LEGACY_GENERATION_RESUME_TEMPLATE_IDS,
+    resolve_generation_resume_template,
+)
 from app.services.generation_runtime import (
     GenerationExecutionSnapshot,
     snapshot_generation_execution,
 )
-from app.services.resume_pdf_renderer import resolve_resume_template
 
 
 class GenerationTemplateSnapshot(BaseModel):
@@ -86,17 +90,13 @@ def resolve_template_snapshots(
     if "tailored_resume" in request.document_types:
         parameters = request.formatting_parameters.get("tailored_resume")
         values = parameters if isinstance(parameters, dict) else {}
-        template_id = str(values.get("templateId") or "classic_single")
-        resolved = resolve_resume_template(db, template_id)
-        snapshots.append(
-            GenerationTemplateSnapshot(
-                document_type="tailored_resume",
-                template_id=resolved.id,
-                template_version=resolved.version,
-                content_sha256=resolved.design_sha256,
-                renderer="lualatex",
+        template_id = values.get("templateId")
+        if template_id is not None and not isinstance(template_id, str):
+            raise GenerationInputError(
+                "Resume template ID must be a string",
+                code="resume_template_unsupported",
             )
-        )
+        snapshots.append(_resume_template_snapshot(template_id))
     if "cover_letter" in request.document_types:
         parameters = request.formatting_parameters.get("cover_letter")
         values = parameters if isinstance(parameters, dict) else {}
@@ -118,6 +118,66 @@ def resolve_template_snapshots(
             )
         )
     return tuple(snapshots)
+
+
+def resolve_run_resume_template(snapshot: GenerationRunSnapshot) -> GenerationTemplateSnapshot:
+    """Resolve the pinned renderer, without modifying the immutable run input."""
+    pinned = next(
+        (item for item in snapshot.templates if item.document_type == "tailored_resume"),
+        None,
+    )
+    if pinned is None:
+        raise GenerationInputError(
+            "The generation snapshot has no resume template",
+            code="resume_template_missing",
+        )
+    if _is_legacy_resume_template_snapshot(pinned):
+        # Old snapshots pinned unrelated HTML designs. Keep their historical
+        # data unchanged, but new output metadata must identify the Banking
+        # renderer actually used when recovering the run.
+        return _resume_template_snapshot(None)
+    actual = _resume_template_snapshot(pinned.template_id)
+    if pinned != actual:
+        raise GenerationInputError(
+            "The selected resume template changed after this run started. "
+            "Start a new generation run to use the current template.",
+            code="resume_template_changed",
+        )
+    return pinned
+
+
+def _is_legacy_resume_template_snapshot(template: GenerationTemplateSnapshot) -> bool:
+    if template.renderer != "lualatex":
+        return False
+    if template.template_id in LEGACY_GENERATION_RESUME_TEMPLATE_IDS:
+        return True
+    # Before template selection, saved custom HTML designs had UUID IDs and
+    # positive integer revisions. Only accept that historical persisted shape;
+    # new run creation still rejects custom and unknown template IDs.
+    try:
+        identifier = UUID(template.template_id)
+    except ValueError:
+        return False
+    return (
+        str(identifier) == template.template_id
+        and template.template_version.isascii()
+        and template.template_version.isdecimal()
+        and int(template.template_version) > 0
+    )
+
+
+def _resume_template_snapshot(template_id: str | None) -> GenerationTemplateSnapshot:
+    try:
+        template = resolve_generation_resume_template(template_id)
+    except ValueError as exc:
+        raise GenerationInputError(str(exc), code="resume_template_unsupported") from exc
+    return GenerationTemplateSnapshot(
+        document_type="tailored_resume",
+        template_id=template.id,
+        template_version=template.version,
+        content_sha256=template.content_sha256,
+        renderer=template.renderer,
+    )
 
 
 def _snapshot_fingerprint(
@@ -144,5 +204,6 @@ __all__ = [
     "GenerationRunSnapshot",
     "GenerationTemplateSnapshot",
     "build_generation_run_snapshot",
+    "resolve_run_resume_template",
     "resolve_template_snapshots",
 ]

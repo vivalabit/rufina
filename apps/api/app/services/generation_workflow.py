@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import json
 from collections.abc import Callable
 from typing import Any
@@ -28,7 +29,8 @@ from app.services.generation_artifact_import import import_compiled_generation_d
 from app.services.generation_grounding import validate_grounded_bundle
 from app.services.generation_latex import CompiledDocument, render_generation_bundle
 from app.services.generation_resources import load_instruction
-from app.services.generation_snapshot import GenerationRunSnapshot
+from app.services.generation_resume_templates import DEFAULT_GENERATION_RESUME_TEMPLATE_ID
+from app.services.generation_snapshot import GenerationRunSnapshot, resolve_run_resume_template
 from app.services.generation_store import (
     GenerationStoreError,
     append_run_message,
@@ -52,12 +54,13 @@ class GenerationWorkflow:
         *,
         settings: Any,
         backend: AIBackend | None = None,
-        renderer: Callable[[DraftBundle], tuple[CompiledDocument, ...]] | None = None,
+        renderer: Callable[..., tuple[CompiledDocument, ...]] | None = None,
         verifier: Callable[..., VerifiedPdf] | None = None,
     ) -> None:
         self.settings = settings
         self.backend_override = backend
         self.renderer = renderer or render_generation_bundle
+        self._renderer_accepts_template = _accepts_template_selection(self.renderer)
         self.verifier = verifier or verify_compiled_document
 
     def evaluate_fit(
@@ -336,6 +339,11 @@ class GenerationWorkflow:
     ) -> DraftBundle:
         snapshot = _run_snapshot(run)
         fit = FitEvaluation.model_validate(run.result.get("fit"))
+        resume_template_id = (
+            resolve_run_resume_template(snapshot).template_id
+            if "tailored_resume" in snapshot.request.document_types
+            else DEFAULT_GENERATION_RESUME_TEMPLATE_ID
+        )
         transition_generation_run(
             db,
             run=run,
@@ -354,7 +362,17 @@ class GenerationWorkflow:
         )
         current_draft = draft
         for attempt in range(1, 4):
-            compiled = self.renderer(current_draft)
+            if self._renderer_accepts_template:
+                compiled = self.renderer(current_draft, resume_template_id=resume_template_id)
+            elif resume_template_id == DEFAULT_GENERATION_RESUME_TEMPLATE_ID:
+                # Existing integrations may inject a single-argument renderer
+                # for the original Banking template.
+                compiled = self.renderer(current_draft)
+            else:
+                raise GenerationWorkflowError(
+                    "The configured renderer does not support resume template selection",
+                    code="resume_template_unsupported",
+                )
             verified_documents: list[tuple[CompiledDocument, VerifiedPdf]] = []
             image_inputs: list[AIImageInput] = []
             image_index: list[dict[str, Any]] = []
@@ -635,6 +653,21 @@ class GenerationWorkflow:
             )
         except GenerationStoreError:
             db.rollback()
+
+
+def _accepts_template_selection(renderer: Callable[..., object]) -> bool:
+    try:
+        parameters = inspect.signature(renderer).parameters.values()
+    except (TypeError, ValueError):
+        return False
+    return any(
+        parameter.kind == inspect.Parameter.VAR_KEYWORD
+        or (
+            parameter.name == "resume_template_id"
+            and parameter.kind != inspect.Parameter.POSITIONAL_ONLY
+        )
+        for parameter in parameters
+    )
 
 
 def _brief_diagnostic(value: str, limit: int = 300) -> str:

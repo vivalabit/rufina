@@ -1827,10 +1827,11 @@ it("searches LinkedIn, Indeed, and jobs.ch together when all sources are selecte
     screen.getByText("These query fields belong only to Indeed."),
   ).toBeInTheDocument();
   fireEvent.change(
-    screen.getByPlaceholderText(
-      "e.g. Product Designer, UX Designer, Design System",
-    ),
+    screen.getByRole("textbox", { name: "New Indeed profession" }),
     { target: { value: "platform" } },
+  );
+  fireEvent.click(
+    screen.getByRole("button", { name: "Add Indeed profession" }),
   );
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
 
@@ -1957,6 +1958,76 @@ it("starts the requested 24-hour analysis immediately", async () => {
 
   await waitFor(() => expect(aiMatchAttempts).toBe(1));
   expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+});
+
+it("recovers AI match status when the start response is lost", async () => {
+  window.history.replaceState(null, "", "#jobs");
+  const recentJob = importedJobData({
+    id: "linkedin-recovered-match-job",
+    title: "Data Engineer",
+  });
+  let startAttempts = 0;
+  let statusChecks = 0;
+
+  const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
+    const requestUrl =
+      typeof input === "string"
+        ? input
+        : input instanceof URL
+          ? input.href
+          : input.url;
+    const url = new URL(requestUrl, "http://localhost");
+    const method = init?.method ?? "GET";
+
+    if (url.pathname === "/job-search/configs" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/jobs" && method === "GET")
+      return Response.json([{ id: recentJob.id, data: recentJob }]);
+    if (url.pathname === "/jobs/state" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/applications" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/applications/events" && method === "GET")
+      return Response.json([]);
+    if (url.pathname === "/profile" && method === "GET")
+      return Response.json({});
+    if (url.pathname === "/settings" && method === "GET")
+      return Response.json(configuredAppSettings);
+    if (url.pathname === "/jobs/ai-match/run" && method === "POST") {
+      startAttempts += 1;
+      throw new TypeError("The response connection was lost");
+    }
+    if (url.pathname === "/jobs/ai-match/status" && method === "GET") {
+      statusChecks += 1;
+      return Response.json({
+        runId: "recovered-match-run",
+        status: "completed",
+        total: 1,
+        processed: 1,
+        updatedJobs: [{ id: recentJob.id, data: recentJob }],
+        failedJobs: [],
+      });
+    }
+    throw new Error(`Unhandled request: ${method} ${url.pathname}`);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+
+  render(<HomePage />);
+
+  expect(await screen.findByText("1 jobs found")).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Match scores" }));
+  fireEvent.click(
+    within(screen.getByRole("menu", { name: "Bulk match scoring" })).getByRole(
+      "menuitem",
+      { name: /Vacancies added in the last 24 hours/ },
+    ),
+  );
+
+  await waitFor(() => expect(statusChecks).toBe(1));
+  expect(startAttempts).toBe(1);
+  expect(
+    screen.queryByText("API unavailable. Check that the backend is running and retry."),
+  ).not.toBeInTheDocument();
 });
 
 it("does not re-add a vacancy whose deleted id was synchronized with the server", async () => {
@@ -2409,11 +2480,7 @@ it("selects a separate query config inside each source's settings", async () => 
   expect(
     within(linkedInConfig).getByRole("option", { name: "Entry IT" }),
   ).toBeInTheDocument();
-  expect(
-    screen.getByPlaceholderText(
-      "e.g. Product Designer, UX Designer, Design System",
-    ),
-  ).toHaveValue("linkedin query");
+  expect(screen.getByText("linkedin query")).toBeInTheDocument();
   fireEvent.click(
     screen.getByRole("button", { name: "Include LinkedIn in search" }),
   );
@@ -2429,20 +2496,12 @@ it("selects a separate query config inside each source's settings", async () => 
   expect(
     within(indeedConfig).queryByRole("option", { name: "Entry IT" }),
   ).toBeNull();
-  expect(
-    screen.getByPlaceholderText(
-      "e.g. Product Designer, UX Designer, Design System",
-    ),
-  ).toHaveValue("");
+  expect(screen.queryByText("indeed query")).not.toBeInTheDocument();
   fireEvent.change(indeedConfig, {
     target: { value: "entry-it-indeed" },
   });
   expect(indeedConfig).toHaveValue("entry-it-indeed");
-  expect(
-    screen.getByPlaceholderText(
-      "e.g. Product Designer, UX Designer, Design System",
-    ),
-  ).toHaveValue("indeed query");
+  expect(screen.getByText("indeed query")).toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Configure jobs.ch" }));
   fireEvent.change(screen.getByLabelText("jobs.ch query config"), {
     target: { value: "entry-it-jobs-ch" },
@@ -2450,11 +2509,7 @@ it("selects a separate query config inside each source's settings", async () => 
   expect(screen.getByLabelText("jobs.ch query config")).toHaveValue(
     "entry-it-jobs-ch",
   );
-  expect(
-    screen.getByPlaceholderText(
-      "e.g. Product Designer, UX Designer, Design System",
-    ),
-  ).toHaveValue("jobs_ch query");
+  expect(screen.getByText("jobs_ch query")).toBeInTheDocument();
   fireEvent.change(screen.getByLabelText("jobs.ch query config"), {
     target: { value: "" },
   });
@@ -2602,11 +2657,7 @@ it("keeps each source config selected when profiles differ", async () => {
   expect(screen.getByLabelText("LinkedIn query config")).toHaveValue(
     "entry-it-linkedin",
   );
-  expect(
-    screen.getByPlaceholderText(
-      "e.g. Product Designer, UX Designer, Design System",
-    ),
-  ).toHaveValue("linkedin entry query");
+  expect(screen.getByText("linkedin entry query")).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "Start search" }));
   expect(

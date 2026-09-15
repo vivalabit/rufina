@@ -9,14 +9,32 @@ from app.services import ai_match as ai_match_service
 from app.services import ai_match_jobs as ai_match_jobs_service
 from app.services.ai_match import OpenClawAiMatchError
 from app.services.ai_match_jobs import AiMatchJobManager
+from app.services.candidate_snapshot import CandidateSnapshotError
 
 
 class EmptyStoredJobsSession:
     def get(self, _model, _key):
         return None
 
+    def commit(self) -> None:
+        return None
+
+    def rollback(self) -> None:
+        return None
+
     def close(self) -> None:
         return None
+
+
+def install_prepared_candidate_context(
+    monkeypatch: pytest.MonkeyPatch,
+    manager: AiMatchJobManager,
+) -> None:
+    monkeypatch.setattr(
+        manager,
+        "_prepare_candidate_context",
+        lambda *, jobs, **_: ("a" * 64, {}, jobs),
+    )
 
 
 def test_background_match_skips_job_hidden_after_queueing(
@@ -45,12 +63,11 @@ def test_background_match_skips_job_hidden_after_queueing(
         fake_calculate_ai_matches,
     )
     manager = AiMatchJobManager()
+    install_prepared_candidate_context(monkeypatch, manager)
     started, _ = manager.start(
         owner_id="hidden-after-queue-owner",
         profile=ProfilePayload(),
         jobs=[{"id": "linkedin-hidden"}],
-        profile_hash="a" * 64,
-        candidate_snapshot={},
         settings=Settings(
             openclaw_ai_match_enabled=True,
             openclaw_ai_match_max_jobs=1,
@@ -94,6 +111,7 @@ def test_bulk_ai_match_continues_after_one_vacancy_fails(
         fake_calculate_ai_matches,
     )
     manager = AiMatchJobManager()
+    install_prepared_candidate_context(monkeypatch, manager)
     monkeypatch.setattr(
         manager,
         "_persist_job",
@@ -108,8 +126,6 @@ def test_bulk_ai_match_continues_after_one_vacancy_fails(
             {"id": "job-invalid"},
             {"id": "job-valid-2"},
         ],
-        profile_hash="a" * 64,
-        candidate_snapshot={},
         settings=Settings(
             openclaw_ai_match_enabled=True,
             openclaw_ai_match_max_jobs=2,
@@ -166,6 +182,7 @@ def test_background_match_pins_backend_and_model_before_thread_start(
     monkeypatch.setattr(ai_match_jobs_service.threading, "Thread", DeferredThread)
     monkeypatch.setattr(ai_match_service, "calculate_ai_matches", fake_calculate_ai_matches)
     manager = AiMatchJobManager()
+    install_prepared_candidate_context(monkeypatch, manager)
     monkeypatch.setattr(
         manager,
         "_persist_job",
@@ -184,8 +201,6 @@ def test_background_match_pins_backend_and_model_before_thread_start(
         owner_id="pinned-settings-owner",
         profile=ProfilePayload(),
         jobs=[{"id": "job-pinned"}],
-        profile_hash="a" * 64,
-        candidate_snapshot={},
         settings=settings,
         session_factory=EmptyStoredJobsSession,
         force=True,
@@ -202,3 +217,36 @@ def test_background_match_pins_backend_and_model_before_thread_start(
     assert captured["model"] == "gpt-5.6-terra"
     assert captured["thinking"] == "high"
     assert manager.status("pinned-settings-owner").status == "completed"
+
+
+def test_background_match_reports_candidate_snapshot_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fail_candidate_snapshot(*_: object, **__: object):
+        raise CandidateSnapshotError("snapshot failed")
+
+    monkeypatch.setattr(
+        ai_match_jobs_service,
+        "get_candidate_match_snapshot",
+        fail_candidate_snapshot,
+    )
+    manager = AiMatchJobManager()
+
+    started, _ = manager.start(
+        owner_id="snapshot-failure-owner",
+        profile=ProfilePayload(),
+        jobs=[{"id": "job-without-snapshot"}],
+        settings=Settings(openclaw_ai_match_enabled=True),
+        session_factory=EmptyStoredJobsSession,
+    )
+    assert started is True
+
+    for _ in range(100):
+        status = manager.status("snapshot-failure-owner")
+        if status.status == "failed":
+            break
+        time.sleep(0.01)
+
+    assert status.status == "failed"
+    assert status.error == "snapshot failed"
+    assert status.processed == 0

@@ -49,7 +49,7 @@ it("uses direct-company metadata and keeps unscored manual jobs explicit", () =>
 
   expect(screen.getByAltText("SBB CFF FFS logo")).toBeInTheDocument();
   expect(getJobSourceLabel(directCompanyJob)).toBe("SBB CFF FFS");
-  expect(screen.getByLabelText("AI match: — · Not calculated")).toHaveTextContent("—");
+  expect(screen.getByLabelText("AI match: — · Not calculated")).toHaveTextContent("AI");
 });
 
 it("shows calculating, outdated, error, and zero-score states distinctly", () => {

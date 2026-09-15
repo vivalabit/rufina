@@ -1,20 +1,16 @@
 "use client";
 
-import {
-  ChevronDown,
-  Info,
-  Plus,
-  RotateCcw,
-  Save,
-  X,
-} from "lucide-react";
+import { ChevronDown, Info, Plus, RotateCcw, Save, X } from "lucide-react";
 
 import { DirectCompaniesSource } from "@/components/direct-companies-source";
 import { Button } from "@/components/ui/button";
 import type { JobSourceConfigPayload } from "@/features/job-search/api/dto";
 import { getParserLabel } from "@/features/job-search/formatting";
 import { directCompanyDirections } from "@/features/job-search/model/constants";
-import { isLinkedInProfessionQuery } from "@/features/job-search/model/form-mappers";
+import {
+  isLinkedInProfessionQuery,
+  professionsFromKeywords,
+} from "@/features/job-search/model/form-mappers";
 import { getSourceSearchConfigLabel } from "@/features/job-search/model/selectors";
 import type {
   ActiveSearchSource,
@@ -37,15 +33,15 @@ export type JobSearchConfigurationProps = {
   selectedSourceConfigIds: Partial<Record<ParserId, string>>;
   selectedParserSearchConfigId: string;
   directCompanies: readonly DirectCompanyDefinition[];
-  newLinkedInProfession: string;
+  newProfession: string;
   onFormChange: ParserSearchFormChange;
   onReset: () => void;
   onSelectSourceConfig: (source: ParserId, configId: string) => void;
   onSaveSourceConfig: (source: ParserId) => void | Promise<void>;
   onSelectedDirectCompaniesChange: (companyIds: string[]) => void;
-  onNewLinkedInProfessionChange: (value: string) => void;
-  onAddLinkedInProfession: () => void;
-  onRemoveLinkedInProfession: (queryIndex: number) => void;
+  onNewProfessionChange: (value: string) => void;
+  onAddProfession: () => void;
+  onRemoveProfession: (queryIndex: number) => void;
 };
 
 export function JobSearchConfiguration({
@@ -55,15 +51,15 @@ export function JobSearchConfiguration({
   selectedSourceConfigIds,
   selectedParserSearchConfigId,
   directCompanies,
-  newLinkedInProfession,
+  newProfession,
   onFormChange,
   onReset,
   onSelectSourceConfig,
   onSaveSourceConfig,
   onSelectedDirectCompaniesChange,
-  onNewLinkedInProfessionChange,
-  onAddLinkedInProfession,
-  onRemoveLinkedInProfession,
+  onNewProfessionChange,
+  onAddProfession,
+  onRemoveProfession,
 }: JobSearchConfigurationProps) {
   const availableConfigs =
     activeSource === "direct_companies"
@@ -72,17 +68,31 @@ export function JobSearchConfiguration({
   const selectedSourceConfigId =
     activeSource === "direct_companies"
       ? ""
-      : selectedSourceConfigIds[activeSource] ?? "";
-  const professionQueries = form.linkedinQueries
+      : (selectedSourceConfigIds[activeSource] ?? "");
+  const linkedInProfessionQueries = form.linkedinQueries
     .map((query, index) => ({ query, index }))
     .filter(({ query }) => isLinkedInProfessionQuery(query));
+  const keywordProfessionEntries = professionsFromKeywords(form.keywords).map(
+    (profession, index) => ({ profession, index }),
+  );
+  const professionEntries =
+    activeSource === "linkedin"
+      ? form.linkedinQueries.length > 0
+        ? linkedInProfessionQueries.map(({ query, index }) => ({
+            profession: query.keyword,
+            index,
+          }))
+        : keywordProfessionEntries
+      : keywordProfessionEntries;
   const supportingQueryCount =
-    form.linkedinQueries.length - professionQueries.length;
+    form.linkedinQueries.length - linkedInProfessionQueries.length;
   const isJobsCh = activeSource === "jobs_ch";
   const jobsChIgnoredFilters = isJobsCh
     ? [
         form.remote && form.remote !== "Any" ? `Remote: ${form.remote}` : null,
-        form.jobType && form.jobType !== "Any" ? `Job type: ${form.jobType}` : null,
+        form.jobType && form.jobType !== "Any"
+          ? `Job type: ${form.jobType}`
+          : null,
         form.country && !["Any", "Switzerland"].includes(form.country)
           ? `Country: ${form.country}`
           : null,
@@ -189,8 +199,8 @@ export function JobSearchConfiguration({
               </label>
               <p className="mt-2 text-xs font-medium leading-5 text-muted">
                 Every vacancy is collected from the selected company pages
-                first. Direction is applied afterwards; seniority, posting
-                date, and technologies come from the global Vacancy Filter.
+                first. Direction is applied afterwards; seniority, posting date,
+                and technologies come from the global Vacancy Filter.
               </p>
             </section>
           </>
@@ -200,120 +210,107 @@ export function JobSearchConfiguration({
           <>
             {isJobsCh ? (
               <div className="rounded-md border border-border bg-[#fff8f1] p-3 text-xs font-medium leading-5 text-muted">
-                jobs.ch searches by keywords and location. Posting date and
+                jobs.ch searches by profession and location. Posting date and
                 experience level are checked after vacancies are collected.
                 {jobsChIgnoredFilters.length > 0 ? (
-                  <p role="status" className="mt-2 font-semibold text-amber-800">
+                  <p
+                    role="status"
+                    className="mt-2 font-semibold text-amber-800"
+                  >
                     Saved filters are not applied to jobs.ch:{" "}
                     {jobsChIgnoredFilters.join("; ")}.
                   </p>
                 ) : null}
               </div>
             ) : null}
-            <label className="grid gap-2">
-              <span className="text-xs font-bold text-[#1d1e1c]">
-                Job title or keywords
-              </span>
-              <input
-                value={form.keywords}
-                onChange={(event) =>
-                  onFormChange("keywords", event.target.value)
-                }
-                placeholder="e.g. Product Designer, UX Designer, Design System"
-                className="h-9 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
-              />
-              <span className="text-xs font-medium text-muted">
-                Use keywords to find relevant vacancies
-              </span>
-            </label>
-
-            {activeSource === "linkedin" ? (
-              <section
-                aria-labelledby="linkedin-professions-heading"
-                className="rounded-md border border-border bg-[#fff8f1] p-3"
-              >
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="flex items-center gap-2">
-                    <h4
-                      id="linkedin-professions-heading"
-                      className="text-sm font-bold text-foreground"
-                    >
-                      Professions
-                    </h4>
-                    <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-bold text-accent">
-                      {professionQueries.length}
-                    </span>
-                  </div>
+            <section
+              aria-labelledby="professions-heading"
+              className="rounded-md border border-border bg-[#fff8f1] p-3"
+            >
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <h4
+                    id="professions-heading"
+                    className="text-sm font-bold text-foreground"
+                  >
+                    Professions
+                  </h4>
+                  <span className="rounded-full bg-accent/10 px-2 py-0.5 text-[11px] font-bold text-accent">
+                    {professionEntries.length}
+                  </span>
+                </div>
+                {activeSource === "linkedin" ? (
                   <span className="text-[11px] font-semibold text-muted">
                     Entry level · Internship
                   </span>
-                </div>
-                <p className="mt-1 text-xs font-medium text-muted">
-                  Each profession is searched separately across the two levels
-                  above.
-                  {supportingQueryCount > 0
-                    ? ` ${supportingQueryCount} supporting entry-level search ${supportingQueryCount === 1 ? "term stays" : "terms stay"} active automatically.`
-                    : ""}
-                </p>
+                ) : null}
+              </div>
+              <p className="mt-1 text-xs font-medium text-muted">
+                {activeSource === "linkedin"
+                  ? "Each profession is searched separately across the two levels above."
+                  : `Add the professions you want to search for on ${getParserLabel(activeSource)}.`}
+                {activeSource === "linkedin" && supportingQueryCount > 0
+                  ? ` ${supportingQueryCount} supporting entry-level search ${supportingQueryCount === 1 ? "term stays" : "terms stay"} active automatically.`
+                  : ""}
+              </p>
 
-                {professionQueries.length > 0 ? (
-                  <div className="mt-3 flex max-h-36 flex-wrap content-start gap-2 overflow-y-auto pr-1">
-                    {professionQueries.map(({ query, index }) => (
-                      <div
-                        key={`${query.keyword}-${index}`}
-                        className="inline-flex h-8 max-w-full items-center gap-1 rounded-md border border-border bg-white pl-2.5 pr-1 text-xs font-semibold text-foreground"
+              {professionEntries.length > 0 ? (
+                <div className="mt-3 flex max-h-36 flex-wrap content-start gap-2 overflow-y-auto pr-1">
+                  {professionEntries.map(({ profession, index }) => (
+                    <div
+                      key={`${profession}-${index}`}
+                      className="inline-flex h-8 max-w-full items-center gap-1 rounded-md border border-border bg-white pl-2.5 pr-1 text-xs font-semibold text-foreground"
+                    >
+                      <span className="truncate">{profession}</span>
+                      <button
+                        type="button"
+                        aria-label={`Remove profession ${profession}`}
+                        title={`Remove ${profession}`}
+                        onClick={() => onRemoveProfession(index)}
+                        className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted transition hover:bg-[#fff3e8] hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
                       >
-                        <span className="truncate">{query.keyword}</span>
-                        <button
-                          type="button"
-                          aria-label={`Remove profession ${query.keyword}`}
-                          title={`Remove ${query.keyword}`}
-                          onClick={() => onRemoveLinkedInProfession(index)}
-                          className="grid h-6 w-6 shrink-0 place-items-center rounded text-muted transition hover:bg-[#fff3e8] hover:text-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
-                        >
-                          <X className="h-3.5 w-3.5" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="mt-3 rounded-md border border-dashed border-border bg-white/60 px-3 py-2 text-xs font-medium text-muted">
-                    {supportingQueryCount > 0
-                      ? "No dedicated professions configured. Supporting entry-level terms will still run."
-                      : "No professions configured. Add one below, or the fallback keywords above will be used."}
-                  </p>
-                )}
-
-                <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-                  <input
-                    aria-label="New LinkedIn profession"
-                    value={newLinkedInProfession}
-                    onChange={(event) =>
-                      onNewLinkedInProfessionChange(event.target.value)
-                    }
-                    onKeyDown={(event) => {
-                      if (event.key === "Enter") {
-                        event.preventDefault();
-                        onAddLinkedInProfession();
-                      }
-                    }}
-                    placeholder="e.g. Security Analyst"
-                    className="h-9 min-w-0 flex-1 rounded-md border border-border bg-white px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
-                  />
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    aria-label="Add LinkedIn profession"
-                    disabled={!newLinkedInProfession.trim()}
-                    onClick={onAddLinkedInProfession}
-                    className="h-9 rounded-md border border-border bg-white px-3 text-xs text-[#1d1e1c] hover:bg-[#fff3e8] disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <Plus className="h-4 w-4" />
-                    Add profession
-                  </Button>
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
                 </div>
-              </section>
-            ) : null}
+              ) : (
+                <p className="mt-3 rounded-md border border-dashed border-border bg-white/60 px-3 py-2 text-xs font-medium text-muted">
+                  {activeSource === "linkedin" && supportingQueryCount > 0
+                    ? "No dedicated professions configured. Supporting entry-level terms will still run."
+                    : "No professions configured. Add one below to start searching."}
+                </p>
+              )}
+
+              <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+                <input
+                  aria-label={`New ${getParserLabel(activeSource)} profession`}
+                  value={newProfession}
+                  onChange={(event) =>
+                    onNewProfessionChange(event.target.value)
+                  }
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") {
+                      event.preventDefault();
+                      onAddProfession();
+                    }
+                  }}
+                  placeholder="e.g. Security Analyst"
+                  className="h-9 min-w-0 flex-1 rounded-md border border-border bg-white px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70"
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  aria-label={`Add ${getParserLabel(activeSource)} profession`}
+                  disabled={!newProfession.trim()}
+                  onClick={onAddProfession}
+                  className="h-9 rounded-md border border-border bg-white px-3 text-xs text-[#1d1e1c] hover:bg-[#fff3e8] disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <Plus className="h-4 w-4" />
+                  Add profession
+                </Button>
+              </div>
+            </section>
 
             <div className="grid gap-4 lg:grid-cols-2">
               <label className="grid gap-2">
@@ -340,9 +337,7 @@ export function JobSearchConfiguration({
               </label>
 
               <label className="grid gap-2">
-                <span className="text-xs font-bold text-[#1d1e1c]">
-                  Remote
-                </span>
+                <span className="text-xs font-bold text-[#1d1e1c]">Remote</span>
                 <select
                   value={form.remote}
                   disabled={isJobsCh}

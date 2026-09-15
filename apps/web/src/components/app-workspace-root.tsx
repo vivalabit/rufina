@@ -104,9 +104,11 @@ import {
 } from "@/features/job-search/model/constants";
 import {
   directCompanySearchFiltersFromForm,
+  keywordsFromProfessions,
   normalizeDirectCompanyIds,
   parserSearchFiltersFromForm,
   parserSearchSourceIds,
+  professionsFromKeywords,
   sourceSearchDraftFromFilters,
   sourceSearchDraftFromForm,
   sourceSearchFiltersFromForm,
@@ -166,7 +168,7 @@ import type {
 import type {
   AppSettingsUpdate,
 } from "@/features/settings/model/types";
-import { ApiResponseError } from "@/shared/api/client";
+import { ApiResponseError, ApiUnavailableError } from "@/shared/api/client";
 import {
   browserStorageNamespacePrefix,
   clearBrowserStorageNamespace,
@@ -481,6 +483,20 @@ function wait(ms: number) {
   });
 }
 
+function canRecoverAiMatchStart(
+  status: AiMatchJobStatus,
+  requestedJobIds: ReadonlySet<string>,
+) {
+  if (["queued", "running"].includes(status.status)) return true;
+  if (status.status !== "completed") return false;
+  const resolvedJobIds = new Set([
+    ...status.updatedJobs.map((job) => job.id),
+    ...(status.failedJobs?.map((job) => job.id) ?? []),
+  ]);
+  return requestedJobIds.size > 0
+    && [...requestedJobIds].every((jobId) => resolvedJobIds.has(jobId));
+}
+
 function createApplicationFromJob(job: Job, status: ApplicationStatus = "applied"): TrackedApplication {
   const appliedAt = new Date().toISOString();
 
@@ -582,7 +598,7 @@ export function AppWorkspaceRoot({
   const [isParserDialogOpen, setIsParserDialogOpen] = useState(false);
   const [parserSearchStatus, setParserSearchStatus] = useState<ParserSearchStatus>("idle");
   const [parserSearchMessage, setParserSearchMessage] = useState("");
-  const [newLinkedInProfession, setNewLinkedInProfession] = useState("");
+  const [newProfession, setNewProfession] = useState("");
   const [forceMatchingJobId, setForceMatchingJobId] = useState("");
   const [matchingJobIds, setMatchingJobIds] = useState<string[]>([]);
   const [failedMatchJobIds, setFailedMatchJobIds] = useState<string[]>([]);
@@ -1314,39 +1330,75 @@ export function AppWorkspaceRoot({
     setParserSearchMessage("");
   }
 
-  function addLinkedInProfession() {
-    const keyword = newLinkedInProfession.trim();
+  function addProfession() {
+    const keyword = newProfession.trim();
     if (!keyword) return;
 
     const normalizedKeyword = keyword.toLocaleLowerCase();
-    if (
-      parserSearchForm.linkedinQueries.some(
-        (query) =>
-          query.keyword.trim().toLocaleLowerCase() === normalizedKeyword,
-      )
-    ) {
+    const existingProfessions =
+      activeSearchSource === "linkedin"
+        ? parserSearchForm.linkedinQueries.length > 0
+          ? parserSearchForm.linkedinQueries.map((query) => query.keyword)
+          : professionsFromKeywords(parserSearchForm.keywords)
+        : professionsFromKeywords(parserSearchForm.keywords);
+    if (existingProfessions.some(
+      (profession) => profession.trim().toLocaleLowerCase() === normalizedKeyword,
+    )) {
       setParserSearchStatus("error");
-      setParserSearchMessage(`“${keyword}” is already in this LinkedIn config`);
+      setParserSearchMessage(
+        `“${keyword}” is already in this ${activeSearchSource === "direct_companies" ? "source" : getParserLabel(activeSearchSource)} config`,
+      );
       return;
     }
 
-    updateParserSearchForm("linkedinQueries", [
-      ...parserSearchForm.linkedinQueries,
-      {
-        keyword,
-        experienceLevels: [...defaultLinkedInProfessionExperienceLevels],
-        jobType: null,
-        selectiveSearch: true,
-      },
-    ]);
-    setNewLinkedInProfession("");
+    if (activeSearchSource === "linkedin") {
+      const existingQueries =
+        parserSearchForm.linkedinQueries.length > 0
+          ? parserSearchForm.linkedinQueries
+          : existingProfessions.map((profession) => ({
+              keyword: profession,
+              experienceLevels: [...defaultLinkedInProfessionExperienceLevels],
+              jobType: null,
+              selectiveSearch: true,
+            }));
+      updateParserSearchForm("linkedinQueries", [
+        ...existingQueries,
+        {
+          keyword,
+          experienceLevels: [...defaultLinkedInProfessionExperienceLevels],
+          jobType: null,
+          selectiveSearch: true,
+        },
+      ]);
+    } else {
+      updateParserSearchForm(
+        "keywords",
+        keywordsFromProfessions([...existingProfessions, keyword]),
+      );
+    }
+    setNewProfession("");
   }
 
-  function removeLinkedInProfession(queryIndex: number) {
+  function removeProfession(queryIndex: number) {
+    if (
+      activeSearchSource === "linkedin" &&
+      parserSearchForm.linkedinQueries.length > 0
+    ) {
+      updateParserSearchForm(
+        "linkedinQueries",
+        parserSearchForm.linkedinQueries.filter(
+          (_, index) => index !== queryIndex,
+        ),
+      );
+      return;
+    }
+
     updateParserSearchForm(
-      "linkedinQueries",
-      parserSearchForm.linkedinQueries.filter(
-        (_, index) => index !== queryIndex,
+      "keywords",
+      keywordsFromProfessions(
+        professionsFromKeywords(parserSearchForm.keywords).filter(
+          (_, index) => index !== queryIndex,
+        ),
       ),
     );
   }
@@ -2403,15 +2455,25 @@ export function AppWorkspaceRoot({
       try {
         startedStatus = await jobsState.startAiMatch(jobsToMatch, force);
       } catch (error) {
-        if (error instanceof ApiResponseError && error.status === 409) {
+        if (error instanceof ApiUnavailableError) {
+          let recoveredStatus: AiMatchJobStatus;
+          try {
+            recoveredStatus = await jobsState.fetchAiMatchStatus();
+          } catch {
+            throw error;
+          }
+          if (!canRecoverAiMatchStart(recoveredStatus, jobIds)) throw error;
+          startedStatus = recoveredStatus;
+        } else if (error instanceof ApiResponseError && error.status === 409) {
           const previousRunStatus = await pollAiMatchStatus();
           if (!previousRunStatus || conflictRetry) {
             setFailedMatchJobIds((currentIds) => Array.from(new Set([...currentIds, ...jobIds])));
             return false;
           }
           return await refreshAiMatches(jobsToMatch, force, true);
+        } else {
+          throw error;
         }
-        throw error;
       }
 
       if (!startedStatus) {
@@ -2634,7 +2696,7 @@ export function AppWorkspaceRoot({
         `${groupedRuns.length} independent config ${groupedRuns.length === 1 ? "flow" : "flows"}`,
         directSources.length > 0
           ? `Direct-company direction: ${directCompanyDirections.find((option) => option.id === parserSearchForm.directCompanyDirection)?.label ?? "Any"}`
-          : `Keywords: ${parserSearchForm.keywords || "Any"}`,
+          : `Professions: ${parserSearchForm.keywords || "Any"}`,
         `Location: ${parserSearchForm.location || parserSearchForm.country || "Any"}`,
         `Remote: ${parserSearchForm.remote}`,
         `Limit: ${parserSearchForm.resultsLimit || "10"}`,
@@ -3256,7 +3318,7 @@ export function AppWorkspaceRoot({
                               : "border-border/80 bg-[#fff8f1] hover:border-[#c0bbb6] hover:bg-[#fff3e8]",
                           )}
                         >
-                          <div className="grid grid-cols-[42px_minmax(0,1fr)_88px] gap-2 2xl:grid-cols-[48px_minmax(0,1fr)_96px] 2xl:gap-3">
+                          <div className="grid grid-cols-[42px_minmax(0,1fr)_68px] gap-2 2xl:grid-cols-[48px_minmax(0,1fr)_72px] 2xl:gap-3">
                             <JobRoleIcon job={job} compact />
                             <div className="min-w-0 pt-0.5">
                               <h2 className="line-clamp-2 text-[13px] font-bold leading-tight text-foreground 2xl:text-base">
@@ -3391,12 +3453,6 @@ export function AppWorkspaceRoot({
                                     </>
                                   ) : null}
                                 </p>
-                                <JobMatchIndicator
-                                  job={selectedJob}
-                                  isCalculating={matchingJobIdSet.has(selectedJob.id)}
-                                  isError={failedMatchJobIdSet.has(selectedJob.id)}
-                                  className="mt-2"
-                                />
                               </div>
                             </div>
 
@@ -3630,7 +3686,7 @@ export function AppWorkspaceRoot({
                 selectedSourceConfigIds={selectedSourceConfigIds}
                 selectedParserSearchConfigId={selectedParserSearchConfigId}
                 directCompanies={directCompanyCatalog}
-                newLinkedInProfession={newLinkedInProfession}
+                newProfession={newProfession}
                 status={parserSearchStatus}
                 message={parserSearchMessage}
                 onClose={() => setIsParserDialogOpen(false)}
@@ -3643,9 +3699,9 @@ export function AppWorkspaceRoot({
                 onSelectSourceConfig={selectSourceSearchConfig}
                 onSaveSourceConfig={saveSourceSearchConfig}
                 onSelectedDirectCompaniesChange={updateSelectedDirectCompanies}
-                onNewLinkedInProfessionChange={setNewLinkedInProfession}
-                onAddLinkedInProfession={addLinkedInProfession}
-                onRemoveLinkedInProfession={removeLinkedInProfession}
+                onNewProfessionChange={setNewProfession}
+                onAddProfession={addProfession}
+                onRemoveProfession={removeProfession}
               />
             ) : null}
           </section>

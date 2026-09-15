@@ -41,7 +41,7 @@ describe("document preparation settings", () => {
       language: "English",
       formatting: {
         pageSize: "A4",
-        resumeTemplateId: "modern_single",
+        resumeTemplateId: "moderncv_banking",
         resumeMaxPages: 2,
         coverLetterTemplateId: "letter-template",
       },
@@ -52,6 +52,21 @@ describe("document preparation settings", () => {
       latestGeneration: null,
       userPreferences: "Keep the letter concise.",
     });
+  });
+
+  it.each(["classic_single", "modern_single", "modern_two_column", "unknown", "", null])(
+    "keeps the existing Banking layout for legacy or unsupported template %s",
+    (resumeTemplateId) => {
+      expect(normalizeDocumentPreparationSettings({
+        formatting: { resumeTemplateId },
+      }).formatting.resumeTemplateId).toBe("moderncv_banking");
+    },
+  );
+
+  it("restores the selected generation template", () => {
+    expect(normalizeDocumentPreparationSettings({
+      formatting: { resumeTemplateId: " ishchenko_classic " },
+    }).formatting.resumeTemplateId).toBe("ishchenko_classic");
   });
 
   it("restores a valid per-document generation result", () => {
@@ -107,7 +122,7 @@ describe("document preparation settings", () => {
       language: "German",
       formatting: {
         pageSize: "Letter",
-        resumeTemplateId: "modern_single",
+        resumeTemplateId: "ishchenko_classic",
         resumeMaxPages: 1,
         coverLetterTemplateId: "unused-template",
       },
@@ -120,7 +135,7 @@ describe("document preparation settings", () => {
       formattingParameters: {
         tailored_resume: {
           pageSize: "Letter",
-          templateId: "modern_single",
+          templateId: "ishchenko_classic",
           maxPages: 1,
         },
       },

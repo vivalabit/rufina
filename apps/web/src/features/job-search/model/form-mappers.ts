@@ -48,6 +48,23 @@ export function filterBoolean(
   return null;
 }
 
+export function professionsFromKeywords(keywords: string): string[] {
+  const seen = new Set<string>();
+  return keywords.split(/\s+OR\s+/i).flatMap((value) => {
+    const profession = value.trim();
+    const normalizedProfession = profession.toLocaleLowerCase();
+    if (!profession || seen.has(normalizedProfession)) return [];
+    seen.add(normalizedProfession);
+    return [profession];
+  });
+}
+
+export function keywordsFromProfessions(
+  professions: readonly string[],
+): string {
+  return professions.join(" OR ");
+}
+
 export function normalizeDirectCompanyIds(value: unknown): string[] {
   if (!Array.isArray(value)) return [];
 
@@ -96,9 +113,7 @@ export function parserSearchSourceIds(form: ParserSearchForm): string[] {
   );
 }
 
-export function isLinkedInProfessionQuery(
-  query: LinkedInDiscoveryQueryDraft,
-) {
+export function isLinkedInProfessionQuery(query: LinkedInDiscoveryQueryDraft) {
   return query.experienceLevels.length > 0;
 }
 

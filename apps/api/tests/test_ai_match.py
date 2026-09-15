@@ -1,6 +1,7 @@
 import hashlib
 import json
 import subprocess
+import threading
 import time
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
@@ -1639,6 +1640,84 @@ def test_ai_match_run_endpoint_updates_status_and_persists_job_scores(
         read_response = client.get("/jobs")
         assert read_response.json()[0]["data"]["aiMatch"] == payload["aiMatch"]
     finally:
+        app.dependency_overrides.clear()
+
+
+def test_ai_match_run_endpoint_returns_before_candidate_snapshot_finishes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    snapshot_started = threading.Event()
+    release_snapshot = threading.Event()
+
+    def blocking_candidate_snapshot(*, fallback_snapshot: dict, **_: object) -> dict:
+        snapshot_started.set()
+        if not release_snapshot.wait(timeout=2):
+            raise AssertionError("AI match start waited for candidate snapshot generation")
+        return fallback_snapshot
+
+    monkeypatch.setattr(
+        "app.services.candidate_snapshot.build_snapshot_with_ai",
+        blocking_candidate_snapshot,
+    )
+    monkeypatch.setattr(
+        ai_match_service,
+        "score_with_openclaw",
+        lambda *, jobs, **_: [valid_match_result(str(job["id"])) for job in jobs],
+    )
+
+    engine = create_engine(
+        "sqlite://",
+        connect_args={"check_same_thread": False},
+        poolclass=StaticPool,
+    )
+    Base.metadata.create_all(bind=engine)
+    testing_session_local = sessionmaker(bind=engine, autoflush=False, autocommit=False)
+
+    def override_get_db() -> Generator[Session, None, None]:
+        db = testing_session_local()
+        try:
+            yield db
+        finally:
+            db.close()
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_settings] = lambda: Settings(openclaw_ai_match_enabled=True)
+    client = TestClient(app)
+    job = {
+        "id": "linkedin-non-blocking-ai-match",
+        "company": "Acme",
+        "title": "Python Engineer",
+        "location": "Zurich",
+        "overview": "Build Python services.",
+        "requirements": ["Python"],
+        "skills": ["Python"],
+    }
+
+    try:
+        with testing_session_local() as db:
+            db.add(ProfileRecord(id="default", data=ProfilePayload(skills="Python").model_dump()))
+            db.commit()
+        persist_accepted_jobs(testing_session_local, [job])
+
+        run_response = client.post(
+            "/jobs/ai-match/run",
+            json={"jobs": [{"id": job["id"], "data": job}]},
+        )
+
+        assert run_response.status_code == 202
+        assert run_response.json()["status"] in {"queued", "running"}
+        assert snapshot_started.wait(timeout=1)
+
+        release_snapshot.set()
+        for _ in range(40):
+            status_payload = client.get("/jobs/ai-match/status").json()
+            if status_payload["status"] in {"completed", "failed"}:
+                break
+            time.sleep(0.05)
+
+        assert status_payload["status"] == "completed"
+    finally:
+        release_snapshot.set()
         app.dependency_overrides.clear()
 
 
