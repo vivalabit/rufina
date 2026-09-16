@@ -46,7 +46,7 @@ async function loadProfileSnapshot(signal: AbortSignal): Promise<ProfileSnapshot
     initialFiles ?? [],
     createClientId,
   );
-  return { profile: loadedProfile, etag: profileResource.etag };
+  return { profile: { ...loadedProfile, _etag: profileResource.etag ?? "" }, etag: profileResource.etag };
 }
 
 export function useProfile() {
@@ -71,15 +71,14 @@ export function useProfile() {
   useEffect(() => () => mutationControllerRef.current?.abort(), []);
 
   const saveMutation = useMutation({
-    mutationFn: (nextProfile: CandidateProfile) => withMutationSignal(async (signal) => {
-      const current = queryClient.getQueryData<ProfileSnapshot>(profileQueryKey);
+    mutationFn: ({ nextProfile, sourceId }: { nextProfile: CandidateProfile; sourceId?: string }) => withMutationSignal(async (signal) => {
       const saved = await putProfile(
-        profilePayloadForApi(nextProfile),
-        current?.etag ?? null,
+        { ...profilePayloadForApi(nextProfile), ...(sourceId ? { import_source_ids: [sourceId] } : {}) },
+        nextProfile._etag || null,
         signal,
       );
       return {
-        profile: mergeHydratedProfileMetadata(saved.profile, nextProfile),
+        profile: { ...mergeHydratedProfileMetadata(saved.profile, nextProfile), _etag: saved.etag ?? "" },
         etag: saved.etag,
       };
     }),
@@ -146,7 +145,7 @@ export function useProfile() {
     isLoading: query.isLoading,
     error: query.error instanceof Error ? query.error : null,
     refetch: refreshFiles,
-    save: saveMutation.mutateAsync,
+    save: (nextProfile: CandidateProfile, sourceId?: string) => saveMutation.mutateAsync({ nextProfile, sourceId }),
     isSaving: saveMutation.isPending,
     saveError: saveMutation.error instanceof Error ? saveMutation.error : null,
     cancel: () => mutationControllerRef.current?.abort(),

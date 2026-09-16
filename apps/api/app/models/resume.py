@@ -713,6 +713,7 @@ class MasterResumeReviewSection(StrictResumeModel):
 
 
 class MasterResumeImportResponse(StrictResumeModel):
+    profile_revision: int = Field(alias="profileRevision", ge=1)
     source_file_id: CanonicalId = Field(alias="sourceFileId")
     master_resume: MasterResume = Field(alias="masterResume")
     source: ResumeSourceExtraction
@@ -734,6 +735,7 @@ class MasterResumeImportResponse(StrictResumeModel):
 
 
 class MasterResumeConfirmationRequest(StrictResumeModel):
+    expected_profile_revision: int = Field(alias="expectedProfileRevision", ge=1)
     source_file_id: CanonicalId = Field(alias="sourceFileId")
     master_resume: MasterResume = Field(alias="masterResume")
     confirmed_sections: list[MasterResumeReviewSectionName] = Field(
@@ -758,6 +760,7 @@ class MasterResumeConfirmationResponse(StrictResumeModel):
 
 
 class ConfirmedProfileFactRequest(StrictResumeModel):
+    experience_id: str | None = Field(default=None, alias="experienceId")
     fact_text: StrictText = Field(alias="factText")
     expected_version: int = Field(alias="expectedVersion", ge=1)
     idempotency_key: CanonicalId = Field(alias="idempotencyKey")

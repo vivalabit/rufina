@@ -1,19 +1,16 @@
 from __future__ import annotations
 
-from copy import deepcopy
+import json
+from datetime import UTC, datetime
 from uuid import uuid4
 
-from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models.resume import (
-    ConfirmedProfileFactRecord,
-    ConfirmedProfileFactResponse,
-    MasterResume,
-    ResumeMasterRecord,
-    ResumeMasterVersionRecord,
-)
-from app.services.resume_master_review import _canonical_resume_hash
+from app.models.profile import ProfilePayload
+from app.models.resume import ConfirmedProfileFactResponse
+from app.services.candidate_profile import encode_entries, entries
+from app.services.profile_migration import ensure_candidate_profile
+from app.services.profile_versions import StaleProfileRevisionError, update_profile_data
 
 
 class ProfileFactSyncError(RuntimeError):
@@ -23,139 +20,62 @@ class ProfileFactSyncError(RuntimeError):
 
 
 def confirm_profile_fact(
-    db: Session,
-    *,
-    master_resume_id: str,
-    fact_text: str,
-    expected_version: int,
-    idempotency_key: str,
-    source_run_id: str | None = None,
+    db: Session, *, master_resume_id: str, fact_text: str, expected_version: int,
+    idempotency_key: str, source_run_id: str | None = None, experience_id: str | None = None,
 ) -> ConfirmedProfileFactResponse:
-    """Promote an explicit user confirmation into a new immutable master version."""
-
-    existing = db.scalar(
-        select(ConfirmedProfileFactRecord).where(
-            ConfirmedProfileFactRecord.idempotency_key == idempotency_key
-        )
-    )
-    if existing is not None:
-        if (
-            existing.resume_master_id != master_resume_id
-            or existing.fact_text != fact_text
-            or existing.source_run_id != source_run_id
+    """Save an explicit confirmation in the candidate's versioned profile."""
+    profile = ensure_candidate_profile(db)
+    payload = ProfilePayload.model_validate(profile.data)
+    if master_resume_id != profile.id:
+        raise ProfileFactSyncError('Candidate profile was not found', code='not_found')
+    existing = next((item for item in payload.confirmed_facts
+                     if item['idempotency_key'] == idempotency_key), None)
+    if existing:
+        if (existing['fact_text'], existing['source_run_id'], existing.get('experience_id')) != (
+            fact_text, source_run_id, experience_id,
         ):
-            raise ProfileFactSyncError(
-                "Idempotency key was already used for another confirmed fact",
-                code="idempotency_conflict",
-            )
-        return _fact_response(existing)
-
-    master = db.scalar(
-        select(ResumeMasterRecord)
-        .where(ResumeMasterRecord.id == master_resume_id)
-        .with_for_update()
-    )
-    if master is None:
-        raise ProfileFactSyncError("Master resume was not found", code="not_found")
-    if master.current_version != expected_version:
-        raise ProfileFactSyncError(
-            "Master resume changed after the fact was reviewed",
-            code="stale_version",
-        )
-
-    current = db.scalar(
-        select(ResumeMasterVersionRecord).where(
-            ResumeMasterVersionRecord.resume_master_id == master.id,
-            ResumeMasterVersionRecord.version == master.current_version,
-        )
-    )
-    if current is None:
-        raise ProfileFactSyncError(
-            "Current master resume version is unavailable",
-            code="version_not_found",
-        )
-
+            raise ProfileFactSyncError('Idempotency key was already used for another fact', code='idempotency_conflict')
+        return ConfirmedProfileFactResponse.model_validate_json(json.dumps(existing['response']))
+    if profile.revision != expected_version:
+        raise ProfileFactSyncError('Profile changed after the fact was reviewed', code='stale_version')
+    data = payload.model_dump(mode='json')
     fact_id = uuid4().hex
-    evidence_id = f"confirmation:{fact_id}"
-    updated_data = deepcopy(current.data)
-    updated_data["evidence"] = [
-        *(updated_data.get("evidence") or []),
-        {
-            "id": evidence_id,
-            "type": "confirmation",
-            "text": fact_text,
-            "claimType": None,
-            "experienceId": None,
-            "sourceId": source_run_id,
-        },
-    ]
-
-    sections = list(updated_data.get("additionalSections") or [])
-    confirmed_section = next(
-        (item for item in sections if item.get("id") == "confirmed-facts"),
-        None,
+    evidence_id = f'confirmation:{fact_id}'
+    response = ConfirmedProfileFactResponse(
+        id=fact_id, master_resume_id=profile.id, from_version=profile.revision,
+        to_version=profile.revision + 1, evidence_id=evidence_id, fact_text=fact_text,
+        source_run_id=source_run_id, created_at=datetime.now(UTC),
     )
-    new_item = {
-        "id": f"confirmed-fact:{fact_id}",
-        "text": fact_text,
-        "evidenceIds": [evidence_id],
-    }
-    if confirmed_section is None:
-        sections.append(
-            {
-                "id": "confirmed-facts",
-                "title": "Confirmed facts",
-                "items": [new_item],
-            }
-        )
+    data['evidence'].append({'id': evidence_id, 'type': 'confirmation', 'text': fact_text,
+                             'source_id': source_run_id})
+    if experience_id:
+        experiences = entries(payload.experience, 'experience')
+        experience = next((item for item in experiences if item.get('id') == experience_id), None)
+        if experience is None:
+            raise ProfileFactSyncError('Target experience was not found', code='not_found')
+        description = experience.get('description', '')
+        experience['description'] = f'{description}\n{fact_text}' if description else fact_text
+        experience['evidence_ids'] = [*experience.get('evidence_ids', []), evidence_id]
+        data['experience'] = encode_entries(experiences)
     else:
-        confirmed_section["items"] = [*(confirmed_section.get("items") or []), new_item]
-    updated_data["additionalSections"] = sections
-    section_order = list(updated_data.get("sectionOrder") or [])
-    if "additional" not in section_order:
-        section_order.append("additional")
-    updated_data["sectionOrder"] = section_order
-
-    validated = MasterResume.model_validate(updated_data)
-    canonical_data = validated.model_dump(mode="json", by_alias=True)
-    next_version = current.version + 1
-    version_record = ResumeMasterVersionRecord(
-        id=uuid4().hex,
-        resume_master_id=master.id,
-        version=next_version,
-        schema_version=validated.schema_version,
-        data=canonical_data,
-        content_sha256=_canonical_resume_hash(canonical_data),
-        source_file_id=current.source_file_id,
-    )
-    fact_record = ConfirmedProfileFactRecord(
-        id=fact_id,
-        resume_master_id=master.id,
-        source_run_id=source_run_id,
-        from_version=current.version,
-        to_version=next_version,
-        fact_text=fact_text,
-        evidence_id=evidence_id,
-        idempotency_key=idempotency_key,
-    )
-    master.current_version = next_version
-    db.add_all([version_record, fact_record])
-    db.commit()
-    db.refresh(fact_record)
-    return _fact_response(fact_record)
+        section = next((item for item in data['additional_sections'] if item['id'] == 'confirmed-facts'), None)
+        if section is None:
+            section = {'id': 'confirmed-facts', 'title': 'Confirmed facts', 'items': []}
+            data['additional_sections'].append(section)
+        section['items'].append({'id': f'confirmed-fact:{fact_id}', 'text': fact_text,
+                                 'evidence_ids': [evidence_id]})
+    data['confirmed_facts'].append({
+        'idempotency_key': idempotency_key, 'experience_id': experience_id,
+        'fact_text': fact_text, 'source_run_id': source_run_id,
+        'response': response.model_dump(mode='json', by_alias=True),
+    })
+    validated = ProfilePayload.model_validate(data)
+    try:
+        update_profile_data(db, profile, data=validated.model_dump(mode='json'), reason='confirmed_fact')
+        db.commit()
+    except StaleProfileRevisionError as exc:
+        raise ProfileFactSyncError('Profile changed after the fact was reviewed', code='stale_version') from exc
+    return response
 
 
-def _fact_response(record: ConfirmedProfileFactRecord) -> ConfirmedProfileFactResponse:
-    return ConfirmedProfileFactResponse(
-        id=record.id,
-        masterResumeId=record.resume_master_id,
-        fromVersion=record.from_version,
-        toVersion=record.to_version,
-        evidenceId=record.evidence_id,
-        factText=record.fact_text,
-        sourceRunId=record.source_run_id,
-        createdAt=record.created_at,
-    )
-
-
-__all__ = ["ProfileFactSyncError", "confirm_profile_fact"]
+__all__ = ['ProfileFactSyncError', 'confirm_profile_fact']

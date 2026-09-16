@@ -73,6 +73,7 @@ const masterResume: MasterResume = {
 };
 
 const importResponse = {
+  profileRevision: 1,
   sourceFileId: "source-file-1",
   masterResume,
   source: {
@@ -107,6 +108,7 @@ it("imports, edits, reviews, and confirms a Master Resume once", async () => {
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = new URL(String(input)).pathname;
+      if (path === "/profile/master-resume") return Response.json({ masterResumeId: "default", version: 1, masterResume });
       const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
       requests.push({ path, body });
 
@@ -159,15 +161,15 @@ it("imports, edits, reviews, and confirms a Master Resume once", async () => {
   expect(confirmButton).toBeEnabled();
   fireEvent.click(confirmButton);
 
-  expect(await screen.findByText("Confirmed · v1")).toBeInTheDocument();
+  expect(await screen.findByText("Saved · v1")).toBeInTheDocument();
   expect(
     screen.getByText(
-      "Master Resume version 1 is confirmed and ready for future documents.",
+      "Profile version 1 is saved and ready for future documents.",
     ),
   ).toBeInTheDocument();
   expect(
     screen.queryByRole("button", { name: "Choose PDF or DOCX" }),
-  ).not.toBeInTheDocument();
+  ).toBeInTheDocument();
 
   expect(requests).toHaveLength(2);
   expect(requests[0]).toEqual({
@@ -181,6 +183,7 @@ it("imports, edits, reviews, and confirms a Master Resume once", async () => {
   );
   expect(requests[1].body).toMatchObject({
     sourceFileId: "source-file-1",
+    expectedProfileRevision: 1,
     confirmedSections: MASTER_RESUME_REVIEW_SECTIONS,
     masterResume: {
       id: "master-resume-1",
@@ -198,6 +201,7 @@ it("uploads a selected resume as raw bytes before importing by file id", async (
     "fetch",
     vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
       const path = new URL(String(input)).pathname;
+      if (path === "/profile/master-resume") return Response.json({ masterResumeId: "default", version: 1, masterResume });
       requests.push({ path, body: init?.body });
       if (path === "/profile/files") {
         return Response.json({

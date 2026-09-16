@@ -60,7 +60,7 @@ def test_profile_can_be_updated_and_read() -> None:
 
         update_response = client.put("/profile", json=payload)
         read_response = client.get("/profile")
-        expected_payload = ProfilePayload(**payload).model_dump()
+        expected_payload = ProfilePayload(**payload, migration={"master_resume_v1_complete": True}).model_dump()
 
         assert update_response.status_code == 200
         assert update_response.headers["etag"] == '"1"'
@@ -110,9 +110,10 @@ def test_sparse_profile_update_cannot_erase_a_complete_profile() -> None:
     app.dependency_overrides[get_db] = override_get_db
     client = TestClient(app)
     try:
-        response = client.put("/profile", json={"headline": "Product designer"})
+        response = client.put("/profile", headers={"If-Match": '"1"'}, json={"headline": "Product designer"})
         forced_response = client.put(
             "/profile?allow_destructive=true",
+            headers={"If-Match": '"1"'},
             json={"headline": "Product designer"},
         )
 
@@ -193,7 +194,7 @@ def test_profiles_are_owner_scoped_and_reject_stale_etags() -> None:
         ("profile-owner-b", 1),
     ]
     assert profiles[0].id != profiles[1].id
-    assert len(versions) == 2
+    assert len(versions) == 3
     assert versions[0].owner_id == "profile-owner-a"
     assert versions[0].revision == 1
 
@@ -270,5 +271,25 @@ def test_default_profile_is_empty_for_new_registration() -> None:
         assert response.json()["current_role"] == ""
         assert response.json()["experience"] == ""
         assert response.json()["resume_file_name"] == ""
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_existing_profile_requires_explicit_revision():
+    engine = create_engine('sqlite://', connect_args={'check_same_thread': False}, poolclass=StaticPool)
+    Base.metadata.create_all(engine)
+    sessions = sessionmaker(bind=engine)
+
+    def override_get_db():
+        with sessions() as db:
+            yield db
+    app.dependency_overrides[get_db] = override_get_db
+    try:
+        client = TestClient(app)
+        original = client.put('/profile', json={'name': 'Original'})
+        for headers in ({}, {'If-Match': '*'}):
+            assert client.put('/profile', headers=headers, json={'name': 'Wrong'}).status_code == 428
+        assert client.get('/profile').headers['etag'] == original.headers['etag']
+        assert client.get('/profile').json()['name'] == 'Original'
     finally:
         app.dependency_overrides.clear()

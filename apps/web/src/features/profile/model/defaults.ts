@@ -10,6 +10,7 @@ import type {
 } from "@/shared/types/profile";
 
 export const defaultCandidateProfile: CandidateProfile = {
+  _etag: "",
   avatar_url: "/avatars/default-pug.png",
   name: "",
   current_role: "",

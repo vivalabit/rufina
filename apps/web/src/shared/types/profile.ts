@@ -1,4 +1,5 @@
 export type CandidateProfile = {
+  _etag: string;
   avatar_url: string;
   name: string;
   current_role: string;

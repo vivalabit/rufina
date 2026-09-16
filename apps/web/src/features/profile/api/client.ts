@@ -20,7 +20,7 @@ export async function fetchProfile(signal?: AbortSignal) {
 }
 
 export async function putProfile(
-  profile: Partial<CandidateProfile>,
+  profile: Partial<CandidateProfile> & { import_source_ids?: string[] },
   etag: string | null,
   signal?: AbortSignal,
 ) {

@@ -31,11 +31,11 @@ from app.models.resume import (
     MasterResumeConfirmationRequest,
     MasterResumeConfirmationResponse,
     MasterResumeImportResponse,
-    ResumeMasterRecord,
-    ResumeMasterVersionRecord,
     ResumeSourceExtraction,
+    ResumeSourceFileRecord,
 )
 from app.services.ai_privacy import record_ai_activity
+from app.services.candidate_profile import apply_form_update, profile_resume
 from app.services.profile_fact_sync import ProfileFactSyncError, confirm_profile_fact
 from app.services.profile_files import (
     ProfileFileAlreadyExistsError,
@@ -52,12 +52,14 @@ from app.services.profile_files import (
     update_profile_file_metadata,
     validate_profile_file_upload,
 )
+from app.services.profile_migration import ensure_candidate_profile
 from app.services.profile_versions import (
     StaleProfileRevisionError,
     create_profile_record,
     get_profile_record,
     is_suspicious_profile_replacement,
     profile_etag,
+    record_profile_version,
     update_profile_data,
 )
 from app.services.resume_import import ResumeImportError, create_resume_import_ai_facade
@@ -116,27 +118,21 @@ def normalize_profile_record(profile: ProfileRecord) -> ProfilePayload:
 
 
 def get_or_create_profile(db: Session) -> ProfileRecord:
-    profile = get_profile_record(db)
-    if profile:
-        return profile
-
-    profile = create_profile_record(default_profile.model_dump())
-    db.add(profile)
     try:
+        profile = ensure_candidate_profile(db)
         db.commit()
         db.refresh(profile)
         return profile
     except IntegrityError:
         db.rollback()
-        concurrent_profile = get_profile_record(db)
-        if concurrent_profile is None:
-            raise
-        return concurrent_profile
+        profile = ensure_candidate_profile(db)
+        db.commit()
+        return profile
 
 
 def require_matching_profile_revision(if_match: str | None, revision: int) -> None:
-    if if_match is None:
-        return
+    if if_match is None or if_match.strip() == "*":
+        raise HTTPException(status_code=428, detail="Load the profile before saving; If-Match is required")
     tags = [tag.strip() for tag in if_match.split(",") if tag.strip()]
     if not tags:
         raise HTTPException(
@@ -200,6 +196,25 @@ def require_import_profile_resume(
     return record
 
 
+def retain_partial_import_source(db: Session, payload: ProfileFileImportRequest) -> str:
+    record = require_import_profile_resume(db, payload)
+    existing = db.scalar(select(ResumeSourceFileRecord).where(
+        ResumeSourceFileRecord.owner_id == record.owner_id,
+        ResumeSourceFileRecord.content_sha256 == record.content_sha256,
+    ))
+    if existing:
+        return existing.id
+    source = ResumeSourceFileRecord(
+        id=uuid4().hex, owner_id=record.owner_id, resume_master_id=None, draft_resume_id=None,
+        file_name=record.file_name, content_type=record.content_type,
+        content_sha256=record.content_sha256, size_bytes=record.size_bytes,
+        content=record.content, extraction={"text": record.extracted_text},
+    )
+    db.add(source)
+    db.commit()
+    return source.id
+
+
 def extract_resume_import_text(
     db: Session,
     payload: ProfileFileImportRequest,
@@ -256,6 +271,8 @@ def update_profile(
         profile = get_profile_record(db)
         if profile:
             require_matching_profile_revision(if_match, profile.revision)
+            profile = get_or_create_profile(db)
+            require_matching_profile_revision(if_match, profile.revision)
             current_profile = ProfilePayload.model_validate(profile.data)
             if not allow_destructive and is_suspicious_profile_replacement(
                 current_profile, payload
@@ -268,13 +285,15 @@ def update_profile(
                     ),
                     headers={"ETag": profile_etag(profile.revision)},
                 )
-            if current_profile != payload:
-                update_profile_data(
-                    db,
-                    profile,
-                    data=payload.model_dump(),
-                    reason="api_update",
-                )
+            for source_id in payload.import_source_ids:
+                source = db.scalar(select(ResumeSourceFileRecord).where(
+                    ResumeSourceFileRecord.id == source_id,
+                    ResumeSourceFileRecord.owner_id == profile.owner_id,
+                ))
+                if source is None:
+                    raise HTTPException(status_code=422, detail="Import source was not found")
+            updated = apply_form_update(current_profile, payload)
+            update_profile_data(db, profile, data=updated.model_dump(mode="json"), reason="api_update")
         else:
             if if_match is not None:
                 raise HTTPException(
@@ -282,7 +301,12 @@ def update_profile(
                     detail="Profile does not exist for the requested If-Match condition",
                 )
             profile = create_profile_record(payload.model_dump())
+            data = dict(profile.data)
+            data["migration"] = {"master_resume_v1_complete": True}
+            profile.data = data
             db.add(profile)
+            db.flush()
+            record_profile_version(db, profile, reason="initial")
 
         db.commit()
         db.refresh(profile)
@@ -545,36 +569,13 @@ def get_current_master_resume(
     db: Session = Depends(get_db),
 ) -> CurrentMasterResumeResponse:
     try:
-        master = db.scalar(
-            select(ResumeMasterRecord)
-            .order_by(
-                ResumeMasterRecord.updated_at.desc(),
-                ResumeMasterRecord.created_at.desc(),
-            )
-            .limit(1)
-        )
-        if master is None:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Confirmed Master Resume not found",
-            )
-        version = db.scalar(
-            select(ResumeMasterVersionRecord).where(
-                ResumeMasterVersionRecord.resume_master_id == master.id,
-                ResumeMasterVersionRecord.version == master.current_version,
-            )
-        )
-        if version is None:
-            raise HTTPException(
-                status_code=status.HTTP_409_CONFLICT,
-                detail="Current Master Resume version is unavailable",
-            )
+        profile = get_or_create_profile(db)
         return CurrentMasterResumeResponse(
-            master_resume_id=master.id,
-            version=version.version,
-            master_resume=version.data,
-            created_at=version.created_at,
-            updated_at=master.updated_at,
+            master_resume_id=profile.id,
+            version=profile.revision,
+            master_resume=profile_resume(ProfilePayload.model_validate(profile.data), profile.id),
+            created_at=profile.updated_at,
+            updated_at=profile.updated_at,
         )
     except HTTPException:
         raise
@@ -583,6 +584,17 @@ def get_current_master_resume(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Master Resume is temporarily unavailable",
         ) from exc
+
+
+@router.get("/sources/{source_id}")
+def download_profile_source(source_id: str, db: Session = Depends(get_db)) -> Response:
+    source = db.scalar(select(ResumeSourceFileRecord).where(ResumeSourceFileRecord.id == source_id))
+    if source is None:
+        raise HTTPException(status_code=404, detail="Profile source not found")
+    return Response(content=source.content, media_type=source.content_type, headers={
+        **private_file_headers(),
+        "Content-Disposition": profile_file_content_disposition(source.file_name, inline=False),
+    })
 
 
 @router.post(
@@ -602,6 +614,7 @@ def add_confirmed_profile_fact(
             expected_version=payload.expected_version,
             idempotency_key=payload.idempotency_key,
             source_run_id=payload.source_run_id,
+            experience_id=payload.experience_id,
         )
     except ProfileFactSyncError as exc:
         db.rollback()
@@ -655,6 +668,7 @@ def import_experience_from_resume(
         )
 
     return ResumeExperienceImportResponse(
+        source_file_id=retain_partial_import_source(db, payload),
         experience=experience,
         message=f"Imported {len(experience)} experience entr{'y' if len(experience) == 1 else 'ies'} from CV",
     )
@@ -676,6 +690,7 @@ def import_master_resume(
             detail="AI resume analysis is disabled.",
         )
 
+    profile_revision = get_or_create_profile(db).revision
     profile_file = require_import_profile_resume(db, payload)
     try:
         file_name = profile_file.file_name
@@ -720,6 +735,7 @@ def import_master_resume(
         ) from exc
 
     return MasterResumeImportResponse(
+        profile_revision=profile_revision,
         source_file_id=source_file.id,
         master_resume=outcome.master_resume,
         source=source,
@@ -742,6 +758,7 @@ def confirm_imported_master_resume(
             db,
             source_file_id=payload.source_file_id,
             master_resume=payload.master_resume,
+            expected_profile_revision=payload.expected_profile_revision,
         )
     except MasterResumeReviewError as exc:
         db.rollback()
@@ -798,6 +815,7 @@ def import_education_from_resume(
         )
 
     return ResumeEducationImportResponse(
+        source_file_id=retain_partial_import_source(db, payload),
         education=education,
         message=f"Imported {len(education)} education entr{'y' if len(education) == 1 else 'ies'} from CV",
     )
@@ -838,6 +856,7 @@ def import_skills_from_resume(
         )
 
     return ResumeSkillsImportResponse(
+        source_file_id=retain_partial_import_source(db, payload),
         skills=skills,
         message=f"Imported {len(skills)} skill{'s' if len(skills) != 1 else ''} from CV",
     )

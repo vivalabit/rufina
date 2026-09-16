@@ -28,6 +28,6 @@ export type ProfileFileUploadMetadata = {
   replaceExisting?: boolean;
 };
 
-export type ResumeExperienceImportResponse = { experience?: Array<Partial<ExperienceEntry>>; message?: string; detail?: string };
-export type ResumeEducationImportResponse = { education?: Array<Partial<EducationEntry>>; message?: string; detail?: string };
-export type ResumeSkillsImportResponse = { skills?: string[]; message?: string; detail?: string };
+export type ResumeExperienceImportResponse = { source_file_id?: string; experience?: Array<Partial<ExperienceEntry>>; message?: string; detail?: string };
+export type ResumeEducationImportResponse = { source_file_id?: string; education?: Array<Partial<EducationEntry>>; message?: string; detail?: string };
+export type ResumeSkillsImportResponse = { source_file_id?: string; skills?: string[]; message?: string; detail?: string };

@@ -11,7 +11,7 @@ from sqlalchemy.pool import StaticPool
 from app.core.database import Base, get_db
 from app.core.settings import Settings, get_settings
 from app.main import app
-from app.models.profile import ProfileFileRecord
+from app.models.profile import ProfileFileRecord, ProfileRecord, ProfileVersionRecord
 from app.models.resume import (
     MasterResume,
     ResumeMasterRecord,
@@ -369,6 +369,7 @@ def test_confirm_master_resume_creates_one_immutable_version_idempotently(
 
     request_payload = {
         "sourceFileId": "source-review",
+        "expectedProfileRevision": 1,
         "masterResume": master_resume,
         "confirmedSections": [
             "contacts",
@@ -399,31 +400,27 @@ def test_confirm_master_resume_creates_one_immutable_version_idempotently(
 
     assert first_response.status_code == 200
     assert current_response.status_code == 200
-    assert current_response.json()["masterResumeId"] == "master-confirmed"
-    assert current_response.json()["version"] == 1
-    assert current_response.json()["masterResume"] == MasterResume.model_validate(
-        master_resume
-    ).model_dump(mode="json", by_alias=True)
+    assert current_response.json()["masterResumeId"] == "default"
+    assert current_response.json()["version"] == 2
+    assert current_response.json()["masterResume"] == first_response.json()["masterResume"]
     assert second_response.status_code == 200
     assert second_response.json() == first_response.json()
     assert conflicting_response.status_code == 409
-    assert first_response.json()["masterResumeId"] == "master-confirmed"
-    assert first_response.json()["version"] == 1
+    assert first_response.json()["masterResumeId"] == "default"
+    assert first_response.json()["version"] == 2
 
     with api_sessions() as db:
         source_file = db.get(ResumeSourceFileRecord, "source-review")
         assert source_file is not None
-        assert source_file.resume_master_id == "master-confirmed"
-        assert len(db.scalars(select(ResumeMasterRecord)).all()) == 1
-        versions = db.scalars(select(ResumeMasterVersionRecord)).all()
-        assert len(versions) == 1
-        assert versions[0].data == MasterResume.model_validate(
-            master_resume
-        ).model_dump(mode="json", by_alias=True)
-
-        versions[0].data = {"schemaVersion": "2.0"}
-        with pytest.raises(ValueError, match="master versions are immutable"):
-            db.commit()
+        assert source_file.resume_master_id is None
+        assert source_file.content == b"docx"
+        assert len(db.scalars(select(ResumeMasterRecord)).all()) == 0
+        assert len(db.scalars(select(ResumeMasterVersionRecord)).all()) == 0
+        profile = db.get(ProfileRecord, "default")
+        assert profile.revision == 2
+        assert profile.data["sources"][0]["source_file_id"] == "source-review"
+        versions = db.scalars(select(ProfileVersionRecord)).all()
+        assert len(versions) == 2
 
 
 def test_confirm_master_resume_requires_all_review_sections(
@@ -433,6 +430,7 @@ def test_confirm_master_resume_requires_all_review_sections(
         "/profile/import-master-resume/confirm",
         json={
             "sourceFileId": "source-review",
+        "expectedProfileRevision": 1,
             "masterResume": master_resume_payload("master-confirmed"),
             "confirmedSections": [
                 "contacts",
@@ -448,13 +446,13 @@ def test_confirm_master_resume_requires_all_review_sections(
     assert response.status_code == 422
 
 
-def test_current_master_resume_returns_404_before_confirmation(
+def test_current_resume_uses_profile_without_confirmation(
     api_sessions: sessionmaker[Session],
 ) -> None:
     response = TestClient(app).get("/profile/master-resume")
 
-    assert response.status_code == 404
-    assert response.json()["detail"] == "Confirmed Master Resume not found"
+    assert response.status_code == 200
+    assert response.json()["masterResumeId"] == "default"
 
 
 def test_confirm_master_resume_is_owner_scoped(
@@ -486,6 +484,7 @@ def test_confirm_master_resume_is_owner_scoped(
         headers={"X-Rufina-Owner-Id": "owner-b"},
         json={
             "sourceFileId": "source-owner-a",
+            "expectedProfileRevision": 1,
             "masterResume": master_resume_payload("master-owner-a"),
             "confirmedSections": [
                 "contacts",

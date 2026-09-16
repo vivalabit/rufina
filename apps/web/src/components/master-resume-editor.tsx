@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
   AlertTriangle,
@@ -22,6 +22,7 @@ import { Button } from "@/components/ui/button";
 import {
   confirmMasterResumeImport,
   importMasterResume,
+  fetchProfileResume,
   MASTER_RESUME_REVIEW_SECTIONS,
   uploadPrimaryResume,
   type MasterResume,
@@ -64,11 +65,16 @@ const sectionDescriptions: Record<MasterResumeReviewSectionName, string> = {
 export function MasterResumeEditor({
   profileResume,
   onProfileResumeUploaded,
+  onProfileSaved,
+  profileEtag,
 }: {
   profileResume?: ProfileResume | null;
+  onProfileSaved?: () => void | Promise<unknown>;
+  profileEtag?: string;
   onProfileResumeUploaded?: (file: UploadedProfileResume) => void;
 }) {
   const uploadRef = useRef<HTMLInputElement>(null);
+  const reviewInProgress = useRef(false);
   const [importState, setImportState] = useState<RequestState>("idle");
   const [confirmState, setConfirmState] = useState<RequestState>("idle");
   const [message, setMessage] = useState("");
@@ -83,7 +89,15 @@ export function MasterResumeEditor({
   >(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
   const [confirmation, setConfirmation] =
-    useState<MasterResumeConfirmationResponse | null>(null);
+    useState<Omit<MasterResumeConfirmationResponse, "sourceFileId"> | null>(null);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchProfileResume(controller.signal).then((saved) => {
+      if (!reviewInProgress.current) setConfirmation(saved);
+    }).catch(() => {});
+    return () => controller.abort();
+  }, [profileEtag]);
 
   const allSectionsReviewed =
     reviewedSections.size === MASTER_RESUME_REVIEW_SECTIONS.length;
@@ -93,6 +107,7 @@ export function MasterResumeEditor({
   );
 
   async function importResume(fileName: string, profileFileId: string) {
+    reviewInProgress.current = true;
     setImportState("loading");
     setMessage("");
     setConfirmation(null);
@@ -173,12 +188,15 @@ export function MasterResumeEditor({
       const payload = await confirmMasterResumeImport(
         importResult.sourceFileId,
         draft,
+        importResult.profileRevision,
       );
+      reviewInProgress.current = false;
       setConfirmation(payload);
       setDraft(cloneResume(payload.masterResume));
       setConfirmState("idle");
       setDialogOpen(false);
-      setMessage("Master Resume version 1 is confirmed and ready for future documents.");
+      setMessage(`Profile version ${payload.version} is saved and ready for future documents.`);
+      await onProfileSaved?.();
     } catch (error) {
       setConfirmState("error");
       setMessage(
@@ -224,11 +242,11 @@ export function MasterResumeEditor({
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-2">
                 <h2 className="text-base font-bold text-foreground 2xl:text-lg">
-                  Master Resume
+                  Profile resume
                 </h2>
                 {confirmation ? (
                   <span className="rounded border border-success/30 bg-success/10 px-2 py-0.5 text-[11px] font-bold text-success">
-                    Confirmed · v{confirmation.version}
+                    Saved · v{confirmation.version}
                   </span>
                 ) : draft ? (
                   <span className="rounded border border-[#fa5d00]/30 bg-[#fa5d00]/10 px-2 py-0.5 text-[11px] font-bold text-accent">
@@ -239,8 +257,8 @@ export function MasterResumeEditor({
               </div>
               <p className="mt-1 max-w-[760px] text-xs leading-5 text-muted 2xl:text-[13px]">
                 {confirmation
-                  ? `${confirmation.masterResume.basics.fullName} is now the verified, vacancy-independent source for tailored resumes.`
-                  : "Import once, review the structured facts, and confirm an immutable source of truth for future applications."}
+                  ? `${confirmation.masterResume.basics.fullName} — saved profile used for future documents.`
+                  : "Your saved profile is the source for documents. Import a CV to add missing information."}
               </p>
               {message ? (
                 <p
@@ -269,7 +287,7 @@ export function MasterResumeEditor({
                 Continue review
               </Button>
             ) : null}
-            {!confirmation && profileResume?.fileId ? (
+            {profileResume?.fileId ? (
               <Button
                 type="button"
                 variant="ghost"
@@ -287,7 +305,7 @@ export function MasterResumeEditor({
                 {draft ? "Restart from profile resume" : "Import profile resume"}
               </Button>
             ) : null}
-            {!confirmation ? (
+            {(
               <Button
                 type="button"
                 variant="ghost"
@@ -298,7 +316,7 @@ export function MasterResumeEditor({
                 <Upload className="h-4 w-4" />
                 Choose PDF or DOCX
               </Button>
-            ) : null}
+            )}
             <input
               ref={uploadRef}
               aria-label="Choose Master Resume file"

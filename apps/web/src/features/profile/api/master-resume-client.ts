@@ -105,6 +105,7 @@ export type MasterResume = {
 };
 
 export type MasterResumeImportResponse = {
+  profileRevision: number;
   sourceFileId: string;
   masterResume: MasterResume;
   source: {
@@ -195,6 +196,7 @@ export async function importMasterResume(profileFileId: string, signal?: AbortSi
 export async function confirmMasterResumeImport(
   sourceFileId: string,
   masterResume: MasterResume,
+  expectedProfileRevision: number,
   signal?: AbortSignal,
 ) {
   return (await apiClient.json<MasterResumeConfirmationResponse>({
@@ -203,6 +205,7 @@ export async function confirmMasterResumeImport(
     json: {
       sourceFileId,
       masterResume,
+      expectedProfileRevision,
       confirmedSections: MASTER_RESUME_REVIEW_SECTIONS,
     },
     signal,
@@ -212,4 +215,11 @@ export async function confirmMasterResumeImport(
     "masterResumeId",
     "Master Resume confirmation returned an invalid response",
   ))).data;
+}
+
+export async function fetchProfileResume(signal?: AbortSignal) {
+  return (await apiClient.json<Omit<MasterResumeConfirmationResponse, "sourceFileId">>({
+    path: "/profile/master-resume", cache: "no-store", signal,
+    errorMessage: "Profile resume could not be loaded",
+  })).data;
 }

@@ -91,6 +91,7 @@ function getProfileLinks(profile: CandidateProfile) {
 export function ProfileView({
   profile,
   onProfileResumeUploaded,
+  onProfileSaved,
   onOpenAssistant,
   onEditProfile,
   onAddExperience,
@@ -117,6 +118,7 @@ export function ProfileView({
   skillsImportMessage,
 }: {
   profile: CandidateProfile;
+  onProfileSaved?: () => void | Promise<unknown>;
   onProfileResumeUploaded: (file: {
     id: string;
     fileName: string;
@@ -178,6 +180,8 @@ export function ProfileView({
       <div className="mt-4 grid shrink-0 content-start gap-4 2xl:gap-5">
         <MasterResumeEditor
           onProfileResumeUploaded={onProfileResumeUploaded}
+          onProfileSaved={onProfileSaved}
+          profileEtag={profile._etag}
           profileResume={
             profile.resume_file_name && profile.resume_file_id
               ? {

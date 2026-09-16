@@ -62,6 +62,7 @@ def apply_form_update(current: ProfilePayload, submitted: ProfilePayload) -> Pro
     for field in FORM_FIELDS | submitted.model_fields_set:
         if field in incoming:
             data[field] = incoming[field]
+    data["import_source_ids"] = list(dict.fromkeys([*current.import_source_ids, *submitted.import_source_ids]))
     for section in ("experience", "education"):
         if data[section] == getattr(current, section):
             continue

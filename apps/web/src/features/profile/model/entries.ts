@@ -42,16 +42,25 @@ function getExperienceFingerprint(entry: ExperienceEntry) {
   return [entry.title, entry.company, entry.start_date, entry.end_date].map((value) => value.trim().toLowerCase()).join("|");
 }
 
-export function mergeExperienceEntries(currentEntries: ExperienceEntry[], importedEntries: ExperienceEntry[]) {
-  const existingFingerprints = new Set(currentEntries.map(getExperienceFingerprint));
-  const nextEntries = [...currentEntries];
+function mergeImportedEntries<T extends { id: string; description: string }>(
+  currentEntries: T[], importedEntries: T[], fingerprint: (entry: T) => string,
+): T[] {
+  const result = currentEntries.map((entry) => ({ ...entry }));
   for (const entry of importedEntries) {
-    const fingerprint = getExperienceFingerprint(entry);
-    if (!entry.title || !entry.company || existingFingerprints.has(fingerprint)) continue;
-    existingFingerprints.add(fingerprint);
-    nextEntries.push(entry);
+    const key = fingerprint(entry);
+    const matches = result.filter((item) => fingerprint(item) === key);
+    const match = result.find((item) => item.id === entry.id)
+      ?? (matches.length === 1 && importedEntries.filter((item) => fingerprint(item) === key).length === 1
+        ? matches[0] : undefined);
+    if (!match) { result.push(entry); continue; }
+    const additions = entry.description.split("\n").filter((line) => line && !match.description.includes(line));
+    if (additions.length) match.description += `${match.description ? "\n" : ""}${additions.join("\n")}`;
   }
-  return nextEntries;
+  return result;
+}
+
+export function mergeExperienceEntries(currentEntries: ExperienceEntry[], importedEntries: ExperienceEntry[]) {
+  return mergeImportedEntries(currentEntries, importedEntries.filter((entry) => entry.title && entry.company), getExperienceFingerprint);
 }
 
 export function normalizeEducationEntry(entry: Partial<EducationEntry>, createId: ProfileIdFactory): EducationEntry {
@@ -90,15 +99,7 @@ function getEducationFingerprint(entry: EducationEntry) {
 }
 
 export function mergeEducationEntries(currentEntries: EducationEntry[], importedEntries: EducationEntry[]) {
-  const existingFingerprints = new Set(currentEntries.map(getEducationFingerprint));
-  const nextEntries = [...currentEntries];
-  for (const entry of importedEntries) {
-    const fingerprint = getEducationFingerprint(entry);
-    if ((!entry.institution && !entry.credential) || existingFingerprints.has(fingerprint)) continue;
-    existingFingerprints.add(fingerprint);
-    nextEntries.push(entry);
-  }
-  return nextEntries;
+  return mergeImportedEntries(currentEntries, importedEntries.filter((entry) => entry.institution || entry.credential), getEducationFingerprint);
 }
 
 export function inferDocumentLanguage(fileName: string, title = "") {

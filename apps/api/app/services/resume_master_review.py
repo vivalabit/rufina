@@ -8,21 +8,22 @@ from pydantic import ValidationError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.models.profile import ProfilePayload, ProfileVersionRecord
 from app.models.resume import (
     MASTER_RESUME_REVIEW_SECTIONS,
     MasterResume,
     MasterResumeConfirmationResponse,
     MasterResumeReviewSection,
-    ResumeMasterRecord,
-    ResumeMasterVersionRecord,
     ResumeSourceExtraction,
     ResumeSourceFileRecord,
 )
+from app.services.candidate_profile import profile_resume
+from app.services.profile_migration import ensure_candidate_profile, merge_master_into_profile
+from app.services.profile_versions import StaleProfileRevisionError, update_profile_data
 from app.services.resume_master_import import (
     MasterResumeImportError,
     validate_master_resume_source_evidence,
 )
-
 
 PDF_CONTENT_TYPE = "application/pdf"
 DOCX_CONTENT_TYPE = (
@@ -103,6 +104,7 @@ def confirm_master_resume(
     *,
     source_file_id: str,
     master_resume: MasterResume,
+    expected_profile_revision: int,
 ) -> MasterResumeConfirmationResponse:
     source_file = db.get(ResumeSourceFileRecord, source_file_id)
     if source_file is None:
@@ -136,75 +138,47 @@ def confirm_master_resume(
 
     canonical_data = master_resume.model_dump(mode="json", by_alias=True)
     content_sha256 = _canonical_resume_hash(canonical_data)
-    if source_file.resume_master_id is not None:
-        return _confirmed_response(
-            db,
-            source_file=source_file,
-            master_resume=master_resume,
-            expected_hash=content_sha256,
+    profile = ensure_candidate_profile(db)
+    payload = ProfilePayload.model_validate(profile.data)
+    source_key = f"import:{source_file.id}"
+    previous = next((item for item in payload.sources if item.get("key") == source_key), None)
+    if previous:
+        if previous["content_sha256"] != content_sha256:
+            raise MasterResumeReviewError("Import was already confirmed with different edits", code="conflict")
+        version = db.scalar(select(ProfileVersionRecord).where(
+            ProfileVersionRecord.owner_id == profile.owner_id,
+            ProfileVersionRecord.profile_id == profile.id,
+            ProfileVersionRecord.revision == previous["profile_revision"],
+        ))
+        return MasterResumeConfirmationResponse(
+            master_resume_id=profile.id, version=version.revision, source_file_id=source_file.id,
+            master_resume=profile_resume(ProfilePayload.model_validate(version.data), profile.id),
+            created_at=version.created_at,
         )
-
-    master_record = ResumeMasterRecord(
-        id=master_resume.id,
-        name=master_resume.basics.full_name,
-        language=master_resume.language,
-        current_version=1,
+    if profile.revision != expected_profile_revision:
+        raise MasterResumeReviewError("Profile changed during review; reload and review the import again", code="conflict")
+    merged = merge_master_into_profile(payload, master_resume, source_key=source_key,
+                                      source_file_id=source_file.id, content_sha256=content_sha256)
+    data = merged.model_dump(mode="json")
+    data["sources"][-1]["profile_revision"] = profile.revision + 1
+    data["sources"][-1]["source_content_sha256"] = source_file.content_sha256
+    try:
+        revision = update_profile_data(db, profile, data=data, reason="resume_import_confirmed")
+        db.flush()
+    except StaleProfileRevisionError as exc:
+        raise MasterResumeReviewError("Profile changed during review", code="conflict") from exc
+    version = db.scalar(select(ProfileVersionRecord).where(
+        ProfileVersionRecord.owner_id == profile.owner_id,
+        ProfileVersionRecord.profile_id == profile.id,
+        ProfileVersionRecord.revision == revision,
+    ))
+    response = MasterResumeConfirmationResponse(
+        master_resume_id=profile.id, version=revision, source_file_id=source_file.id,
+        master_resume=profile_resume(ProfilePayload.model_validate(data), profile.id),
+        created_at=version.created_at,
     )
-    version_record = ResumeMasterVersionRecord(
-        id=uuid4().hex,
-        resume_master_id=master_record.id,
-        version=1,
-        schema_version=master_resume.schema_version,
-        data=canonical_data,
-        content_sha256=content_sha256,
-        source_file_id=source_file.id,
-    )
-    source_file.resume_master_id = master_record.id
-    db.add_all([master_record, version_record])
     db.commit()
-    db.refresh(version_record)
-    return MasterResumeConfirmationResponse(
-        master_resume_id=master_record.id,
-        version=version_record.version,
-        source_file_id=source_file.id,
-        master_resume=master_resume,
-        created_at=version_record.created_at,
-    )
-
-
-def _confirmed_response(
-    db: Session,
-    *,
-    source_file: ResumeSourceFileRecord,
-    master_resume: MasterResume,
-    expected_hash: str,
-) -> MasterResumeConfirmationResponse:
-    version_record = db.scalar(
-        select(ResumeMasterVersionRecord).where(
-            ResumeMasterVersionRecord.resume_master_id
-            == source_file.resume_master_id,
-            ResumeMasterVersionRecord.version == 1,
-            ResumeMasterVersionRecord.source_file_id == source_file.id,
-        )
-    )
-    if version_record is None:
-        raise MasterResumeReviewError(
-            "Confirmed master resume version is unavailable",
-            code="conflict",
-        )
-    if version_record.content_sha256 != expected_hash:
-        raise MasterResumeReviewError(
-            "Import source was already confirmed with different review edits",
-            code="conflict",
-        )
-    persisted_resume = MasterResume.model_validate(version_record.data)
-    return MasterResumeConfirmationResponse(
-        master_resume_id=version_record.resume_master_id,
-        version=version_record.version,
-        source_file_id=source_file.id,
-        master_resume=persisted_resume,
-        created_at=version_record.created_at,
-    )
+    return response
 
 
 def _canonical_resume_hash(data: dict[str, object]) -> str:

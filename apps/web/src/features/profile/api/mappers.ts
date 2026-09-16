@@ -9,6 +9,7 @@ import type { ProfileFilePayload } from "./dto";
 
 export function profilePayloadForApi(profile: CandidateProfile) {
   const payload: Partial<CandidateProfile> = { ...profile };
+  delete payload._etag;
   delete payload.documents;
   delete payload.avatar_file_id;
   delete payload.resume_file_id;

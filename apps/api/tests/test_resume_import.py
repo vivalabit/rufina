@@ -182,6 +182,7 @@ def test_import_experience_endpoint_reads_attached_resume_data() -> None:
 
     try:
         with (
+            patch("app.api.profile.retain_partial_import_source", return_value="source-file"),
             patch("app.api.profile.extract_resume_import_text", return_value=resume_text),
             patch(
                 "app.api.profile.parse_resume_experience_with_selected_backend",
@@ -216,6 +217,7 @@ def test_import_experience_reports_ai_failure_without_internal_details() -> None
 
     try:
         with (
+            patch("app.api.profile.retain_partial_import_source", return_value="source-file"),
             patch("app.api.profile.extract_resume_import_text", return_value=resume_text),
             patch(
                 "app.api.profile.parse_resume_experience_with_selected_backend",
@@ -255,6 +257,7 @@ def test_all_resume_import_endpoints_hide_openclaw_failure_details(
 
     try:
         with (
+            patch("app.api.profile.retain_partial_import_source", return_value="source-file"),
             patch("app.api.profile.extract_resume_import_text", return_value="Resume text"),
             patch(
                 parser_path,
@@ -313,6 +316,7 @@ def test_import_education_endpoint_reads_attached_resume_data() -> None:
 
     try:
         with (
+            patch("app.api.profile.retain_partial_import_source", return_value="source-file"),
             patch("app.api.profile.extract_resume_import_text", return_value=resume_text),
             patch(
                 "app.api.profile.parse_resume_education_with_selected_backend",
@@ -351,6 +355,7 @@ def test_import_skills_endpoint_reads_attached_resume_data() -> None:
 
     try:
         with (
+            patch("app.api.profile.retain_partial_import_source", return_value="source-file"),
             patch("app.api.profile.extract_resume_import_text", return_value=resume_text),
             patch(
                 "app.api.profile.parse_resume_skills_with_selected_backend",

@@ -612,6 +612,7 @@ export function AppWorkspaceRoot({
   const sourceSearchConfigs = jobSearchState.sourceConfigs;
   const [selectedSourceConfigIds, setSelectedSourceConfigIds] = useState<Partial<Record<ParserId, string>>>({});
   const profile = profileState.profile;
+  const profileEditorEtagRef = useRef("");
   const setProfile = profileState.updateCachedProfile;
   const [profileDraft, setProfileDraft] = useState<CandidateProfile>(defaultCandidateProfile);
   const [profileAvatarDraftFile, setProfileAvatarDraftFile] = useState<File | null>(null);
@@ -1603,6 +1604,7 @@ export function AppWorkspaceRoot({
   }
 
   function openProfileEditor() {
+    profileEditorEtagRef.current = profile._etag;
     setProfileDraft(profile);
     setProfileAvatarDraftFile(null);
     setProfileAvatarUseDefault(false);
@@ -1618,6 +1620,7 @@ export function AppWorkspaceRoot({
   }
 
   function openExperienceEditor(experience?: ExperienceEntry) {
+    profileEditorEtagRef.current = profile._etag;
     setExperienceDraft(experience ? normalizeExperienceEntry(experience) : { ...defaultExperienceDraft, id: createClientId("experience") });
     setIsExperienceEditMode(Boolean(experience));
     setProfileSaveStatus("idle");
@@ -1626,6 +1629,7 @@ export function AppWorkspaceRoot({
   }
 
   function openEducationEditor(education?: EducationEntry) {
+    profileEditorEtagRef.current = profile._etag;
     setEducationDraft(education ? normalizeEducationEntry(education) : { ...defaultEducationDraft, id: createClientId("education") });
     setIsEducationEditMode(Boolean(education));
     setProfileSaveStatus("idle");
@@ -1642,6 +1646,7 @@ export function AppWorkspaceRoot({
   }
 
   function openPreferencesEditor() {
+    profileEditorEtagRef.current = profile._etag;
     setPreferencesDraft(parseJobPreferences(profile.job_preferences));
     setPreferenceInputs(defaultPreferenceInputs);
     setProfileSaveStatus("idle");
@@ -1650,6 +1655,7 @@ export function AppWorkspaceRoot({
   }
 
   function openSkillsEditor() {
+    profileEditorEtagRef.current = profile._etag;
     setSkillsDraft(parseProfileLines(profile.skills));
     setSkillInput("");
     setProfileSaveStatus("idle");
@@ -1658,6 +1664,7 @@ export function AppWorkspaceRoot({
   }
 
   function openDealbreakersEditor() {
+    profileEditorEtagRef.current = profile._etag;
     setDealbreakersDraft(parseProfileLines(profile.dealbreakers));
     setDealbreakerInput("");
     setProfileSaveStatus("idle");
@@ -1666,6 +1673,7 @@ export function AppWorkspaceRoot({
   }
 
   function openAdditionalNotesEditor() {
+    profileEditorEtagRef.current = profile._etag;
     setAdditionalNotesDraft(profile.additional_notes);
     setProfileSaveStatus("idle");
     setProfileSaveMessage("");
@@ -1898,6 +1906,7 @@ export function AppWorkspaceRoot({
       : [...experienceEntries, normalizedExperience];
     const nextProfile = normalizeCandidateProfile({
       ...profile,
+      _etag: profileEditorEtagRef.current,
       experience: serializeExperienceEntries(nextExperienceEntries),
     });
 
@@ -1932,6 +1941,7 @@ export function AppWorkspaceRoot({
       : [...educationEntries, normalizedEducation];
     const nextProfile = normalizeCandidateProfile({
       ...profile,
+      _etag: profileEditorEtagRef.current,
       education: serializeEducationEntries(nextEducationEntries),
     });
 
@@ -2032,6 +2042,7 @@ export function AppWorkspaceRoot({
 
     const nextProfile = normalizeCandidateProfile({
       ...profile,
+      _etag: profileEditorEtagRef.current,
       job_preferences: serializeJobPreferences(normalizedPreferences),
     });
 
@@ -2054,6 +2065,7 @@ export function AppWorkspaceRoot({
     const normalizedSkills = mergeSkillLists([], skillsDraft);
     const nextProfile = normalizeCandidateProfile({
       ...profile,
+      _etag: profileEditorEtagRef.current,
       skills: normalizedSkills.join("\n"),
     });
 
@@ -2076,6 +2088,7 @@ export function AppWorkspaceRoot({
     const normalizedDealbreakers = mergeSkillLists([], dealbreakersDraft);
     const nextProfile = normalizeCandidateProfile({
       ...profile,
+      _etag: profileEditorEtagRef.current,
       dealbreakers: normalizedDealbreakers.join("\n"),
     });
 
@@ -2097,6 +2110,7 @@ export function AppWorkspaceRoot({
   async function saveAdditionalNotes() {
     const nextProfile = normalizeCandidateProfile({
       ...profile,
+      _etag: profileEditorEtagRef.current,
       additional_notes: additionalNotesDraft.trim(),
     });
 
@@ -2214,7 +2228,7 @@ export function AppWorkspaceRoot({
       const mergedEntries = mergeExperienceEntries(currentEntries, importedEntries);
       const addedCount = mergedEntries.length - currentEntries.length;
 
-      if (addedCount === 0) {
+      if (JSON.stringify(mergedEntries) === JSON.stringify(currentEntries)) {
         setProfileSaveStatus("ready");
         setExperienceImportMessage("No new experience entries found in the attached CV");
         return;
@@ -2224,7 +2238,7 @@ export function AppWorkspaceRoot({
         ...profile,
         experience: serializeExperienceEntries(mergedEntries),
       });
-      const saved = await profileState.save(nextProfile);
+      const saved = await profileState.save(nextProfile, importResult.source_file_id);
       setProfileDraft(saved.profile);
       setProfileSaveStatus("ready");
       setProfileSaveMessage("");
@@ -2271,7 +2285,7 @@ export function AppWorkspaceRoot({
       const mergedEntries = mergeEducationEntries(currentEntries, importedEntries);
       const addedCount = mergedEntries.length - currentEntries.length;
 
-      if (addedCount === 0) {
+      if (JSON.stringify(mergedEntries) === JSON.stringify(currentEntries)) {
         setProfileSaveStatus("ready");
         setEducationImportMessage("No new education entries found in the attached CV");
         return;
@@ -2281,7 +2295,7 @@ export function AppWorkspaceRoot({
         ...profile,
         education: serializeEducationEntries(mergedEntries),
       });
-      const saved = await profileState.save(nextProfile);
+      const saved = await profileState.save(nextProfile, importResult.source_file_id);
       setProfileDraft(saved.profile);
       setProfileSaveStatus("ready");
       setProfileSaveMessage("");
@@ -2332,7 +2346,7 @@ export function AppWorkspaceRoot({
         ...profile,
         skills: mergedSkills.join("\n"),
       });
-      const saved = await profileState.save(nextProfile);
+      const saved = await profileState.save(nextProfile, importResult.source_file_id);
       setProfileDraft(saved.profile);
       setSkillsDraft(parseProfileLines(saved.profile.skills));
       setProfileSaveStatus("ready");
@@ -3066,6 +3080,7 @@ export function AppWorkspaceRoot({
           <ProfileView
             profile={profile}
             onProfileResumeUploaded={applyProfileResumeUpload}
+            onProfileSaved={() => profileState.refetch()}
             onOpenAssistant={(prompt) => openAssistant(prompt, "profile")}
             onEditProfile={openProfileEditor}
             onAddExperience={() => openExperienceEditor()}

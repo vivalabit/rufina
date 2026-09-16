@@ -153,16 +153,16 @@ class CandidateMatchSnapshotRecord(OwnerScoped, Base):
 
 class ProfilePayload(BaseModel):
     avatar_url: str = Field(default="/avatars/default-pug.png", max_length=2_000)
-    name: str = Field(default="", max_length=120)
+    name: str = Field(default="", max_length=200)
     current_role: str = Field(default="", max_length=160)
     desired_role: str = Field(default="", max_length=160)
-    location: str = Field(default="", max_length=160)
+    location: str = Field(default="", max_length=240)
     work_format: str = Field(default="", max_length=120)
-    headline: str = Field(default="", max_length=600)
-    linkedin: str = Field(default="", max_length=240)
-    github: str = Field(default="", max_length=240)
-    portfolio: str = Field(default="", max_length=240)
-    personal_site: str = Field(default="", max_length=240)
+    headline: str = Field(default="", max_length=20_000)
+    linkedin: str = Field(default="", max_length=500)
+    github: str = Field(default="", max_length=500)
+    portfolio: str = Field(default="", max_length=500)
+    personal_site: str = Field(default="", max_length=500)
     experience: str = Field(default="", max_length=2_000_000)
     skills: str = Field(default="", max_length=2_000_000)
     education: str = Field(default="", max_length=2_000_000)
@@ -187,6 +187,7 @@ class ProfilePayload(BaseModel):
     evidence: list[ResumeEvidence] = Field(default_factory=list)
     skill_metadata: dict[str, dict[str, Any]] = Field(default_factory=dict)
     sources: list[dict[str, Any]] = Field(default_factory=list)
+    import_source_ids: list[str] = Field(default_factory=list)
     confirmed_facts: list[dict[str, Any]] = Field(default_factory=list)
     migration: dict[str, Any] = Field(default_factory=dict)
 
@@ -265,6 +266,7 @@ class ImportedExperienceEntry(BaseModel):
 
 
 class ResumeExperienceImportResponse(BaseModel):
+    source_file_id: str = ""
     experience: list[ImportedExperienceEntry]
     message: str = ""
 
@@ -281,10 +283,12 @@ class ImportedEducationEntry(BaseModel):
 
 
 class ResumeEducationImportResponse(BaseModel):
+    source_file_id: str = ""
     education: list[ImportedEducationEntry]
     message: str = ""
 
 
 class ResumeSkillsImportResponse(BaseModel):
+    source_file_id: str = ""
     skills: list[str]
     message: str = ""
