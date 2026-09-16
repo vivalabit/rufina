@@ -1,10 +1,10 @@
-import hashlib
 import json
 from collections import deque
+from copy import deepcopy
 from types import SimpleNamespace
 
 import pytest
-from sqlalchemy import create_engine, func, select, update
+from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 from test_generation_input import seed_complete_sources
@@ -18,8 +18,10 @@ from app.models.generation_runs import (
     GenerationRunStartRequest,
 )
 from app.models.generation_workflow import DraftBundle
-from app.models.resume import MasterResume, ResumeMasterVersionRecord
+from app.models.profile import ProfilePayload, ProfileRecord
+from app.models.resume import MasterResume
 from app.services.ai_backend import AIResult, AIUsage
+from app.services.candidate_profile import canonical_hash, profile_resume
 from app.services.generation_grounding import (
     GenerationGroundingError,
     validate_grounded_bundle,
@@ -30,6 +32,7 @@ from app.services.generation_resume_templates import resolve_generation_resume_t
 from app.services.generation_store import create_generation_run
 from app.services.generation_verification import PdfCheck, PdfVerificationReport, VerifiedPdf
 from app.services.generation_workflow import GenerationWorkflow, GenerationWorkflowError
+from app.services.profile_versions import update_profile_data
 
 
 class FakeBackend:
@@ -102,27 +105,13 @@ def _start() -> GenerationRunStartRequest:
 def _seed(sessions: sessionmaker[Session]) -> None:
     seed_complete_sources(sessions)
     with sessions() as db:
-        version = db.scalar(
-            select(ResumeMasterVersionRecord).where(
-                ResumeMasterVersionRecord.resume_master_id == "master-profile",
-                ResumeMasterVersionRecord.version == 2,
-            )
-        )
-        assert version is not None
-        data = dict(version.data)
+        profile = db.get(ProfileRecord, "default")
+        data = dict(profile.data)
         data["summary"] = {"text": "Builds reliable platforms.", "evidenceIds": ["source:one"]}
         data["evidence"] = [
             {"id": "source:one", "type": "source", "text": "Builds reliable platforms."}
         ]
-        data["sectionOrder"] = ["summary"]
-        canonical = json.dumps(
-            data, ensure_ascii=False, separators=(",", ":"), sort_keys=True
-        ).encode()
-        db.execute(
-            update(ResumeMasterVersionRecord)
-            .where(ResumeMasterVersionRecord.id == version.id)
-            .values(data=data, content_sha256=hashlib.sha256(canonical).hexdigest())
-        )
+        update_profile_data(db, profile, data=ProfilePayload.model_validate(data).model_dump(mode="json"), reason="fixture")
         db.commit()
 
 
@@ -151,7 +140,7 @@ def _draft() -> dict[str, object]:
         "resume": {
             "schemaVersion": "1.0",
             "id": "tailored-1",
-            "masterResumeId": "master-profile",
+            "masterResumeId": "default",
             "targetJobId": "vacancy-1",
             "language": "English",
             "basics": {"fullName": "Ada Lovelace", "headline": "Platform Engineer"},
@@ -310,9 +299,10 @@ def test_selected_resume_template_survives_draft_repair_recovery_and_import(
     payloads = [visual_failure, _draft(), _visual_review()]
     if not recovered:
         payloads = [_fit(), _draft(), _review(), *payloads]
+    backend = FakeBackend(payloads)
     workflow = GenerationWorkflow(
         settings=_settings(),
-        backend=FakeBackend(payloads),
+        backend=backend,
         renderer=selected_renderer,
         verifier=_verifier,
     )
@@ -325,6 +315,11 @@ def test_selected_resume_template_survives_draft_repair_recovery_and_import(
             ),
             settings=_settings(),
         )
+        frozen = run.input_snapshot["request"]["masterProfileVersion"]
+        profile = db.get(ProfileRecord, "default")
+        updated = {**profile.data, "name": "Changed after start", "additional_notes": "New fact"}
+        update_profile_data(db, profile, data=updated, reason="edit_while_generating")
+        db.commit()
         if recovered:
             run.stage = "pdf_checks"
             run.result = {"fit": _fit(), "draft": _draft(), "review": _review()}
@@ -348,6 +343,12 @@ def test_selected_resume_template_survives_draft_repair_recovery_and_import(
         )
         assert pdf is not None and pdf.artifact_metadata["templateId"] == template_id
     assert seen_templates == [template_id, template_id]
+    for request in backend.requests:
+        assert '"candidateProfileVersion"' in request.prompt
+        assert frozen["contentSha256"] in request.prompt
+        assert '"masterResume"' in request.prompt
+        assert 'Changed after start' not in request.prompt
+        assert 'New fact' not in request.prompt
 
 
 @pytest.mark.parametrize(
@@ -379,14 +380,26 @@ def test_recovered_legacy_snapshot_keeps_input_and_records_actual_banking_artifa
             "templateVersion": legacy_version,
             "contentSha256": "f" * 64,
         }
-        run.input_snapshot = {**run.input_snapshot, "templates": [legacy]}
+        # Simulate an actual pre-profile snapshot. Recovery has no dependency
+        # on either today's profile contents or the old resume tables.
+        profile = db.get(ProfileRecord, "default")
+        old_source = profile_resume(ProfilePayload.model_validate(profile.data), "legacy-master").model_dump(mode="json", by_alias=True)
+        old_request = {**run.input_snapshot["request"], "masterProfileVersion": {
+            "id": "legacy-master", "version": 1, "contentSha256": canonical_hash(old_source), "data": old_source,
+        }}
+        run.input_snapshot = {**run.input_snapshot, "request": old_request, "templates": [legacy]}
+        original_input = deepcopy(run.input_snapshot)
+        original_fingerprint = run.input_fingerprint
         run.stage = "pdf_checks"
-        run.result = {"fit": _fit(), "draft": _draft(), "review": _review()}
+        draft = _draft()
+        draft["resume"]["masterResumeId"] = "legacy-master"
+        run.result = {"fit": _fit(), "draft": draft, "review": _review()}
         db.commit()
         workflow.resume_pdf_checks(db, run)
 
         assert run.status == "completed"
-        assert run.input_snapshot["templates"] == [legacy]
+        assert run.input_snapshot == original_input
+        assert run.input_fingerprint == original_fingerprint
         document_file = db.scalar(select(DocumentFileRecord))
         assert document_file is not None
         assert document_file.renderer_template_id == "moderncv_banking"

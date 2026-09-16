@@ -52,6 +52,7 @@ def merge_master_into_profile(
     source: dict[str, Any] = {
         'key': source_key, 'master_id': master.id, 'source_file_id': source_file_id,
         'content_sha256': content_sha256, 'entry_map': {}, 'conflicts': [],
+        'download_url': f'/profile/sources/{source_file_id}' if source_file_id else None,
     }
     # Imported IDs live in a stable namespace, so unrelated CVs cannot collide.
     def imported_id(value: str) -> str:
@@ -76,7 +77,8 @@ def merge_master_into_profile(
 
     imported = remap(raw)
     for target, value in {
-        'name': master.basics.full_name, 'headline': master.basics.headline,
+        'name': master.basics.full_name, 'current_role': master.basics.headline,
+        'headline': master.summary.text if master.summary else master.basics.headline,
         'email': master.basics.email, 'phone': master.basics.phone,
         'location': master.basics.location, 'work_authorization': master.basics.work_authorization,
         'linkedin': master.basics.linkedin, 'github': master.basics.github,
@@ -88,9 +90,9 @@ def merge_master_into_profile(
             source['conflicts'].append({'field': target, 'imported_value': value})
     if not profile.sources:
         data['resume_language'] = master.language
-    if not data['summary']:
+    if not data['summary'] and (not profile.headline or (master.summary and profile.headline == master.summary.text)):
         data['summary'] = imported['summary']
-    elif imported['summary'] and data['summary']['text'] != imported['summary']['text']:
+    elif imported['summary'] and (not data['summary'] or data['summary']['text'] != imported['summary']['text']):
         source['conflicts'].append({'field': 'summary', 'imported_value': imported['summary']})
 
     for section, items, identity_fields in (
@@ -191,14 +193,13 @@ def merge_master_into_profile(
 def ensure_candidate_profile(db: Session, *, owner_id: str | None = None) -> ProfileRecord:
     """Migrate on first access too, including installations upgraded without CLI backfill."""
     profile = get_profile_record(db, owner_id=owner_id)
+    created = profile is None
     if profile is None:
         profile = create_profile_record(ProfilePayload().model_dump(mode='json'), owner_id=owner_id)
         db.add(profile)
         db.flush()
     payload = ProfilePayload.model_validate(profile.data)
     if payload.migration.get('master_resume_v1_complete'):
-        record_profile_version(db, profile, reason='initial')
-        db.flush()
         return profile
     masters = db.scalars(select(ResumeMasterRecord).where(
         ResumeMasterRecord.owner_id == profile.owner_id,
@@ -218,7 +219,7 @@ def ensure_candidate_profile(db: Session, *, owner_id: str | None = None) -> Pro
         )
     data = payload.model_dump(mode='json')
     data['migration']['master_resume_v1_complete'] = True
-    if masters:
+    if masters or not created:
         update_profile_data(db, profile, data=data, reason='master_resume_migration')
     else:
         # No user-data change: initialize the marker in the initial version only.

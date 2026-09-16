@@ -152,7 +152,7 @@ export async function fetchCurrentMasterResumeSummary(signal?: AbortSignal) {
         cache: "no-store",
         signal,
         retry: false,
-        errorMessage: "The confirmed Master Resume could not be loaded",
+        errorMessage: "The candidate profile could not be loaded",
       })
     ).data;
   } catch (error) {

@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 from collections.abc import Mapping, Sequence
+from copy import deepcopy
 from typing import Any
 
 from pydantic import JsonValue, ValidationError
@@ -21,7 +22,9 @@ from app.models.generation import (
     without_internal_generation_context,
 )
 from app.models.jobs import StoredJobRecord, is_job_state_placeholder
-from app.models.resume import MasterResume, ResumeMasterRecord, ResumeMasterVersionRecord
+from app.models.profile import ProfilePayload, ProfileRecord, ProfileVersionRecord
+from app.services.candidate_profile import canonical_hash
+from app.services.profile_migration import ensure_candidate_profile
 
 MAX_VACANCY_DESCRIPTION_LENGTH = 200_000
 
@@ -87,12 +90,12 @@ def build_generation_input(
     _require_vacancy_identity(vacancy_data)
     full_description = build_full_vacancy_description(vacancy_data)
 
-    master, version = _load_master_profile_version(
+    profile, version = _load_profile_version(
         db,
         master_profile_id=master_profile_id,
         master_profile_version=master_profile_version,
     )
-    master_data = _validated_master_profile_data(master, version)
+    profile_data = deepcopy(version.data)
 
     clean_application_data = without_internal_generation_context(application_data)
     clean_vacancy_data = without_internal_generation_context(vacancy_data)
@@ -109,10 +112,10 @@ def build_generation_input(
             data=clean_vacancy_data,
         ),
         master_profile_version=GenerationMasterProfileVersion(
-            id=master.id,
-            version=version.version,
-            content_sha256=version.content_sha256,
-            data=master_data,
+            id=profile.id,
+            version=version.revision,
+            content_sha256=canonical_hash(profile_data),
+            data=profile_data,
         ),
         document_types=tuple(document_types),
         language=language,
@@ -174,66 +177,32 @@ def build_full_vacancy_description(data: Mapping[str, Any]) -> str:
     return description
 
 
-def _load_master_profile_version(
-    db: Session,
-    *,
-    master_profile_id: str | None,
-    master_profile_version: int | None,
-) -> tuple[ResumeMasterRecord, ResumeMasterVersionRecord]:
-    master_query = select(ResumeMasterRecord)
-    if master_profile_id is not None:
-        master_query = master_query.where(ResumeMasterRecord.id == master_profile_id)
-    else:
-        master_query = master_query.order_by(
-            ResumeMasterRecord.updated_at.desc(),
-            ResumeMasterRecord.created_at.desc(),
-        ).limit(1)
-    master = db.scalar(master_query)
-    if master is None:
-        raise GenerationInputError(
-            "Confirmed Master Resume not found.",
-            code="master_profile_not_found",
-        )
-
-    version_number = (
-        master_profile_version if master_profile_version is not None else master.current_version
-    )
-    version = db.scalar(
-        select(ResumeMasterVersionRecord).where(
-            ResumeMasterVersionRecord.resume_master_id == master.id,
-            ResumeMasterVersionRecord.version == version_number,
-        )
-    )
-    if version is None:
-        raise GenerationInputError(
-            f"Master Resume version {version_number} is unavailable.",
-            code="master_profile_version_not_found",
-        )
-    return master, version
-
-
-def _validated_master_profile_data(
-    master: ResumeMasterRecord,
-    version: ResumeMasterVersionRecord,
-) -> dict[str, JsonValue]:
-    if _canonical_json_sha256(version.data) != version.content_sha256:
-        raise GenerationInputError(
-            "Master Resume version failed its integrity check.",
-            code="master_profile_integrity_error",
-        )
+def _load_profile_version(
+    db: Session, *, master_profile_id: str | None, master_profile_version: int | None,
+) -> tuple[ProfileRecord, ProfileVersionRecord]:
     try:
-        profile = MasterResume.model_validate(version.data)
+        profile = ensure_candidate_profile(db)
+    except ValueError as exc:
+        raise GenerationInputError("Legacy profile migration failed validation", code="profile_migration_invalid") from exc
+    if master_profile_id is not None and master_profile_id != profile.id:
+        raise GenerationInputError("Candidate profile not found", code="profile_not_found")
+    revision = master_profile_version if master_profile_version is not None else profile.revision
+    version = db.scalar(select(ProfileVersionRecord).where(
+        ProfileVersionRecord.profile_id == profile.id,
+        ProfileVersionRecord.owner_id == profile.owner_id,
+        ProfileVersionRecord.revision == revision,
+    ))
+    if version is None:
+        raise GenerationInputError(f"Profile version {revision} is unavailable", code="profile_version_not_found")
+    try:
+        payload = ProfilePayload.model_validate(version.data)
     except ValidationError as exc:
-        raise GenerationInputError(
-            "Master Resume version is invalid.",
-            code="master_profile_invalid",
-        ) from exc
-    if profile.id != master.id:
-        raise GenerationInputError(
-            "Master Resume version does not match its profile.",
-            code="master_profile_integrity_error",
-        )
-    return profile.model_dump(mode="json", by_alias=True)
+        raise GenerationInputError("Profile version is invalid", code="profile_invalid") from exc
+    if not payload.name.strip():
+        raise GenerationInputError("Add your name to the profile before generating documents", code="profile_data_incomplete")
+    if revision == profile.revision and canonical_hash(version.data) != canonical_hash(profile.data):
+        raise GenerationInputError("Profile version failed its integrity check", code="profile_integrity_error")
+    return profile, version
 
 
 def _application_job_id(data: Mapping[str, Any]) -> str:

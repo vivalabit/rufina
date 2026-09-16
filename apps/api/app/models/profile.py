@@ -154,7 +154,7 @@ class CandidateMatchSnapshotRecord(OwnerScoped, Base):
 class ProfilePayload(BaseModel):
     avatar_url: str = Field(default="/avatars/default-pug.png", max_length=2_000)
     name: str = Field(default="", max_length=200)
-    current_role: str = Field(default="", max_length=160)
+    current_role: str = Field(default="", max_length=300)
     desired_role: str = Field(default="", max_length=160)
     location: str = Field(default="", max_length=240)
     work_format: str = Field(default="", max_length=120)

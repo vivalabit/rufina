@@ -259,12 +259,13 @@ def generate_application_documents(
             master_profile_id=request.master_profile_id,
             master_profile_version=request.master_profile_version,
         )
+        db.commit()  # Persist the profile revision before handing its snapshot to a generator.
         return generator.generate(generation_input)
     except GenerationInputError as exc:
         not_found_codes = {
             "application_not_found",
-            "master_profile_not_found",
-            "master_profile_version_not_found",
+            "profile_not_found",
+            "profile_version_not_found",
             "vacancy_not_found",
         }
         raise HTTPException(

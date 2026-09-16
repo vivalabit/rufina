@@ -92,3 +92,29 @@ def test_other_owner_legacy_data_is_not_imported():
         profile = ensure_candidate_profile(db)
         assert not profile.data['experience']
         assert not profile.data['sources']
+
+
+def test_alembic_backfill_persists_complete_profile_and_preserves_source_hash(tmp_path):
+    from alembic import command
+
+    from app.core.migrations import get_alembic_config, upgrade_database
+
+    url = f'sqlite:///{tmp_path / "legacy.sqlite"}'
+    command.upgrade(get_alembic_config(url), '20260913_0059')
+    engine = create_engine(url)
+    data = master_fixture().model_dump(mode='json', by_alias=True)
+    digest = canonical_hash(data)
+    with Session(engine) as db:
+        db.add(ResumeMasterRecord(id='legacy', name='Imported Name', current_version=1))
+        db.add(ResumeMasterVersionRecord(id='version', resume_master_id='legacy', version=1,
+                                        data=data, content_sha256=digest))
+        db.commit()
+    upgrade_database(url)
+    upgrade_database(url)
+    with Session(engine) as db:
+        profile = db.get(ProfileRecord, 'default')
+        assert profile.data['email'] == 'ada@example.org'
+        assert profile.revision == 2
+        assert len(profile.data['sources']) == 1
+        assert db.get(ResumeMasterVersionRecord, 'version').content_sha256 == digest
+        assert db.get(ResumeMasterVersionRecord, 'version').data == data

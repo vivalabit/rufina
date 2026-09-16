@@ -192,7 +192,7 @@ def test_baseline_migration_matches_current_schema(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260913_0059"
+            assert revision == "20260916_0060"
             entry_it = connection.execute(
                 text(
                     "SELECT id, owner_id, name, filters "
@@ -1781,7 +1781,7 @@ def test_upgrade_database_bootstraps_legacy_baseline(tmp_path) -> None:
             revision = connection.execute(
                 text("SELECT version_num FROM alembic_version")
             ).scalar_one()
-            assert revision == "20260913_0059"
+            assert revision == "20260916_0060"
     finally:
         engine.dispose()
     command.check(get_alembic_config(database_url))
@@ -1821,7 +1821,7 @@ def test_upgrade_database_repairs_known_partial_legacy_baseline(tmp_path) -> Non
                     "WHERE owner_id = 'local-owner' AND name = 'Entry IT'"
                 )
             ).scalar_one()
-        assert revision == "20260913_0059"
+        assert revision == "20260916_0060"
         assert entry_it_count == 1
         assert LEGACY_RECOVERABLE_MISSING_TABLES.isdisjoint(
             inspect(engine).get_table_names()

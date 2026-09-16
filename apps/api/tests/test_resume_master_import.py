@@ -499,3 +499,34 @@ def test_confirm_master_resume_is_owner_scoped(
     )
 
     assert response.status_code == 404
+
+
+def test_import_review_cannot_overwrite_a_newer_profile(api_sessions):
+    from app.models.profile import ProfilePayload
+    from app.services.profile_migration import ensure_candidate_profile
+    from app.services.profile_versions import update_profile_data
+
+    source = source_extraction()
+    with api_sessions() as db:
+        profile = ensure_candidate_profile(db)
+        revision = profile.revision
+        db.add(ResumeSourceFileRecord(
+            id='stale-review', draft_resume_id='stale-master', file_name='cv.docx',
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            content_sha256='b' * 64, size_bytes=4, content=b'docx',
+            extraction=source.model_dump(mode='json', by_alias=True),
+        ))
+        data = ProfilePayload.model_validate(profile.data).model_dump(mode='json')
+        data['name'] = 'Manual name after import started'
+        update_profile_data(db, profile, data=data, reason='manual_edit')
+        db.commit()
+    response = TestClient(app).post('/profile/import-master-resume/confirm', json={
+        'sourceFileId': 'stale-review', 'expectedProfileRevision': revision,
+        'masterResume': master_resume_payload('stale-master'),
+        'confirmedSections': ['contacts', 'summary', 'skills', 'experience', 'education', 'projects', 'certifications'],
+    })
+    assert response.status_code == 409
+    with api_sessions() as db:
+        profile = db.get(ProfileRecord, 'default')
+        assert profile.data['name'] == 'Manual name after import started'
+        assert not profile.data['sources']

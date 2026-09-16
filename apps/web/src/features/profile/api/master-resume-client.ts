@@ -221,5 +221,11 @@ export async function fetchProfileResume(signal?: AbortSignal) {
   return (await apiClient.json<Omit<MasterResumeConfirmationResponse, "sourceFileId">>({
     path: "/profile/master-resume", cache: "no-store", signal,
     errorMessage: "Profile resume could not be loaded",
+  }, (value) => {
+    const saved = requireShape<Omit<MasterResumeConfirmationResponse, "sourceFileId">>(value, "masterResume", "Invalid profile resume");
+    if (!saved.masterResume?.basics || typeof saved.version !== "number") {
+      throw new ApiDecodeError("Invalid profile resume", 200, JSON.stringify(value));
+    }
+    return saved;
   })).data;
 }

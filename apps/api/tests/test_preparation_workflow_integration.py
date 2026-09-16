@@ -21,7 +21,7 @@ from app.models.documents import (
 )
 from app.models.generation import GenerationRequest, GenerationResult
 from app.models.jobs import JobMatchRecord, StoredJobRecord
-from app.models.profile import ProfilePayload, ProfileRecord
+from app.models.profile import ProfilePayload, ProfileRecord, ProfileVersionRecord
 from app.models.resume import ResumeMasterRecord, ResumeMasterVersionRecord
 from app.services.ai_match import (
     DEFAULT_AI_MATCH_MODEL,
@@ -118,6 +118,7 @@ def workflow_api() -> Generator[
         name="Ada Lovelace",
         current_role="Platform Engineer",
         skills="Python\nKubernetes",
+        migration={"master_resume_v1_complete": True},
     )
     profile_hash = build_profile_input_hash(profile)
     job_data = {
@@ -201,6 +202,10 @@ def workflow_api() -> Generator[
                     id="workflow-profile-a",
                     owner_id="workflow-owner-a",
                     data=profile.model_dump(),
+                ),
+                ProfileVersionRecord(
+                    profile_id="workflow-profile-a", owner_id="workflow-owner-a",
+                    revision=1, data=profile.model_dump(), reason="fixture",
                 ),
                 StoredJobRecord(
                     id="workflow-job-a",

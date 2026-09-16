@@ -31,6 +31,7 @@ from app.models.resume import (
     MasterResumeConfirmationRequest,
     MasterResumeConfirmationResponse,
     MasterResumeImportResponse,
+    ResumeMasterRecord,
     ResumeSourceExtraction,
     ResumeSourceFileRecord,
 )
@@ -269,6 +270,8 @@ def update_profile(
 ) -> ProfilePayload:
     try:
         profile = get_profile_record(db)
+        if profile is None and db.scalar(select(ResumeMasterRecord.id).limit(1)) is not None:
+            profile = get_or_create_profile(db)
         if profile:
             require_matching_profile_revision(if_match, profile.revision)
             profile = get_or_create_profile(db)

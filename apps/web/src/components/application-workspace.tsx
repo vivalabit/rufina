@@ -617,7 +617,7 @@ function ApplicationBrief({
       <h2 className="text-base font-black">Application brief</h2>
       <div className="mt-4 grid gap-3">
         <SourceRow title="Job description" subtitle={versions.vacancy ? `Snapshot · v${versions.vacancy}` : "Full posting saved"} ready={Boolean(application.job.overview || application.job.requirements.length)} />
-        <SourceRow title="Master Resume" subtitle={`Version ${versions.masterResume ?? masterResume?.version ?? "—"} · Confirmed`} ready={Boolean(masterResume || versions.masterResume)} />
+        <SourceRow title="Candidate profile" subtitle={`Version ${versions.masterResume ?? masterResume?.version ?? "—"} · Saved`} ready={Boolean(masterResume || versions.masterResume)} />
       </div>
       <div className="my-5 h-px bg-border" />
       <h3 className="text-sm font-black">Documents</h3>
@@ -719,7 +719,7 @@ function PreparationPanel({ settings, masterResume, onChange, onStart, action, i
       </div>
       <div className="grid gap-5 p-5 sm:p-6">
         {!masterResume ? (
-          <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">Confirm a Master Resume in Profile before generating application documents.</div>
+          <div role="alert" className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-xs leading-5 text-amber-900">Your saved profile is used for generation. Complete your profile before generating documents.</div>
         ) : null}
         <fieldset>
           <legend className="text-xs font-black">Documents</legend>
@@ -741,7 +741,7 @@ function PreparationPanel({ settings, masterResume, onChange, onStart, action, i
             <select aria-label="Vacancy and letter language" value={settings.language} onChange={(event) => onChange((current) => ({ ...current, language: event.target.value as PreparationLanguage }))} className="mt-2 h-11 w-full rounded-xl border px-3 text-xs font-semibold">
               <option value="English">English</option><option value="German">German</option>
             </select>
-            <span className="mt-1.5 block text-[9px] font-normal leading-4 text-muted">The CV keeps the confirmed profile language ({masterResume?.masterResume.language || settings.language}).</span>
+            <span className="mt-1.5 block text-[9px] font-normal leading-4 text-muted">The CV keeps the saved profile language ({masterResume?.masterResume.language || settings.language}).</span>
           </label>
           <label className="text-xs font-bold">CV page limit
             <select aria-label="CV page limit" value={settings.formatting.resumeMaxPages} onChange={(event) => onChange((current) => ({ ...current, formatting: { ...current.formatting, resumeMaxPages: Number(event.target.value) as 1 | 2 | 3 } }))} className="mt-2 h-11 w-full rounded-xl border px-3 text-xs font-semibold">
@@ -760,7 +760,7 @@ function PreparationPanel({ settings, masterResume, onChange, onStart, action, i
           <p className="max-w-xl text-[10px] leading-4 text-muted">{isRevision ? "The new version uses your confirmed profile and repeats the fit, content, and PDF checks." : "The first run evaluates fit and pauses for your approval before writing. Generation never marks the application as submitted."}</p>
           <div className="flex shrink-0 gap-2">
             {onCancel ? <Button type="button" variant="ghost" onClick={onCancel} disabled={Boolean(action)} className="rounded-xl text-xs">Back to documents</Button> : null}
-            <Button type="button" onClick={onStart} disabled={!masterResume || !settings.documentTypes.length || Boolean(action)} className="rounded-xl px-5 text-xs">
+            <Button type="button" onClick={onStart} disabled={!settings.documentTypes.length || Boolean(action)} className="rounded-xl px-5 text-xs">
               {action === "start" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : isRevision ? <RefreshCw className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />} {isRevision ? "Generate new version" : "Start application"}
             </Button>
           </div>

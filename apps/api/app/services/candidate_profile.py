@@ -63,6 +63,15 @@ def apply_form_update(current: ProfilePayload, submitted: ProfilePayload) -> Pro
         if field in incoming:
             data[field] = incoming[field]
     data["import_source_ids"] = list(dict.fromkeys([*current.import_source_ids, *submitted.import_source_ids]))
+    if data["headline"] != current.headline:
+        text = data["headline"]
+        evidence_id = stable_id("profile", f"summary:{text}")
+        if text.strip():
+            if not any(item["id"] == evidence_id for item in data["evidence"]):
+                data["evidence"].append({"id": evidence_id, "type": "profile", "text": text})
+            data["summary"] = {"text": text, "evidenceIds": [evidence_id]}
+        else:
+            data["summary"] = None
     for section in ("experience", "education"):
         if data[section] == getattr(current, section):
             continue
@@ -167,4 +176,17 @@ def profile_resume(profile: ProfilePayload, profile_id: str) -> MasterResume:
         ("education", "education"), ("projects", "projects"), ("certifications", "certifications"),
         ("languages", "languages"), ("additional", "additionalSections"),
     ) if data[key]]
+    referenced: set[str] = set()
+
+    def collect(value: Any) -> None:
+        if isinstance(value, dict):
+            referenced.update(value.get("evidenceIds", []))
+            for child in value.values():
+                collect(child)
+        elif isinstance(value, list):
+            for child in value:
+                collect(child)
+
+    collect({key: value for key, value in data.items() if key != "evidence"})
+    data["evidence"] = [item for item in evidence if item["id"] in referenced]
     return MasterResume.model_validate(data)

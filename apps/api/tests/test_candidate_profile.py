@@ -37,3 +37,26 @@ def test_form_description_edit_keeps_provenance_but_replaces_text():
     assert item['description'] == 'New'
     assert item['source_ids'] == ['source-1']
     assert profile_resume(updated, 'default').experiences[0].bullets[0].text == 'New'
+
+
+def test_archived_evidence_does_not_authorize_deleted_profile_claims():
+    profile = ProfilePayload(name='Ada', evidence=[{
+        'id': 'source:old', 'type': 'source', 'text': 'Old employer and unsupported metric',
+    }], experience=json.dumps([{
+        'id': 'job-1', 'company': 'Corrected employer', 'title': 'Engineer',
+        'description': 'Corrected achievement',
+    }]))
+    projection = profile_resume(profile, 'default')
+    assert all(item.id != 'source:old' for item in projection.evidence)
+    assert profile.evidence[0].id == 'source:old'
+    assert any(item.text == 'Corrected achievement' for item in projection.evidence)
+
+
+def test_editing_summary_in_existing_form_replaces_imported_summary_for_generation():
+    profile = ProfilePayload(name='Ada', headline='Imported summary',
+        summary={'text': 'Imported summary', 'evidenceIds': ['source:summary']},
+        evidence=[{'id': 'source:summary', 'type': 'source', 'text': 'Imported summary'}])
+    updated = apply_form_update(profile, ProfilePayload(name='Ada', headline='Corrected summary'))
+    generated = profile_resume(updated, 'default')
+    assert generated.summary.text == 'Corrected summary'
+    assert all(item.id != 'source:summary' for item in generated.evidence)

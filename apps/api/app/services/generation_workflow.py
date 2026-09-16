@@ -16,6 +16,7 @@ from app.models.generation_workflow import (
     ReviewerFeedback,
     VisualReview,
 )
+from app.models.profile import ProfilePayload
 from app.models.resume import MasterResume
 from app.services.ai_backend import (
     AIBackend,
@@ -25,6 +26,7 @@ from app.services.ai_backend import (
     create_ai_backend,
     generate_with_retries,
 )
+from app.services.candidate_profile import canonical_hash, profile_resume
 from app.services.generation_artifact_import import import_compiled_generation_documents
 from app.services.generation_grounding import validate_grounded_bundle
 from app.services.generation_latex import CompiledDocument, render_generation_bundle
@@ -185,9 +187,7 @@ class GenerationWorkflow:
         try:
             draft = DraftBundle.model_validate(run.result.get("draft"))
             review = ReviewerFeedback.model_validate(run.result.get("review"))
-            master_resume = MasterResume.model_validate(
-                snapshot.request.master_profile_version.data
-            )
+            master_resume = _snapshot_resume(snapshot)
         except ValidationError as exc:
             raise GenerationWorkflowError(
                 "Persisted reviewed draft is not recoverable",
@@ -212,7 +212,7 @@ class GenerationWorkflow:
         run: ApplicationGenerationRunRecord,
     ) -> ReviewedDraftBundle:
         snapshot = _run_snapshot(run)
-        master_resume = MasterResume.model_validate(snapshot.request.master_profile_version.data)
+        master_resume = _snapshot_resume(snapshot)
         target_job_id = snapshot.request.vacancy.id
         transition_generation_run(
             db,
@@ -574,7 +574,17 @@ class GenerationWorkflow:
         enable_web_search: bool = False,
         image_inputs: tuple[AIImageInput, ...] = (),
     ) -> T:
-        prompt = _build_prompt(instruction_name, context, response_model)
+        snapshot = _run_snapshot(run)
+        source_context = {
+            "candidateProfileVersion": snapshot.request.master_profile_version.model_dump(mode="json", by_alias=True),
+            "masterResume": _snapshot_resume(snapshot).model_dump(mode="json", by_alias=True),
+            "vacancy": snapshot.request.vacancy.model_dump(mode="json", by_alias=True),
+            "documentTypes": list(snapshot.request.document_types),
+            "formattingParameters": snapshot.request.formatting_parameters,
+            "userPreferences": snapshot.request.user_preferences,
+            "language": snapshot.request.language,
+        }
+        prompt = _build_prompt(instruction_name, {**context, **source_context}, response_model)
         append_run_message(
             db,
             run=run,
@@ -708,6 +718,17 @@ def _verification_failure_message(
     return f"{base}: {detail}" if detail else base
 
 
+def _snapshot_resume(snapshot: GenerationRunSnapshot) -> MasterResume:
+    source = snapshot.request.master_profile_version
+    if canonical_hash(source.data) != source.content_sha256:
+        raise GenerationWorkflowError("Profile snapshot failed its integrity check", code="invalid_snapshot")
+    # Historical runs contain the original MasterResume payload and hash. Never
+    # reload or rewrite them using today's candidate profile.
+    if source.data.get("schemaVersion") == "1.0" and "basics" in source.data:
+        return MasterResume.model_validate(source.data)
+    return profile_resume(ProfilePayload.model_validate(source.data), source.id)
+
+
 def _run_snapshot(run: ApplicationGenerationRunRecord) -> GenerationRunSnapshot:
     try:
         return GenerationRunSnapshot.model_validate(run.input_snapshot)
@@ -726,6 +747,10 @@ def _build_prompt(
     return (
         f"{load_instruction('trust_and_facts')}\n\n"
         f"{load_instruction(instruction_name)}\n\n"
+        "candidateProfileVersion contains the complete frozen candidate source. "
+        "masterResume is its document projection. Current profile fields take precedence over "
+        "archived sources, audit entries and migration conflicts; those are provenance, not new claims. "
+        "Use this same candidate version for drafting, reviewing and every repair.\n\n"
         "Return JSON matching this schema exactly:\n"
         f"{json.dumps(response_model.model_json_schema(), ensure_ascii=False)}\n\n"
         "BEGIN UNTRUSTED APPLICATION DATA\n"

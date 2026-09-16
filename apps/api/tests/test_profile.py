@@ -110,10 +110,11 @@ def test_sparse_profile_update_cannot_erase_a_complete_profile() -> None:
     app.dependency_overrides[get_db] = override_get_db
     client = TestClient(app)
     try:
-        response = client.put("/profile", headers={"If-Match": '"1"'}, json={"headline": "Product designer"})
+        etag = client.get("/profile").headers["etag"]
+        response = client.put("/profile", headers={"If-Match": etag}, json={"headline": "Product designer"})
         forced_response = client.put(
             "/profile?allow_destructive=true",
-            headers={"If-Match": '"1"'},
+            headers={"If-Match": etag},
             json={"headline": "Product designer"},
         )
 
@@ -128,10 +129,10 @@ def test_sparse_profile_update_cannot_erase_a_complete_profile() -> None:
     assert stored_profile is not None
     assert stored_profile.data["headline"] == "Product designer"
     assert stored_profile.data["skills"] == ""
-    assert len(versions) == 2
+    assert len(versions) == 3
     assert versions[0].data["skills"] == "Python\nFastAPI"
     assert versions[0].revision == 1
-    assert stored_profile.revision == 2
+    assert stored_profile.revision == 3
 
 
 def test_profiles_are_owner_scoped_and_reject_stale_etags() -> None:

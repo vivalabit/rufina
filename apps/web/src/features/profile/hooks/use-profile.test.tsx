@@ -60,3 +60,21 @@ describe("useProfile", () => {
     await waitFor(() => expect(aborted).toBe(true));
   });
 });
+
+it("keeps the edited snapshot ETag when the profile cache is refreshed", async () => {
+  let revision = 1;
+  const fetchMock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    if (new URL(String(input)).pathname === "/profile/files") return Response.json([]);
+    if (init?.method === "PUT") return Response.json({ detail: "Profile has changed" }, { status: 412 });
+    return Response.json({ ...defaultCandidateProfile, name: `Revision ${revision}` }, { headers: { ETag: `"${revision}"` } });
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  const { result } = renderHook(() => useProfile(), { wrapper });
+  await waitFor(() => expect(result.current.profile.name).toBe("Revision 1"));
+  const draft = { ...result.current.profile, name: "Stale edit" };
+  revision = 2;
+  await act(async () => { await result.current.refetch(); });
+  await act(async () => { await expect(result.current.save(draft)).rejects.toThrow(); });
+  const request = fetchMock.mock.calls.find(([, init]) => init?.method === "PUT");
+  expect(request?.[1]?.headers).toMatchObject({ "If-Match": '"1"' });
+});

@@ -11,6 +11,7 @@ from app.core.database import Base
 from app.core.identity import current_owner_id
 from app.models.applications import StoredApplicationRecord
 from app.models.jobs import StoredJobRecord
+from app.models.profile import ProfilePayload, ProfileRecord, ProfileVersionRecord
 from app.models.resume import ResumeMasterRecord, ResumeMasterVersionRecord
 from app.services.generation_input import GenerationInputError, build_generation_input
 
@@ -139,6 +140,14 @@ def seed_complete_sources(sessions: sessionmaker[Session]) -> None:
         )
         db.commit()
 
+        for revision, headline in ((1, "Engineer"), (2, "Platform Engineer")):
+            data = ProfilePayload(name="Ada Lovelace", headline=headline,
+                                  migration={"master_resume_v1_complete": True}).model_dump(mode="json")
+            db.add(ProfileVersionRecord(id=f"profile-version-{revision}", profile_id="default",
+                                        revision=revision, data=data, reason="fixture"))
+        db.add(ProfileRecord(id="default", data=data, revision=2))
+        db.commit()
+
 
 def build_input(db: Session, **overrides: object):
     arguments = {
@@ -164,12 +173,12 @@ def test_builds_versioned_input_without_match_or_questionnaire_dependencies(
     assert request.application.revision == 4
     assert request.vacancy.id == "vacancy-1"
     assert request.vacancy.revision == 7
-    assert request.master_profile_version.id == "master-profile"
+    assert request.master_profile_version.id == "default"
     assert request.master_profile_version.version == 2
     assert request.master_profile_version.content_sha256 == content_sha256(
-        master_profile_data("master-profile", headline="Platform Engineer")
+        request.master_profile_version.data
     )
-    assert request.master_profile_version.data["basics"]["headline"] == "Platform Engineer"
+    assert request.master_profile_version.data["headline"] == "Platform Engineer"
     assert request.vacancy.data["id"] == "vacancy-1"
     assert request.vacancy.full_description == (
         "Overview\nBuild reliable internal platforms.\n\n"
@@ -194,12 +203,12 @@ def test_can_pin_an_older_master_profile_version(
     with sessions() as db:
         request = build_input(
             db,
-            master_profile_id="master-profile",
+            master_profile_id="default",
             master_profile_version=1,
         )
 
     assert request.master_profile_version.version == 1
-    assert request.master_profile_version.data["basics"]["headline"] == "Engineer"
+    assert request.master_profile_version.data["headline"] == "Engineer"
 
 
 @pytest.mark.parametrize(
@@ -209,10 +218,10 @@ def test_can_pin_an_older_master_profile_version(
         ("unlink_vacancy", "application_vacancy_missing"),
         ("remove_vacancy", "vacancy_not_found"),
         ("remove_description", "vacancy_description_missing"),
-        ("remove_master_profile", "master_profile_not_found"),
-        ("remove_master_version", "master_profile_version_not_found"),
-        ("corrupt_master_version", "master_profile_integrity_error"),
-        ("invalidate_master_version", "master_profile_invalid"),
+        ("remove_master_profile", "profile_data_incomplete"),
+        ("remove_master_version", "profile_version_not_found"),
+        ("corrupt_master_version", "profile_integrity_error"),
+        ("invalidate_master_version", "profile_invalid"),
     ],
 )
 def test_rejects_missing_or_inconsistent_authoritative_sources(
@@ -224,8 +233,8 @@ def test_rejects_missing_or_inconsistent_authoritative_sources(
     with sessions() as db:
         application = db.get(StoredApplicationRecord, "application-1")
         vacancy = db.get(StoredJobRecord, ("local-owner", "vacancy-1"))
-        master = db.get(ResumeMasterRecord, "master-profile")
-        version = db.get(ResumeMasterVersionRecord, "master-profile-version-2")
+        master = db.get(ProfileRecord, "default")
+        version = db.get(ProfileVersionRecord, "profile-version-2")
         assert application is not None
         assert vacancy is not None
         assert master is not None
@@ -244,23 +253,23 @@ def test_rejects_missing_or_inconsistent_authoritative_sources(
                 "company": "Example AG",
             }
         elif mutation == "remove_master_profile":
-            db.delete(master)
+            db.execute(update(ProfileVersionRecord).where(ProfileVersionRecord.id == version.id).values(data={"name": ""}))
+            master.data = {"name": "", "migration": {"master_resume_v1_complete": True}}
         elif mutation == "remove_master_version":
             db.delete(version)
         elif mutation == "corrupt_master_version":
             db.execute(
-                update(ResumeMasterVersionRecord)
-                .where(ResumeMasterVersionRecord.id == version.id)
-                .values(content_sha256="f" * 64)
+                update(ProfileVersionRecord)
+                .where(ProfileVersionRecord.id == version.id)
+                .values(data={"name": "Corrupted"})
             )
         else:
             invalid_data = {"schemaVersion": "1.0", "id": "master-profile"}
             db.execute(
-                update(ResumeMasterVersionRecord)
-                .where(ResumeMasterVersionRecord.id == version.id)
+                update(ProfileVersionRecord)
+                .where(ProfileVersionRecord.id == version.id)
                 .values(
                     data=invalid_data,
-                    content_sha256=content_sha256(invalid_data),
                 )
             )
         db.commit()

@@ -292,7 +292,7 @@ def test_versioned_run_endpoint_lists_and_restores_the_immutable_run(
         "inputFingerprint": started.json()["inputFingerprint"],
         "applicationRevision": 1,
         "vacancyRevision": 1,
-        "masterProfileVersion": 1,
+        "masterProfileVersion": 2,
         "resumeTemplateId": "moderncv_banking",
     }
     assert foreign_history.status_code == 200
