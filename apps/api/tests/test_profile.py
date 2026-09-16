@@ -8,7 +8,7 @@ from sqlalchemy.pool import StaticPool
 
 from app.core.database import Base, get_db
 from app.main import app
-from app.models.profile import ProfileRecord, ProfileVersionRecord
+from app.models.profile import ProfilePayload, ProfileRecord, ProfileVersionRecord
 from app.services.profile_versions import (
     StaleProfileRevisionError,
     update_profile_data,
@@ -60,7 +60,7 @@ def test_profile_can_be_updated_and_read() -> None:
 
         update_response = client.put("/profile", json=payload)
         read_response = client.get("/profile")
-        expected_payload = payload
+        expected_payload = ProfilePayload(**payload).model_dump()
 
         assert update_response.status_code == 200
         assert update_response.headers["etag"] == '"1"'
@@ -127,7 +127,7 @@ def test_sparse_profile_update_cannot_erase_a_complete_profile() -> None:
     assert stored_profile is not None
     assert stored_profile.data["headline"] == "Product designer"
     assert stored_profile.data["skills"] == ""
-    assert len(versions) == 1
+    assert len(versions) == 2
     assert versions[0].data["skills"] == "Python\nFastAPI"
     assert versions[0].revision == 1
     assert stored_profile.revision == 2
@@ -193,7 +193,7 @@ def test_profiles_are_owner_scoped_and_reject_stale_etags() -> None:
         ("profile-owner-b", 1),
     ]
     assert profiles[0].id != profiles[1].id
-    assert len(versions) == 1
+    assert len(versions) == 2
     assert versions[0].owner_id == "profile-owner-a"
     assert versions[0].revision == 1
 
@@ -237,7 +237,7 @@ def test_profile_revision_update_is_atomic(tmp_path) -> None:
     assert stored_profile is not None
     assert stored_profile.data["name"] == "First writer"
     assert stored_profile.revision == 2
-    assert len(versions) == 1
+    assert len(versions) == 2
     assert versions[0].data["name"] == "Initial"
     assert versions[0].revision == 1
 

@@ -17,6 +17,14 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base, OwnerScoped
+from app.models.resume import (
+    AdditionalResumeSection,
+    EvidenceBackedText,
+    MasterCertification,
+    MasterLanguage,
+    MasterProject,
+    ResumeEvidence,
+)
 
 
 def utc_now() -> datetime:
@@ -155,15 +163,33 @@ class ProfilePayload(BaseModel):
     github: str = Field(default="", max_length=240)
     portfolio: str = Field(default="", max_length=240)
     personal_site: str = Field(default="", max_length=240)
-    experience: str = Field(default="", max_length=12000)
-    skills: str = Field(default="", max_length=2000)
-    education: str = Field(default="", max_length=12000)
-    job_preferences: str = Field(default="", max_length=12000)
-    dealbreakers: str = Field(default="", max_length=2000)
-    additional_notes: str = Field(default="", max_length=2000)
+    experience: str = Field(default="", max_length=2_000_000)
+    skills: str = Field(default="", max_length=2_000_000)
+    education: str = Field(default="", max_length=2_000_000)
+    job_preferences: str = Field(default="", max_length=2_000_000)
+    dealbreakers: str = Field(default="", max_length=2_000_000)
+    additional_notes: str = Field(default="", max_length=2_000_000)
     resume_file_name: str = Field(default="", max_length=240)
     resume_file_size: str = Field(default="", max_length=40)
     resume_updated_at: str = Field(default="", max_length=80)
+    # The profile is the only mutable candidate source. The original form fields
+    # stay wire-compatible; structured experience/education JSON retains IDs and
+    # evidence references alongside the fields understood by existing forms.
+    email: str = ""
+    phone: str = ""
+    work_authorization: str = ""
+    resume_language: str = "English"
+    summary: EvidenceBackedText | None = None
+    projects: list[MasterProject] = Field(default_factory=list)
+    certifications: list[MasterCertification] = Field(default_factory=list)
+    languages: list[MasterLanguage] = Field(default_factory=list)
+    additional_sections: list[AdditionalResumeSection] = Field(default_factory=list)
+    evidence: list[ResumeEvidence] = Field(default_factory=list)
+    skill_metadata: dict[str, dict[str, Any]] = Field(default_factory=dict)
+    sources: list[dict[str, Any]] = Field(default_factory=list)
+    confirmed_facts: list[dict[str, Any]] = Field(default_factory=list)
+    migration: dict[str, Any] = Field(default_factory=dict)
+
     # Hydrated from profile_files for server-side AI calls only. These fields
     # are deliberately excluded so file-derived text and metadata can never
     # leak back into ProfileRecord/ProfileVersionRecord JSON.
@@ -235,7 +261,7 @@ class ImportedExperienceEntry(BaseModel):
     start_date: str = Field(default="", max_length=20)
     end_date: str = Field(default="", max_length=20)
     is_current: bool = False
-    description: str = Field(default="", max_length=2000)
+    description: str = Field(default="", max_length=2_000_000)
 
 
 class ResumeExperienceImportResponse(BaseModel):
@@ -251,7 +277,7 @@ class ImportedEducationEntry(BaseModel):
     start_date: str = Field(default="", max_length=20)
     end_date: str = Field(default="", max_length=20)
     is_current: bool = False
-    description: str = Field(default="", max_length=2000)
+    description: str = Field(default="", max_length=2_000_000)
 
 
 class ResumeEducationImportResponse(BaseModel):

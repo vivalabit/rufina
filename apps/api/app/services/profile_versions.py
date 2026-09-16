@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+from copy import deepcopy
 
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
@@ -102,12 +103,19 @@ def record_profile_version(
     *,
     reason: str,
 ) -> None:
+    existing = db.scalar(select(ProfileVersionRecord).where(
+        ProfileVersionRecord.owner_id == profile.owner_id,
+        ProfileVersionRecord.profile_id == profile.id,
+        ProfileVersionRecord.revision == profile.revision,
+    ))
+    if existing is not None:
+        return
     db.add(
         ProfileVersionRecord(
             profile_id=profile.id,
             owner_id=profile.owner_id,
             revision=profile.revision,
-            data=dict(profile.data),
+            data=deepcopy(profile.data),
             reason=reason,
         )
     )
@@ -144,4 +152,5 @@ def update_profile_data(
         )
     record_profile_version(db, profile, reason=reason)
     db.expire(profile, ["data", "revision", "updated_at"])
+    record_profile_version(db, profile, reason=reason)
     return next_revision
