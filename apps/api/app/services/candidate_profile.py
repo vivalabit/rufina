@@ -12,6 +12,7 @@ from typing import Any
 
 from app.models.profile import ProfilePayload
 from app.models.resume import MasterResume
+from app.models.work_experience import merge_work_detail_update
 
 FORM_FIELDS = frozenset({
     "avatar_url", "name", "current_role", "desired_role", "location", "work_format",
@@ -88,7 +89,7 @@ def apply_form_update(current: ProfilePayload, submitted: ProfilePayload) -> Pro
                 continue
             prior = old.get(item.get("id"), {})
             # Preserve provenance omitted by older clients, but not old wording.
-            merged.append({**prior, **item})
+            merged.append(merge_work_detail_update(prior, item) if section == "experience" else {**prior, **item})
         data[section] = encode_entries(merged)
     return ProfilePayload.model_validate(data)
 

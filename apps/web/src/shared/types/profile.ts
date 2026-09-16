@@ -26,6 +26,23 @@ export type CandidateProfile = {
   resume_download_url: string;
 };
 
+export type WorkDetail = {
+  id: string;
+  source_ids?: string[];
+  evidence_ids?: string[];
+};
+export type WorkTechnology = WorkDetail & { technology: string; context: string };
+export type WorkResponsibility = WorkDetail & { responsibility: string; decisions: string };
+export type WorkProject = WorkDetail & {
+  name: string;
+  description: string;
+  project_type: string;
+  team: string;
+  systems: string;
+  users: string;
+  load: string;
+};
+
 export type ExperienceEntry = {
   id: string;
   title: string;
@@ -36,6 +53,9 @@ export type ExperienceEntry = {
   end_date: string;
   is_current: boolean;
   description: string;
+  stack?: WorkTechnology[];
+  responsibilities?: WorkResponsibility[];
+  projects?: WorkProject[];
 };
 
 export type EducationEntry = {

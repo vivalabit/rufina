@@ -25,6 +25,7 @@ from app.models.resume import (
     MasterProject,
     ResumeEvidence,
 )
+from app.models.work_experience import validate_experience_json
 
 
 def utc_now() -> datetime:
@@ -204,6 +205,11 @@ class ProfilePayload(BaseModel):
         exclude=True,
         repr=False,
     )
+
+    @field_validator("experience")
+    @classmethod
+    def validate_work_details(cls, value: str) -> str:
+        return validate_experience_json(value)
 
     @field_validator("avatar_url", mode="before")
     @classmethod
