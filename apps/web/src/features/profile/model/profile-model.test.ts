@@ -73,3 +73,17 @@ describe("profile preferences and completion", () => {
     expect(contactItem?.complete).toBe(true);
   });
 });
+
+it("treats a manually filled profile as complete without a resume file", async () => {
+  const { getProfileCompletion, getAiMatchProfile } = await import("./selectors");
+  const profile = { ...defaultCandidateProfile, name: "Ada", current_role: "Engineer", desired_role: "Platform Engineer",
+    location: "Zurich", work_format: "Remote", headline: "Builds reliable platforms", linkedin: "linkedin.com/in/ada",
+    experience: JSON.stringify([{ id: "one", title: "Engineer", company: "Alpha", description: "Reduced latency 40%" }]),
+    education: JSON.stringify([{ institution: "University", credential: "Computer Science" }]),
+    skills: "Python\nSQL\nDocker\nGo\nLinux\nAPIs",
+    job_preferences: JSON.stringify({ ...defaultJobPreferences, no_preference: ["locations", "work_authorization", "salary", "industries"] }),
+  };
+  expect(getProfileCompletion(profile, createId)).toBe(100);
+  expect(getAiMatchProfile(profile, createId).gaps).toEqual([]);
+  expect(getProfileCompletionItems(profile, createId).some((item) => item.label === "Resume")).toBe(false);
+});

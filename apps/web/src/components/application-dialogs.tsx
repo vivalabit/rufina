@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  FileText,
   Save,
   Trash2,
   Upload,
@@ -26,18 +25,15 @@ import type {
   ApplicationStatus,
   TrackedApplication,
 } from "@/shared/types/application";
-import type { CandidateProfile } from "@/shared/types/profile";
 
 type ManualApplicationDialogProps = {
   draft: ManualApplicationDraft;
-  profile: CandidateProfile;
   isSaving: boolean;
   error: string;
   onChange: <Field extends keyof ManualApplicationDraft>(
     field: Field,
     value: ManualApplicationDraft[Field],
   ) => void;
-  onUseProfileResume: () => void;
   onAttachResume: (file: File | undefined) => void;
   onClose: () => void;
   onSave: () => void;
@@ -45,11 +41,9 @@ type ManualApplicationDialogProps = {
 
 export function ManualApplicationDialog({
   draft,
-  profile,
   isSaving,
   error,
   onChange,
-  onUseProfileResume,
   onAttachResume,
   onClose,
   onSave,
@@ -159,25 +153,13 @@ export function ManualApplicationDialog({
                   Resume for this application
                 </h3>
                 <p className="mt-1 text-xs font-medium text-muted">
-                  Choose the profile resume or upload a different one.
+                  Optional: attach a resume you already used. Generate new documents inside the application.
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  className="h-8 rounded-md border border-border bg-transparent px-3 text-[12px] text-[#1d1e1c] hover:bg-[#fff3e8]"
-                  disabled={
-                    !profile.resume_file_name || !profile.resume_file_id
-                  }
-                  onClick={onUseProfileResume}
-                >
-                  <FileText className="h-3.5 w-3.5" />
-                  Use profile resume
-                </Button>
                 <label className="inline-flex h-8 cursor-pointer items-center gap-2 rounded-md border border-border bg-transparent px-3 text-[12px] font-semibold text-[#1d1e1c] transition hover:bg-[#fff3e8]">
                   <Upload className="h-3.5 w-3.5" />
-                  Upload another
+                  Attach resume
                   <input
                     type="file"
                     accept=".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"

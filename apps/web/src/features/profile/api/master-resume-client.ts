@@ -1,3 +1,4 @@
+import { resolveApiUrl } from "@/shared/api/config";
 import type { WorkTechnology, WorkResponsibility, WorkProject } from "@/shared/types/profile";
 import { apiClient, ApiDecodeError } from "@/shared/api/client";
 
@@ -135,21 +136,6 @@ export type MasterResumeConfirmationResponse = {
   createdAt: string;
 };
 
-export type ProfileResume = {
-  fileId: string;
-  fileName: string;
-  fileSize?: string;
-};
-
-export type UploadedProfileResume = {
-  id: string;
-  fileName: string;
-  sizeBytes: number;
-  contentType: string;
-  updatedAt: string;
-  downloadUrl: string;
-};
-
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
@@ -159,42 +145,6 @@ function requireShape<T>(value: unknown, property: string, message: string): T {
     throw new ApiDecodeError(message, 200, JSON.stringify(value));
   }
   return value as T;
-}
-
-export async function uploadPrimaryResume(file: File, signal?: AbortSignal) {
-  return (await apiClient.json<UploadedProfileResume>({
-    path: "/profile/files",
-    query: {
-      kind: "primary_resume",
-      file_name: file.name,
-      title: file.name,
-      category: "CV / Resume",
-    },
-    method: "POST",
-    headers: { "Content-Type": file.type || "application/octet-stream" },
-    body: file,
-    signal,
-    errorMessage: "Resume upload failed",
-  }, (value) => requireShape<UploadedProfileResume>(
-    value,
-    "id",
-    "Resume upload returned an invalid response",
-  ))).data;
-}
-
-export async function importMasterResume(profileFileId: string, signal?: AbortSignal) {
-  return (await apiClient.json<MasterResumeImportResponse>({
-    path: "/profile/import-master-resume",
-    method: "POST",
-    json: { profileFileId },
-    signal,
-    timeoutMs: 180_000,
-    errorMessage: "Master Resume import failed",
-  }, (value) => requireShape<MasterResumeImportResponse>(
-    value,
-    "masterResume",
-    "Master Resume import returned an invalid response",
-  ))).data;
 }
 
 export async function confirmMasterResumeImport(
@@ -213,23 +163,40 @@ export async function confirmMasterResumeImport(
       confirmedSections: MASTER_RESUME_REVIEW_SECTIONS,
     },
     signal,
-    errorMessage: "Master Resume confirmation failed",
+    errorMessage: "Saving imported information failed",
   }, (value) => requireShape<MasterResumeConfirmationResponse>(
     value,
     "masterResumeId",
-    "Master Resume confirmation returned an invalid response",
+    "Saving imported information returned an invalid response",
   ))).data;
 }
 
-export async function fetchProfileResume(signal?: AbortSignal) {
-  return (await apiClient.json<Omit<MasterResumeConfirmationResponse, "sourceFileId">>({
-    path: "/profile/master-resume", cache: "no-store", signal,
-    errorMessage: "Profile resume could not be loaded",
-  }, (value) => {
-    const saved = requireShape<Omit<MasterResumeConfirmationResponse, "sourceFileId">>(value, "masterResume", "Invalid profile resume");
-    if (!saved.masterResume?.basics || typeof saved.version !== "number") {
-      throw new ApiDecodeError("Invalid profile resume", 200, JSON.stringify(value));
-    }
-    return saved;
-  })).data;
+export type ImportSource = {
+  id: string;
+  fileName: string;
+  sizeBytes: number;
+  createdAt: string;
+  downloadUrl: string;
+  status: "pending" | "imported" | "stored";
+  profileVersion: number | null;
+  canReview: boolean;
+};
+
+export async function fetchImportHistory(signal?: AbortSignal) {
+  return (await apiClient.json<ImportSource[]>({ path: "/profile/imports", cache: "no-store", signal,
+    errorMessage: "Import history could not be loaded" }, (value) => {
+      if (!Array.isArray(value)) throw new ApiDecodeError("Invalid import history", 200, JSON.stringify(value));
+      return (value as ImportSource[]).map((source) => ({ ...source, downloadUrl: resolveApiUrl(source.downloadUrl) }));
+    })).data;
+}
+
+export async function uploadImportSource(file: File) {
+  return (await apiClient.json<ImportSource>({ path: "/profile/imports", method: "POST", query: { file_name: file.name },
+    headers: { "Content-Type": file.type || "application/octet-stream" }, body: file,
+    timeoutMs: 180_000, errorMessage: "Resume upload failed" })).data;
+}
+
+export async function previewResumeImport(sourceId: string) {
+  return (await apiClient.json<MasterResumeImportResponse>({ path: `/profile/imports/${encodeURIComponent(sourceId)}/preview`, method: "POST",
+    timeoutMs: 180_000, errorMessage: "Resume import failed. Your original file is saved in import history." })).data;
 }

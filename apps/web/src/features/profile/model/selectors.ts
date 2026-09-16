@@ -30,7 +30,6 @@ export function getAiMatchProfile(profile: CandidateProfile, createId: ProfileId
   const experienceEntries = parseExperienceEntries(profile.experience, createId);
   const educationEntries = parseEducationEntries(profile.education, createId);
   const preferences = parseJobPreferences(profile.job_preferences);
-  const hasResume = hasProfileValue(profile.resume_file_name) && hasProfileValue(profile.resume_file_id);
   const hasSalaryPreference = preferences.no_preference.includes("salary") || hasProfileValue(preferences.salary_min);
   const hasAuthorizationPreference = preferences.no_preference.includes("work_authorization") || hasProfileValue(preferences.work_authorization);
   const hasLocationPreference = preferences.no_preference.includes("locations") || preferences.locations.length > 0;
@@ -44,7 +43,6 @@ export function getAiMatchProfile(profile: CandidateProfile, createId: ProfileId
     educationEntries.length > 0 ? `${educationEntries.length} education / certification entr${educationEntries.length === 1 ? "y" : "ies"}` : "",
     hasLocationPreference ? `Locations: ${preferences.no_preference.includes("locations") ? "No preference" : formatCompactList(preferences.locations, "set")}` : "",
     hasAuthorizationPreference ? `Work authorization: ${preferences.no_preference.includes("work_authorization") ? "No preference" : preferences.work_authorization}` : "",
-    hasResume ? `Resume attached: ${profile.resume_file_name}` : "",
   ].filter(Boolean);
   const gaps = [
     !hasProfileValue(profile.current_role) ? "Add current role" : "",
@@ -56,7 +54,6 @@ export function getAiMatchProfile(profile: CandidateProfile, createId: ProfileId
     !hasIndustryPreference ? "Add preferred industries or mark no preference" : "",
     !hasSalaryPreference ? "Add salary preference or mark no preference" : "",
     !hasAuthorizationPreference ? "Add work authorization preference or mark no preference" : "",
-    !hasResume ? "Attach resume for imports and matching" : "",
   ].filter(Boolean);
   return { signals, gaps: gaps.slice(0, 5) };
 }
@@ -76,7 +73,6 @@ export function getProfileCompletionItems(profile: CandidateProfile, createId: P
     { label: "Location and work format", complete: hasProfileValue(profile.location) && hasProfileValue(profile.work_format), action: "Add location and work format" },
     { label: "Summary", complete: hasProfileValue(profile.headline), action: "Add short professional summary" },
     { label: "Contact link", complete: hasProfileContactLink(profile), action: "Add LinkedIn, GitHub, or portfolio" },
-    { label: "Resume", complete: hasProfileValue(profile.resume_file_name) && hasProfileValue(profile.resume_file_id), action: "Attach resume" },
     { label: "Experience", complete: experienceEntries.length > 0, action: "Add or import experience" },
     { label: "Quantified achievements", complete: experienceEntries.length > 0 && hasQuantifiedAchievements(experienceEntries), action: "Add metrics to experience" },
     { label: "Skills", complete: skills.length >= 6, action: skills.length > 0 ? "Add a few more skills" : "Add skills" },

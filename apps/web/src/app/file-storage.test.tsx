@@ -129,7 +129,7 @@ async function fillManualApplication(file?: File) {
     target: { value: "Build reliable platform services with Python and PostgreSQL." },
   });
   if (file) {
-    fireEvent.change(screen.getByLabelText("Upload another"), {
+    fireEvent.change(screen.getByLabelText("Attach resume"), {
       target: { files: [file] },
     });
   }

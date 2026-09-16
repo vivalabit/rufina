@@ -9,7 +9,6 @@ import {
 import { defaultManualApplicationDraft } from "@/features/applications/model/constants";
 import type { ManualApplicationDraft } from "@/features/applications/model/types";
 import { demoJobs } from "@/features/jobs/model/demo-jobs";
-import { defaultCandidateProfile } from "@/features/profile/model/defaults";
 import type {
   ApplicationEventDraft,
   TrackedApplication,
@@ -42,15 +41,9 @@ it("keeps the manual application form controlled and delegates resume selection"
   render(
     <ManualApplicationDialog
       draft={completeManualDraft}
-      profile={{
-        ...defaultCandidateProfile,
-        resume_file_id: "resume-1",
-        resume_file_name: "resume.pdf",
-      }}
       isSaving={false}
       error=""
       onChange={onChange}
-      onUseProfileResume={vi.fn()}
       onAttachResume={onAttachResume}
       onClose={vi.fn()}
       onSave={onSave}
@@ -65,7 +58,7 @@ it("keeps the manual application form controlled and delegates resume selection"
   const resume = new File(["resume"], "resume.pdf", {
     type: "application/pdf",
   });
-  fireEvent.change(screen.getByLabelText("Upload another"), {
+  fireEvent.change(screen.getByLabelText("Attach resume"), {
     target: { files: [resume] },
   });
   expect(onAttachResume).toHaveBeenCalledWith(resume);

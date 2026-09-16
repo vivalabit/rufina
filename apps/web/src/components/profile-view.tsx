@@ -21,7 +21,7 @@ import {
 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { MasterResumeEditor } from "@/components/master-resume-editor";
+import { ProfileResumeImport } from "@/components/master-resume-editor";
 import { ResumeTemplateManager } from "@/components/resume-template-manager";
 import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
 import { defaultCandidateProfile } from "@/features/profile/model/defaults";
@@ -90,22 +90,15 @@ function getProfileLinks(profile: CandidateProfile) {
 
 export function ProfileView({
   profile,
-  onProfileResumeUploaded,
   onProfileSaved,
   onOpenAssistant,
   onEditProfile,
   onAddExperience,
   onEditExperience,
   onDeleteExperience,
-  onImportExperienceFromCv,
-  isExperienceImporting,
-  experienceImportMessage,
   onAddEducation,
   onEditEducation,
   onDeleteEducation,
-  onImportEducationFromCv,
-  isEducationImporting,
-  educationImportMessage,
   onAddDocument,
   onEditDocument,
   onDeleteDocument,
@@ -113,33 +106,17 @@ export function ProfileView({
   onEditSkills,
   onEditDealbreakers,
   onEditAdditionalNotes,
-  onImportSkillsFromCv,
-  isSkillsImporting,
-  skillsImportMessage,
 }: {
   profile: CandidateProfile;
   onProfileSaved?: () => void | Promise<unknown>;
-  onProfileResumeUploaded: (file: {
-    id: string;
-    fileName: string;
-    sizeBytes: number;
-    updatedAt: string;
-    downloadUrl: string;
-  }) => void;
   onOpenAssistant: (prompt: string) => void;
   onEditProfile: () => void;
   onAddExperience: () => void;
   onEditExperience: (experience: ExperienceEntry) => void;
   onDeleteExperience: (experienceId: string) => void;
-  onImportExperienceFromCv: () => void;
-  isExperienceImporting: boolean;
-  experienceImportMessage: string;
   onAddEducation: () => void;
   onEditEducation: (education: EducationEntry) => void;
   onDeleteEducation: (educationId: string) => void;
-  onImportEducationFromCv: () => void;
-  isEducationImporting: boolean;
-  educationImportMessage: string;
   onAddDocument: () => void;
   onEditDocument: (document: DocumentEntry) => void;
   onDeleteDocument: (documentId: string) => void;
@@ -147,9 +124,6 @@ export function ProfileView({
   onEditSkills: () => void;
   onEditDealbreakers: () => void;
   onEditAdditionalNotes: () => void;
-  onImportSkillsFromCv: () => void;
-  isSkillsImporting: boolean;
-  skillsImportMessage: string;
 }) {
   return (
     <section className="job-scroll flex min-h-0 min-w-0 flex-1 flex-col overflow-y-auto px-3 py-3 sm:px-4 xl:px-4 2xl:px-5 2xl:py-4">
@@ -159,10 +133,11 @@ export function ProfileView({
             My Profile
           </h1>
           <p className="mt-1 text-[13px] text-muted 2xl:mt-1.5 2xl:text-base">
-            Your professional profile and job preferences
+            Your profile is the source for application documents. Fill it in manually or import a resume.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
+          <ProfileResumeImport onProfileSaved={onProfileSaved} />
           <Button
             type="button"
             variant="ghost"
@@ -178,20 +153,6 @@ export function ProfileView({
       <ProfileHero profile={profile} onEditProfile={onEditProfile} />
 
       <div className="mt-4 grid shrink-0 content-start gap-4 2xl:gap-5">
-        <MasterResumeEditor
-          onProfileResumeUploaded={onProfileResumeUploaded}
-          onProfileSaved={onProfileSaved}
-          profileEtag={profile._etag}
-          profileResume={
-            profile.resume_file_name && profile.resume_file_id
-              ? {
-                  fileName: profile.resume_file_name,
-                  fileSize: profile.resume_file_size,
-                  fileId: profile.resume_file_id,
-                }
-              : null
-          }
-        />
         <div className="grid gap-4 xl:grid-cols-2 2xl:gap-5">
           <ActivityPanel profile={profile} onEditProfile={onEditProfile} />
           <AiMatchProfilePanel
@@ -204,25 +165,16 @@ export function ProfileView({
           onAddExperience={onAddExperience}
           onEditExperience={onEditExperience}
           onDeleteExperience={onDeleteExperience}
-          onImportExperienceFromCv={onImportExperienceFromCv}
-          isExperienceImporting={isExperienceImporting}
-          importMessage={experienceImportMessage}
         />
         <SkillsPanel
           profile={profile}
           onEditSkills={onEditSkills}
-          onImportSkillsFromCv={onImportSkillsFromCv}
-          isSkillsImporting={isSkillsImporting}
-          importMessage={skillsImportMessage}
         />
         <EducationPanel
           profile={profile}
           onAddEducation={onAddEducation}
           onEditEducation={onEditEducation}
           onDeleteEducation={onDeleteEducation}
-          onImportEducationFromCv={onImportEducationFromCv}
-          isEducationImporting={isEducationImporting}
-          importMessage={educationImportMessage}
         />
         <PreferencesPanel
           profile={profile}
@@ -421,42 +373,19 @@ export function ExperiencePanel({
   onAddExperience,
   onEditExperience,
   onDeleteExperience,
-  onImportExperienceFromCv,
-  isExperienceImporting,
-  importMessage,
 }: {
   profile: CandidateProfile;
   onAddExperience: () => void;
   onEditExperience: (experience: ExperienceEntry) => void;
   onDeleteExperience: (experienceId: string) => void;
-  onImportExperienceFromCv: () => void;
-  isExperienceImporting: boolean;
-  importMessage: string;
 }) {
   const experienceItems = parseExperienceEntries(profile.experience);
-  const hasResume =
-    hasProfileValue(profile.resume_file_id) &&
-    hasProfileValue(profile.resume_file_name);
 
   return (
     <section className="panel p-4 2xl:p-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-base font-bold 2xl:text-lg">Experience</h2>
         <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-bold text-[#1d1e1c] transition hover:bg-[#fff3e8] disabled:cursor-not-allowed disabled:opacity-45 2xl:text-[13px]"
-            onClick={onImportExperienceFromCv}
-            disabled={!hasResume || isExperienceImporting}
-            title={
-              hasResume
-                ? "Import experience from attached CV"
-                : "Attach a CV first"
-            }
-          >
-            <FileText className="h-4 w-4" />
-            {isExperienceImporting ? "Importing..." : "Import from CV"}
-          </button>
           <button
             type="button"
             className="inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-bold text-accent transition hover:bg-accent/10 hover:text-[#e95300] 2xl:text-[13px]"
@@ -467,11 +396,6 @@ export function ExperiencePanel({
           </button>
         </div>
       </div>
-      {importMessage && (
-        <p className="mt-3 text-xs font-semibold text-muted 2xl:text-[13px]">
-          {importMessage}
-        </p>
-      )}
       {experienceItems.length > 0 ? (
         <div className="mt-4 space-y-4">
           {experienceItems.map((item) => (
@@ -541,20 +465,11 @@ export function ExperiencePanel({
 export function SkillsPanel({
   profile,
   onEditSkills,
-  onImportSkillsFromCv,
-  isSkillsImporting,
-  importMessage,
 }: {
   profile: CandidateProfile;
   onEditSkills: () => void;
-  onImportSkillsFromCv: () => void;
-  isSkillsImporting: boolean;
-  importMessage: string;
 }) {
   const skillItems = parseProfileLines(profile.skills);
-  const hasResume =
-    hasProfileValue(profile.resume_file_id) &&
-    hasProfileValue(profile.resume_file_name);
   const skillPreviewLimit = 24;
   const visibleSkillItems = skillItems.slice(0, skillPreviewLimit);
   const hiddenSkillCount = Math.max(
@@ -576,18 +491,6 @@ export function SkillsPanel({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-bold text-[#1d1e1c] transition hover:bg-[#fff3e8] disabled:cursor-not-allowed disabled:opacity-45 2xl:text-[13px]"
-            onClick={onImportSkillsFromCv}
-            disabled={!hasResume || isSkillsImporting}
-            title={
-              hasResume ? "Import skills from attached CV" : "Attach a CV first"
-            }
-          >
-            <FileText className="h-4 w-4" />
-            {isSkillsImporting ? "Importing..." : "Import from CV"}
-          </button>
-          <button
-            type="button"
             className="inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-bold text-accent transition hover:bg-accent/10 hover:text-[#e95300] 2xl:text-[13px]"
             onClick={onEditSkills}
           >
@@ -596,11 +499,6 @@ export function SkillsPanel({
           </button>
         </div>
       </div>
-      {importMessage && (
-        <p className="mt-3 text-xs font-semibold text-muted 2xl:text-[13px]">
-          {importMessage}
-        </p>
-      )}
       {skillItems.length > 0 ? (
         <div className="mt-4 flex flex-wrap gap-2">
           {visibleSkillItems.map((skill) => (
@@ -639,22 +537,13 @@ export function EducationPanel({
   onAddEducation,
   onEditEducation,
   onDeleteEducation,
-  onImportEducationFromCv,
-  isEducationImporting,
-  importMessage,
 }: {
   profile: CandidateProfile;
   onAddEducation: () => void;
   onEditEducation: (education: EducationEntry) => void;
   onDeleteEducation: (educationId: string) => void;
-  onImportEducationFromCv: () => void;
-  isEducationImporting: boolean;
-  importMessage: string;
 }) {
   const educationItems = parseEducationEntries(profile.education);
-  const hasResume =
-    hasProfileValue(profile.resume_file_id) &&
-    hasProfileValue(profile.resume_file_name);
 
   return (
     <section className="panel p-4 2xl:p-5">
@@ -665,20 +554,6 @@ export function EducationPanel({
         <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="inline-flex h-8 items-center gap-1.5 rounded-md border border-border px-3 text-xs font-bold text-[#1d1e1c] transition hover:bg-[#fff3e8] disabled:cursor-not-allowed disabled:opacity-45 2xl:text-[13px]"
-            onClick={onImportEducationFromCv}
-            disabled={!hasResume || isEducationImporting}
-            title={
-              hasResume
-                ? "Import education from attached CV"
-                : "Attach a CV first"
-            }
-          >
-            <FileText className="h-4 w-4" />
-            {isEducationImporting ? "Importing..." : "Import from CV"}
-          </button>
-          <button
-            type="button"
             className="inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-bold text-accent transition hover:bg-accent/10 hover:text-[#e95300] 2xl:text-[13px]"
             onClick={onAddEducation}
           >
@@ -687,11 +562,6 @@ export function EducationPanel({
           </button>
         </div>
       </div>
-      {importMessage && (
-        <p className="mt-3 text-xs font-semibold text-muted 2xl:text-[13px]">
-          {importMessage}
-        </p>
-      )}
       {educationItems.length > 0 ? (
         <div className="mt-4 space-y-4">
           {educationItems.map((item) => (
@@ -785,8 +655,8 @@ export function DocumentsPanel({
             Supporting Documents
           </h2>
           <p className="mt-1 text-xs font-medium text-muted 2xl:text-[13px]">
-            Store separate English and German CVs, certificates and other
-            reusable files.
+            Store certificates, references and other supporting files.
+            Generated resumes stay with their applications.
           </p>
         </div>
         {documentItems.length > 0 && (
@@ -875,8 +745,8 @@ export function DocumentsPanel({
       ) : (
         <EmptyProfileState
           className="mt-4"
-          title="No application documents yet"
-          description="Add CV versions, certificates and other reusable documents. Cover letters are generated from the built-in template."
+          title="No supporting documents yet"
+          description="Add certificates, references or other supporting files."
           action="Add document"
           onAction={onAddDocument}
         />
@@ -1182,7 +1052,7 @@ export function ProfileCompletenessPanel({
             Profile has enough signal for matching
           </p>
           <p className="mt-1 text-xs leading-5 text-muted 2xl:text-[13px]">
-            Keep it fresh when your resume, target roles, or application
+            Keep it fresh when your experience, target roles, or application
             constraints change.
           </p>
         </div>

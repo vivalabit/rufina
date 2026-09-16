@@ -8,11 +8,10 @@ import {
   Check,
   CheckCircle2,
   ChevronRight,
-  FileCheck2,
   FileText,
   LoaderCircle,
   LockKeyhole,
-  RefreshCw,
+  History,
   ShieldCheck,
   Trash2,
   Upload,
@@ -22,16 +21,14 @@ import {
 import { Button } from "@/components/ui/button";
 import {
   confirmMasterResumeImport,
-  importMasterResume,
-  fetchProfileResume,
+  fetchImportHistory,
+  previewResumeImport,
+  uploadImportSource,
   MASTER_RESUME_REVIEW_SECTIONS,
-  uploadPrimaryResume,
   type MasterResume,
-  type MasterResumeConfirmationResponse,
   type MasterResumeImportResponse,
   type MasterResumeReviewSectionName,
-  type ProfileResume,
-  type UploadedProfileResume,
+  type ImportSource,
 } from "@/features/profile/api/master-resume-client";
 import { cn } from "@/lib/utils";
 import { apiUnavailableMessage } from "@/shared/api/client";
@@ -63,19 +60,10 @@ const sectionDescriptions: Record<MasterResumeReviewSectionName, string> = {
   certifications: "Verify certification names, issuers, and validity dates.",
 };
 
-export function MasterResumeEditor({
-  profileResume,
-  onProfileResumeUploaded,
-  onProfileSaved,
-  profileEtag,
-}: {
-  profileResume?: ProfileResume | null;
+export function ProfileResumeImport({ onProfileSaved }: {
   onProfileSaved?: () => void | Promise<unknown>;
-  profileEtag?: string;
-  onProfileResumeUploaded?: (file: UploadedProfileResume) => void;
 }) {
   const uploadRef = useRef<HTMLInputElement>(null);
-  const reviewInProgress = useRef(false);
   const [importState, setImportState] = useState<RequestState>("idle");
   const [confirmState, setConfirmState] = useState<RequestState>("idle");
   const [message, setMessage] = useState("");
@@ -89,16 +77,7 @@ export function MasterResumeEditor({
     Set<MasterResumeReviewSectionName>
   >(new Set());
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [confirmation, setConfirmation] =
-    useState<Omit<MasterResumeConfirmationResponse, "sourceFileId"> | null>(null);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    fetchProfileResume(controller.signal).then((saved) => {
-      if (!reviewInProgress.current) setConfirmation(saved);
-    }).catch(() => {});
-    return () => controller.abort();
-  }, [profileEtag]);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const allSectionsReviewed =
     reviewedSections.size === MASTER_RESUME_REVIEW_SECTIONS.length;
@@ -107,15 +86,13 @@ export function MasterResumeEditor({
     [draft],
   );
 
-  async function importResume(fileName: string, profileFileId: string) {
-    reviewInProgress.current = true;
+  async function importResume(fileName: string, sourceId: string) {
     setImportState("loading");
     setMessage("");
-    setConfirmation(null);
     setImportedFileName(fileName);
 
     try {
-      const payload = await importMasterResume(profileFileId);
+      const payload = await previewResumeImport(sourceId);
 
       setImportResult(payload);
       setDraft(cloneResume(payload.masterResume));
@@ -128,7 +105,7 @@ export function MasterResumeEditor({
       setMessage(
         apiUnavailableMessage(
           error,
-          "Master Resume import failed. Try again.",
+          "Resume import failed. Your source file is saved in import history.",
         ),
       );
     }
@@ -140,9 +117,10 @@ export function MasterResumeEditor({
       setMessage("Choose a PDF or DOCX resume.");
       return;
     }
+    setImportState("loading");
+    setMessage("");
     try {
-      const uploaded = await uploadPrimaryResume(file);
-      onProfileResumeUploaded?.(uploaded);
+      const uploaded = await uploadImportSource(file);
       await importResume(uploaded.fileName, uploaded.id);
     } catch (error) {
       setImportState("error");
@@ -186,24 +164,23 @@ export function MasterResumeEditor({
     setConfirmState("loading");
     setMessage("");
     try {
-      const payload = await confirmMasterResumeImport(
+      await confirmMasterResumeImport(
         importResult.sourceFileId,
         draft,
         importResult.profileRevision,
       );
-      reviewInProgress.current = false;
-      setConfirmation(payload);
-      setDraft(cloneResume(payload.masterResume));
+      setDraft(null);
+      setImportResult(null);
       setConfirmState("idle");
       setDialogOpen(false);
-      setMessage(`Profile version ${payload.version} is saved and ready for future documents.`);
+      setMessage("Imported information saved to your profile.");
       await onProfileSaved?.();
     } catch (error) {
       setConfirmState("error");
       setMessage(
         apiUnavailableMessage(
           error,
-          "Master Resume confirmation failed. Try again.",
+          "Could not save imported information. Your review is still open.",
         ),
       );
     }
@@ -223,124 +200,27 @@ export function MasterResumeEditor({
 
   return (
     <>
-      <section className="panel overflow-hidden">
-        <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center 2xl:p-5">
-          <div className="flex min-w-0 items-start gap-3">
-            <span
-              className={cn(
-                "grid h-11 w-11 shrink-0 place-items-center rounded-md border",
-                confirmation
-                  ? "border-success/30 bg-success/12 text-success"
-                  : "border-accent/30 bg-accent/10 text-accent",
-              )}
-            >
-              {confirmation ? (
-                <FileCheck2 className="h-5 w-5" />
-              ) : (
-                <ShieldCheck className="h-5 w-5" />
-              )}
-            </span>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h2 className="text-base font-bold text-foreground 2xl:text-lg">
-                  Profile resume
-                </h2>
-                {confirmation ? (
-                  <span className="rounded border border-success/30 bg-success/10 px-2 py-0.5 text-[11px] font-bold text-success">
-                    Saved · v{confirmation.version}
-                  </span>
-                ) : draft ? (
-                  <span className="rounded border border-[#fa5d00]/30 bg-[#fa5d00]/10 px-2 py-0.5 text-[11px] font-bold text-accent">
-                    {reviewedSections.size}/
-                    {MASTER_RESUME_REVIEW_SECTIONS.length} sections reviewed
-                  </span>
-                ) : null}
-              </div>
-              <p className="mt-1 max-w-[760px] text-xs leading-5 text-muted 2xl:text-[13px]">
-                {confirmation
-                  ? `${confirmation.masterResume.basics.fullName} — saved profile used for future documents.`
-                  : "Your saved profile is the source for documents. Import a CV to add missing information."}
-              </p>
-              {message ? (
-                <p
-                  role={importState === "error" ? "alert" : "status"}
-                  className={cn(
-                    "mt-2 text-xs font-semibold",
-                    importState === "error" || confirmState === "error"
-                      ? "text-[#fa5d00]"
-                      : "text-success",
-                  )}
-                >
-                  {message}
-                </p>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="flex flex-wrap gap-2 lg:justify-end">
-            {draft && !confirmation ? (
-              <Button
-                type="button"
-                className="h-10 rounded-md bg-gradient-to-r from-[#fa5d00] to-[#df4f00] px-4 text-xs font-bold text-foreground"
-                onClick={() => setDialogOpen(true)}
-              >
-                <FileText className="h-4 w-4" />
-                Continue review
-              </Button>
-            ) : null}
-            {profileResume?.fileId ? (
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-10 rounded-md border border-border bg-[#fff8f1] px-4 text-xs font-bold text-[#1d1e1c] hover:bg-[#fff3e8]"
-                disabled={importState === "loading"}
-                onClick={() =>
-                  importResume(profileResume.fileName, profileResume.fileId)
-                }
-              >
-                {importState === "loading" ? (
-                  <LoaderCircle className="h-4 w-4 animate-spin" />
-                ) : (
-                  <RefreshCw className="h-4 w-4" />
-                )}
-                {draft ? "Restart from profile resume" : "Import profile resume"}
-              </Button>
-            ) : null}
-            {(
-              <Button
-                type="button"
-                variant="ghost"
-                className="h-10 rounded-md border border-border bg-[#fff8f1] px-4 text-xs font-bold text-[#1d1e1c] hover:bg-[#fff3e8]"
-                disabled={importState === "loading"}
-                onClick={() => uploadRef.current?.click()}
-              >
-                <Upload className="h-4 w-4" />
-                Choose PDF or DOCX
-              </Button>
-            )}
-            <input
-              ref={uploadRef}
-              aria-label="Choose Master Resume file"
-              type="file"
-              accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
-              className="hidden"
-              onChange={(event) => {
-                const file = event.target.files?.[0];
-                if (file) void importUploadedFile(file);
-                event.currentTarget.value = "";
-              }}
-            />
-          </div>
-        </div>
-
-        {!confirmation ? (
-          <div className="grid border-t border-border bg-[#fff8f1] sm:grid-cols-3">
-            <ProcessStep number="1" label="Import PDF or DOCX" />
-            <ProcessStep number="2" label="Review all 7 sections" />
-            <ProcessStep number="3" label="Confirm immutable v1" />
-          </div>
-        ) : null}
-      </section>
+      <Button type="button" variant="outline" disabled={importState === "loading"}
+        title="Optional: fill or supplement your profile from a PDF or DOCX"
+        onClick={() => uploadRef.current?.click()} className="h-10 px-3 text-xs font-bold">
+        {importState === "loading" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+        {importState === "loading" ? "Importing..." : "Import from resume"}
+      </Button>
+      {draft && <Button type="button" variant="ghost" onClick={() => setDialogOpen(true)}>Continue review</Button>}
+      <Button type="button" variant="ghost" onClick={() => setHistoryOpen(true)} className="h-10 px-3 text-xs font-bold">
+        <History className="h-4 w-4" /> Import history
+      </Button>
+      <input ref={uploadRef} aria-label="Choose resume to import" type="file"
+        accept=".pdf,.docx,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+        className="hidden" disabled={importState === "loading"} onChange={(event) => {
+          const file = event.target.files?.[0];
+          if (file) void importUploadedFile(file);
+          event.currentTarget.value = "";
+        }} />
+      {message && !dialogOpen && <p role={importState === "error" || confirmState === "error" ? "alert" : "status"}
+        className="w-full text-xs text-muted">{message}</p>}
+      {historyOpen && <ImportHistory onClose={() => setHistoryOpen(false)} importing={importState === "loading"}
+        onReview={(source) => { setHistoryOpen(false); void importResume(source.fileName, source.id); }} />}
 
       {dialogOpen && draft && importResult ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/78 p-2 backdrop-blur-sm sm:p-4">
@@ -357,7 +237,7 @@ export function MasterResumeEditor({
                     id="master-resume-editor-title"
                     className="text-xl font-bold text-foreground sm:text-2xl"
                   >
-                    Review Master Resume
+                    Review resume import
                   </h2>
                   <span className="rounded border border-accent/30 bg-accent/10 px-2 py-0.5 text-[11px] font-bold text-accent">
                     Draft
@@ -369,7 +249,7 @@ export function MasterResumeEditor({
               </div>
               <button
                 type="button"
-                aria-label="Close Master Resume editor"
+                aria-label="Close resume import"
                 className="grid h-9 w-9 shrink-0 place-items-center rounded-md text-muted transition hover:bg-[#fff3e8] hover:text-foreground"
                 disabled={confirmState === "loading"}
                 onClick={() => setDialogOpen(false)}
@@ -493,7 +373,7 @@ export function MasterResumeEditor({
                   ) : (
                     <p className="flex items-center gap-2 text-xs text-muted">
                       <LockKeyhole className="h-4 w-4 shrink-0 text-accent" />
-                      Confirmation creates immutable version 1 and cannot be edited.
+                      Save adds the reviewed information to your profile. You can edit it there.
                     </p>
                   )}
                 </div>
@@ -523,8 +403,8 @@ export function MasterResumeEditor({
                       <LockKeyhole className="h-4 w-4" />
                     )}
                     {confirmState === "loading"
-                      ? "Confirming..."
-                      : "Confirm Master Resume"}
+                      ? "Saving..."
+                      : "Save to profile"}
                   </Button>
                 </div>
               </div>
@@ -534,6 +414,42 @@ export function MasterResumeEditor({
       ) : null}
     </>
   );
+}
+
+function ImportHistory({ onClose, onReview, importing }: {
+  onClose: () => void; onReview: (source: ImportSource) => void; importing: boolean;
+}) {
+  const [sources, setSources] = useState<ImportSource[] | null>(null);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    fetchImportHistory(controller.signal).then(setSources).catch((error) => {
+      if (!controller.signal.aborted) setError(error instanceof Error ? error.message : "Import history could not be loaded");
+    });
+    return () => controller.abort();
+  }, []);
+  return <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/72 p-4 backdrop-blur-sm">
+    <section role="dialog" aria-modal="true" aria-labelledby="import-history-title"
+      className="panel flex max-h-[calc(100vh-32px)] w-full max-w-2xl flex-col overflow-hidden bg-white p-5">
+      <header className="flex items-start justify-between gap-4">
+        <div><h2 id="import-history-title" className="text-xl font-bold">Import history</h2>
+          <p className="mt-1 text-sm text-muted">Original files are kept as sources. Your profile holds the current information used for documents.</p></div>
+        <button type="button" aria-label="Close import history" onClick={onClose}><X className="h-5 w-5" /></button>
+      </header>
+      <div className="job-scroll mt-4 min-h-0 overflow-y-auto">
+        {error ? <p role="alert">{error}</p> : !sources ? <p role="status">Loading import history...</p>
+          : sources.length === 0 ? <p className="text-sm text-muted">No imports yet. You can fill in your profile manually or import a resume.</p>
+          : <ul className="grid gap-3">{sources.map((source) => <li key={source.id} className="rounded-md border border-border p-3">
+            <a href={source.downloadUrl} target="_blank" rel="noreferrer" className="text-sm font-bold text-accent">{source.fileName}</a>
+            <p className="mt-1 text-xs text-muted">{new Date(source.createdAt).toLocaleDateString()} · {Math.ceil(source.sizeBytes / 1024)} KB · {
+              source.status === "imported" ? `Saved to profile${source.profileVersion ? ` · v${source.profileVersion}` : ""}`
+                : source.status === "pending" ? "Awaiting review" : "Stored source"}</p>
+            {source.canReview && <Button type="button" variant="ghost" disabled={importing} className="mt-2 h-8 text-xs"
+              onClick={() => onReview(source)}>Review import</Button>}
+          </li>)}</ul>}
+      </div>
+    </section>
+  </div>;
 }
 
 function SectionEditor({
@@ -1020,17 +936,6 @@ function SectionEditor({
           </div>
         </EditorCard>
       ))}
-    </div>
-  );
-}
-
-function ProcessStep({ number, label }: { number: string; label: string }) {
-  return (
-    <div className="flex items-center gap-2 border-border px-4 py-2.5 text-xs font-semibold text-muted sm:border-r sm:last:border-r-0">
-      <span className="grid h-5 w-5 place-items-center rounded-full border border-border bg-[#fff8f1] text-[10px] font-bold text-[#1d1e1c]">
-        {number}
-      </span>
-      {label}
     </div>
   );
 }

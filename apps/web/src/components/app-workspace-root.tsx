@@ -79,7 +79,6 @@ import { useActivityFeed } from "@/features/activity/hooks/use-activity-feed";
 import { useApplicationEvents } from "@/features/applications/hooks/use-application-events";
 import { useApplications } from "@/features/applications/hooks/use-applications";
 import { useProfile } from "@/features/profile/hooks/use-profile";
-import { applyUploadedPrimaryResume } from "@/features/profile/api/mappers";
 import { useAppSettings } from "@/features/settings/hooks/use-app-settings";
 import { useUiSettings } from "@/features/settings/components/ui-settings-provider";
 import { screenshotSessionStorageKey } from "@/features/app-shell/browser-storage/keys";
@@ -186,8 +185,6 @@ import {
 } from "@/features/profile/model/defaults";
 import {
   inferDocumentLanguage as inferDocumentLanguageModel,
-  mergeEducationEntries,
-  mergeExperienceEntries,
   mergeSkillLists as mergeSkillListsModel,
   normalizeDocumentEntry as normalizeDocumentEntryModel,
   normalizeEducationEntry as normalizeEducationEntryModel,
@@ -622,13 +619,9 @@ export function AppWorkspaceRoot({
   const [isExperienceDialogOpen, setIsExperienceDialogOpen] = useState(false);
   const [isExperienceEditMode, setIsExperienceEditMode] = useState(false);
   const [experienceDraft, setExperienceDraft] = useState<ExperienceEntry>(defaultExperienceDraft);
-  const [isExperienceImporting, setIsExperienceImporting] = useState(false);
-  const [experienceImportMessage, setExperienceImportMessage] = useState("");
   const [isEducationDialogOpen, setIsEducationDialogOpen] = useState(false);
   const [isEducationEditMode, setIsEducationEditMode] = useState(false);
   const [educationDraft, setEducationDraft] = useState<EducationEntry>(defaultEducationDraft);
-  const [isEducationImporting, setIsEducationImporting] = useState(false);
-  const [educationImportMessage, setEducationImportMessage] = useState("");
   const [isDocumentDialogOpen, setIsDocumentDialogOpen] = useState(false);
   const [isDocumentEditMode, setIsDocumentEditMode] = useState(false);
   const [documentDraft, setDocumentDraft] = useState<DocumentEntry>(defaultDocumentDraft);
@@ -638,8 +631,6 @@ export function AppWorkspaceRoot({
   const [isSkillsDialogOpen, setIsSkillsDialogOpen] = useState(false);
   const [skillsDraft, setSkillsDraft] = useState<string[]>([]);
   const [skillInput, setSkillInput] = useState("");
-  const [isSkillsImporting, setIsSkillsImporting] = useState(false);
-  const [skillsImportMessage, setSkillsImportMessage] = useState("");
   const [isDealbreakersDialogOpen, setIsDealbreakersDialogOpen] = useState(false);
   const [dealbreakersDraft, setDealbreakersDraft] = useState<string[]>([]);
   const [dealbreakerInput, setDealbreakerInput] = useState("");
@@ -1107,19 +1098,6 @@ export function AppWorkspaceRoot({
           : application,
       ),
     );
-  }
-
-  function applyProfileResumeUpload(file: {
-    id: string;
-    fileName: string;
-    sizeBytes: number;
-    updatedAt: string;
-    downloadUrl: string;
-  }) {
-    const apply = (current: CandidateProfile): CandidateProfile =>
-      applyUploadedPrimaryResume(current, file);
-    setProfile(apply);
-    setProfileDraft(apply);
   }
 
   function syncApplicationDocumentToApplication(
@@ -2196,172 +2174,6 @@ export function AppWorkspaceRoot({
     }
   }
 
-  async function importExperienceFromCv() {
-    if (!profile.resume_file_id || !profile.resume_file_name) {
-      setExperienceImportMessage("Attach a resume first");
-      window.alert("Attach a resume before importing experience.");
-      return;
-    }
-
-    setIsExperienceImporting(true);
-    setExperienceImportMessage("");
-    setProfileSaveStatus("loading");
-    setProfileSaveMessage("");
-
-    try {
-      const importResult = await profileState.importExperience(profile.resume_file_id);
-
-      const importedEntries = (importResult.experience ?? []).map((entry) =>
-        normalizeExperienceEntry({
-          ...entry,
-          id: entry.id || createClientId("cv-experience"),
-        }),
-      );
-
-      if (importedEntries.length === 0) {
-        setProfileSaveStatus("ready");
-        setExperienceImportMessage("AI found no experience entries in the attached CV");
-        return;
-      }
-
-      const currentEntries = parseExperienceEntries(profile.experience);
-      const mergedEntries = mergeExperienceEntries(currentEntries, importedEntries);
-      const addedCount = mergedEntries.length - currentEntries.length;
-
-      if (JSON.stringify(mergedEntries) === JSON.stringify(currentEntries)) {
-        setProfileSaveStatus("ready");
-        setExperienceImportMessage("No new experience entries found in the attached CV");
-        return;
-      }
-
-      const nextProfile = normalizeCandidateProfile({
-        ...profile,
-        experience: serializeExperienceEntries(mergedEntries),
-      });
-      const saved = await profileState.save(nextProfile, importResult.source_file_id);
-      setProfileDraft(saved.profile);
-      setProfileSaveStatus("ready");
-      setProfileSaveMessage("");
-      setExperienceImportMessage(`AI imported ${addedCount} experience entr${addedCount === 1 ? "y" : "ies"} from CV`);
-    } catch {
-      const message = "AI could not import experience from CV. Please try again.";
-      setProfileSaveStatus("error");
-      setProfileSaveMessage(message);
-      setExperienceImportMessage(message);
-    } finally {
-      setIsExperienceImporting(false);
-    }
-  }
-
-  async function importEducationFromCv() {
-    if (!profile.resume_file_id || !profile.resume_file_name) {
-      setEducationImportMessage("Attach a resume first");
-      window.alert("Attach a resume before importing education.");
-      return;
-    }
-
-    setIsEducationImporting(true);
-    setEducationImportMessage("");
-    setProfileSaveStatus("loading");
-    setProfileSaveMessage("");
-
-    try {
-      const importResult = await profileState.importEducation(profile.resume_file_id);
-
-      const importedEntries = (importResult.education ?? []).map((entry) =>
-        normalizeEducationEntry({
-          ...entry,
-          id: entry.id || createClientId("cv-education"),
-        }),
-      );
-
-      if (importedEntries.length === 0) {
-        setProfileSaveStatus("ready");
-        setEducationImportMessage("AI found no education entries in the attached CV");
-        return;
-      }
-
-      const currentEntries = parseEducationEntries(profile.education);
-      const mergedEntries = mergeEducationEntries(currentEntries, importedEntries);
-      const addedCount = mergedEntries.length - currentEntries.length;
-
-      if (JSON.stringify(mergedEntries) === JSON.stringify(currentEntries)) {
-        setProfileSaveStatus("ready");
-        setEducationImportMessage("No new education entries found in the attached CV");
-        return;
-      }
-
-      const nextProfile = normalizeCandidateProfile({
-        ...profile,
-        education: serializeEducationEntries(mergedEntries),
-      });
-      const saved = await profileState.save(nextProfile, importResult.source_file_id);
-      setProfileDraft(saved.profile);
-      setProfileSaveStatus("ready");
-      setProfileSaveMessage("");
-      setEducationImportMessage(`AI imported ${addedCount} education entr${addedCount === 1 ? "y" : "ies"} from CV`);
-    } catch {
-      const message = "AI could not import education from CV. Please try again.";
-      setProfileSaveStatus("error");
-      setProfileSaveMessage(message);
-      setEducationImportMessage(message);
-    } finally {
-      setIsEducationImporting(false);
-    }
-  }
-
-  async function importSkillsFromCv() {
-    if (!profile.resume_file_id || !profile.resume_file_name) {
-      setSkillsImportMessage("Attach a resume first");
-      window.alert("Attach a resume before importing skills.");
-      return;
-    }
-
-    setIsSkillsImporting(true);
-    setSkillsImportMessage("");
-    setProfileSaveStatus("loading");
-    setProfileSaveMessage("");
-
-    try {
-      const importResult = await profileState.importSkills(profile.resume_file_id);
-
-      const importedSkills = importResult.skills ?? [];
-      if (importedSkills.length === 0) {
-        setProfileSaveStatus("ready");
-        setSkillsImportMessage("AI found no skills in the attached CV");
-        return;
-      }
-
-      const currentSkills = parseProfileLines(profile.skills);
-      const mergedSkills = mergeSkillLists(currentSkills, importedSkills);
-      const addedCount = mergedSkills.length - currentSkills.length;
-
-      if (addedCount === 0) {
-        setProfileSaveStatus("ready");
-        setSkillsImportMessage("No new skills found in the attached CV");
-        return;
-      }
-
-      const nextProfile = normalizeCandidateProfile({
-        ...profile,
-        skills: mergedSkills.join("\n"),
-      });
-      const saved = await profileState.save(nextProfile, importResult.source_file_id);
-      setProfileDraft(saved.profile);
-      setSkillsDraft(parseProfileLines(saved.profile.skills));
-      setProfileSaveStatus("ready");
-      setProfileSaveMessage("");
-      setSkillsImportMessage(`AI added ${addedCount} new skill${addedCount === 1 ? "" : "s"} from CV`);
-    } catch {
-      const message = "AI could not import skills from CV. Please try again.";
-      setProfileSaveStatus("error");
-      setProfileSaveMessage(message);
-      setSkillsImportMessage(message);
-    } finally {
-      setIsSkillsImporting(false);
-    }
-  }
-
   function attachDocumentFile(file: File) {
     const isGeneratedDocumentSource = documentDraft.category === "CV / Resume";
     if (isGeneratedDocumentSource && !file.name.toLowerCase().endsWith(".docx")) {
@@ -3079,22 +2891,15 @@ export function AppWorkspaceRoot({
         ) : activeView === "Profile" ? (
           <ProfileView
             profile={profile}
-            onProfileResumeUploaded={applyProfileResumeUpload}
             onProfileSaved={() => profileState.refetch()}
             onOpenAssistant={(prompt) => openAssistant(prompt, "profile")}
             onEditProfile={openProfileEditor}
             onAddExperience={() => openExperienceEditor()}
             onEditExperience={openExperienceEditor}
             onDeleteExperience={deleteExperience}
-            onImportExperienceFromCv={importExperienceFromCv}
-            isExperienceImporting={isExperienceImporting}
-            experienceImportMessage={experienceImportMessage}
             onAddEducation={() => openEducationEditor()}
             onEditEducation={openEducationEditor}
             onDeleteEducation={deleteEducation}
-            onImportEducationFromCv={importEducationFromCv}
-            isEducationImporting={isEducationImporting}
-            educationImportMessage={educationImportMessage}
             onAddDocument={() => openDocumentEditor()}
             onEditDocument={openDocumentEditor}
             onDeleteDocument={deleteDocument}
@@ -3102,9 +2907,6 @@ export function AppWorkspaceRoot({
             onEditSkills={openSkillsEditor}
             onEditDealbreakers={openDealbreakersEditor}
             onEditAdditionalNotes={openAdditionalNotesEditor}
-            onImportSkillsFromCv={importSkillsFromCv}
-            isSkillsImporting={isSkillsImporting}
-            skillsImportMessage={skillsImportMessage}
           />
         ) : activeView === "Settings" ? (
           <SettingsView

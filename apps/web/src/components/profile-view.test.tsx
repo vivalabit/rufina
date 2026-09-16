@@ -11,7 +11,7 @@ import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
 import { defaultCandidateProfile } from "@/features/profile/model/defaults";
 
 vi.mock("@/components/master-resume-editor", () => ({
-  MasterResumeEditor: () => <div data-testid="master-resume-editor" />,
+  ProfileResumeImport: () => <button>Import from resume</button>,
 }));
 
 vi.mock("@/components/resume-template-manager", () => ({
@@ -23,21 +23,14 @@ function createProfileViewProps(
 ): ComponentProps<typeof ProfileView> {
   return {
     profile: defaultCandidateProfile,
-    onProfileResumeUploaded: vi.fn(),
     onOpenAssistant: vi.fn(),
     onEditProfile: vi.fn(),
     onAddExperience: vi.fn(),
     onEditExperience: vi.fn(),
     onDeleteExperience: vi.fn(),
-    onImportExperienceFromCv: vi.fn(),
-    isExperienceImporting: false,
-    experienceImportMessage: "",
     onAddEducation: vi.fn(),
     onEditEducation: vi.fn(),
     onDeleteEducation: vi.fn(),
-    onImportEducationFromCv: vi.fn(),
-    isEducationImporting: false,
-    educationImportMessage: "",
     onAddDocument: vi.fn(),
     onEditDocument: vi.fn(),
     onDeleteDocument: vi.fn(),
@@ -45,9 +38,6 @@ function createProfileViewProps(
     onEditSkills: vi.fn(),
     onEditDealbreakers: vi.fn(),
     onEditAdditionalNotes: vi.fn(),
-    onImportSkillsFromCv: vi.fn(),
-    isSkillsImporting: false,
-    skillsImportMessage: "",
     ...overrides,
   };
 }
@@ -65,7 +55,8 @@ it("composes the profile page and delegates its top-level actions", () => {
   expect(
     screen.getByRole("heading", { name: "My Profile" }),
   ).toBeInTheDocument();
-  expect(screen.getByTestId("master-resume-editor")).toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "Import from resume" })).toBeEnabled();
+  expect(screen.queryByRole("heading", { name: "Profile resume" })).not.toBeInTheDocument();
   expect(screen.getByTestId("resume-template-manager")).toBeInTheDocument();
 
   fireEvent.click(screen.getByRole("button", { name: "Improve profile" }));
@@ -75,7 +66,7 @@ it("composes the profile page and delegates its top-level actions", () => {
   expect(onEditProfile).toHaveBeenCalledOnce();
 });
 
-it("renders structured experience and delegates import, edit, and delete", () => {
+it("renders structured experience and delegates edit and delete without a resume file", () => {
   const experience = {
     id: "experience-1",
     title: "Backend Engineer",
@@ -87,7 +78,6 @@ it("renders structured experience and delegates import, edit, and delete", () =>
     is_current: true,
     description: "Built reliable APIs",
   };
-  const onImportExperienceFromCv = vi.fn();
   const onEditExperience = vi.fn();
   const onDeleteExperience = vi.fn();
 
@@ -95,25 +85,19 @@ it("renders structured experience and delegates import, edit, and delete", () =>
     <ExperiencePanel
       profile={{
         ...defaultCandidateProfile,
-        resume_file_id: "resume-1",
-        resume_file_name: "resume.pdf",
         experience: JSON.stringify([experience]),
       }}
       onAddExperience={vi.fn()}
       onEditExperience={onEditExperience}
       onDeleteExperience={onDeleteExperience}
-      onImportExperienceFromCv={onImportExperienceFromCv}
-      isExperienceImporting={false}
-      importMessage=""
     />,
   );
 
   expect(screen.getByText("Backend Engineer")).toBeInTheDocument();
-  fireEvent.click(screen.getByRole("button", { name: "Import from CV" }));
+  expect(screen.queryByRole("button", { name: "Import from CV" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "Edit experience" }));
   fireEvent.click(screen.getByRole("button", { name: "Delete experience" }));
 
-  expect(onImportExperienceFromCv).toHaveBeenCalledOnce();
   expect(onEditExperience).toHaveBeenCalledWith(experience);
   expect(onDeleteExperience).toHaveBeenCalledWith("experience-1");
 });

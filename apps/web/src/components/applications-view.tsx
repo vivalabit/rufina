@@ -117,27 +117,6 @@ type ApplicationsViewProps = {
   ) => Promise<void>;
 };
 
-function createProfileResumeApplicationDocument(
-  profile: CandidateProfile,
-): ApplicationDocument | null {
-  if (!profile.resume_file_name || !profile.resume_download_url) return null;
-
-  return {
-    id: createClientId("profile-resume"),
-    kind: "profile",
-    title:
-      profile.resume_file_name
-        .replace(/\.[^.]+$/, "")
-        .replace(/[_-]+/g, " ")
-        .trim() || "Profile resume",
-    fileName: profile.resume_file_name,
-    fileSize: profile.resume_file_size,
-    fileType: "application/octet-stream",
-    uploadedAt: profile.resume_updated_at || new Date().toISOString(),
-    downloadUrl: profile.resume_download_url,
-  };
-}
-
 export function ApplicationsView({
   applications,
   events,
@@ -145,7 +124,6 @@ export function ApplicationsView({
   failedApplicationIds,
   matchingJobIds,
   failedJobIds,
-  profile,
   selectedApplication,
   onSelectApplication,
   onOpenJobs,
@@ -239,13 +217,6 @@ export function ApplicationsView({
       [field]: value,
     }));
     setManualApplicationError("");
-  }
-
-  function useProfileResumeForManualApplication() {
-    const resumeDocument = createProfileResumeApplicationDocument(profile);
-    if (!resumeDocument) return;
-
-    updateManualApplicationDraft("documents", [resumeDocument]);
   }
 
   function attachManualApplicationResume(file: File | undefined) {
@@ -1199,11 +1170,9 @@ export function ApplicationsView({
       {isManualApplicationDialogOpen ? (
         <ManualApplicationDialog
           draft={manualApplicationDraft}
-          profile={profile}
           isSaving={isManualApplicationSaving}
           error={manualApplicationError}
           onChange={updateManualApplicationDraft}
-          onUseProfileResume={useProfileResumeForManualApplication}
           onAttachResume={attachManualApplicationResume}
           onClose={() => setIsManualApplicationDialogOpen(false)}
           onSave={() => void saveManualApplication()}

@@ -3,7 +3,7 @@ import { expect, it, vi } from "vitest";
 
 import {
   MASTER_RESUME_REVIEW_SECTIONS,
-  MasterResumeEditor,
+  ProfileResumeImport,
   type MasterResume,
 } from "@/components/master-resume-editor";
 
@@ -103,211 +103,96 @@ const importResponse = {
   backend: "openai_api",
 };
 
-it("imports, edits, reviews, and confirms a Master Resume once", async () => {
-  const requests: Array<{
-    path: string;
-    body: Record<string, unknown>;
-  }> = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const path = new URL(String(input)).pathname;
-      if (path === "/profile/master-resume") return Response.json({ masterResumeId: "default", version: 1, masterResume });
-      const body = JSON.parse(String(init?.body)) as Record<string, unknown>;
-      requests.push({ path, body });
+const originalFile = new File(["resume-bytes"], "ada-resume.docx", {
+  type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+});
+const source = { id: "source-file-1", fileName: originalFile.name, sizeBytes: originalFile.size,
+  createdAt: "2026-09-16T12:00:00Z", downloadUrl: "/profile/sources/source-file-1", status: "pending", canReview: true, profileVersion: null };
 
-      if (path === "/profile/import-master-resume") {
-        return Response.json(importResponse);
-      }
-      if (path === "/profile/import-master-resume/confirm") {
-        return Response.json({
-          masterResumeId: masterResume.id,
-          version: 1,
-          sourceFileId: "source-file-1",
-          masterResume: body.masterResume,
-          createdAt: "2026-07-25T12:00:00Z",
-        });
-      }
-      throw new Error(`Unexpected request: ${path}`);
-    }),
-  );
+function selectFile() {
+  fireEvent.change(screen.getByLabelText("Choose resume to import"), { target: { files: [originalFile] } });
+}
 
-  render(
-    <MasterResumeEditor
-      profileResume={{
-        fileId: "profile-file-1",
-        fileName: "ada-resume.docx",
-        fileSize: "42 KB",
-      }}
-    />,
-  );
-
-  fireEvent.click(
-    screen.getByRole("button", { name: "Import profile resume" }),
-  );
-
-  expect(
-    await screen.findByRole("dialog", { name: "Review Master Resume" }),
-  ).toBeInTheDocument();
-  expect(screen.getByText(/DOCX · 2 pages · 2 source fragments/)).toBeInTheDocument();
-
-  fireEvent.change(screen.getByLabelText("Full name"), {
-    target: { value: "Augusta Ada Lovelace" },
-  });
-
-  for (let reviewIndex = 0; reviewIndex < MASTER_RESUME_REVIEW_SECTIONS.length; reviewIndex += 1) {
-    if (MASTER_RESUME_REVIEW_SECTIONS[reviewIndex] === "experience") {
+it("optionally imports a source, reviews details and saves to the profile without attaching a primary resume", async () => {
+  const requests: Array<{ path: string; body: BodyInit | null | undefined }> = [];
+  const saved = vi.fn();
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = new URL(String(input)).pathname;
+    requests.push({ path, body: init?.body });
+    if (path === "/profile/imports" && init?.method === "POST") return Response.json(source);
+    if (path.endsWith("/preview")) return Response.json(importResponse);
+    if (path === "/profile/import-master-resume/confirm") return Response.json({
+      masterResumeId: "default", version: 2, sourceFileId: source.id,
+      masterResume: JSON.parse(String(init?.body)).masterResume, createdAt: source.createdAt,
+    });
+    if (path === "/profile/imports") return Response.json([{ ...source, status: "imported", canReview: false, profileVersion: 2 }]);
+    throw new Error(`Unexpected request: ${path}`);
+  }));
+  const view = render(<ProfileResumeImport onProfileSaved={saved} />);
+  expect(requests).toHaveLength(0);
+  expect(screen.getByRole("button", { name: "Import from resume" })).toBeEnabled();
+  expect(screen.queryByText("Profile resume")).not.toBeInTheDocument();
+  selectFile();
+  await screen.findByRole("dialog", { name: "Review resume import" });
+  fireEvent.change(screen.getByLabelText("Full name"), { target: { value: "Augusta Ada Lovelace" } });
+  for (const section of MASTER_RESUME_REVIEW_SECTIONS) {
+    if (section === "experience") {
       expect(screen.getByLabelText("Load / scale")).toHaveValue("100k invoices/day");
       fireEvent.change(screen.getByLabelText("Where it was used"), { target: { value: "Corrected billing context" } });
     }
     fireEvent.click(screen.getByRole("button", { name: "Mark reviewed" }));
   }
-
-  const confirmButton = screen.getByRole("button", {
-    name: "Confirm Master Resume",
-  });
-  expect(confirmButton).toBeEnabled();
-  fireEvent.click(confirmButton);
-
-  expect(await screen.findByText("Saved · v1")).toBeInTheDocument();
-  expect(
-    screen.getByText(
-      "Profile version 1 is saved and ready for future documents.",
-    ),
-  ).toBeInTheDocument();
-  expect(
-    screen.queryByRole("button", { name: "Choose PDF or DOCX" }),
-  ).toBeInTheDocument();
-
-  expect(requests).toHaveLength(2);
-  expect(requests[0]).toEqual({
-    path: "/profile/import-master-resume",
-    body: {
-      profileFileId: "profile-file-1",
-    },
-  });
-  expect(requests[1].path).toBe(
-    "/profile/import-master-resume/confirm",
-  );
-  expect(requests[1].body).toMatchObject({
-    sourceFileId: "source-file-1",
-    expectedProfileRevision: 1,
-    confirmedSections: MASTER_RESUME_REVIEW_SECTIONS,
-    masterResume: {
-      id: "master-resume-1",
-      basics: { fullName: "Augusta Ada Lovelace" },
-      experiences: [expect.objectContaining({
-        id: "experience:acme",
-        stack: [{ id: "technology:python", technology: "Python", context: "Corrected billing context", evidence_ids: ["source:experience"] }],
-        projects: masterResume.experiences[0].projects,
-      })],
-    },
-  });
+  fireEvent.click(screen.getByRole("button", { name: "Save to profile" }));
+  await screen.findByText("Imported information saved to your profile.");
+  expect(saved).toHaveBeenCalledOnce();
+  expect(requests[0]).toEqual({ path: "/profile/imports", body: originalFile });
+  expect(requests[1].path).toBe("/profile/imports/source-file-1/preview");
+  expect(JSON.parse(String(requests[2].body))).toMatchObject({ sourceFileId: source.id, expectedProfileRevision: 1,
+    confirmedSections: MASTER_RESUME_REVIEW_SECTIONS, masterResume: { basics: { fullName: "Augusta Ada Lovelace" },
+      experiences: [expect.objectContaining({ stack: [expect.objectContaining({ context: "Corrected billing context" })] })] } });
+  view.unmount();
+  render(<ProfileResumeImport />);
+  fireEvent.click(screen.getByRole("button", { name: "Import history" }));
+  expect(await screen.findByRole("link", { name: originalFile.name })).toHaveAttribute("href", "http://localhost:8000/profile/sources/source-file-1");
+  expect(screen.getByText(/Saved to profile · v2/)).toBeInTheDocument();
 });
 
-it("uploads a selected resume as raw bytes before importing by file id", async () => {
-  const selectedFile = new File(["resume-bytes"], "ada-resume.pdf", {
-    type: "application/pdf",
-  });
-  const requests: Array<{ path: string; body: BodyInit | null | undefined }> = [];
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
-      const path = new URL(String(input)).pathname;
-      if (path === "/profile/master-resume") return Response.json({ masterResumeId: "default", version: 1, masterResume });
-      requests.push({ path, body: init?.body });
-      if (path === "/profile/files") {
-        return Response.json({
-          id: "profile-file-uploaded",
-          fileName: selectedFile.name,
-          sizeBytes: selectedFile.size,
-          contentType: selectedFile.type,
-          updatedAt: "2026-08-30T10:00:00Z",
-          downloadUrl: "/profile/files/profile-file-uploaded",
-        });
-      }
-      if (path === "/profile/import-master-resume") {
-        return Response.json(importResponse);
-      }
-      throw new Error(`Unexpected request: ${path}`);
-    }),
-  );
-
-  render(<MasterResumeEditor />);
-  fireEvent.change(screen.getByLabelText("Choose Master Resume file"), {
-    target: { files: [selectedFile] },
-  });
-
-  expect(
-    await screen.findByRole("dialog", { name: "Review Master Resume" }),
-  ).toBeInTheDocument();
-  expect(requests[0]).toEqual({ path: "/profile/files", body: selectedFile });
-  expect(JSON.parse(String(requests[1].body))).toEqual({
-    profileFileId: "profile-file-uploaded",
-  });
-});
-
-it("invalidates a reviewed section when its content changes", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () => Response.json(importResponse)),
-  );
-
-  render(
-    <MasterResumeEditor
-      profileResume={{
-        fileId: "profile-file-1",
-        fileName: "ada-resume.docx",
-      }}
-    />,
-  );
-
-  fireEvent.click(
-    screen.getByRole("button", { name: "Import profile resume" }),
-  );
-  await screen.findByRole("dialog", { name: "Review Master Resume" });
-
+it("invalidates reviewed sections after an edit and retains the draft if saving fails", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = new URL(String(input)).pathname;
+    if (path === "/profile/imports" && init?.method === "POST") return Response.json(source);
+    if (path.endsWith("/preview")) return Response.json(importResponse);
+    return Response.json({ detail: "Profile changed; reload it before saving" }, { status: 409 });
+  }));
+  render(<ProfileResumeImport />);
+  selectFile();
+  await screen.findByRole("dialog", { name: "Review resume import" });
   fireEvent.click(screen.getByRole("button", { name: "Mark reviewed" }));
-  fireEvent.click(
-    screen.getByRole("button", { name: /Contact details/ }),
-  );
+  fireEvent.click(screen.getByRole("button", { name: /Contact details/ }));
   expect(screen.getByRole("button", { name: "Reviewed" })).toBeInTheDocument();
-
-  fireEvent.change(screen.getByLabelText("Headline"), {
-    target: { value: "Senior Platform Engineer" },
-  });
-
-  expect(
-    screen.getByRole("button", { name: "Mark reviewed" }),
-  ).toBeInTheDocument();
-  expect(screen.getByText("0/7 sections reviewed")).toBeInTheDocument();
+  fireEvent.change(screen.getByLabelText("Headline"), { target: { value: "Senior Platform Engineer" } });
+  expect(screen.getByRole("button", { name: "Mark reviewed" })).toBeInTheDocument();
+  for (let index = 0; index < MASTER_RESUME_REVIEW_SECTIONS.length; index += 1) fireEvent.click(screen.getByRole("button", { name: "Mark reviewed" }));
+  fireEvent.click(screen.getByRole("button", { name: "Save to profile" }));
+  expect(await screen.findByRole("alert")).toHaveTextContent("Profile changed");
+  fireEvent.click(screen.getByRole("button", { name: /Contact details/ }));
+  expect(screen.getByLabelText("Headline")).toHaveValue("Senior Platform Engineer");
 });
 
-it("shows an actionable import error", async () => {
-  vi.stubGlobal(
-    "fetch",
-    vi.fn(async () =>
-      Response.json(
-        { detail: "Could not extract source fragments from the attached resume" },
-        { status: 422 },
-      ),
-    ),
-  );
-
-  render(
-    <MasterResumeEditor
-      profileResume={{
-        fileId: "profile-file-broken",
-        fileName: "broken.pdf",
-      }}
-    />,
-  );
-
-  fireEvent.click(
-    screen.getByRole("button", { name: "Import profile resume" }),
-  );
-
-  expect(await screen.findByRole("alert")).toHaveTextContent(
-    "Could not extract source fragments from the attached resume",
-  );
+it("keeps a failed import source in history and can retry its review", async () => {
+  let fail = true;
+  vi.stubGlobal("fetch", vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+    const path = new URL(String(input)).pathname;
+    if (path === "/profile/imports") return Response.json(init?.method === "POST" ? source : [source]);
+    if (fail) return Response.json({ detail: "Import unavailable; source saved" }, { status: 503 });
+    return Response.json(importResponse);
+  }));
+  render(<ProfileResumeImport />);
+  selectFile();
+  expect(await screen.findByRole("alert")).toHaveTextContent("Import unavailable; source saved");
+  fireEvent.click(screen.getByRole("button", { name: "Import history" }));
+  await screen.findByRole("link", { name: originalFile.name });
+  fail = false;
+  fireEvent.click(screen.getByRole("button", { name: "Review import" }));
+  expect(await screen.findByRole("dialog", { name: "Review resume import" })).toBeInTheDocument();
 });
