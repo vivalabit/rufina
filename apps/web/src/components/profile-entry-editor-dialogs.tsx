@@ -2,6 +2,7 @@
 
 import { Save, Upload, X } from "lucide-react";
 
+import { ExperienceDetailsEditor } from "@/components/experience-details-editor";
 import { Button } from "@/components/ui/button";
 import { documentCategories } from "@/features/profile/model/defaults";
 import type {
@@ -171,6 +172,7 @@ export function ExperienceEditorDialog({
               />
             </label>
           </div>
+          <ExperienceDetailsEditor experience={experience} onChange={onChange} />
         </div>
 
         <div className="mt-4 flex shrink-0 flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
