@@ -1,5 +1,6 @@
 "use client";
 
+import { ExperienceDetailsEditor } from "@/components/experience-details-editor";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 import {
@@ -773,6 +774,12 @@ function SectionEditor({
                 />
               ))}
             </div>
+            <ExperienceDetailsEditor experience={experience} onChange={(field, value) => onChange((current) => ({
+              ...current,
+              experiences: replaceAt(current.experiences, experienceIndex, {
+                ...current.experiences[experienceIndex], [field]: value,
+              }),
+            }))} />
           </EditorCard>
         ))}
       </div>

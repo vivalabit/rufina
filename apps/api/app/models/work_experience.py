@@ -86,3 +86,22 @@ def merge_work_detail_update(previous: dict[str, Any], incoming: dict[str, Any])
         # Explicit [] deletes the block; missing per-item metadata is preserved.
         result[block] = [{**old.get(item["id"], {}), **item} for item in incoming[block]]
     return result
+
+
+def merge_imported_work_details(current: list[dict], incoming: list[dict]) -> list[dict]:
+    """Deduplicate exact details; keep differing wording as separate, reviewable facts."""
+    result = deepcopy(current)
+
+    def content(item: dict) -> dict:
+        return {key: value for key, value in item.items() if key not in ("id", "source_ids", "evidence_ids") and value}
+
+    for item in incoming:
+        match = next((old for old in result if old["id"] == item["id"] or content(old) == content(item)), None)
+        if match is None:
+            result.append(deepcopy(item))
+        else:
+            # A user's correction to an imported item wins on repeated import.
+            for key in ("source_ids", "evidence_ids"):
+                if key in match or key in item:
+                    match[key] = list(dict.fromkeys([*match.get(key, []), *item.get(key, [])]))
+    return result

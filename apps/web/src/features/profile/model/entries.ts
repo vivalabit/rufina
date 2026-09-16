@@ -1,4 +1,4 @@
-import type { DocumentEntry, EducationEntry, ExperienceEntry } from "@/shared/types/profile";
+import type { DocumentEntry, EducationEntry, ExperienceEntry, WorkDetail } from "@/shared/types/profile";
 
 import { defaultDocumentDraft, defaultEducationDraft, defaultExperienceDraft } from "./defaults";
 
@@ -39,28 +39,56 @@ export function serializeExperienceEntries(entries: ExperienceEntry[], createId:
 }
 
 function getExperienceFingerprint(entry: ExperienceEntry) {
-  return [entry.title, entry.company, entry.start_date, entry.end_date].map((value) => value.trim().toLowerCase()).join("|");
+  const fields = [entry.title, entry.company, entry.start_date, entry.is_current ? "(current)" : entry.end_date].map((value) => value.trim().toLowerCase());
+  return fields.every(Boolean) ? fields.join("|") : "";
 }
 
 function mergeImportedEntries<T extends { id: string; description: string }>(
   currentEntries: T[], importedEntries: T[], fingerprint: (entry: T) => string,
+  mergeDetails?: (current: T, incoming: T) => void,
 ): T[] {
   const result = currentEntries.map((entry) => ({ ...entry }));
   for (const entry of importedEntries) {
     const key = fingerprint(entry);
     const matches = result.filter((item) => fingerprint(item) === key);
     const match = result.find((item) => item.id === entry.id)
-      ?? (matches.length === 1 && importedEntries.filter((item) => fingerprint(item) === key).length === 1
+      ?? (key && matches.length === 1 && importedEntries.filter((item) => fingerprint(item) === key).length === 1
         ? matches[0] : undefined);
     if (!match) { result.push(entry); continue; }
+    mergeDetails?.(match, entry);
     const additions = entry.description.split("\n").filter((line) => line && !match.description.includes(line));
     if (additions.length) match.description += `${match.description ? "\n" : ""}${additions.join("\n")}`;
   }
   return result;
 }
 
+function mergeWorkDetails<T extends WorkDetail>(current: T[] = [], incoming: T[] = []): T[] {
+  const content = (item: T) => JSON.stringify(Object.entries(item)
+    .filter(([key, value]) => !["id", "source_ids", "evidence_ids"].includes(key) && value)
+    .sort(([left], [right]) => left.localeCompare(right)));
+  const result = current.map((item) => ({ ...item }));
+  for (const item of incoming) {
+    const match = result.find((old) => old.id === item.id || content(old) === content(item));
+    if (!match) result.push({ ...item });
+    else {
+      if (match.source_ids || item.source_ids) match.source_ids = [...new Set([...(match.source_ids ?? []), ...(item.source_ids ?? [])])];
+      if (match.evidence_ids || item.evidence_ids) match.evidence_ids = [...new Set([...(match.evidence_ids ?? []), ...(item.evidence_ids ?? [])])];
+    }
+  }
+  return result;
+}
+
 export function mergeExperienceEntries(currentEntries: ExperienceEntry[], importedEntries: ExperienceEntry[]) {
-  return mergeImportedEntries(currentEntries, importedEntries.filter((entry) => entry.title && entry.company), getExperienceFingerprint);
+  return mergeImportedEntries(currentEntries, importedEntries.filter((entry) => entry.title && entry.company), getExperienceFingerprint,
+    (current, incoming) => {
+      for (const block of ["stack", "responsibilities", "projects"] as const) {
+        if (incoming[block]) {
+          // All variants share provenance; the block retains its concrete item type.
+          Object.assign(current, { [block]: mergeWorkDetails<WorkDetail>(current[block], incoming[block]) });
+        }
+      }
+      if (incoming.source_ids) current.source_ids = [...new Set([...(current.source_ids ?? []), ...incoming.source_ids])];
+    });
 }
 
 export function normalizeEducationEntry(entry: Partial<EducationEntry>, createId: ProfileIdFactory): EducationEntry {

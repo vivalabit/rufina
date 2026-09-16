@@ -1,3 +1,4 @@
+import type { WorkTechnology, WorkResponsibility, WorkProject } from "@/shared/types/profile";
 import { apiClient, ApiDecodeError } from "@/shared/api/client";
 
 export const MASTER_RESUME_REVIEW_SECTIONS = [
@@ -50,6 +51,9 @@ export type MasterResume = {
     endDate?: string;
     isCurrent?: boolean;
     bullets: ResumeBullet[];
+    stack?: WorkTechnology[];
+    responsibilities?: WorkResponsibility[];
+    projects?: WorkProject[];
   }>;
   skills: Array<{
     id: string;

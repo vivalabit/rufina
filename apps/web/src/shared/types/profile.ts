@@ -45,6 +45,7 @@ export type WorkProject = WorkDetail & {
 
 export type ExperienceEntry = {
   id: string;
+  source_ids?: string[];
   title: string;
   company: string;
   employment_type: string;

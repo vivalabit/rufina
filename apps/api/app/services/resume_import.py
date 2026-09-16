@@ -740,7 +740,11 @@ def build_openclaw_resume_prompt(resume_text: str) -> str:
         '      "start_date": "YYYY-MM or empty string",\n'
         '      "end_date": "YYYY-MM or empty string",\n'
         '      "is_current": true,\n'
-        '      "description": "one responsibility or achievement per line"\n'
+        '      "description": "one responsibility or achievement per line",\n'
+        '      "stack": [{"technology": "string", "context": "where it was used"}],\n'
+        '      "responsibilities": [{"responsibility": "ownership area", "decisions": "decisions made"}],\n'
+        '      "projects": [{"name": "string", "description": "string", "project_type": "string", '
+        '"team": "string", "systems": "string", "users": "string", "load": "string"}]\n'
         "    }\n"
         "  ]\n"
         "}\n"
@@ -749,6 +753,10 @@ def build_openclaw_resume_prompt(resume_text: str) -> str:
         "- Do not include education, skills, summary, or contact sections.\n"
         "- Do not merge separate roles into one item.\n"
         "- Preserve separate companies/projects as separate objects.\n"
+        "- Extract stack, responsibilities and work projects only when explicitly tied to that employer/role.\n"
+        "- Never assign global skills or another employer's technologies/projects to a role.\n"
+        "- Preserve the full description and achievements alongside structured details.\n"
+        "- Keep unsupported detail blocks empty; unknown team, systems, users, load and other fields stay empty.\n"
         "- If a field is unknown, use an empty string.\n"
         "- For current roles, set is_current true and end_date empty.\n"
         "- Use YYYY-MM when a month is known; for year-only start use YYYY-01, for year-only end use YYYY-12.\n\n"

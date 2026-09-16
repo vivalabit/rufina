@@ -19,6 +19,12 @@ from sqlalchemy import (
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base, OwnerScoped
+from app.models.work_experience import (
+    WorkProject,
+    WorkResponsibility,
+    WorkTechnology,
+    normalize_work_details,
+)
 
 MAX_TEXT_LENGTH = 20_000
 MAX_ITEMS_PER_SECTION = 100
@@ -478,6 +484,14 @@ class MasterExperience(StrictResumeModel):
     end_date: OptionalText = Field(default="", alias="endDate", max_length=40)
     is_current: bool = Field(default=False, alias="isCurrent")
     bullets: list[ResumeBullet] = Field(min_length=1, max_length=MAX_ITEMS_PER_SECTION)
+    stack: list[WorkTechnology] = Field(default_factory=list)
+    responsibilities: list[WorkResponsibility] = Field(default_factory=list)
+    projects: list[WorkProject] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_work_blocks(cls, value: object) -> object:
+        return normalize_work_details(value) if isinstance(value, dict) else value
 
     @model_validator(mode="after")
     def validate_experience(self) -> MasterExperience:
@@ -818,6 +832,8 @@ def _all_item_ids(resume: MasterResume | FinalResume) -> list[ResumeItemId]:
     for experience in resume.experiences:
         item_ids.append(experience.id)
         item_ids.extend(bullet.id for bullet in experience.bullets)
+        if isinstance(experience, MasterExperience):
+            item_ids.extend(item.id for item in (*experience.stack, *experience.responsibilities, *experience.projects))
     for item in (
         *resume.skills,
         *resume.education,
@@ -843,6 +859,9 @@ def _all_evidence_references(resume: MasterResume | FinalResume) -> list[Evidenc
     for experience in resume.experiences:
         for bullet in experience.bullets:
             references.extend(bullet.evidence_ids)
+        if isinstance(experience, MasterExperience):
+            for detail in (*experience.stack, *experience.responsibilities, *experience.projects):
+                references.extend(detail.evidence_ids)
     for skill in resume.skills:
         references.extend(skill.evidence_ids)
     for item in resume.education:

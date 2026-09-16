@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from app.models.profile import ProfilePayload, ProfileRecord
 from app.models.resume import MasterResume, ResumeMasterRecord, ResumeMasterVersionRecord
+from app.models.work_experience import DETAIL_MODELS, merge_imported_work_details
 from app.services.candidate_profile import canonical_hash, encode_entries, entries, stable_id
 from app.services.profile_versions import (
     create_profile_record,
@@ -71,6 +72,8 @@ def merge_master_into_profile(
             result['id'] = evidence_map.get(result['id'], imported_id(result['id']))
         if 'evidenceIds' in result:
             result['evidenceIds'] = [evidence_map[item] for item in value['evidenceIds']]
+        if 'evidence_ids' in result:
+            result['evidence_ids'] = [evidence_map[item] for item in value['evidence_ids']]
         if result.get('experienceId'):
             result['experienceId'] = imported_id(result['experienceId'])
         return result
@@ -111,6 +114,10 @@ def merge_master_into_profile(
             entry['description'] = '\n'.join(b['text'] for b in details)
             entry['evidence_ids'] = list(dict.fromkeys(e for b in details for e in b['evidenceIds']))
             entry['source_ids'] = [source_key]
+            if section == 'experience':
+                for block in DETAIL_MODELS:
+                    for detail in entry.get(block, []):
+                        detail['source_ids'] = list(dict.fromkeys([*detail.get('source_ids', []), source_key]))
             converted.append(entry)
         for entry in converted:
             key = _identity(entry, identity_fields)
@@ -130,7 +137,9 @@ def merge_master_into_profile(
             for field, value in entry.items():
                 if field in ('id', 'description'):
                     continue
-                if field in ('evidence_ids', 'source_ids'):
+                if section == 'experience' and field in DETAIL_MODELS:
+                    match[field] = merge_imported_work_details(match.get(field, []), value)
+                elif field in ('evidence_ids', 'source_ids'):
                     match[field] = list(dict.fromkeys([*match.get(field, []), *value]))
                 elif match.get(field) in (None, ''):
                     match[field] = value

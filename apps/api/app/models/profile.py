@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Any, Literal
 from uuid import uuid4
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from sqlalchemy import (
     JSON,
     CheckConstraint,
@@ -25,7 +25,13 @@ from app.models.resume import (
     MasterProject,
     ResumeEvidence,
 )
-from app.models.work_experience import validate_experience_json
+from app.models.work_experience import (
+    WorkProject,
+    WorkResponsibility,
+    WorkTechnology,
+    normalize_work_details,
+    validate_experience_json,
+)
 
 
 def utc_now() -> datetime:
@@ -261,6 +267,17 @@ class ProfileFileImportRequest(BaseModel):
 
 
 class ImportedExperienceEntry(BaseModel):
+    id: str = ""
+    source_ids: list[str] = Field(default_factory=list)
+    stack: list[WorkTechnology] = Field(default_factory=list)
+    responsibilities: list[WorkResponsibility] = Field(default_factory=list)
+    projects: list[WorkProject] = Field(default_factory=list)
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_work_blocks(cls, value: object) -> object:
+        return normalize_work_details(value) if isinstance(value, dict) else value
+
     title: str = Field(default="", max_length=180)
     company: str = Field(default="", max_length=180)
     employment_type: str = Field(default="Full-time", max_length=80)

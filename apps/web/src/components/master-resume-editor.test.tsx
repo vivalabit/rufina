@@ -35,6 +35,10 @@ const masterResume: MasterResume = {
       startDate: "2022-01",
       endDate: "",
       isCurrent: true,
+      stack: [{ id: "technology:python", technology: "Python", context: "Billing API", evidence_ids: ["source:experience"] }],
+      responsibilities: [{ id: "responsibility:api", responsibility: "API ownership", decisions: "Selected queues" }],
+      projects: [{ id: "work-project:ledger", name: "Ledger", description: "Reconciliation", project_type: "Internal",
+        team: "4 engineers", systems: "Billing API", users: "Finance", load: "100k invoices/day" }],
       bullets: [
         {
           id: "bullet:acme:api",
@@ -152,6 +156,10 @@ it("imports, edits, reviews, and confirms a Master Resume once", async () => {
   });
 
   for (let reviewIndex = 0; reviewIndex < MASTER_RESUME_REVIEW_SECTIONS.length; reviewIndex += 1) {
+    if (MASTER_RESUME_REVIEW_SECTIONS[reviewIndex] === "experience") {
+      expect(screen.getByLabelText("Load / scale")).toHaveValue("100k invoices/day");
+      fireEvent.change(screen.getByLabelText("Where it was used"), { target: { value: "Corrected billing context" } });
+    }
     fireEvent.click(screen.getByRole("button", { name: "Mark reviewed" }));
   }
 
@@ -188,6 +196,11 @@ it("imports, edits, reviews, and confirms a Master Resume once", async () => {
     masterResume: {
       id: "master-resume-1",
       basics: { fullName: "Augusta Ada Lovelace" },
+      experiences: [expect.objectContaining({
+        id: "experience:acme",
+        stack: [{ id: "technology:python", technology: "Python", context: "Corrected billing context", evidence_ids: ["source:experience"] }],
+        projects: masterResume.experiences[0].projects,
+      })],
     },
   });
 });

@@ -12,7 +12,7 @@ from typing import Any
 
 from app.models.profile import ProfilePayload
 from app.models.resume import MasterResume
-from app.models.work_experience import merge_work_detail_update
+from app.models.work_experience import DETAIL_MODELS, merge_work_detail_update
 
 FORM_FIELDS = frozenset({
     "avatar_url", "name", "current_role", "desired_role", "location", "work_format",
@@ -99,17 +99,20 @@ def profile_resume(profile: ProfilePayload, profile_id: str) -> MasterResume:
     evidence = [item.model_dump(mode="json", by_alias=True) for item in profile.evidence]
     known = {item["id"] for item in evidence}
 
-    def proof(text: str, key: str) -> list[str]:
+    def proof(text: str, key: str, experience_id: str | None = None, claim_type: str = "achievement") -> list[str]:
         identifier = stable_id("profile", f"{key}:{text}")
         if identifier not in known:
-            evidence.append({"id": identifier, "type": "profile", "text": text})
+            item = {"id": identifier, "type": "profile", "text": text}
+            if experience_id:
+                item.update({"experienceId": experience_id, "claimType": claim_type})
+            evidence.append(item)
             known.add(identifier)
         return [identifier]
 
-    def bullets(text: str, key: str) -> list[dict[str, Any]]:
+    def bullets(text: str, key: str, experience_id: str | None = None) -> list[dict[str, Any]]:
         # Split only to satisfy the document contract, never truncate source text.
         return [{"id": stable_id("item", f"{key}:{index}"), "text": part,
-                 "evidenceIds": proof(part, f"{key}:{index}")}
+                 "evidenceIds": proof(part, f"{key}:{index}", experience_id)}
                 for index, part in enumerate(text[i:i + 20_000]
                                              for i in range(0, len(text), 20_000))
                 if part.strip()]
@@ -123,13 +126,29 @@ def profile_resume(profile: ProfilePayload, profile_id: str) -> MasterResume:
         if not item.get("company") or not item.get("title"):
             bullets(description or str(item.get("title") or ""), identifier)
             continue
+        work_details = {}
+        for block, model in DETAIL_MODELS.items():
+            work_details[block] = []
+            for detail in item.get(block, []):
+                projected = model.model_validate(detail).model_dump(mode="json")
+                projected["id"] = stable_id("work-detail", f"{identifier}:{block}:{detail['id']}")
+                # Current edited fields are authoritative. Imported evidence stays
+                # provenance; derive employer-scoped evidence for the current text.
+                text = "\n".join(f"{field.replace('_', ' ')}: {value}" for field, value in projected.items()
+                                 if field not in ("id", "source_ids", "evidence_ids") and value.strip())
+                projected["evidence_ids"] = [evidence_id
+                    for index, start in enumerate(range(0, len(text), 20_000))
+                    for evidence_id in proof(text[start:start + 20_000], f"{projected['id']}:{index}",
+                                             identifier, "technology" if block == "stack" else "achievement")]
+                work_details[block].append(projected)
         experiences.append({
             "id": identifier, "company": item["company"], "title": item["title"],
             "employmentType": item.get("employment_type", ""),
             "location": item.get("location", ""), "startDate": item.get("start_date", ""),
             "endDate": "" if item.get("is_current") else item.get("end_date", ""),
             "isCurrent": bool(item.get("is_current")),
-            "bullets": bullets(description or f'{item["title"]} at {item["company"]}', identifier),
+            "bullets": bullets(description or f'{item["title"]} at {item["company"]}', identifier, identifier),
+            **work_details,
         })
     education = []
     for item in entries(profile.education, "education"):
@@ -182,6 +201,7 @@ def profile_resume(profile: ProfilePayload, profile_id: str) -> MasterResume:
     def collect(value: Any) -> None:
         if isinstance(value, dict):
             referenced.update(value.get("evidenceIds", []))
+            referenced.update(value.get("evidence_ids", []))
             for child in value.values():
                 collect(child)
         elif isinstance(value, list):

@@ -76,6 +76,7 @@ from app.services.resume_master_review import (
     persist_master_resume_import_source,
 )
 from app.services.resume_source_extraction import ResumeSourceExtractionError
+from app.services.work_experience_import import source_experience_entries
 
 router = APIRouter(dependencies=[Depends(bind_request_identity)])
 
@@ -670,9 +671,10 @@ def import_experience_from_resume(
             message="No structured experience entries were found in the attached resume",
         )
 
+    source_id = retain_partial_import_source(db, payload)
     return ResumeExperienceImportResponse(
-        source_file_id=retain_partial_import_source(db, payload),
-        experience=experience,
+        source_file_id=source_id,
+        experience=source_experience_entries(experience, source_id),
         message=f"Imported {len(experience)} experience entr{'y' if len(experience) == 1 else 'ies'} from CV",
     )
 

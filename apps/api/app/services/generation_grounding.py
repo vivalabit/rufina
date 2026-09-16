@@ -66,6 +66,14 @@ def _validate_resume(
                 f"Tailored resume changed protected role dates: {original.id}"
             )
 
+        for bullet in item.bullets:
+            for evidence_id in bullet.evidence_ids:
+                evidence = canonical_evidence.get(evidence_id)
+                if evidence and evidence.experience_id and evidence.experience_id != original.id:
+                    raise GenerationGroundingError(
+                        f"Tailored resume moved evidence from another employer: {evidence_id}"
+                    )
+
 
 def _validate_cover_letter(
     letter: CoverLetterDraft,

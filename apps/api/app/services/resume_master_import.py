@@ -16,7 +16,6 @@ from app.services.ai_backend import (
     create_configured_ai_backend,
 )
 
-
 MAX_MASTER_IMPORT_CONTEXT_CHARACTERS = 120_000
 CURRENT_END_DATE_MARKERS = {
     "present",
@@ -146,6 +145,11 @@ def import_master_resume_with_ai(
         source=source,
         expected_master_resume_id=master_resume_id,
     )
+    for experience in master_resume.experiences:
+        for detail in (*experience.stack, *experience.responsibilities, *experience.projects):
+            fields = detail.model_dump(exclude={"id", "source_ids", "evidence_ids"})
+            if any(fields.values()) and not detail.evidence_ids:
+                raise MasterResumeImportError("Imported work details must cite source evidence")
     return MasterResumeImportOutcome(
         master_resume=master_resume,
         model=result.model,
@@ -218,6 +222,12 @@ def build_master_resume_import_prompt(
         "- Never invent names, employers, titles, dates, metrics, technologies, "
         "credentials, proficiency levels, or achievements.\n"
         "- Preserve distinct roles, degrees, projects, certifications, and languages.\n"
+        "- For each experience also extract its stack (technology and context), responsibilities "
+        "(responsibility and decisions), and projects (name, description, project_type, team, systems, users, load).\n"
+        "- Keep all original bullets. Put work projects under the employer that owned them. Do not assign "
+        "global skills or another employer's projects/technologies to a role.\n"
+        "- Each structured work detail must cite exact fragment IDs in evidence_ids; leave source_ids empty. "
+        "Unknown detail fields stay empty and absent blocks are empty arrays. Never infer scale or decisions.\n"
         "- For a current role set isCurrent to true and endDate to an empty string; "
         "never put Present, Current, or an equivalent marker in endDate.\n"
         "- Use concise stable IDs containing only letters, digits, dot, underscore, "
