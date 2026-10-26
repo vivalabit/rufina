@@ -100,6 +100,38 @@ it("keeps AI drafts local and emits one normalized settings update", () => {
   expect(onSaveAi.mock.calls[0][0]).not.toHaveProperty("openai_api_key");
 });
 
+it("allows saving the upgraded Sol and Luna models for either AI workload", () => {
+  const props = renderSettingsView({
+    settings: {
+      ...configuredSettings,
+      ai_match_model: "openai/gpt-6.1-sol",
+      job_screening_model: "openai/gpt-6-luna",
+    },
+  });
+  const matchModel = screen.getByRole("combobox", { name: "Full AI Match model" });
+  const screeningModel = screen.getByRole("combobox", { name: "Vacancy pre-screening model" });
+  const saveButton = screen.getByRole("button", { name: "Save AI settings" });
+
+  expect(matchModel).toHaveValue("openai/gpt-6.1-sol");
+  expect(screeningModel).toHaveValue("openai/gpt-6-luna");
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(saveButton).toBeEnabled();
+  fireEvent.click(saveButton);
+  expect(props.onSaveAi).toHaveBeenNthCalledWith(1, expect.objectContaining({
+    ai_match_model: "openai/gpt-6.1-sol",
+    job_screening_model: "openai/gpt-6-luna",
+  }));
+
+  fireEvent.change(matchModel, { target: { value: "openai/gpt-6-luna" } });
+  fireEvent.change(screeningModel, { target: { value: "openai/gpt-6.1-sol" } });
+  expect(saveButton).toBeEnabled();
+  fireEvent.click(saveButton);
+  expect(props.onSaveAi).toHaveBeenNthCalledWith(2, expect.objectContaining({
+    ai_match_model: "openai/gpt-6-luna",
+    job_screening_model: "openai/gpt-6.1-sol",
+  }));
+});
+
 it("blocks OpenAI API mode until its draft is valid", () => {
   const props = renderSettingsView({
     settings: {

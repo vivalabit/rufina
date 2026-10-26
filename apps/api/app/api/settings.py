@@ -9,6 +9,7 @@ from app.core.settings import (
     REPO_ROOT,
     get_settings,
     normalize_ai_match_model,
+    normalize_ai_model,
     normalize_job_screening_model,
 )
 
@@ -208,7 +209,7 @@ def update_app_settings(payload: AppSettingsUpdateRequest) -> AppSettingsRespons
     if submitted_openai_key is not None:
         updates[OPENAI_API_KEY_ENV] = submitted_openai_key
     if payload.openai_api_model is not None:
-        model = payload.openai_api_model.strip()
+        model = str(normalize_ai_model(payload.openai_api_model)).strip()
         if not model:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,

@@ -10,18 +10,30 @@ DEFAULT_AI_MATCH_MODEL = "openai/gpt-6.1-sol"
 DEFAULT_JOB_SCREENING_MODEL = "openai/gpt-6-luna"
 LEGACY_AI_MATCH_MODELS = {"openai/gpt-main"}
 LEGACY_JOB_SCREENING_MODELS = {"openai/gpt-screening"}
+RENAMED_AI_MODELS = {
+    "gpt-5.6-terra": "gpt-6.1-sol",
+    "gpt-5.6-luna": "gpt-6-luna",
+    "openai/gpt-5.6-terra": "openai/gpt-6.1-sol",
+    "openai/gpt-5.6-luna": "openai/gpt-6-luna",
+}
+
+
+def normalize_ai_model(value: object) -> object:
+    if isinstance(value, str):
+        return RENAMED_AI_MODELS.get(value.strip(), value)
+    return value
 
 
 def normalize_ai_match_model(value: object) -> object:
     if isinstance(value, str) and value.strip() in LEGACY_AI_MATCH_MODELS:
         return DEFAULT_AI_MATCH_MODEL
-    return value
+    return normalize_ai_model(value)
 
 
 def normalize_job_screening_model(value: object) -> object:
     if isinstance(value, str) and value.strip() in LEGACY_JOB_SCREENING_MODELS:
         return DEFAULT_JOB_SCREENING_MODEL
-    return value
+    return normalize_ai_model(value)
 
 
 class Settings(BaseSettings):
@@ -93,9 +105,12 @@ class Settings(BaseSettings):
     openclaw_assistant_max_history_chars: int = Field(default=8_000, ge=0, le=100_000)
     generation_worker_poll_interval_seconds: float = Field(default=1.0, ge=0.1, le=60)
 
-    _normalize_ai_match_model = field_validator("ai_match_model", mode="before")(
-        normalize_ai_match_model
-    )
+    _normalize_ai_model = field_validator(
+        "openai_api_model", "openclaw_assistant_model", mode="before"
+    )(normalize_ai_model)
+    _normalize_ai_match_model = field_validator(
+        "ai_match_model", "openclaw_ai_match_model", mode="before"
+    )(normalize_ai_match_model)
     _normalize_job_screening_model = field_validator(
         "job_screening_model", mode="before"
     )(normalize_job_screening_model)

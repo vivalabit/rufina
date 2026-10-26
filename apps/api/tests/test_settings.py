@@ -11,6 +11,7 @@ from app.api.settings import (
     settings_file_path,
     upsert_env_value,
 )
+from app.core.docker_entrypoint import load_runtime_settings
 from app.core.settings import Settings, get_settings
 from app.main import app
 
@@ -157,6 +158,94 @@ def test_legacy_placeholder_workload_models_use_allowed_defaults(monkeypatch) ->
 
     assert settings.ai_match_model_value() == "openai/gpt-6.1-sol"
     assert settings.job_screening_model == "openai/gpt-6-luna"
+
+
+@pytest.mark.parametrize(
+    ("field", "prefix"),
+    [
+        ("openai_api_model", ""),
+        ("openclaw_assistant_model", "openai/"),
+        ("openclaw_ai_match_model", "openai/"),
+        ("ai_match_model", "openai/"),
+        ("job_screening_model", "openai/"),
+    ],
+)
+@pytest.mark.parametrize(
+    ("old_model", "new_model"),
+    [("gpt-5.6-terra", "gpt-6.1-sol"), ("gpt-5.6-luna", "gpt-6-luna")],
+)
+def test_saved_renamed_models_use_their_replacements(
+    monkeypatch, field: str, prefix: str, old_model: str, new_model: str
+) -> None:
+    monkeypatch.setenv(field.upper(), prefix + old_model)
+
+    assert getattr(Settings(), field) == prefix + new_model
+
+
+def test_persisted_models_can_be_loaded_changed_and_reloaded(
+    monkeypatch, tmp_path: Path
+) -> None:
+    env_path = tmp_path / "settings.env"
+    env_path.write_text(
+        "AI_BACKEND=openclaw_codex\n"
+        "OPENAI_API_MODEL=gpt-5.6-terra\n"
+        "AI_MATCH_MODEL=openai/gpt-5.6-terra\n"
+        "JOB_SCREENING_MODEL=openai/gpt-5.6-luna\n",
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("TASKO_SETTINGS_FILE", str(env_path))
+    load_runtime_settings(str(env_path))
+    get_settings.cache_clear()
+    client = TestClient(app)
+
+    initial = client.get("/settings")
+    assert initial.status_code == 200
+    assert initial.json()["openai_api_model"] == "gpt-6.1-sol"
+    assert initial.json()["ai_match_model"] == "openai/gpt-6.1-sol"
+    assert initial.json()["job_screening_model"] == "openai/gpt-6-luna"
+
+    selected_models = {
+        "openai_api_model": "gpt-6.1-sol",
+        "ai_match_model": "openai/gpt-6-luna",
+        "job_screening_model": "openai/gpt-6.1-sol",
+    }
+    saved = client.put("/settings", json=selected_models)
+    assert saved.status_code == 200
+
+    # A new process reads the saved values over its original container defaults.
+    with monkeypatch.context() as restarted_process:
+        restarted_process.setenv("AI_MATCH_MODEL", "openai/gpt-5.6-terra")
+        restarted_process.setenv("JOB_SCREENING_MODEL", "openai/gpt-5.6-luna")
+        load_runtime_settings(str(env_path))
+        get_settings.cache_clear()
+        reloaded = client.get("/settings")
+    assert reloaded.status_code == 200
+    for field, model in selected_models.items():
+        assert saved.json()[field] == model
+        assert reloaded.json()[field] == model
+    assert "gpt-5.6-" not in env_path.read_text(encoding="utf-8")
+
+
+def test_saving_renamed_models_persists_their_replacements(
+    monkeypatch, tmp_path: Path
+) -> None:
+    env_path = tmp_path / "settings.env"
+    monkeypatch.setenv("TASKO_SETTINGS_FILE", str(env_path))
+
+    response = TestClient(app).put(
+        "/settings",
+        json={
+            "openai_api_model": "gpt-5.6-terra",
+            "ai_match_model": "openai/gpt-5.6-terra",
+            "job_screening_model": "openai/gpt-5.6-luna",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["openai_api_model"] == "gpt-6.1-sol"
+    assert response.json()["ai_match_model"] == "openai/gpt-6.1-sol"
+    assert response.json()["job_screening_model"] == "openai/gpt-6-luna"
+    assert "gpt-5.6-" not in env_path.read_text(encoding="utf-8")
 
 
 def test_settings_never_returns_full_openai_key(monkeypatch) -> None:
