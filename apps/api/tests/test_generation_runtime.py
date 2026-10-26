@@ -10,13 +10,13 @@ def settings(**overrides: object) -> SimpleNamespace:
     values = {
         "ai_backend_mode": "openclaw_codex",
         "openai_api_key": "test-key",
-        "openai_api_model": "gpt-5.6-terra",
+        "openai_api_model": "gpt-6.1-sol",
         "openai_api_reasoning_effort": "medium",
         "openai_api_timeout_seconds": 120,
         "openai_api_max_attempts": 2,
         "openai_api_retry_backoff_seconds": 0.8,
         "openclaw_command": "openclaw",
-        "openclaw_assistant_model": "openai/gpt-5.6-terra",
+        "openclaw_assistant_model": "openai/gpt-6.1-sol",
         "openclaw_assistant_thinking": "off",
         "openclaw_assistant_timeout_seconds": 180,
         "openclaw_assistant_max_attempts": 3,
@@ -33,7 +33,7 @@ def test_execution_snapshot_freezes_selected_backend_and_nonsecret_settings() ->
     source.ai_backend_mode = "openai_api"
 
     assert snapshot.backend == "openclaw_codex"
-    assert snapshot.model == "openai/gpt-5.6-terra"
+    assert snapshot.model == "openai/gpt-6.1-sol"
     assert snapshot.max_attempts == 3
     assert "api_key" not in snapshot.as_dict()
     assert snapshot.upstream_sha == "c7bd494f11e792508534c1c795e24694498395c4"

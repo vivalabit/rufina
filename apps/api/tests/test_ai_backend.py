@@ -36,7 +36,7 @@ def fake_openai_response(
 ) -> SimpleNamespace:
     return SimpleNamespace(
         id=response_id,
-        model="gpt-5.6-terra",
+        model="gpt-6.1-sol",
         status="completed",
         error=None,
         output=[],
@@ -46,7 +46,7 @@ def fake_openai_response(
         model_dump_json=lambda: json.dumps(
             {
                 "id": response_id,
-                "model": "gpt-5.6-terra",
+                "model": "gpt-6.1-sol",
                 "output_text": text,
                 "usage": {"input_tokens": 18, "output_tokens": 4, "total_tokens": 22},
             }
@@ -66,7 +66,7 @@ def test_openclaw_adapter_preserves_cli_and_returns_neutral_result() -> None:
                 {
                     "result": {"payloads": [{"text": '{"answer":"ready"}'}]},
                     "meta": {
-                        "model": "openai/gpt-5.6-terra",
+                        "model": "openai/gpt-6.1-sol",
                         "usage": {"input": 20, "output": 5, "total": 25},
                     },
                 }
@@ -80,7 +80,7 @@ def test_openclaw_adapter_preserves_cli_and_returns_neutral_result() -> None:
     ).generate(
         AIRequest(
             prompt="Return JSON",
-            model="openai/gpt-5.6-terra",
+            model="openai/gpt-6.1-sol",
             agent_id="rufina-assistant",
             thinking="low",
             timeout_seconds=30,
@@ -101,7 +101,7 @@ def test_openclaw_adapter_preserves_cli_and_returns_neutral_result() -> None:
     assert captured[-1] == "--json"
     assert result.text == '{"answer":"ready"}'
     assert result.structured_data == {"answer": "ready"}
-    assert result.model == "openai/gpt-5.6-terra"
+    assert result.model == "openai/gpt-6.1-sol"
     assert result.backend == "openclaw_codex"
     assert result.usage.input_tokens == 20
     assert result.usage.output_tokens == 5
@@ -155,14 +155,14 @@ def test_openai_api_adapter_uses_responses_api_and_returns_same_contract() -> No
     ).generate(
         AIRequest(
             prompt="Return JSON",
-            model="openai/gpt-5.6-terra",
+            model="openai/gpt-6.1-sol",
             thinking="low",
             structured=True,
         )
     )
 
     create.assert_called_once_with(
-        model="gpt-5.6-terra",
+        model="gpt-6.1-sol",
         input="Return JSON",
         store=False,
         timeout=120,
@@ -171,7 +171,7 @@ def test_openai_api_adapter_uses_responses_api_and_returns_same_contract() -> No
     )
     assert result.text == '{"answer":"ready"}'
     assert result.structured_data == {"answer": "ready"}
-    assert result.model == "gpt-5.6-terra"
+    assert result.model == "gpt-6.1-sol"
     assert result.backend == "openai_api"
     assert result.usage.total_tokens == 22
     assert result.session_id == "resp_tasko_123"
@@ -192,7 +192,7 @@ def test_openai_api_adapter_uses_pydantic_structured_outputs() -> None:
                 "status": "completed",
                 "error": None,
                 "incomplete_details": None,
-                "model": "gpt-5.6-terra",
+                "model": "gpt-6.1-sol",
                 "output": [
                     {
                         "id": "msg_123",
@@ -225,14 +225,14 @@ def test_openai_api_adapter_uses_pydantic_structured_outputs() -> None:
         result = OpenAIAPIBackend(api_key="test-key", client=sdk_client).generate(
             AIRequest(
                 prompt="Return a strict answer",
-                model="gpt-5.6-terra",
+                model="gpt-6.1-sol",
                 timeout_seconds=45,
                 response_model=AnswerPayload,
             )
         )
 
     assert captured["store"] is False
-    assert captured["model"] == "gpt-5.6-terra"
+    assert captured["model"] == "gpt-6.1-sol"
     assert captured["input"] == "Return a strict answer"
     text_format = captured["text"]["format"]
     assert text_format["type"] == "json_schema"
@@ -252,7 +252,7 @@ def test_openai_api_adapter_supports_async_chat_calls() -> None:
 
     async def invoke() -> AIResult:
         backend = OpenAIAPIBackend(api_key="test-key", async_client=async_client)
-        return await backend.agenerate(AIRequest(prompt="Answer", model="gpt-5.6-terra"))
+        return await backend.agenerate(AIRequest(prompt="Answer", model="gpt-6.1-sol"))
 
     result = asyncio.run(invoke())
 
@@ -260,7 +260,7 @@ def test_openai_api_adapter_supports_async_chat_calls() -> None:
     assert result.session_id == "resp_async_123"
     assert result.usage.total_tokens == 22
     create.assert_awaited_once_with(
-        model="gpt-5.6-terra",
+        model="gpt-6.1-sol",
         input="Answer",
         store=False,
         timeout=120,
@@ -279,7 +279,7 @@ def test_openai_api_adapter_supports_web_search_and_pdf_page_images() -> None:
     OpenAIAPIBackend(api_key="test-key", client=client).generate(
         AIRequest(
             prompt="Inspect the rendered page and research Acme.",
-            model="gpt-5.6-terra",
+            model="gpt-6.1-sol",
             enable_web_search=True,
             image_inputs=(AIImageInput(content=b"png-bytes"),),
         )
@@ -342,7 +342,7 @@ def test_openai_api_adapter_classifies_sdk_errors(
 
     with pytest.raises(AIBackendError) as exc_info:
         OpenAIAPIBackend(api_key="test-key", client=client).generate(
-            AIRequest(prompt="test", model="gpt-5.6-terra")
+            AIRequest(prompt="test", model="gpt-6.1-sol")
         )
 
     assert exc_info.value.code == code
@@ -355,7 +355,7 @@ def test_backend_factory_supports_both_modes_and_requires_direct_api_credentials
 
     backend = create_ai_backend(mode="openai_api")
     with pytest.raises(AIBackendError, match="OPENAI_API_KEY"):
-        backend.generate(AIRequest(prompt="test", model="gpt-5.6-terra"))
+        backend.generate(AIRequest(prompt="test", model="gpt-6.1-sol"))
 
 
 def test_provider_neutral_retry_policy_uses_exponential_backoff(monkeypatch) -> None:
@@ -373,7 +373,7 @@ def test_provider_neutral_retry_policy_uses_exponential_backoff(monkeypatch) -> 
             return AIResult(
                 text="ready",
                 structured_data=None,
-                model="gpt-5.6-terra",
+                model="gpt-6.1-sol",
                 backend="openai_api",
                 usage=AIUsage(),
                 latency_ms=1,

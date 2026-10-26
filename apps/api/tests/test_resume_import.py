@@ -462,7 +462,7 @@ def test_resume_import_passes_strict_pydantic_output_model_to_backend() -> None:
             return AIResult(
                 text='{"experience":[]}',
                 structured_data={"experience": []},
-                model="gpt-5.6-terra",
+                model="gpt-6.1-sol",
                 backend="openai_api",
                 usage=AIUsage(),
                 latency_ms=1,
@@ -475,7 +475,7 @@ def test_resume_import_passes_strict_pydantic_output_model_to_backend() -> None:
         agent_id="rufina-assistant",
         thinking="low",
         timeout_seconds=30,
-        model="gpt-5.6-terra",
+        model="gpt-6.1-sol",
         backend=FakeBackend(),
     ) == []
 
@@ -487,7 +487,7 @@ def test_resume_import_facade_uses_selected_openai_configuration() -> None:
         Settings(
             ai_backend_mode="openai_api",
             openai_api_key="test-key",
-            openai_api_model="gpt-5.6-terra",
+            openai_api_model="gpt-6.1-sol",
             openai_api_reasoning_effort="high",
             openai_api_timeout_seconds=75,
             openai_api_max_attempts=3,
@@ -496,7 +496,7 @@ def test_resume_import_facade_uses_selected_openai_configuration() -> None:
     )
 
     assert facade.backend.name == "openai_api"
-    assert facade.model == "gpt-5.6-terra"
+    assert facade.model == "gpt-6.1-sol"
     assert facade.thinking == "high"
     assert facade.timeout_seconds == 75
     assert facade.max_attempts == 3

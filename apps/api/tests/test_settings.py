@@ -117,14 +117,14 @@ def test_ai_backend_uses_canonical_env_and_direct_api_parameters(monkeypatch) ->
 def test_job_screening_settings_have_independent_defaults() -> None:
     settings = Settings()
 
-    assert settings.job_screening_model == "openai/gpt-5.6-luna"
+    assert settings.job_screening_model == "openai/gpt-6-luna"
     assert settings.job_screening_reasoning == "off"
     assert settings.job_screening_batch_size == 10
     assert settings.job_screening_timeout_seconds == 60
     assert settings.job_screening_max_attempts == 2
     assert settings.job_screening_max_description_chars == 12_000
-    assert settings.openclaw_ai_match_model == "openai/gpt-5.6-terra"
-    assert settings.ai_match_model_value() == "openai/gpt-5.6-terra"
+    assert settings.openclaw_ai_match_model == "openai/gpt-6.1-sol"
+    assert settings.ai_match_model_value() == "openai/gpt-6.1-sol"
     assert settings.ai_match_reasoning_value() == "off"
     assert settings.ai_match_batch_size_value() == 1
 
@@ -155,8 +155,8 @@ def test_legacy_placeholder_workload_models_use_allowed_defaults(monkeypatch) ->
 
     settings = Settings()
 
-    assert settings.ai_match_model_value() == "openai/gpt-5.6-terra"
-    assert settings.job_screening_model == "openai/gpt-5.6-luna"
+    assert settings.ai_match_model_value() == "openai/gpt-6.1-sol"
+    assert settings.job_screening_model == "openai/gpt-6-luna"
 
 
 def test_settings_never_returns_full_openai_key(monkeypatch) -> None:
@@ -188,7 +188,7 @@ def test_ai_settings_update_is_partial_and_refreshes_cache(
     monkeypatch.setenv("BRIGHTDATA_API_KEY", "bright-existing-key")
     monkeypatch.setenv("AI_BACKEND", "openclaw_codex")
     monkeypatch.setenv("OPENAI_API_KEY", "")
-    monkeypatch.setenv("OPENAI_API_MODEL", "gpt-5.6-terra")
+    monkeypatch.setenv("OPENAI_API_MODEL", "gpt-6.1-sol")
     monkeypatch.setenv("OPENAI_API_REASONING_EFFORT", "medium")
     monkeypatch.setenv("OPENAI_API_TIMEOUT_SECONDS", "120")
     monkeypatch.setenv("OPENAI_API_MAX_ATTEMPTS", "2")
@@ -202,7 +202,7 @@ def test_ai_settings_update_is_partial_and_refreshes_cache(
             json={
                 "ai_backend": "openai_api",
                 "openai_api_key": "sk-new-secret-key",
-                "openai_api_model": "gpt-5.6-terra",
+                "openai_api_model": "gpt-6.1-sol",
                 "openai_api_reasoning_effort": "low",
                 "openai_api_timeout_seconds": 90,
                 "openai_api_max_attempts": 3,
@@ -284,7 +284,7 @@ def test_ai_match_settings_api_persists_backend_neutral_overrides(
 ) -> None:
     monkeypatch.setenv("TASKO_SETTINGS_FILE", str(tmp_path / ".env"))
     monkeypatch.setenv("AI_BACKEND", "openclaw_codex")
-    monkeypatch.setenv("AI_MATCH_MODEL", "openai/gpt-5.6-terra")
+    monkeypatch.setenv("AI_MATCH_MODEL", "openai/gpt-6.1-sol")
     monkeypatch.setenv("AI_MATCH_REASONING", "low")
     monkeypatch.setenv("AI_MATCH_BATCH_SIZE", "1")
     monkeypatch.setenv("AI_MATCH_TIMEOUT_SECONDS", "120")
@@ -295,7 +295,7 @@ def test_ai_match_settings_api_persists_backend_neutral_overrides(
         response = TestClient(app).put(
             "/settings",
             json={
-                "ai_match_model": "openai/gpt-5.6-luna",
+                "ai_match_model": "openai/gpt-6-luna",
                 "ai_match_reasoning": "high",
                 "ai_match_batch_size": 4,
                 "ai_match_timeout_seconds": 180,
@@ -307,15 +307,15 @@ def test_ai_match_settings_api_persists_backend_neutral_overrides(
         get_settings.cache_clear()
 
     assert response.status_code == 200
-    assert response.json()["ai_match_model"] == "openai/gpt-5.6-luna"
+    assert response.json()["ai_match_model"] == "openai/gpt-6-luna"
     assert response.json()["ai_match_reasoning"] == "off"
     assert response.json()["ai_match_batch_size"] == 4
     assert response.json()["ai_match_timeout_seconds"] == 180
     assert response.json()["ai_match_max_attempts"] == 3
-    assert refreshed.ai_match_model_value() == "openai/gpt-5.6-luna"
+    assert refreshed.ai_match_model_value() == "openai/gpt-6-luna"
     assert refreshed.ai_match_batch_size_value() == 4
     env_text = (tmp_path / ".env").read_text(encoding="utf-8")
-    assert 'AI_MATCH_MODEL="openai/gpt-5.6-luna"' in env_text
+    assert 'AI_MATCH_MODEL="openai/gpt-6-luna"' in env_text
     assert "AI_MATCH_REASONING=off" in env_text
 
 

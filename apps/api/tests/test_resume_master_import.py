@@ -132,7 +132,7 @@ def test_master_resume_import_uses_exactly_one_typed_ai_request() -> None:
             return AIResult(
                 text="",
                 structured_data=master_resume_payload(master_resume_id),
-                model="gpt-5.6-terra",
+                model="gpt-6.1-sol",
                 backend="openai_api",
                 usage=AIUsage(),
                 latency_ms=1,
@@ -143,7 +143,7 @@ def test_master_resume_import_uses_exactly_one_typed_ai_request() -> None:
         source=source_extraction(),
         master_resume_id=master_resume_id,
         backend=FakeBackend(),
-        model="gpt-5.6-terra",
+        model="gpt-6.1-sol",
         agent_id="rufina-assistant",
         thinking="medium",
         timeout_seconds=120,
@@ -205,7 +205,7 @@ def test_master_resume_import_rejects_untrusted_ids_and_evidence(
             return AIResult(
                 text="",
                 structured_data=payload,
-                model="gpt-5.6-terra",
+                model="gpt-6.1-sol",
                 backend="openai_api",
                 usage=AIUsage(),
                 latency_ms=1,
@@ -217,7 +217,7 @@ def test_master_resume_import_rejects_untrusted_ids_and_evidence(
             source=source_extraction(),
             master_resume_id=master_resume_id,
             backend=FakeBackend(),
-            model="gpt-5.6-terra",
+            model="gpt-6.1-sol",
             agent_id="rufina-assistant",
             thinking="medium",
             timeout_seconds=120,
@@ -253,7 +253,7 @@ def test_master_resume_import_normalizes_present_for_current_role() -> None:
             return AIResult(
                 text="",
                 structured_data=payload,
-                model="gpt-5.6-terra",
+                model="gpt-6.1-sol",
                 backend="openclaw_codex",
                 usage=AIUsage(),
                 latency_ms=1,
@@ -315,7 +315,7 @@ def test_master_resume_import_reads_profile_file_and_copies_provenance(
         "app.api.profile.parse_master_resume_with_selected_backend",
         lambda *_args: MasterResumeImportOutcome(
             master_resume=master_resume,
-            model="gpt-5.6-terra",
+            model="gpt-6.1-sol",
             backend="openai_api",
         ),
     )

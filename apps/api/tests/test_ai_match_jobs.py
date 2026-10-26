@@ -191,7 +191,7 @@ def test_background_match_pins_backend_and_model_before_thread_start(
     settings = Settings(
         ai_backend_mode="openai_api",
         openai_api_key="launch-key",
-        openai_api_model="gpt-5.6-terra",
+        openai_api_model="gpt-6.1-sol",
         openai_api_reasoning_effort="high",
         openclaw_ai_match_enabled=True,
         openclaw_ai_match_max_jobs=2,
@@ -214,7 +214,7 @@ def test_background_match_pins_backend_and_model_before_thread_start(
     thread.target(**thread.kwargs)
 
     assert captured["backend"].name == "openai_api"
-    assert captured["model"] == "gpt-5.6-terra"
+    assert captured["model"] == "gpt-6.1-sol"
     assert captured["thinking"] == "high"
     assert manager.status("pinned-settings-owner").status == "completed"
 

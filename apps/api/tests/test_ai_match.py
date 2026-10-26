@@ -486,7 +486,7 @@ def test_ai_match_passes_strict_pydantic_output_model_to_backend() -> None:
             return AIResult(
                 text="",
                 structured_data={"matches": [valid_match_result("job-schema")]},
-                model="gpt-5.6-terra",
+                model="gpt-6.1-sol",
                 backend="openai_api",
                 usage=AIUsage(),
                 latency_ms=1,
@@ -509,7 +509,7 @@ def test_ai_match_passes_strict_pydantic_output_model_to_backend() -> None:
         agent_id="rufina-assistant",
         thinking="low",
         timeout_seconds=30,
-        model="gpt-5.6-terra",
+        model="gpt-6.1-sol",
         backend=FakeBackend(),
     )
 
@@ -566,7 +566,7 @@ def test_matching_facade_uses_direct_api_configuration() -> None:
         Settings(
             ai_backend_mode="openai_api",
             openai_api_key="test-key",
-            openai_api_model="gpt-5.6-terra",
+            openai_api_model="gpt-6.1-sol",
             openai_api_reasoning_effort="high",
             ai_match_reasoning="high",
             openai_api_timeout_seconds=75,
@@ -577,7 +577,7 @@ def test_matching_facade_uses_direct_api_configuration() -> None:
     )
 
     assert facade.backend.name == "openai_api"
-    assert facade.model == "gpt-5.6-terra"
+    assert facade.model == "gpt-6.1-sol"
     assert facade.thinking == "high"
     assert facade.timeout_seconds == 75
     assert facade.max_attempts == 3
@@ -902,7 +902,7 @@ def test_candidate_snapshot_records_selected_backend(
         )
 
     assert snapshot.source == "openai_api"
-    assert snapshot.model == "gpt-5.6-terra"
+    assert snapshot.model == "gpt-6.1-sol"
     assert snapshot.data["roles"] == ["Python Engineer"]
 
 
@@ -930,7 +930,7 @@ def test_candidate_snapshot_cache_separates_models(
     first_settings = Settings(
         ai_backend_mode="openai_api",
         openai_api_key="test-key",
-        openai_api_model="gpt-5.6-terra",
+        openai_api_model="gpt-6.1-sol",
         openclaw_ai_match_enabled=True,
     )
     second_settings = Settings(
@@ -966,12 +966,12 @@ def test_candidate_snapshot_cache_separates_models(
         )
         records = db.query(CandidateMatchSnapshotRecord).all()
 
-    assert models == ["gpt-5.6-terra", "gpt-5.6-sol"]
-    assert first.model == "gpt-5.6-terra"
+    assert models == ["gpt-6.1-sol", "gpt-5.6-sol"]
+    assert first.model == "gpt-6.1-sol"
     assert second.model == "gpt-5.6-sol"
     assert cached_second == second
     assert {record.model for record in records} == {
-        "gpt-5.6-terra",
+        "gpt-6.1-sol",
         "gpt-5.6-sol",
     }
 

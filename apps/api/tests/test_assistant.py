@@ -711,7 +711,7 @@ def test_run_openclaw_assistant_retries_transient_failure_and_reports_metrics(
             0,
             (
                 b'{"result":{"payloads":[{"text":"Recovered response"}]},'
-                b'"meta":{"model":"openai/gpt-5.6-terra",'
+                b'"meta":{"model":"openai/gpt-6.1-sol",'
                 b'"usage":{"input":120,"output":30,"total":150}}}'
             ),
             b"",
@@ -730,7 +730,7 @@ def test_run_openclaw_assistant_retries_transient_failure_and_reports_metrics(
             agent_id="rufina-assistant",
             thinking="off",
             timeout_seconds=30,
-            model="openai/gpt-5.6-terra",
+            model="openai/gpt-6.1-sol",
             max_attempts=2,
         )
     )
@@ -738,7 +738,7 @@ def test_run_openclaw_assistant_retries_transient_failure_and_reports_metrics(
     assert run.message == "Recovered response"
     assert calls == 2
     assert run.metrics.attempts == 2
-    assert run.metrics.model == "openai/gpt-5.6-terra"
+    assert run.metrics.model == "openai/gpt-6.1-sol"
     assert run.metrics.total_tokens == 150
     assert run.metrics.token_count_source == "provider"
 
@@ -814,7 +814,7 @@ def test_run_openclaw_assistant_estimates_metrics_and_logs_completion(
             agent_id="rufina-assistant",
             thinking="off",
             timeout_seconds=30,
-            model="openai/gpt-5.6-terra",
+            model="openai/gpt-6.1-sol",
         )
     )
 
@@ -832,7 +832,7 @@ def test_run_openclaw_assistant_estimates_metrics_and_logs_completion(
     )
     assert event["thread_id"] == "thread-estimated-metrics"
     assert event["status"] == "completed"
-    assert event["model"] == "openai/gpt-5.6-terra"
+    assert event["model"] == "openai/gpt-6.1-sol"
     assert event["tokenCountSource"] == "estimate"
     assert event["attempts"] == 1
 
@@ -914,7 +914,7 @@ def test_assistant_facade_propagates_direct_backend_cancellation() -> None:
             backend=backend,
             command="openclaw",
             agent_id="rufina-assistant",
-            model="gpt-5.6-terra",
+            model="gpt-6.1-sol",
             thinking="medium",
             timeout_seconds=30,
             max_prompt_chars=48_000,
@@ -959,7 +959,7 @@ def test_assistant_facade_does_not_retry_direct_backend_refusal() -> None:
         backend=backend,
         command="openclaw",
         agent_id="rufina-assistant",
-        model="gpt-5.6-terra",
+        model="gpt-6.1-sol",
         thinking="medium",
         timeout_seconds=30,
         max_prompt_chars=48_000,
@@ -998,7 +998,7 @@ def test_assistant_facade_uses_neutral_backend_result_metrics() -> None:
             return AIResult(
                 text="Direct response",
                 structured_data=None,
-                model="gpt-5.6-terra",
+                model="gpt-6.1-sol",
                 backend="openai_api",
                 usage=AIUsage(
                     input_tokens=21,
@@ -1014,7 +1014,7 @@ def test_assistant_facade_uses_neutral_backend_result_metrics() -> None:
         backend=CompletedBackend(),
         command="openclaw",
         agent_id="rufina-assistant",
-        model="gpt-5.6-terra",
+        model="gpt-6.1-sol",
         thinking="high",
         timeout_seconds=75,
         max_prompt_chars=48_000,
@@ -1035,11 +1035,11 @@ def test_assistant_facade_uses_neutral_backend_result_metrics() -> None:
     assert run.message == "Direct response"
     assert run.session_key == "resp-direct"
     assert run.backend == "openai_api"
-    assert run.metrics.model == "gpt-5.6-terra"
+    assert run.metrics.model == "gpt-6.1-sol"
     assert run.metrics.total_tokens == 25
     assert run.metrics.token_count_source == "provider"
     request = captured["request"]
-    assert request.model == "gpt-5.6-terra"
+    assert request.model == "gpt-6.1-sol"
     assert request.thinking == "high"
     assert request.timeout_seconds == 75
 
@@ -1170,7 +1170,7 @@ def test_assistant_chat_stream_emits_resumable_sse(monkeypatch: pytest.MonkeyPat
             session_key="session-stream",
             metrics=AssistantRunMetrics(
                 latency_ms=125,
-                model="openai/gpt-5.6-terra",
+                model="openai/gpt-6.1-sol",
                 input_tokens=40,
                 output_tokens=8,
                 total_tokens=48,
@@ -1242,7 +1242,7 @@ def test_assistant_chat_stream_emits_resumable_sse(monkeypatch: pytest.MonkeyPat
     assert resumed_events[-1]["id"] == len("A streamed Rufina response.")
     assert resumed_events[-1]["data"]["metadata"]["metrics"] == {
         "latencyMs": 125,
-        "model": "openai/gpt-5.6-terra",
+        "model": "openai/gpt-6.1-sol",
         "inputTokens": 40,
         "outputTokens": 8,
         "totalTokens": 48,

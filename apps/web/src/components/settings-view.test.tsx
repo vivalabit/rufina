@@ -77,7 +77,7 @@ it("keeps AI drafts local and emits one normalized settings update", () => {
     { target: { value: "high" } },
   );
   fireEvent.change(screen.getByLabelText("Full AI Match model"), {
-    target: { value: "openai/gpt-5.6-luna" },
+    target: { value: "openai/gpt-6-luna" },
   });
   fireEvent.change(
     screen.getByRole("spinbutton", { name: "Full AI Match batch size" }),
@@ -91,7 +91,7 @@ it("keeps AI drafts local and emits one normalized settings update", () => {
       ai_backend: "openai_api",
       openai_api_model: "gpt-5.6-sol",
       openai_api_reasoning_effort: "high",
-      ai_match_model: "openai/gpt-5.6-luna",
+      ai_match_model: "openai/gpt-6-luna",
       ai_match_batch_size: 4,
       auto_ai_match_enabled: true,
       job_screening_model: configuredSettings.job_screening_model,

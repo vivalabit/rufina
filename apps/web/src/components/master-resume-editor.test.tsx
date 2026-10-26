@@ -99,7 +99,7 @@ const importResponse = {
     { name: "projects", itemCount: 0 },
     { name: "certifications", itemCount: 0 },
   ],
-  model: "gpt-5.6-terra",
+  model: "gpt-6.1-sol",
   backend: "openai_api",
 };
 

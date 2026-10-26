@@ -182,7 +182,7 @@ Rufina supports two AI backends:
 ```env
 AI_BACKEND=openai_api
 OPENAI_API_KEY=your_openai_api_key
-OPENAI_API_MODEL=gpt-5.6-terra
+OPENAI_API_MODEL=gpt-6.1-sol
 
 BRIGHTDATA_API_KEY=your_brightdata_api_key
 ```

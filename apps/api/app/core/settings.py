@@ -6,8 +6,8 @@ from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
-DEFAULT_AI_MATCH_MODEL = "openai/gpt-5.6-terra"
-DEFAULT_JOB_SCREENING_MODEL = "openai/gpt-5.6-luna"
+DEFAULT_AI_MATCH_MODEL = "openai/gpt-6.1-sol"
+DEFAULT_JOB_SCREENING_MODEL = "openai/gpt-6-luna"
 LEGACY_AI_MATCH_MODELS = {"openai/gpt-main"}
 LEGACY_JOB_SCREENING_MODELS = {"openai/gpt-screening"}
 
@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     )
     openai_api_key: str = ""
     openai_api_base_url: str = "https://api.openai.com/v1"
-    openai_api_model: str = "gpt-5.6-terra"
+    openai_api_model: str = "gpt-6.1-sol"
     openai_api_reasoning_effort: Literal[
         "none", "low", "medium", "high", "xhigh", "max"
     ] = "medium"
@@ -80,7 +80,7 @@ class Settings(BaseSettings):
     )
     openclaw_assistant_enabled: bool = True
     openclaw_assistant_agent_id: str = "rufina-assistant"
-    openclaw_assistant_model: str = "openai/gpt-5.6-terra"
+    openclaw_assistant_model: str = "openai/gpt-6.1-sol"
     ai_provider_name: str = "OpenAI"
     storage_cleanup_interval_seconds: int = Field(default=300, ge=1, le=86_400)
     openclaw_assistant_thinking: str = "off"

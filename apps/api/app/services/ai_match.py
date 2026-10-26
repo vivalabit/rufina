@@ -37,7 +37,7 @@ from app.services.resume_import import (
 
 MATCHER_VERSION = "ai-match-v6"
 MATCH_PROMPT_VERSION = "ai-match-prompt-v8"
-DEFAULT_AI_MATCH_MODEL = "openai/gpt-5.6-terra"
+DEFAULT_AI_MATCH_MODEL = "openai/gpt-6.1-sol"
 DEFAULT_AI_MATCH_MAX_ATTEMPTS = 2
 MAX_AI_MATCH_TEXT_LENGTH = 500
 JOB_ADDED_AT_FIELDS = ("addedAt", "importedAt", "createdAt", "created_at")

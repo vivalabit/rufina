@@ -18,18 +18,18 @@ const configuredAppSettings = {
   ai_backend: "openclaw_codex",
   openai_api_key_configured: true,
   openai_api_key_preview: "sk-e****-key",
-  openai_api_model: "gpt-5.6-terra",
+  openai_api_model: "gpt-6.1-sol",
   openai_api_reasoning_effort: "medium",
   openai_api_timeout_seconds: 120,
   openai_api_max_attempts: 2,
   openai_api_retry_backoff_seconds: 0.8,
-  ai_match_model: "openai/gpt-5.6-terra",
+  ai_match_model: "openai/gpt-6.1-sol",
   ai_match_reasoning: "low",
   ai_match_batch_size: 1,
   ai_match_timeout_seconds: 120,
   ai_match_max_attempts: 2,
   auto_ai_match_enabled: false,
-  job_screening_model: "openai/gpt-5.6-luna",
+  job_screening_model: "openai/gpt-6-luna",
   job_screening_reasoning: "off",
   job_screening_batch_size: 10,
   job_screening_timeout_seconds: 60,
@@ -1392,7 +1392,7 @@ it("saves a selectable AI backend without overwriting unrelated settings", async
     },
   );
   fireEvent.change(screen.getByLabelText("Full AI Match model"), {
-    target: { value: "openai/gpt-5.6-luna" },
+    target: { value: "openai/gpt-6-luna" },
   });
   fireEvent.change(
     screen.getByRole("spinbutton", { name: "Full AI Match batch size" }),
@@ -1416,7 +1416,7 @@ it("saves a selectable AI backend without overwriting unrelated settings", async
     .at(-1)?.body;
   expect(openClawUpdate).toMatchObject({
     ai_backend: "openclaw_codex",
-    ai_match_model: "openai/gpt-5.6-luna",
+    ai_match_model: "openai/gpt-6-luna",
     ai_match_batch_size: 4,
     auto_ai_match_enabled: true,
     job_screening_model: "openai/gpt-5.5",
@@ -1453,12 +1453,12 @@ it("saves a selectable AI backend without overwriting unrelated settings", async
     .at(-1)?.body;
   expect(update).toMatchObject({
     ai_backend: "openai_api",
-    openai_api_model: "gpt-5.6-terra",
+    openai_api_model: "gpt-6.1-sol",
     openai_api_reasoning_effort: "high",
     openai_api_timeout_seconds: 90,
     openai_api_max_attempts: 2,
     openai_api_retry_backoff_seconds: 0.8,
-    ai_match_model: "openai/gpt-5.6-luna",
+    ai_match_model: "openai/gpt-6-luna",
     ai_match_reasoning: "off",
     ai_match_batch_size: 4,
     ai_match_timeout_seconds: 120,
@@ -1548,7 +1548,7 @@ it("validates OpenAI API mode before saving", async () => {
     await screen.findByRole("combobox", {
       name: "Vacancy pre-screening model",
     }),
-  ).toHaveValue("openai/gpt-5.6-luna");
+  ).toHaveValue("openai/gpt-6-luna");
   const openAiMode = screen.getByRole("radio", { name: /OpenAI API/ });
   fireEvent.click(openAiMode);
   await waitFor(() => expect(openAiMode).toBeChecked());

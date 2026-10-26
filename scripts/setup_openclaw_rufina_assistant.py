@@ -14,8 +14,8 @@ from typing import Any
 
 AGENT_ID = "rufina-assistant"
 LEGACY_AGENT_ID = "tasko-assistant"
-DEFAULT_MODEL = "openai/gpt-5.6-terra"
-DEFAULT_SCREENING_MODEL = "openai/gpt-5.6-luna"
+DEFAULT_MODEL = "openai/gpt-6.1-sol"
+DEFAULT_SCREENING_MODEL = "openai/gpt-6-luna"
 LEGACY_SCREENING_MODELS = {
     "openai/gpt-5-mini",
     "openai/gpt-5.4-nano",

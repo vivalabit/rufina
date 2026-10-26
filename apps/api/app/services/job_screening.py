@@ -488,7 +488,7 @@ def screen_jobs(
     *,
     backend: AIBackend,
     agent_id: str = "",
-    model: str = "openai/gpt-5.6-luna",
+    model: str = "openai/gpt-6-luna",
     reasoning: str = "none",
     batch_size: int = 10,
     timeout_seconds: int = 60,
