@@ -46,7 +46,7 @@ def test_invalid_record_is_removed_but_detail_failure_preserves_usable_vacancy()
     assert len(validated.warnings) == 3
 
 
-def test_partial_catalog_warns_once_retains_jobs_and_does_not_expire_inventory(monkeypatch) -> None:
+def test_partial_catalog_warns_once_retains_jobs_and_does_not_expire_inventory() -> None:
     calls = []
 
     class Parser:
@@ -65,15 +65,13 @@ def test_partial_catalog_warns_once_retains_jobs_and_does_not_expire_inventory(m
     assert len(result.jobs) == 1
     assert "could not be verified" in result.source_errors["sbb"]
     assert run_status(result) == "partial"
-    expired = []
-    monkeypatch.setattr(
-        "app.services.job_search_execution.mark_missing_vacancies_inactive",
-        lambda *args, **kwargs: expired.append(kwargs),
-    )
-    reconcile_full_catalog_inventory(
-        None,
+    inventory_queries = []
+    db = SimpleNamespace(scalars=lambda query: inventory_queries.append(query))
+    missing = reconcile_full_catalog_inventory(
+        db,
         search_result=result,
         inventory_result=SimpleNamespace(vacancies=[]),
         unavailable_at=datetime.now(UTC),
     )
-    assert expired == []
+    assert missing == {}
+    assert inventory_queries == []

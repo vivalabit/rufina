@@ -114,6 +114,22 @@ def parser_with(
     )
 
 
+@pytest.mark.parametrize("suffix", ["", "-1", "-3", "-15"])
+def test_bms_accepts_workday_repost_suffix(suffix: str) -> None:
+    from app.services.parsers.companies.bms_switzerland import normalize_apply_url
+
+    url = (
+        "https://bristolmyerssquibb.wd5.myworkdayjobs.com/BMS/job/Boudry---CH/"
+        f"Engineer_R1607446{suffix}/apply?source=Eightfold&utm_campaign="
+    )
+    assert normalize_apply_url(url, expected_req_id="R1607446") == url
+    assert normalize_apply_url(url, expected_req_id="R160744") is None
+    assert (
+        normalize_apply_url(url.replace("/apply?", "-other/apply?"), expected_req_id="R1607446")
+        is None
+    )
+
+
 def test_bms_switzerland_scans_every_page_and_enriches_jobs() -> None:
     records = [vacancy(index) for index in range(11)]
     requests: list[httpx.Request] = []

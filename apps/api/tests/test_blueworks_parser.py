@@ -297,3 +297,24 @@ def test_blueworks_is_registered_and_stored_as_direct_company() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "blueworks AG import"
     assert stored["id"] == "blueworks-https-join-com-companies-blue-15934805"
+
+
+def test_blueworks_supports_join_page_data_layout() -> None:
+    from app.services.parsers.companies.blueworks import parse_company_html, parse_detail_html
+
+    company = company_html().replace('"initialState"', '"pageData"')
+    assert (
+        parse_company_html(
+            company, page_url=BLUEWORKS_CAREERS_URL, expected_url=BLUEWORKS_CAREERS_URL
+        )
+        == COMPANY_ID
+    )
+    job = JOBS[0]
+    detail = detail_html(job).replace('"initialState"', '"pageData"')
+    parsed = parse_detail_html(
+        detail,
+        page_url=f"{BLUEWORKS_CAREERS_URL}/{job['idParam']}",
+        expected_id=job["id"],
+        expected_title=job["title"],
+    )
+    assert parsed["title"] == job["title"]

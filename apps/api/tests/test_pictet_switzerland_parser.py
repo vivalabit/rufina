@@ -217,3 +217,17 @@ def test_pictet_jobs_render_as_direct_company_imports() -> None:
     )
     assert stored["logo"] == "company"
     assert stored["department"] == "Pictet Switzerland import"
+
+
+def test_pictet_decodes_javascript_apostrophes_without_losing_backslashes() -> None:
+    from app.services.parsers.companies.pictet_switzerland import decode_js_string
+
+    records, total = parse_catalog_response(
+        dwr_catalog([("124439", r"Master\'s Thesis", "07\\/08\\/2026", "Switzerland", "Geneva")]),
+        base_url="https://career012.successfactors.eu/career",
+        max_jobs=1000,
+    )
+    assert total == 1
+    assert records[0]["title"] == "Master's Thesis"
+    assert decode_js_string(r"a\\'b") == "a\\'b"
+    assert decode_js_string(r"quoted \"text\"") == 'quoted "text"'

@@ -203,7 +203,9 @@ def parse_company_html(
     og_urls = unique_attribute_values(page, 'meta[property="og:url"]', "content")
     title = selector_text(page, "head > title")
     next_data = extract_next_data(page)
-    initial_state = nested_dict(next_data, "props", "pageProps", "initialState")
+    initial_state = nested_dict(next_data, "props", "pageProps", "initialState") or nested_dict(
+        next_data, "props", "pageProps", "pageData"
+    )
     company = initial_state.get("company")
     query = next_data.get("query")
     organizations = [
@@ -321,7 +323,9 @@ def parse_detail_html(
 ) -> dict[str, Any]:
     page = Selector(page_html)
     next_data = extract_next_data(page)
-    initial_state = nested_dict(next_data, "props", "pageProps", "initialState")
+    initial_state = nested_dict(next_data, "props", "pageProps", "initialState") or nested_dict(
+        next_data, "props", "pageProps", "pageData"
+    )
     job = initial_state.get("job")
     if not isinstance(job, dict):
         raise BlueworksParseError("blueworks JOIN detail page contains an incomplete vacancy")

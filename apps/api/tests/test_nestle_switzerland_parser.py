@@ -191,6 +191,31 @@ def test_nestle_retries_shifted_pages_until_all_ids_are_seen() -> None:
     assert result.message.endswith("across 4 page requests")
 
 
+@pytest.mark.parametrize(
+    "message", ["This position is not currently accepting applications.", "Temporarily unavailable"]
+)
+def test_nestle_excludes_only_explicitly_closed_postings(message: str) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/search/":
+            return httpx.Response(200, text=listing_html([101, 102], start=1, end=2, total=2))
+        if request.url.path.endswith("/101/"):
+            return httpx.Response(200, text=detail_html(101))
+        return httpx.Response(
+            200,
+            text=f'<div class="jobDisplayShell"><div class="job"><p><strong>{message}</strong></p></div></div>',
+        )
+
+    result = NestleSwitzerlandJobsParser(
+        base_url=BASE_URL, transport=httpx.MockTransport(handler)
+    ).search(LinkedInSearchRequest())
+    if message.startswith("This position"):
+        assert [job.raw["id"] for job in result.jobs] == ["101"]
+        assert "from 2 catalog records" in result.message
+    else:
+        assert len(result.jobs) == 2
+        assert "detail_error" in result.jobs[1].raw
+
+
 def test_nestle_preserves_listing_when_detail_contract_fails() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/search/":

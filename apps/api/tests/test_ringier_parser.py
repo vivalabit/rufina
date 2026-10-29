@@ -85,7 +85,7 @@ def test_ringier_scans_and_normalizes_full_swiss_catalog() -> None:
     assert requested[0].headers["origin"] == "https://career.ringier.test"
     assert requested[0].headers["referer"] == parser.base_url
     assert result.status == "completed"
-    assert result.message == ("Scanned 2 Swiss Ringier vacancies from the full Prospective catalog")
+    assert result.message == ("Scanned 2 Swiss Ringier vacancies from the full official catalog")
     assert len(result.jobs) == 2
     first = result.jobs[0]
     assert first.source == "ringier"
@@ -241,3 +241,81 @@ def test_ringier_uses_workload_when_contract_facet_is_empty() -> None:
     ).search(LinkedInSearchRequest())
     assert len(result.jobs) == 1
     assert result.jobs[0].employment_type == "Temps complet"
+
+
+def redirected_catalog_html(*, count: int = 1) -> str:
+    return f"""<html><head><title>Ringier AG - {count} Stellenangebote auf jobs.ch</title></head>
+      <body><h1 data-cy="company-name">Ringier AG</h1><a data-cy="job-link" title="Ad Operator"
+      href="/de/stellenangebote/detail/00000000-0000-4000-8000-000000000001/">Ad Operator</a></body></html>"""
+
+
+def redirected_detail_html(*, company: str = "Ringier AG", country: str = "CH") -> str:
+    import json
+
+    schema = {
+        "@type": "JobPosting",
+        "title": "Ad Operator",
+        "description": "<p>Operate campaigns.</p>",
+        "identifier": {"value": "00000000-0000-4000-8000-000000000001"},
+        "url": "https://www.jobs.ch/de/stellenangebote/detail/00000000-0000-4000-8000-000000000001/",
+        "sameAs": "https://www.jobs.ch/de/firmen/877-ringier-ag/",
+        "hiringOrganization": {"name": company},
+        "jobLocation": {"address": {"addressCountry": country, "addressRegion": "Zürich"}},
+    }
+    return '<script type="application/ld+json">' + json.dumps(schema) + "</script>"
+
+
+def test_ringier_follows_official_company_catalog_migration() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "career.ringier.ch":
+            return httpx.Response(
+                302,
+                headers={
+                    "Location": "https://www.jobs.ch/de/firmen/877-ringier-ag/stellenangebote/"
+                },
+            )
+        if "/firmen/" in request.url.path:
+            return httpx.Response(200, text=redirected_catalog_html())
+        return httpx.Response(200, text=redirected_detail_html())
+
+    result = RingierJobsParser(transport=httpx.MockTransport(handler)).search(
+        LinkedInSearchRequest()
+    )
+    assert len(result.jobs) == 1
+    assert result.jobs[0].source == "ringier"
+    assert result.jobs[0].company == "Ringier AG"
+    assert result.jobs[0].description == "Operate campaigns."
+
+
+def test_ringier_redirected_catalog_rejects_missing_cards_and_wrong_company_route() -> None:
+    from app.services.parsers.companies.ringier import parse_redirected_catalog
+
+    url = "https://www.jobs.ch/de/firmen/877-ringier-ag/stellenangebote/"
+    for page, actual_url in [
+        (redirected_catalog_html(count=2), url),
+        (redirected_catalog_html(), url.replace("877-", "878-")),
+    ]:
+        with pytest.raises(DirectCompanyRequestError):
+            parse_redirected_catalog(page, page_url=actual_url, max_jobs=500)
+
+
+@pytest.mark.parametrize("company,country", [("Other Company", "CH"), ("Ringier AG", "DE")])
+def test_ringier_redirected_detail_rejects_wrong_company_or_country(
+    company: str, country: str
+) -> None:
+    from app.services.parsers.companies.ringier import (
+        parse_redirected_catalog,
+        parse_redirected_detail,
+    )
+
+    record = parse_redirected_catalog(
+        redirected_catalog_html(),
+        page_url="https://www.jobs.ch/de/firmen/877-ringier-ag/stellenangebote/",
+        max_jobs=500,
+    )[0]
+    with pytest.raises(DirectCompanyRequestError):
+        parse_redirected_detail(
+            redirected_detail_html(company=company, country=country),
+            page_url=record["url"],
+            record=record,
+        )

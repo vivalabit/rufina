@@ -66,6 +66,7 @@ class IwfJobsParser:
         self.transport = transport
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
+        warnings: list[str] = []
         try:
             with httpx.Client(
                 headers={**IWF_HEADERS, "Referer": self.base_url},
@@ -79,6 +80,7 @@ class IwfJobsParser:
                     response.text,
                     page_url=str(response.url),
                     expected_url=self.base_url,
+                    warnings=warnings,
                 )
                 self.enrich_records(client, records)
         except IwfParseError:
@@ -94,6 +96,7 @@ class IwfJobsParser:
         return ParserSearchResponse(
             parser=self.parser_id,
             status="completed",
+            warnings=warnings,
             search_url=self.base_url,
             jobs=jobs,
             message=(f"Scanned {len(jobs)} IWF Switzerland vacancies from the official catalog"),
@@ -123,6 +126,8 @@ class IwfJobsParser:
                 record["detail_error"] = str(exc)
                 return record, None
 
+        if not records:
+            return
         with ThreadPoolExecutor(max_workers=min(self.detail_workers, len(records))) as executor:
             futures = [executor.submit(fetch_detail, record) for record in records]
             for future in as_completed(futures):
@@ -154,6 +159,7 @@ def parse_listing_html(
     *,
     page_url: str,
     expected_url: str,
+    warnings: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     if not same_url(page_url, expected_url):
         raise IwfParseError("IWF listing returned an unexpected page")
@@ -183,6 +189,9 @@ def parse_listing_html(
         links = card.css(":scope > a.btn.bg-ws[href]")
         images = card.css(":scope > .teaser-image > img.teaser-image")
         title = next(iter(titles)) if len(titles) == 1 else None
+        if title and len(images) == 1 and not links and warnings is not None:
+            warnings.append(f"IWF catalog vacancy has no detail link: {title}")
+            continue
         detail_url = urljoin(
             page_url,
             optional_text(links[0].attrib.get("href")) if len(links) == 1 else "",

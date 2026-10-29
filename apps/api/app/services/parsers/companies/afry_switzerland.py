@@ -19,7 +19,7 @@ AFRY_JOBS_DETAIL_API_URL = "https://api.smartrecruiters.com/v1/companies/AFRY/po
 AFRY_COMPANY_IDENTIFIER = "AFRY"
 SWISS_COUNTRY_ID = "ch"
 DETAIL_PATH_PATTERN = re.compile(
-    r"^/en/career/available-jobs/(REF[0-9A-Z]+)-[a-z0-9-]+$",
+    r"^/en/careers?/available-jobs/(REF[0-9A-Z]+)-[a-z0-9-]+$",
     re.IGNORECASE,
 )
 WORKLOAD_PATTERN = re.compile(r"\b\d{1,3}(?:\s*[–-]\s*\d{1,3})?\s*%")

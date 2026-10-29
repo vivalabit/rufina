@@ -17,12 +17,8 @@ from app.services.vacancy_search import create_vacancy_search_runner
 
 HELPDESK_JOB_ID = "80275"
 FRENCH_JOB_ID = "79458"
-HELPDESK_TOKEN = (
-    "txxoay0p0zcmnoxacizt4e8i47uypwxeps0ycp0kz07o80oibt1uo43m65vwiuq6"
-)
-FRENCH_TOKEN = (
-    "6fjy85tlp6287hb8fnwjuvdepx2vgkb6mqsr4d6lywffh7grzv4g7ya9l6mwofli"
-)
+HELPDESK_TOKEN = "txxoay0p0zcmnoxacizt4e8i47uypwxeps0ycp0kz07o80oibt1uo43m65vwiuq6"
+FRENCH_TOKEN = "6fjy85tlp6287hb8fnwjuvdepx2vgkb6mqsr4d6lywffh7grzv4g7ya9l6mwofli"
 
 
 def detail_url(slug: str, token: str) -> str:
@@ -159,6 +155,22 @@ def official_catalog() -> list[dict[str, object]]:
     ]
 
 
+def test_electrosuisse_application_channel_can_differ_from_publication() -> None:
+    from app.services.parsers.companies.electrosuisse import parse_detail_html
+
+    title = "Relecteurs qualifiés francophones"
+    page = detail_html(title=title, token="trackingtoken", language="FR")
+    url = detail_url("relecteurs-qualifies", "publicationtoken")
+    detail = parse_detail_html(page, page_url=url, expected_title=title)
+    assert detail["apply_url"].endswith("/FR?src=trackingtoken")
+    with pytest.raises(DirectCompanyRequestError):
+        parse_detail_html(
+            page.replace("jobs.electrosuisse.ch/cvdropper", "attacker.example/cvdropper"),
+            page_url=url,
+            expected_title=title,
+        )
+
+
 def test_electrosuisse_collects_complete_catalog_with_details() -> None:
     calls: list[str] = []
 
@@ -194,9 +206,7 @@ def test_electrosuisse_collects_complete_catalog_with_details() -> None:
 
     assert len(calls) == 3
     assert result.status == "completed"
-    assert result.message == (
-        "Scanned 2 Electrosuisse vacancies from the official catalog"
-    )
+    assert result.message == ("Scanned 2 Electrosuisse vacancies from the official catalog")
     assert len(result.jobs) == 2
     first = result.jobs[0]
     assert first.source == "electrosuisse"
@@ -212,9 +222,7 @@ def test_electrosuisse_collects_complete_catalog_with_details() -> None:
         f"a5d8bc2849464896a66452ba778570fb/DE?src={HELPDESK_TOKEN}"
     )
     assert first.posted_at == "2026-08-10"
-    assert first.employment_type == (
-        "Part-time, Temporary · Temporäre Anstellung · 80 - 100%"
-    )
+    assert first.employment_type == ("Part-time, Temporary · Temporäre Anstellung · 80 - 100%")
     assert first.seniority == "Fachmitarbeiter/-in mit Berufserfahrung"
     assert first.description and "technische Herausforderungen" in first.description
     assert first.description and "- Supportanfragen beantworten" in first.description
@@ -249,9 +257,7 @@ def test_electrosuisse_preserves_safe_listing_when_detail_fails() -> None:
 
 def test_electrosuisse_rejects_malformed_or_non_swiss_catalog() -> None:
     malformed = ElectrosuisseJobsParser(
-        transport=httpx.MockTransport(
-            lambda _: httpx.Response(200, json={"jobs": "not-a-list"})
-        )
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json={"jobs": "not-a-list"}))
     )
     foreign_record = official_catalog()[0]
     foreign_record["countrycode"] = "DE"
@@ -296,24 +302,18 @@ def test_electrosuisse_rejects_mismatched_detail_but_keeps_listing() -> None:
 
 def test_electrosuisse_accepts_an_empty_official_catalog() -> None:
     parser = ElectrosuisseJobsParser(
-        transport=httpx.MockTransport(
-            lambda _: httpx.Response(200, json=catalog_payload([]))
-        )
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=catalog_payload([])))
     )
 
     result = parser.search(LinkedInSearchRequest())
 
     assert result.jobs == []
-    assert result.message == (
-        "Scanned 0 Electrosuisse vacancies from the official catalog"
-    )
+    assert result.message == ("Scanned 0 Electrosuisse vacancies from the official catalog")
 
 
 def test_electrosuisse_wraps_listing_request_failures() -> None:
     parser = ElectrosuisseJobsParser(
-        transport=httpx.MockTransport(
-            lambda _: httpx.Response(503, text="unavailable")
-        )
+        transport=httpx.MockTransport(lambda _: httpx.Response(503, text="unavailable"))
     )
 
     with pytest.raises(DirectCompanyRequestError, match="vacancy request failed"):

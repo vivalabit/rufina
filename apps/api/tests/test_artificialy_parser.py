@@ -247,3 +247,26 @@ def test_artificialy_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Artificialy SA import"
     assert stored["company"] == "Artificialy SA"
+
+
+@pytest.mark.parametrize(
+    "location, accepted", [("Lugano / Zurich", True), ("Lugano / Milan", False)]
+)
+def test_artificialy_checks_every_location_in_compound_location(
+    location: str, accepted: bool
+) -> None:
+    from app.services.parsers.companies.artificialy import parse_careers_page
+
+    page = HtmlResponse(
+        careers_html(
+            [vacancy_card("4477679281", "AI Engineer", "Build AI systems", location=location)]
+        )
+    )
+    if not accepted:
+        with pytest.raises(DirectCompanyRequestError):
+            parse_careers_page(page, page_url="https://www.artificialy.com/career", max_jobs=100)
+    else:
+        records = parse_careers_page(
+            page, page_url="https://www.artificialy.com/career", max_jobs=100
+        )
+        assert records[0]["location"] == location

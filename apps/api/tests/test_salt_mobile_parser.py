@@ -129,7 +129,7 @@ def test_salt_mobile_collects_every_webflow_page_and_enriches_details() -> None:
     ]
     assert result.status == "completed"
     assert result.message == (
-        "Scanned 5 Salt Mobile vacancies across 3 Webflow pages using 3 requests"
+        "Scanned 5 Salt Mobile vacancies across 3 catalog pages using 3 requests"
     )
     assert len(result.jobs) == 5
     assert all(job.description for job in result.jobs)
@@ -274,8 +274,99 @@ def test_salt_mobile_jobs_render_as_direct_company_imports() -> None:
 
 def test_salt_reports_embedded_404_as_unavailable_not_empty() -> None:
     from app.services.parsers.companies.salt_mobile import parse_listing_html
+
     with pytest.raises(DirectCompanyRequestError, match="unavailable.*404"):
         parse_listing_html(
             '<title>JobCloud</title><script>"NEXT_HTTP_ERROR_FALLBACK;404"</script>',
-            page_url=BASE_URL, expected_page=1,
+            page_url=BASE_URL,
+            expected_page=1,
+        )
+
+
+def next_catalog_html(*, declared_count: int = 2, company: str = "Salt Mobile SA") -> str:
+    import json
+
+    props = {
+        "company": {
+            "name": company,
+            "slug": "salt-mobile-sa",
+            "organization_id": "315",
+            "is_active": True,
+        },
+        "slug": "salt-mobile-sa",
+        "locale": "de",
+        "initialJobs": [
+            {
+                "id": JOB_IDS[index],
+                "title": TITLES[index],
+                "companyName": company,
+                "location": "Biel",
+                "employmentPct": 100,
+                "employmentPctMin": 80,
+                "contractTypes": ["5"],
+            }
+            for index in range(2)
+        ],
+        "employmentTypes": [{"id": "5", "label_de": "Festanstellung"}],
+    }
+    stream = "11:" + json.dumps(["$", "$L1", None, props]) + "\n"
+    return (
+        f"<html><body><p>1 Stellen von {declared_count}</p>"
+        "<script>self.__next_f.push(" + json.dumps([1, stream]) + ")</script></body></html>"
+    )
+
+
+def next_detail_html(index: int) -> str:
+    title = TITLES[index]
+    url = f"/de/jobs/salt-mobile-sa/{JOB_IDS[index]}"
+    return f'''<html><head><link rel="canonical" href="{url}">
+      <meta property="og:title" content="{title} — Salt Mobile SA"></head><body>
+      <h1>{title}</h1><div class="job-description"><p>Operate reliable customer services.</p></div>
+      <aside><a href="https://www.jobup.ch/fr/application/create/{JOB_IDS[index]}">Apply</a>
+      <dl><div><dt>Veröffentlichungsdatum</dt><dd>28. Oktober 2026</dd></div>
+      <div><dt>Beschäftigungsgrad</dt><dd>80-100%</dd></div>
+      <div><dt>Vertragsart</dt><dd>Festanstellung</dd></div>
+      <div><dt>Arbeitsort</dt><dd>Biel</dd></div></dl></aside></body></html>'''
+
+
+def test_salt_collects_full_next_catalog_beyond_visible_cards() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == LIST_PATH:
+            return httpx.Response(
+                302, headers={"Location": "/de/job-list/salt-mobile-sa?embedded=yes"}
+            )
+        if request.url.path == "/de/job-list/salt-mobile-sa":
+            return httpx.Response(200, text=next_catalog_html())
+        return httpx.Response(
+            200, text=next_detail_html(JOB_IDS.index(request.url.path.rsplit("/", 1)[-1]))
+        )
+
+    result = SaltMobileJobsParser(transport=httpx.MockTransport(handler)).search(
+        LinkedInSearchRequest()
+    )
+    assert len(result.jobs) == 2
+    assert all(job.posted_at == "2026-10-28" for job in result.jobs)
+    assert all(job.description == "Operate reliable customer services." for job in result.jobs)
+    assert all(not job.raw.get("detail_error") for job in result.jobs)
+
+
+def test_salt_next_catalog_rejects_truncation_and_different_company() -> None:
+    from app.services.parsers.companies.salt_mobile import parse_next_catalog
+
+    url = "https://company.jobcloud.ch/de/job-list/salt-mobile-sa?embedded=yes"
+    for page in [next_catalog_html(declared_count=3), next_catalog_html(company="Other Company")]:
+        with pytest.raises(DirectCompanyRequestError):
+            parse_next_catalog(page, page_url=url)
+
+
+def test_salt_next_detail_rejects_mismatched_application_identity() -> None:
+    from app.services.parsers.companies.salt_mobile import parse_detail_html
+
+    url = f"https://company.jobcloud.ch/de/jobs/salt-mobile-sa/{JOB_IDS[0]}"
+    page = next_detail_html(0).replace(
+        f"application/create/{JOB_IDS[0]}", f"application/create/{JOB_IDS[1]}"
+    )
+    with pytest.raises(DirectCompanyRequestError):
+        parse_detail_html(
+            page, page_url=url, expected_url=url, expected_id=JOB_IDS[0], expected_title=TITLES[0]
         )

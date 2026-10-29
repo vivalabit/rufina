@@ -321,8 +321,7 @@ def test_isolutions_collects_complete_catalog_and_enriches_personio_data() -> No
     assert first.company == "isolutions AG"
     assert first.location == "Bern, Zürich, Basel"
     assert first.url == (
-        "https://www.isolutions.test/en/career/"
-        "junior-technical-consultant-digital-workplace/"
+        "https://www.isolutions.test/en/career/junior-technical-consultant-digital-workplace/"
     )
     assert first.apply_url == (
         "https://isolutions.jobs.personio.com/job/2738670/apply?_pc=3114117#apply"
@@ -352,10 +351,14 @@ def test_isolutions_keeps_detail_when_personio_enrichment_fails() -> None:
             )
         return httpx.Response(503, request=request)
 
-    job = IsolutionsJobsParser(
-        base_url=BASE_URL,
-        transport=httpx.MockTransport(handler),
-    ).search(LinkedInSearchRequest()).jobs[0]
+    job = (
+        IsolutionsJobsParser(
+            base_url=BASE_URL,
+            transport=httpx.MockTransport(handler),
+        )
+        .search(LinkedInSearchRequest())
+        .jobs[0]
+    )
 
     assert job.description and "Build modern Microsoft solutions" in job.description
     assert job.apply_url and "2738670" in job.apply_url
@@ -370,18 +373,19 @@ def test_isolutions_accepts_live_breezy_and_template_variants() -> None:
         "enterprise-engineer-m365",
         title=title,
         personio_id="unused",
-        apply_url=(
-            "https://isolutions.breezy.hr/"
-            "p/b8db561ce9f901-enterprise-m365-engineer-in"
-        ),
+        apply_url=("https://isolutions.breezy.hr/p/b8db561ce9f901-enterprise-m365-engineer-in"),
     )
-    page = page.replace(
-        '<meta property="og:title" content="Enterprise Engineer M365">',
-        '<meta property="og:title" content="Enterprise Engineer M365 (m/f/d)">',
-    ).replace(
-        'title="Job Description">Job Description',
-        'title="Does your heart burn for cloud engineering?">Cloud engineering',
-    ).replace("We would like you to:", "We would like you to bring:")
+    page = (
+        page.replace(
+            '<meta property="og:title" content="Enterprise Engineer M365">',
+            '<meta property="og:title" content="Enterprise Engineer M365 (m/f/d)">',
+        )
+        .replace(
+            'title="Job Description">Job Description',
+            'title="Does your heart burn for cloud engineering?">Cloud engineering',
+        )
+        .replace("We would like you to:", "We would like you to bring:")
+    )
     detail_url = "https://www.isolutions.test/en/career/enterprise-engineer-m365/"
 
     detail = parse_detail_html(
@@ -406,6 +410,27 @@ def test_isolutions_accepts_live_breezy_and_template_variants() -> None:
     }
 
 
+@pytest.mark.parametrize("prefix", ["isolutions | ", "other company | "])
+def test_isolutions_supports_branded_og_title(prefix: str) -> None:
+    slug = "ai-first-data-engineer"
+    title = "AI First Data Engineer"
+    url = f"https://www.isolutions.test/en/career/{slug}/"
+    page = detail_html(slug, title=title, personio_id="2738670").replace(
+        f'<meta property="og:title" content="{title}">',
+        f'<meta property="og:title" content="{prefix}{title}">',
+    )
+    if prefix.startswith("other"):
+        with pytest.raises(DirectCompanyRequestError):
+            parse_detail_html(
+                page, page_url=url, expected_url=url, expected_job_id=slug, expected_title=title
+            )
+    else:
+        detail = parse_detail_html(
+            page, page_url=url, expected_url=url, expected_job_id=slug, expected_title=title
+        )
+        assert detail["title"] == title
+
+
 def test_isolutions_preserves_listing_when_detail_fails() -> None:
     card = catalog_fixture()[0]
 
@@ -414,10 +439,14 @@ def test_isolutions_preserves_listing_when_detail_fails() -> None:
             return httpx.Response(200, text=listing_html([card]), request=request)
         return httpx.Response(503, request=request)
 
-    job = IsolutionsJobsParser(
-        base_url=BASE_URL,
-        transport=httpx.MockTransport(handler),
-    ).search(LinkedInSearchRequest()).jobs[0]
+    job = (
+        IsolutionsJobsParser(
+            base_url=BASE_URL,
+            transport=httpx.MockTransport(handler),
+        )
+        .search(LinkedInSearchRequest())
+        .jobs[0]
+    )
 
     assert job.title == "Junior Technical Consultant - Digital Workplace"
     assert job.apply_url == job.url
@@ -461,8 +490,7 @@ def test_isolutions_rejects_wrong_identity_or_detail_contract() -> None:
         parser.search(LinkedInSearchRequest())
 
     detail_url = (
-        "https://www.isolutions.test/en/career/"
-        "junior-technical-consultant-digital-workplace/"
+        "https://www.isolutions.test/en/career/junior-technical-consultant-digital-workplace/"
     )
     with pytest.raises(DirectCompanyRequestError, match="incomplete vacancy"):
         parse_detail_html(
@@ -509,8 +537,7 @@ def test_isolutions_is_registered_and_renders_as_direct_company_source() -> None
             "title": "Junior Technical Consultant - Digital Workplace",
             "location": "Bern, Zürich, Basel",
             "url": (
-                "https://www.isolutions.ch/en/career/"
-                "junior-technical-consultant-digital-workplace/"
+                "https://www.isolutions.ch/en/career/junior-technical-consultant-digital-workplace/"
             ),
         }
     )

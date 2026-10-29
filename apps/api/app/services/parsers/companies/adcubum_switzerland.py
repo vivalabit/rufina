@@ -363,6 +363,7 @@ def validate_structured_job(value: Any) -> dict[str, Any]:
 
 def extract_next_job_lists(page: Selector) -> list[list[Any]]:
     results: list[list[Any]] = []
+    chunks: list[str] = []
     prefix = "self.__next_f.push("
     for raw in page.css("script::text").getall():
         script = str(raw)
@@ -379,14 +380,38 @@ def extract_next_job_lists(page: Selector) -> list[list[Any]]:
             or not isinstance(flight_call[1], str)
         ):
             continue
-        payload_match = re.fullmatch(r"[0-9a-z]+:(.*)", flight_call[1], re.DOTALL)
-        if not payload_match:
+        chunks.append(flight_call[1])
+
+    # Flight records can span script pushes. Text records use a UTF-8 byte length
+    # and need not end in a newline, so splitting each script on lines loses jobs.
+    stream = "".join(chunks).encode("utf-8")
+    cursor = 0
+    while cursor < len(stream):
+        if stream[cursor : cursor + 1] == b"\n":
+            cursor += 1
             continue
+        header = re.match(rb"[0-9a-z]*:", stream[cursor:])
+        if not header:
+            return []
+        cursor += header.end()
+        text_header = re.match(rb"T([0-9a-f]+),", stream[cursor:])
+        if text_header:
+            cursor += text_header.end() + int(text_header.group(1), 16)
+            if cursor > len(stream):
+                return []
+            continue
+        end = stream.find(b"\n", cursor)
+        if end < 0:
+            end = len(stream)
         try:
-            payload = json.loads(payload_match.group(1))
-        except (json.JSONDecodeError, TypeError):
-            continue
-        results.extend(find_job_lists(payload))
+            payload = json.loads(stream[cursor:end])
+        except (json.JSONDecodeError, UnicodeDecodeError):
+            if stream[cursor : cursor + 1] in {b"[", b"{", b'"'}:
+                return []  # A truncated JSON model cannot verify a complete catalog.
+            # Import/debug records are not JSON model records.
+        else:
+            results.extend(find_job_lists(payload))
+        cursor = end + 1
     return results
 
 

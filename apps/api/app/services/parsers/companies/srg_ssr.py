@@ -30,7 +30,7 @@ SRG_SSR_HEADERS = {
     ),
 }
 JOB_PATH_PATTERN = re.compile(
-    r"/srg/job-vacancies/[^/]+/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})/?$",
+    r"/(?:srg|srgd)/job-vacancies/[^/]+/([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})/?$",
     re.IGNORECASE,
 )
 INVISIBLE_CHARACTERS_PATTERN = re.compile(r"[\u200b\u200c\u200d\u2060\ufeff]")
@@ -165,7 +165,7 @@ def parse_listing_html(page_html: str, *, page_url: str) -> list[dict[str, Any]]
     records: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
     for card in page.css("section#jobResults .countJobRecords"):
-        detail_path = optional_text(card.css("a[href*='/srg/job-vacancies/']::attr(href)").get())
+        detail_path = optional_text(card.css("a[href*='/job-vacancies/']::attr(href)").get())
         detail_url = urljoin(page_url, detail_path) if detail_path else None
         job_id = extract_job_id(detail_url)
         title = selector_text(card, "h1")

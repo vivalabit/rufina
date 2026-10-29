@@ -11,7 +11,7 @@ from app.models.job_search import JobSearchManualRunRequest
 from app.models.parsers import LinkedInSearchRequest
 from app.services.job_search_execution import parsed_job_to_stored_job
 from app.services.parsers.companies.base import DirectCompanyRequestError
-from app.services.parsers.companies.cyberlink import CyberlinkJobsParser
+from app.services.parsers.companies.cyberlink import CyberlinkJobsParser, parse_detail_html
 from app.services.vacancy_search import create_vacancy_search_runner
 
 
@@ -94,6 +94,30 @@ def detail_page(
     """
 
 
+@pytest.mark.parametrize("canonical_slug", ["network-engineer", "different-role"])
+def test_cyberlink_supports_inline_application_form(canonical_slug: str) -> None:
+    slug = "network-engineer"
+    url = f"https://cyberlink.digitalent.cloud/{slug}"
+    page = detail_page(slug=slug, title="Network Engineer", workload="100%")
+    page = page.replace('id="contactModal"', 'id="retiredForm"').replace(
+        "</body>",
+        f'<meta property="og:url" content="https://cyberlink.digitalent.cloud/{canonical_slug}">'
+        '<form id="applyForm"><input name="firstname"><input name="lastname">'
+        '<input name="email" type="email"><input id="fileInput" type="file"></form></body>',
+    )
+    if canonical_slug != slug:
+        with pytest.raises(DirectCompanyRequestError, match="required vacancy data"):
+            parse_detail_html(
+                page, page_url=url, expected_title="Network Engineer", expected_job_id=slug
+            )
+    else:
+        detail = parse_detail_html(
+            page, page_url=url, expected_title="Network Engineer", expected_job_id=slug
+        )
+        assert detail["apply_url"] == f"{url}#applyForm"
+        assert detail["description"]
+
+
 def test_cyberlink_scans_complete_catalog_and_enriches_details() -> None:
     requests: list[str] = []
 
@@ -101,9 +125,7 @@ def test_cyberlink_scans_complete_catalog_and_enriches_details() -> None:
         requests.append(str(request.url))
         if request.url.path == "/":
             assert request.url.host == "cyberlink.digitalent.cloud"
-            assert request.headers["referer"] == (
-                "https://www.cyberlink.ch/de/cyberlink/jobs"
-            )
+            assert request.headers["referer"] == ("https://www.cyberlink.ch/de/cyberlink/jobs")
             return httpx.Response(
                 200,
                 text=listing_page(
@@ -148,9 +170,7 @@ def test_cyberlink_scans_complete_catalog_and_enriches_details() -> None:
 
     assert len(requests) == 3
     assert result.status == "completed"
-    assert result.message == (
-        "Scanned 2 Cyberlink vacancies from the complete Digitalent catalog"
-    )
+    assert result.message == ("Scanned 2 Cyberlink vacancies from the complete Digitalent catalog")
     assert len(result.jobs) == 2
     first = result.jobs[0]
     assert first.source == "cyberlink"
@@ -158,8 +178,7 @@ def test_cyberlink_scans_complete_catalog_and_enriches_details() -> None:
     assert first.company == "Cyberlink AG"
     assert first.location == "Zürich Tiefenbrunnen, Schweiz"
     assert first.url == (
-        "https://cyberlink.digitalent.cloud/"
-        "informatikerin-efz-plattformentwicklung"
+        "https://cyberlink.digitalent.cloud/informatikerin-efz-plattformentwicklung"
     )
     assert first.apply_url and first.apply_url.endswith("#contactModal")
     assert first.posted_at is None

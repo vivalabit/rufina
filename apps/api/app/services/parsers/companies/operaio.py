@@ -29,9 +29,7 @@ EXPECTED_SITE_NAME = "operaio.ch"
 EXPECTED_LANGUAGE = "en"
 EXPECTED_PAGE_HEADING = "Become an Operaio"
 EXPECTED_CATALOG_HEADING = "Our open positions"
-WIX_ID_PATTERN = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
-)
+WIX_ID_PATTERN = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
 LINKEDIN_JOB_PATH_PATTERN = re.compile(r"^/jobs/view/(?:[^/]+-)?(\d+)/?$")
 WORKLOAD_PATTERN = re.compile(r"^\d{1,3}\s*[–-]\s*\d{1,3}%$")
 
@@ -90,8 +88,7 @@ class OperaioJobsParser:
             search_url=self.base_url,
             jobs=jobs,
             message=(
-                f"Scanned {len(jobs)} Operaio vacancies from the complete official "
-                "Wix CMS catalog"
+                f"Scanned {len(jobs)} Operaio vacancies from the complete official Wix CMS catalog"
             ),
         )
 
@@ -195,13 +192,9 @@ def normalize_catalog_record(
     updated_at = extract_wix_date(value.get("_updatedDate"))
 
     card_headings = [selector_text(node) for node in card.css("h4")]
-    card_values = {
-        text for node in card.css("p") if (text := selector_text(node))
-    }
+    card_values = {text for node in card.css("p") if (text := selector_text(node))}
     card_workloads = {
-        normalized
-        for text in card_values
-        if (normalized := normalize_workload(text))
+        normalized for text in card_values if (normalized := normalize_workload(text))
     }
     contact_links = {
         normalized
@@ -236,6 +229,10 @@ def normalize_catalog_record(
     if raw_link and not public_url:
         raise OperaioParseError("Operaio CMS catalog contains an unsafe application link")
     apply_url = public_url or application_email_url(title)
+    if public_url is None:
+        # Email applications still have a public, stable card on the official
+        # catalog. Use its real DOM anchor rather than an invented detail page.
+        public_url = f"{listing_page_url}#{card.attrib['id']}"
     description = "\n".join(
         (
             title,
@@ -267,9 +264,7 @@ def normalize_job(record: dict[str, Any]) -> ParsedJob:
     title = optional_text(record.get("title"))
     workload = optional_text(record.get("workload"))
     arrangement = optional_text(record.get("arrangement"))
-    employment_type = " · ".join(
-        value for value in (workload, arrangement) if value
-    ) or None
+    employment_type = " · ".join(value for value in (workload, arrangement) if value) or None
     return ParsedJob(
         source="operaio",
         title=title,

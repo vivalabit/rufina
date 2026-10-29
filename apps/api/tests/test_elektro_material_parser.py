@@ -250,6 +250,39 @@ def test_elektro_material_scans_complete_catalog_and_enriches_jobs() -> None:
     assert job.raw["total_available"] == 2
 
 
+@pytest.mark.parametrize("identity_matches", [True, False])
+def test_elektro_material_excludes_verified_inactive_postings(identity_matches: bool) -> None:
+    publication_uuid = "e05255c1-009c-400e-9a1f-4c6866a0ec18"
+    slug = "network-engineer"
+    title = "Network Engineer 100%"
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "elektro-material.test":
+            if request.url.params["pageLabelOrId"] == "offene-stellen-t33143s226453a4614994":
+                return httpx.Response(
+                    200, json=catalog_payload([listing_component(slug, title, uid="card")])
+                )
+            return httpx.Response(200, json=detail_payload(title, publication_uuid))
+        payload = smartrecruiters_payload(
+            744000139266729, publication_uuid, "Senior Network Engineer 80-100%"
+        )
+        payload["active"] = False
+        if not identity_matches:
+            payload["uuid"] = "a05255c1-009c-400e-9a1f-4c6866a0ec19"
+        return httpx.Response(200, json=payload)
+
+    result = ElektroMaterialJobsParser(
+        cms_api_url=CMS_URL,
+        smartrecruiters_api_url=SMART_URL,
+        transport=httpx.MockTransport(handler),
+    ).search(LinkedInSearchRequest())
+    if identity_matches:
+        assert result.jobs == []
+        assert "from 1 CMS catalog records" in result.message
+    else:
+        assert len(result.jobs) == 1 and "detail_error" in result.jobs[0].raw
+
+
 def test_elektro_material_preserves_listing_when_detail_fails() -> None:
     title = "EDI-Manager in Digital Commerce 60%"
     catalog = catalog_payload(

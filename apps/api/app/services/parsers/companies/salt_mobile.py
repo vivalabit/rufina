@@ -1,12 +1,13 @@
 from __future__ import annotations
 
 import html
+import json
 import re
 from collections.abc import Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import urljoin, urlsplit, urlunsplit
 
 import httpx
 from scrapling import Selector
@@ -31,7 +32,7 @@ SALT_MOBILE_HEADERS = {
 PAGE_PARAMETER = "2f2acfb9_page"
 PAGE_COUNT_PATTERN = re.compile(r"^(\d+)\s*/\s*(\d+)$")
 JOB_PATH_PATTERN = re.compile(
-    r"^/de/jobs/([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
+    r"^/de/jobs/(?:salt-mobile-sa/)?([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$"
 )
 APPLICATION_PATH_PATTERN = re.compile(
     r"^/(?:de|fr|it|en)/application/create/"
@@ -44,7 +45,7 @@ class SaltMobileParseError(DirectCompanyRequestError):
 
 
 class SaltMobileJobsParser:
-    """Collect Salt Mobile's complete JobCloud-hosted Webflow catalog."""
+    """Collect Salt Mobile's complete JobCloud-hosted catalog."""
 
     parser_id = "salt_mobile"
 
@@ -92,7 +93,7 @@ class SaltMobileJobsParser:
             jobs=jobs,
             message=(
                 f"Scanned {len(jobs)} Salt Mobile vacancies across {total_pages} "
-                f"Webflow pages using {pages_fetched} requests"
+                f"catalog pages using {pages_fetched} requests"
             ),
         )
 
@@ -116,6 +117,11 @@ class SaltMobileJobsParser:
         for catalog_pass in range(1, self.max_catalog_passes + 1):
             response = client.get(self.listing_url(1))
             response.raise_for_status()
+            if urlsplit(str(response.url)).path == "/de/job-list/salt-mobile-sa":
+                records = parse_next_catalog(response.text, page_url=str(response.url))
+                if len(records) > self.max_pages * 6:
+                    raise SaltMobileParseError("Salt Mobile catalog exceeds its configured limit")
+                return records, 1, 1
             total_pages, first_records = parse_listing_html(
                 response.text,
                 page_url=str(response.url),
@@ -299,6 +305,10 @@ def parse_detail_html(
     if not same_url(page_url, expected_url):
         raise SaltMobileParseError("Salt Mobile vacancy returned unexpected content")
     page = Selector(page_html)
+    if urlsplit(page_url).path.startswith("/de/jobs/salt-mobile-sa/"):
+        return parse_next_detail(
+            page, page_url=page_url, expected_id=expected_id, expected_title=expected_title
+        )
     languages = unique_values(page, "html::attr(lang)")
     slugs = unique_values(page, "html::attr(data-wf-item-slug)")
     alternates = unique_values(
@@ -340,6 +350,144 @@ def parse_detail_html(
         "location": location,
         "workload": workload,
         "contract": contract,
+        "employment_type": format_employment_type(contract, workload),
+        "posted_at": posted_at,
+        "description": description,
+        "apply_url": next(iter(apply_urls)),
+        "metadata": metadata,
+    }
+
+
+def parse_next_catalog(page_html: str, *, page_url: str) -> list[dict[str, Any]]:
+    parts = urlsplit(page_url)
+    if (
+        parts.scheme != "https"
+        or parts.netloc != "company.jobcloud.ch"
+        or parts.path != "/de/job-list/salt-mobile-sa"
+    ):
+        raise SaltMobileParseError("Salt Mobile catalog returned an unexpected URL")
+    chunks: list[str] = []
+    for match in re.finditer(r"self\.__next_f\.push\((\[.*?\])\)</script>", page_html):
+        try:
+            value = json.loads(match[1])
+        except ValueError:
+            continue
+        if len(value) == 2 and value[0] == 1 and isinstance(value[1], str):
+            chunks.append(value[1])
+    catalogs: list[dict[str, Any]] = []
+    for line in "".join(chunks).splitlines():
+        _, separator, value = line.partition(":")
+        if not separator or not value.startswith("["):
+            continue
+        try:
+            element = json.loads(value)
+        except ValueError:
+            continue
+        if (
+            isinstance(element, list)
+            and len(element) == 4
+            and isinstance(element[3], dict)
+            and "initialJobs" in element[3]
+        ):
+            catalogs.append(element[3])
+    if len(catalogs) != 1:
+        raise SaltMobileParseError("Salt Mobile catalog is missing its initial job data")
+    catalog = catalogs[0]
+    company = catalog.get("company", {})
+    rows = catalog.get("initialJobs")
+    counts = re.findall(r"\b\d+\s+Stellen\s+von\s+(\d+)\b", Selector(page_html).get_all_text())
+    if (
+        not isinstance(company, dict)
+        or company.get("name") != "Salt Mobile SA"
+        or company.get("slug") != "salt-mobile-sa"
+        or company.get("organization_id") != "315"
+        or company.get("is_active") is not True
+        or catalog.get("slug") != "salt-mobile-sa"
+        or catalog.get("locale") != "de"
+        or not isinstance(rows, list)
+        or len(counts) != 1
+        or int(counts[0]) != len(rows)
+    ):
+        raise SaltMobileParseError("Salt Mobile catalog has an incomplete or unexpected identity")
+    employment_types = catalog.get("employmentTypes")
+    if not isinstance(employment_types, list):
+        raise SaltMobileParseError("Salt Mobile catalog has invalid employment type data")
+    contracts = {
+        str(item["id"]): optional_text(item.get("label_de")) or str(item["id"])
+        for item in employment_types
+        if isinstance(item, dict) and "id" in item
+    }
+    records: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for row in rows:
+        job_id = optional_text(row.get("id")) if isinstance(row, dict) else None
+        url = normalize_detail_url(f"https://company.jobcloud.ch/de/jobs/salt-mobile-sa/{job_id}")
+        if (
+            not url
+            or job_id in seen
+            or not optional_text(row.get("title"))
+            or row.get("companyName") != "Salt Mobile SA"
+            or not optional_text(row.get("location"))
+            or not isinstance(row.get("contractTypes"), list)
+        ):
+            raise SaltMobileParseError(
+                "Salt Mobile catalog contains an invalid or duplicate vacancy"
+            )
+        seen.add(job_id)
+        maximum, minimum = row.get("employmentPct"), row.get("employmentPctMin")
+        workload = (f"{minimum}-{maximum}%" if minimum else f"{maximum}%") if maximum else None
+        records.append(
+            {
+                **row,
+                "url": url,
+                "workload": workload,
+                "contract": ", ".join(
+                    contracts.get(str(key), str(key)) for key in row.get("contractTypes", [])
+                ),
+            }
+        )
+    return records
+
+
+def parse_next_detail(
+    page: Selector, *, page_url: str, expected_id: str, expected_title: str
+) -> dict[str, Any]:
+    canonical_path = page.css('link[rel="canonical"]::attr(href)').get()
+    canonical = urljoin(page_url, canonical_path or "")
+    identity = JOB_PATH_PATTERN.fullmatch(urlsplit(page_url).path)
+    descriptions = page.css(".job-description")
+    apply_urls = {
+        normalized
+        for raw in page.css("aside a::attr(href)").getall()
+        if (normalized := normalize_apply_url(raw, expected_id=expected_id))
+    }
+    if (
+        not canonical_path
+        or not same_url(canonical, page_url)
+        or not identity
+        or identity[1] != expected_id
+        or unique_values(page, "h1::text") != {expected_title}
+        or unique_values(page, 'meta[property="og:title"]::attr(content)')
+        != {f"{expected_title} — Salt Mobile SA"}
+        or len(descriptions) != 1
+        or len(apply_urls) != 1
+    ):
+        raise SaltMobileParseError("Salt Mobile vacancy has an unexpected identity")
+    metadata = {
+        selector_text(item, "dt"): selector_text(item, "dd")
+        for item in page.css("aside dl div")
+        if item.css("dt") and item.css("dd")
+    }
+    description = html_to_text(descriptions[0].get())
+    posted_at = normalize_publication_date(metadata.get("Veröffentlichungsdatum"))
+    workload, contract = metadata.get("Beschäftigungsgrad"), metadata.get("Vertragsart")
+    location = metadata.get("Arbeitsort")
+    if not all((description, posted_at, workload, contract, location)):
+        raise SaltMobileParseError("Salt Mobile vacancy contains incomplete details")
+    return {
+        "title": expected_title,
+        "company": "Salt Mobile SA",
+        "location": location,
         "employment_type": format_employment_type(contract, workload),
         "posted_at": posted_at,
         "description": description,
@@ -448,7 +596,27 @@ def normalize_publication_date(value: Any) -> str | None:
         return None
     match = re.fullmatch(r"(\d{1,2})\.(\d{1,2})\.(\d{4})", text)
     if not match:
-        return None
+        words = re.fullmatch(r"(\d{1,2})\.\s+(\w+)\s+(\d{4})", text)
+        months = (
+            "Januar",
+            "Februar",
+            "März",
+            "April",
+            "Mai",
+            "Juni",
+            "Juli",
+            "August",
+            "September",
+            "Oktober",
+            "November",
+            "Dezember",
+        )
+        if not words or words[2] not in months:
+            return None
+        try:
+            return date(int(words[3]), months.index(words[2]) + 1, int(words[1])).isoformat()
+        except ValueError:
+            return None
     try:
         return date(int(match.group(3)), int(match.group(2)), int(match.group(1))).isoformat()
     except ValueError:

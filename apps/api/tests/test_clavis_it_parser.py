@@ -339,3 +339,33 @@ def test_clavis_it_is_registered_and_renders_as_direct_company() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "clavis IT ag import"
     assert stored["company"] == "clavis IT ag"
+
+
+def test_clavis_it_accepts_equivalent_german_listing_and_english_detail_role() -> None:
+    record = {
+        **REGULAR,
+        "title": "Erfahrener Frontend Entwickler (w/m/d)",
+        "path": "/karriere/jobs/frontend-entwickler",
+    }
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = (
+            listing_html([record])
+            if str(request.url) == CLAVIS_IT_JOBS_URL
+            else detail_html(
+                record,
+                document_title="Frontend Developer (w/m/d) - clavis IT ag",
+            )
+        )
+        return httpx.Response(200, text=body, request=request)
+
+    job = (
+        ClavisItJobsParser(transport=httpx.MockTransport(handler))
+        .search(
+            LinkedInSearchRequest(),
+        )
+        .jobs[0]
+    )
+    assert "detail_error" not in job.raw
+    assert job.apply_url.startswith("https://jobs.smartrecruiters.com/")
+    assert job.description and len(job.description) > 500

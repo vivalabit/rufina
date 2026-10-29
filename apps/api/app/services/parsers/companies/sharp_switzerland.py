@@ -18,6 +18,10 @@ from app.services.parsers.companies.base import DirectCompanyRequestError
 SHARP_SWITZERLAND_JOBS_URL = "https://www.sharp.ch/de/jobs-bei-sharp"
 SHARP_COMPANY = "Sharp Electronics (Schweiz) AG"
 SHARP_APPLY_EMAIL = "hr.sez@sharp.eu"
+SHARP_COMPANY_EMAILS = {
+    SHARP_COMPANY: SHARP_APPLY_EMAIL,
+    "Sharp DX (Schweiz) AG": "bewerbung@sharp.ch",
+}
 SHARP_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "de-CH,de;q=0.9,en-CH;q=0.8,en;q=0.7",
@@ -28,7 +32,7 @@ SHARP_HEADERS = {
     ),
 }
 JOB_PATH_PATTERN = re.compile(r"^/de/([a-z0-9][a-z0-9-]*(?:/[a-z0-9][a-z0-9-]*)*)/?$")
-WORKLOAD_PATTERN = re.compile(r"^100\s*%$")
+WORKLOAD_PATTERN = re.compile(r"^(\d{1,3})(?:\s*[–-]\s*(\d{1,3}))?\s*%$")
 
 
 class SharpSwitzerlandParseError(DirectCompanyRequestError):
@@ -136,6 +140,7 @@ class SharpSwitzerlandJobsParser:
                     page_url=page_url,
                     expected_url=record["url"],
                     expected_title=record["title"],
+                    expected_company=record["company"],
                 )
             except (
                 RequestException,
@@ -173,6 +178,7 @@ class SharpSwitzerlandJobsParser:
                     page_url=str(response.url),
                     expected_url=record["url"],
                     expected_title=record["title"],
+                    expected_company=record["company"],
                 )
             except (httpx.HTTPError, SharpSwitzerlandParseError, ValueError) as exc:
                 record["detail_error"] = str(exc)
@@ -192,7 +198,7 @@ class SharpSwitzerlandJobsParser:
         return ParsedJob(
             source=self.parser_id,
             title=optional_text(detail.get("title")) or optional_text(record.get("title")),
-            company=SHARP_COMPANY,
+            company=optional_text(record.get("company")) or SHARP_COMPANY,
             location=optional_text(detail.get("location")) or "Switzerland",
             url=public_url,
             apply_url=(
@@ -239,55 +245,73 @@ def parse_listing_html(
     bodies = catalogs[0].css(":scope .shp-content-wysiwyg, :scope .section-inner > .text")
     if len(bodies) != 1:
         raise SharpSwitzerlandParseError("Sharp careers page has an invalid vacancy catalog")
-    body = bodies[0]
-    apply_urls = {
-        normalized
-        for raw in body.css('a[href^="mailto:"]::attr(href)').getall()
-        if (normalized := normalize_apply_url(raw))
-    }
-    if apply_urls != {f"mailto:{SHARP_APPLY_EMAIL}"}:
-        raise SharpSwitzerlandParseError(
-            "Sharp careers page is missing its official application email"
-        )
+    employer_bodies = [
+        node
+        for node in page.css("main .text")
+        if (selector_text(node, ":scope > h2") or "").startswith("Jobs bei Sharp")
+    ]
+    sections: list[tuple[Any, str, bool]] = []
+    for body in employer_bodies:
+        company = (selector_text(body, ":scope > h2") or "").removeprefix("Jobs bei ")
+        if company not in SHARP_COMPANY_EMAILS or any(company == item[1] for item in sections):
+            raise SharpSwitzerlandParseError(
+                "Sharp careers page has an unexpected employer section"
+            )
+        sections.append((body, company, False))
+    if not sections:
+        sections = [(bodies[0], SHARP_COMPANY, True)]
 
     records: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
-    for link in body.css('a[href]:not([href^="mailto:"])'):
-        href = optional_text(link.css("::attr(href)").get())
-        detail_url = canonical_job_url(urljoin(page_url, href or ""))
-        job_id = extract_job_id(detail_url)
-        title = selector_text(link)
-        if not detail_url or not job_id or not title:
-            raise SharpSwitzerlandParseError(
-                "Sharp careers catalog contains an invalid vacancy link"
+    for body, company, legacy in sections:
+        apply_urls = {
+            normalized
+            for raw in body.css('a[href^="mailto:"]::attr(href)').getall()
+            if (normalized := normalize_apply_url(raw))
+        }
+        expected_apply = f"mailto:{SHARP_COMPANY_EMAILS[company]}"
+        if (legacy and apply_urls != {expected_apply}) or (
+            apply_urls and apply_urls != {expected_apply}
+        ):
+            raise SharpSwitzerlandParseError("Sharp careers page has an invalid application email")
+        links = body.css('a[href]:not([href^="mailto:"])')
+        if not links and not re.search(
+            r"(?:keine|keine aktuellen)\s+(?:offenen\s+)?stellen",
+            selector_text(body) or "",
+            re.IGNORECASE,
+        ):
+            raise SharpSwitzerlandParseError("Sharp careers page has no recognizable vacancy state")
+        for link in links:
+            href = optional_text(link.css("::attr(href)").get())
+            detail_url = canonical_job_url(urljoin(page_url, href or ""))
+            job_id = extract_job_id(detail_url)
+            title = selector_text(link)
+            if not detail_url or not job_id or not title:
+                raise SharpSwitzerlandParseError(
+                    "Sharp careers catalog contains an invalid vacancy link"
+                )
+            if job_id in seen_ids:
+                raise SharpSwitzerlandParseError(
+                    "Sharp careers catalog contains duplicate vacancy identifiers"
+                )
+            seen_ids.add(job_id)
+            records.append(
+                {
+                    "id": job_id,
+                    "title": title,
+                    "company": company,
+                    "url": detail_url,
+                    "listing_page_url": canonical_url(page_url),
+                    # Some catalog mailto links are malformed; use the job page until
+                    # its authoritative detail supplies the verified employer email.
+                    "apply_url": expected_apply if apply_urls else detail_url,
+                }
             )
-        if job_id in seen_ids:
-            raise SharpSwitzerlandParseError(
-                "Sharp careers catalog contains duplicate vacancy identifiers"
-            )
-        seen_ids.add(job_id)
-        records.append(
-            {
-                "id": job_id,
-                "title": title,
-                "url": detail_url,
-                "listing_page_url": canonical_url(page_url),
-                "apply_url": f"mailto:{SHARP_APPLY_EMAIL}",
-            }
-        )
 
     if len(records) > max_jobs:
         raise SharpSwitzerlandParseError(
             f"Sharp exposes {len(records)} jobs, above the configured limit of {max_jobs}"
         )
-    if not records:
-        catalog_text = selector_text(body) or ""
-        if not re.search(
-            r"(?:keine|keine aktuellen)\s+(?:offenen\s+)?stellen",
-            catalog_text,
-            re.IGNORECASE,
-        ):
-            raise SharpSwitzerlandParseError("Sharp careers page has no recognizable vacancy state")
     return records
 
 
@@ -297,6 +321,7 @@ def parse_detail_html(
     page_url: str,
     expected_url: str,
     expected_title: str,
+    expected_company: str = SHARP_COMPANY,
 ) -> dict[str, Any]:
     if canonical_url(page_url) != canonical_url(expected_url):
         raise SharpSwitzerlandParseError("Sharp detail page returned a different vacancy")
@@ -348,7 +373,9 @@ def parse_detail_html(
         for raw in page.css('main article a[href^="mailto:"]::attr(href)').getall()
         if (normalized := normalize_apply_url(raw))
     }
-    if apply_urls != {f"mailto:{SHARP_APPLY_EMAIL}"}:
+    if expected_company not in SHARP_COMPANY_EMAILS or apply_urls != {
+        f"mailto:{SHARP_COMPANY_EMAILS[expected_company]}"
+    }:
         raise SharpSwitzerlandParseError(
             "Sharp detail page is missing its official application email"
         )
@@ -356,7 +383,7 @@ def parse_detail_html(
     return {
         "id": extract_job_id(canonical),
         "title": title,
-        "company": SHARP_COMPANY,
+        "company": expected_company,
         "location": f"{location}, Switzerland",
         "workload": workload,
         "starts_at": starts_at,
@@ -374,7 +401,8 @@ def parse_summary(value: Any) -> tuple[str | None, str | None, str | None]:
         return None, None, None
     location, workload, starts_at = parts
     normalized_workload = re.sub(r"\s*%$", " %", workload or "")
-    if not WORKLOAD_PATTERN.fullmatch(workload or ""):
+    match = WORKLOAD_PATTERN.fullmatch(workload or "")
+    if not match or not 0 < int(match.group(1)) <= int(match.group(2) or match.group(1)) <= 100:
         return None, None, None
     return location, normalized_workload, (starts_at or "").casefold()
 
@@ -383,7 +411,7 @@ def role_signature(value: Any) -> str:
     text = optional_text(value) or ""
     text = re.sub(r"\((?:[mwd]/){2}[mwd]\)", "", text, flags=re.IGNORECASE)
     text = re.split(r"[,|]|\s+[–-]\s+", text, maxsplit=1)[0]
-    text = re.sub(r"\b100\s*%", "", text)
+    text = re.sub(r"\b\d{1,3}(?:\s*[–-]\s*\d{1,3})?\s*%", "", text)
     return re.sub(r"[^a-z0-9]+", "", text.casefold())
 
 
@@ -392,7 +420,7 @@ def normalize_apply_url(value: Any) -> str | None:
     if not text or not text.casefold().startswith("mailto:"):
         return None
     email = text.split(":", 1)[1].split("?", 1)[0].strip().casefold()
-    return f"mailto:{email}" if email == SHARP_APPLY_EMAIL else None
+    return f"mailto:{email}" if email in SHARP_COMPANY_EMAILS.values() else None
 
 
 def canonical_job_url(value: Any) -> str | None:

@@ -346,13 +346,30 @@ def test_bkw_is_registered_and_jobs_render_as_direct_company_imports() -> None:
 
 def test_bkw_reports_omitted_unverified_country_without_closing_inventory() -> None:
     from app.services.parser_validation import validate_parser_result
+
     record = listing_record(0, location_country=None)
+
     def handler(request):
         if request.url.host == "jobs.bkw.com":
             return httpx.Response(200, json={"data": [record], "meta": country_filter()})
         return httpx.Response(404)
-    result = BkwSwitzerlandJobsParser(transport=httpx.MockTransport(handler)).search(LinkedInSearchRequest())
+
+    result = BkwSwitzerlandJobsParser(transport=httpx.MockTransport(handler)).search(
+        LinkedInSearchRequest()
+    )
     assert not result.jobs
     assert "unverified country/location" in result.warnings[0]
     assert "404" in result.warnings[0]
     assert validate_parser_result(result)[1].startswith("Parser returned partial results:")
+
+
+def test_bkw_accepts_swiss_record_without_optional_subsidiary_category() -> None:
+    from app.services.parsers.companies.bkw_switzerland import normalize_job, parse_swiss_record
+
+    candidate = listing_record(0)
+    candidate["relations"]["Unternehmen"] = []
+    record = parse_swiss_record(candidate, listing_page_url="https://jobs.bkw.com/catalog")
+    job = normalize_job(record)
+    assert job.company == "BKW"
+    assert job.location == "Bern"
+    assert job.url == candidate["url"]

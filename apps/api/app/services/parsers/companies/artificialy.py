@@ -148,7 +148,10 @@ def parse_careers_page(
             not title
             or not description
             or not location
-            or location.casefold() not in ARTIFICIALY_ALLOWED_LOCATIONS
+            or any(
+                part.strip().casefold() not in ARTIFICIALY_ALLOWED_LOCATIONS
+                for part in location.split("/")
+            )
             or not employment_type
             or not linkedin_url
             or not job_id

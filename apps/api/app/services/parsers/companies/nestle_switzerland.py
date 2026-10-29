@@ -81,7 +81,11 @@ class NestleSwitzerlandJobsParser:
         except (TypeError, ValueError) as exc:
             raise DirectCompanyRequestError("Nestlé vacancy parsing failed") from exc
 
-        jobs = [self.normalize_job(record) for record in records]
+        jobs = [
+            self.normalize_job(record)
+            for record in records
+            if not record.get("detail", {}).get("closed")
+        ]
         if request.deduplicate:
             jobs = deduplicate_nestle_jobs(jobs)
         request_label = "request" if pages_fetched == 1 else "requests"
@@ -326,6 +330,12 @@ def parse_detail_html(
 
     page = Selector(page_html)
     if not page.css('[itemtype="http://schema.org/JobPosting"]').get():
+        closure = html_to_text(page.css(".jobDisplayShell .job").get() or "")
+        if (
+            extract_job_id(page_url) == expected_job_id
+            and closure == "This position is not currently accepting applications."
+        ):
+            return {"id": expected_job_id, "closed": True}
         raise NestleSwitzerlandParseError("Nestlé detail page is missing its JobPosting data")
 
     description_html = page.css('[itemprop="description"]').get()

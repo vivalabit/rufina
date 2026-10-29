@@ -392,7 +392,7 @@ def parse_detail_html(
         or comparable_text(identifier.get("value"))
         != comparable_text(expected_record.get("reference"))
         or comparable_text(expected_record.get("function"))
-        not in {comparable_text(value) for value in industries}
+        not in {comparable_text(re.sub(r"\s+\([^()]+\)$", "", value)) for value in industries}
         or comparable_text(expected_record.get("employment_type"))
         not in {comparable_text(value) for value in employment_types}
         or {comparable_text(value) for value in localities}

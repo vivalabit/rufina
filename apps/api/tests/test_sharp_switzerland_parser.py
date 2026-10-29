@@ -324,3 +324,55 @@ def test_sharp_reads_current_catalog_and_nested_job_slug() -> None:
     page = page.replace('h1 class="h2"', "h1").replace("<h3>", "<h2>").replace("</h3>", "</h2>")
     records = parse_listing_html(page, page_url=JOBS_URL, expected_url=JOBS_URL, max_jobs=100)
     assert records[0]["url"].endswith("/account-manager/unterwallis-100")
+
+
+def test_sharp_collects_both_swiss_employers_and_uses_detail_email() -> None:
+    page = listing_html("")
+    sections = """
+      <div class="text"><h2>Jobs bei Sharp Electronics (Schweiz) AG</h2>
+        <a href="https://www.sharp.ch/de/account-manager">Account Manager</a>
+        <a href="mailto:HR.SEZ@sharp">HR.SEZ@sharp.</a>
+      </div>
+      <div class="text"><h2>Jobs bei Sharp DX (Schweiz) AG</h2>
+        <a href="https://www.sharp.ch/de/security-engineer">Security Engineer – Köniz | 80-100 % | ab sofort</a>
+        <a href="mailto:bewerbung@sharp.ch">bewerbung@sharp.ch</a>
+      </div>
+    """
+    page = page.replace("</main>", sections + "</main>")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/de/jobs-bei-sharp":
+            return httpx.Response(200, text=page)
+        dx = request.url.path.endswith("security-engineer")
+        slug = "security-engineer" if dx else "account-manager"
+        title = "Security Engineer" if dx else "Account Manager"
+        return httpx.Response(
+            200,
+            text=detail_html(
+                slug=slug,
+                title=title,
+                metadata_title=title,
+                summary="Köniz | 80-100 % | ab sofort" if dx else "Schweizweit | 100 % | ab sofort",
+                apply_email="bewerbung@sharp.ch" if dx else "hr.sez@sharp.eu",
+            ),
+        )
+
+    result = SharpSwitzerlandJobsParser(transport=httpx.MockTransport(handler)).search(
+        LinkedInSearchRequest()
+    )
+    assert len(result.jobs) == 2
+    assert [(job.company, job.apply_url, job.employment_type) for job in result.jobs] == [
+        ("Sharp Electronics (Schweiz) AG", "mailto:hr.sez@sharp.eu", "100 %"),
+        ("Sharp DX (Schweiz) AG", "mailto:bewerbung@sharp.ch", "80-100 %"),
+    ]
+    assert all(not job.raw.get("detail_error") for job in result.jobs)
+
+
+def test_sharp_requires_explicit_empty_state_for_each_employer_section() -> None:
+    from app.services.parsers.companies.sharp_switzerland import parse_listing_html
+
+    sections = '<div class="text"><h2>Jobs bei Sharp Electronics (Schweiz) AG</h2></div>'
+    sections += '<div class="text"><h2>Jobs bei Sharp DX (Schweiz) AG</h2><p>Keine offenen Stellen</p></div>'
+    page = listing_html("").replace("</main>", sections + "</main>")
+    with pytest.raises(DirectCompanyRequestError, match="recognizable vacancy state"):
+        parse_listing_html(page, page_url=JOBS_URL, expected_url=JOBS_URL, max_jobs=100)

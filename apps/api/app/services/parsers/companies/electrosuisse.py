@@ -15,9 +15,7 @@ from scrapling import Selector
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
 
-ELECTROSUISSE_CAREERS_URL = (
-    "https://www.electrosuisse.ch/de/karriere/offene-stellen/"
-)
+ELECTROSUISSE_CAREERS_URL = "https://www.electrosuisse.ch/de/karriere/offene-stellen/"
 ELECTROSUISSE_API_URL = (
     "https://odm.ostendis.com/ojp/data/v55/jobs/"
     "3bydei12tjzhiw5j4mqa85cfj4bjoud2/DE"
@@ -76,13 +74,9 @@ class ElectrosuisseJobsParser:
         except ElectrosuisseParseError:
             raise
         except httpx.HTTPError as exc:
-            raise DirectCompanyRequestError(
-                "Electrosuisse vacancy request failed"
-            ) from exc
+            raise DirectCompanyRequestError("Electrosuisse vacancy request failed") from exc
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
-            raise DirectCompanyRequestError(
-                "Electrosuisse vacancy parsing failed"
-            ) from exc
+            raise DirectCompanyRequestError("Electrosuisse vacancy parsing failed") from exc
 
         jobs = [self.normalize_job(record) for record in records]
         if request.deduplicate:
@@ -92,9 +86,7 @@ class ElectrosuisseJobsParser:
             status="completed",
             search_url=self.base_url,
             jobs=jobs,
-            message=(
-                f"Scanned {len(jobs)} Electrosuisse vacancies from the official catalog"
-            ),
+            message=(f"Scanned {len(jobs)} Electrosuisse vacancies from the official catalog"),
         )
 
     def enrich_records(
@@ -120,9 +112,7 @@ class ElectrosuisseJobsParser:
                 record["detail_error"] = str(exc)
                 return record, None
 
-        with ThreadPoolExecutor(
-            max_workers=min(self.detail_workers, len(records))
-        ) as executor:
+        with ThreadPoolExecutor(max_workers=min(self.detail_workers, len(records))) as executor:
             futures = [executor.submit(fetch_detail, record) for record in records]
             for future in as_completed(futures):
                 record, detail = future.result()
@@ -137,10 +127,7 @@ class ElectrosuisseJobsParser:
             source=self.parser_id,
             title=optional_text(detail.get("title")) or optional_text(record.get("title")),
             company=EXPECTED_COMPANY,
-            location=(
-                normalize_listing_location(record)
-                or optional_text(detail.get("location"))
-            ),
+            location=(normalize_listing_location(record) or optional_text(detail.get("location"))),
             url=public_url,
             apply_url=optional_text(detail.get("apply_url")) or public_url,
             posted_at=(
@@ -167,17 +154,13 @@ def parse_catalog_payload(payload: Any) -> list[dict[str, Any]]:
         raise ElectrosuisseParseError("Electrosuisse catalog payload is malformed")
     error_message = optional_text(error.get("message"))
     if error_message:
-        raise ElectrosuisseParseError(
-            f"Electrosuisse catalog returned an error: {error_message}"
-        )
+        raise ElectrosuisseParseError(f"Electrosuisse catalog returned an error: {error_message}")
 
     records: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
     for raw_record in payload["jobs"]:
         if not isinstance(raw_record, dict):
-            raise ElectrosuisseParseError(
-                "Electrosuisse catalog contains an invalid vacancy"
-            )
+            raise ElectrosuisseParseError("Electrosuisse catalog contains an invalid vacancy")
         record = dict(raw_record)
         job_id = optional_text(record.get("id"))
         title = optional_text(record.get("title"))
@@ -197,9 +180,7 @@ def parse_catalog_payload(payload: Any) -> list[dict[str, Any]]:
                 "Electrosuisse catalog contains an incomplete or non-Swiss vacancy"
             )
         if job_id in seen_ids:
-            raise ElectrosuisseParseError(
-                "Electrosuisse catalog contains duplicate vacancy IDs"
-            )
+            raise ElectrosuisseParseError("Electrosuisse catalog contains duplicate vacancy IDs")
         seen_ids.add(job_id)
         record["id"] = job_id
         record["title"] = title
@@ -216,16 +197,12 @@ def parse_detail_html(
     expected_title: str,
 ) -> dict[str, Any]:
     if not is_detail_url(page_url):
-        raise ElectrosuisseParseError(
-            "Electrosuisse detail page returned a different vacancy"
-        )
+        raise ElectrosuisseParseError("Electrosuisse detail page returned a different vacancy")
 
     page = Selector(page_html)
     schemas = list(extract_job_posting_schemas(page))
     if len(schemas) != 1:
-        raise ElectrosuisseParseError(
-            "Electrosuisse detail page is missing its JobPosting data"
-        )
+        raise ElectrosuisseParseError("Electrosuisse detail page is missing its JobPosting data")
     schema = schemas[0]
     title = optional_text(schema.get("title"))
     company = extract_company(schema)
@@ -324,8 +301,7 @@ def extract_apply_urls(description_html: str, *, page_url: str) -> set[str]:
     return {
         value
         for raw_value in fragment.css("a::attr(href)").getall()
-        if (value := optional_text(raw_value))
-        and is_apply_url(value, page_url=page_url)
+        if (value := optional_text(raw_value)) and is_apply_url(value, page_url=page_url)
     }
 
 
@@ -349,15 +325,14 @@ def is_apply_url(value: Any, *, page_url: str) -> bool:
         return False
     parts = urlsplit(text)
     source_token = DETAIL_PATH_PATTERN.fullmatch(urlsplit(page_url).path)
-    source_values = dict(
-        part.split("=", 1) for part in parts.query.split("&") if "=" in part
-    )
+    source_values = dict(part.split("=", 1) for part in parts.query.split("&") if "=" in part)
     return (
         parts.scheme == "https"
         and parts.netloc.casefold() == "jobs.electrosuisse.ch"
         and APPLY_PATH_PATTERN.fullmatch(parts.path) is not None
         and source_token is not None
-        and source_values.get("src") == source_token.group(1)
+        # src identifies the application channel, not necessarily the publication.
+        and re.fullmatch(r"[a-z0-9]+", source_values.get("src", ""), re.IGNORECASE) is not None
         and not parts.fragment
     )
 

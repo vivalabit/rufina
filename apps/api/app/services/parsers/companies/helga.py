@@ -135,8 +135,7 @@ class HelgaJobsParser:
             title=optional_text(detail.get("title")) or optional_text(record.get("title")),
             company=HELGA_COMPANY,
             location=(
-                optional_text(detail.get("location"))
-                or format_location(record.get("location"))
+                optional_text(detail.get("location")) or format_location(record.get("location"))
             ),
             url=public_url,
             apply_url=(
@@ -145,8 +144,7 @@ class HelgaJobsParser:
                 or public_url
             ),
             employment_type=(
-                optional_text(detail.get("workload"))
-                or optional_text(record.get("workload"))
+                optional_text(detail.get("workload")) or optional_text(record.get("workload"))
             ),
             description=(
                 optional_multiline_text(detail.get("description"))
@@ -173,9 +171,7 @@ def parse_listing_html(
         raise HelgaParseError("Helga careers page is missing its main content")
     article = articles[0]
     markers = {
-        selector_text(node)
-        for node in article.css("helga-section-title")
-        if selector_text(node)
+        selector_text(node) for node in article.css("helga-section-title") if selector_text(node)
     }
     if "Offene Stellen" not in markers:
         raise HelgaParseError("Helga careers page is missing its vacancy catalog")
@@ -186,9 +182,7 @@ def parse_listing_html(
         if (normalized := normalize_apply_url(raw))
     }
     if apply_urls != {f"mailto:{HELGA_APPLY_EMAIL}"}:
-        raise HelgaParseError(
-            "Helga careers page is missing its official application email"
-        )
+        raise HelgaParseError("Helga careers page is missing its official application email")
 
     links = [
         link
@@ -221,7 +215,7 @@ def parse_listing_html(
             raise HelgaParseError("Helga careers catalog contains an invalid vacancy")
 
         card = editors[0]
-        title = selector_text(card, "h2")
+        title = heading_text(card, "h2")
         summary = selector_text(card, "p")
         card_text = selector_text(card)
         location = extract_labeled_value(
@@ -250,9 +244,7 @@ def parse_listing_html(
             or not workload
             or not starts_at
         ):
-            raise HelgaParseError(
-                "Helga careers catalog contains an incomplete vacancy card"
-            )
+            raise HelgaParseError("Helga careers catalog contains an incomplete vacancy card")
         if job_id in seen_ids or detail_url in seen_urls:
             raise HelgaParseError("Helga careers catalog contains duplicate vacancies")
         seen_ids.add(job_id)
@@ -295,16 +287,14 @@ def parse_detail_html(
         raise HelgaParseError("Helga detail page is missing its vacancy content")
     article = articles[0]
 
-    title = selector_text(article, "h1.c-page-intro__title")
+    title = heading_text(article, "h1.c-page-intro__title")
     lead = selector_text(article, ".c-page-intro__lead")
     og_title = optional_text(page.css('meta[property="og:title"]::attr(content)').get())
     locality = optional_text(page.css('meta[property="og:locality"]::attr(content)').get())
     country = optional_text(page.css('meta[property="og:country_name"]::attr(content)').get())
     description = article_text(article)
     markers = {
-        selector_text(node)
-        for node in article.css("helga-section-title")
-        if selector_text(node)
+        selector_text(node) for node in article.css("helga-section-title") if selector_text(node)
     }
     apply_urls = {
         normalized
@@ -323,11 +313,9 @@ def parse_detail_html(
         or not description
         or len(description) < 300
         or not {"Deine Wirkung", "Dein Profil", "Bewerbung"}.issubset(markers)
-        or apply_urls != {f"mailto:{HELGA_APPLY_EMAIL}"}
+        or len(apply_urls) != 1
     ):
-        raise HelgaParseError(
-            "Helga detail page contains an incomplete or inconsistent vacancy"
-        )
+        raise HelgaParseError("Helga detail page contains an incomplete or inconsistent vacancy")
 
     return {
         "id": extract_job_id(expected_url),
@@ -336,7 +324,7 @@ def parse_detail_html(
         "location": format_location(expected_location),
         "workload": optional_text(expected_workload),
         "url": canonical_job_url(expected_url),
-        "apply_url": f"mailto:{HELGA_APPLY_EMAIL}",
+        "apply_url": next(iter(apply_urls)),
         "description": description,
         "lead": lead,
         "metadata_title": og_title,
@@ -434,7 +422,7 @@ def normalize_apply_url(value: Any) -> str | None:
     if not text or not text.casefold().startswith("mailto:"):
         return None
     email = text.split(":", 1)[1].split("?", 1)[0].strip().casefold()
-    return f"mailto:{email}" if email == HELGA_APPLY_EMAIL else None
+    return f"mailto:{email}" if re.fullmatch(r"[a-z0-9._+-]+@helga\.ch", email) else None
 
 
 def canonical_job_url(value: Any) -> str | None:
@@ -481,6 +469,13 @@ def selector_text(node: Any, selector: str | None = None) -> str | None:
     if not selected:
         return None
     return optional_text(" ".join(str(value) for value in selected[0].css("::text").getall()))
+
+
+def heading_text(node: Any, selector: str) -> str | None:
+    # Animated headings wrap individual letters in spans. Preserve the actual
+    # whitespace instead of inserting spaces between every rendered letter.
+    selected = node.css(selector)
+    return optional_text("".join(selected[0].css("::text").getall())) if selected else None
 
 
 def deduplicate_helga_jobs(jobs: Iterable[ParsedJob]) -> list[ParsedJob]:

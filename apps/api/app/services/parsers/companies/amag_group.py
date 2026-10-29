@@ -7,7 +7,7 @@ from collections.abc import Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
 from typing import Any
-from urllib.parse import urlsplit, urlunsplit
+from urllib.parse import parse_qs, urljoin, urlsplit, urlunsplit
 from xml.etree import ElementTree
 
 import httpx
@@ -21,11 +21,7 @@ AMAG_GROUP_FEED_URL = "https://jobs.amag-group.ch/rss_generator-rss0.php?unit=am
 AMAG_HEADERS = {
     "Accept": "application/atom+xml,application/xml;q=0.9,text/html;q=0.8,*/*;q=0.7",
     "Accept-Language": "de-CH,de;q=0.9,en-CH;q=0.8,en;q=0.7",
-    "User-Agent": (
-        "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-        "AppleWebKit/537.36 (KHTML, like Gecko) "
-        "Chrome/123.0 Safari/537.36"
-    ),
+    "User-Agent": "Rufina/1.0 (+job-catalog)",
 }
 ATOM_NAMESPACE = "http://www.w3.org/2005/Atom"
 EXPECTED_FEED_TITLE = "AMAG Group - Jobs & Karriere"
@@ -71,12 +67,15 @@ class AmagGroupJobsParser:
                 transport=self.transport,
             ) as client:
                 response = client.get(self.feed_url)
-                response.raise_for_status()
-                records = parse_catalog_atom(
-                    response.content,
-                    base_url=self.base_url,
-                    max_jobs=self.max_jobs,
-                )
+                if response.status_code in {401, 403, 404, 410}:
+                    records = self.collect_html_catalog(client)
+                else:
+                    response.raise_for_status()
+                    records = parse_catalog_atom(
+                        response.content,
+                        base_url=self.base_url,
+                        max_jobs=self.max_jobs,
+                    )
                 self.enrich_records(client, records)
         except AmagGroupParseError:
             raise
@@ -97,6 +96,43 @@ class AmagGroupJobsParser:
                 f"Scanned {len(jobs)} AMAG Group vacancies from the complete official catalog"
             ),
         )
+
+    def collect_html_catalog(self, client: httpx.Client) -> list[dict[str, Any]]:
+        # Rexx disabled its public RSS endpoint; the official HTML catalog
+        # still exposes every page and stable vacancy ID without authentication.
+        response = client.get(self.base_url)
+        response.raise_for_status()
+        records, offsets = parse_catalog_html(
+            response.text,
+            page_url=str(response.url),
+            base_url=self.base_url,
+        )
+        if offsets[-1] >= self.max_jobs:
+            raise AmagGroupParseError("AMAG Group catalog exceeds the configured job limit")
+        pages = [records]
+        for offset in offsets[1:]:
+            response = client.get(
+                urljoin(self.base_url, "stellenangebote.html"), params={"start": offset}
+            )
+            response.raise_for_status()
+            page_records, page_offsets = parse_catalog_html(
+                response.text,
+                page_url=str(response.url),
+                base_url=self.base_url,
+            )
+            if page_offsets != offsets:
+                raise AmagGroupParseError("AMAG Group catalog pagination changed during collection")
+            pages.append(page_records)
+        if any(len(page) != 100 for page in pages[:-1]):
+            raise AmagGroupParseError("AMAG Group catalog returned an incomplete page")
+        records = [record for page in pages for record in page]
+        if len(records) > self.max_jobs or len({record["id"] for record in records}) != len(
+            records
+        ):
+            raise AmagGroupParseError(
+                "AMAG Group catalog contains duplicate or excessive vacancies"
+            )
+        return records
 
     def enrich_records(
         self,
@@ -128,6 +164,68 @@ class AmagGroupJobsParser:
                 record, detail = future.result()
                 if detail is not None:
                     record["detail"] = detail
+
+
+def parse_catalog_html(
+    page_html: str,
+    *,
+    page_url: str,
+    base_url: str,
+) -> tuple[list[dict[str, Any]], list[int]]:
+    parts, base = urlsplit(page_url), urlsplit(base_url)
+    if (
+        parts.scheme != "https"
+        or parts.netloc != base.netloc
+        or parts.path not in {"/", "/stellenangebote.html"}
+    ):
+        raise AmagGroupParseError("AMAG Group catalog redirected to an unexpected page")
+    page = Selector(page_html)
+    title = optional_text(page.css("title::text").get())
+    action = page.css('form[name="list_filter"]::attr(action)').get()
+    if title != EXPECTED_COMPANY or action != urljoin(base_url, "stellenangebote.html"):
+        raise AmagGroupParseError("AMAG Group HTML catalog identity is unexpected")
+    records: list[dict[str, Any]] = []
+    for card in page.css("td.real_table_col1"):
+        links = card.css("#jobTitel a")
+        if len(links) != 1:
+            raise AmagGroupParseError("AMAG Group catalog contains an invalid vacancy card")
+        title = optional_text("".join(links[0].css("::text").getall()))
+        url = normalize_job_url(links[0].attrib.get("href"), base_url=base_url, kind="j")
+        job_id = extract_job_id(url, kind="j")
+        if not title or not url or not job_id:
+            raise AmagGroupParseError("AMAG Group catalog contains an incomplete vacancy")
+        records.append(
+            {
+                "id": job_id,
+                "title": title,
+                "url": url,
+                "listing_location": optional_text(
+                    " ".join(card.css("#jobStandort ::text").getall())
+                ),
+                "catalog_format": "html",
+            }
+        )
+    if not records or len(records) > 100:
+        raise AmagGroupParseError("AMAG Group HTML catalog size is unexpected")
+    offsets = {0}
+    for value in page.css("a::attr(href)").getall():
+        link = urlsplit(urljoin(base_url, value))
+        if link.path != "/stellenangebote.html" or "start" not in parse_qs(link.query):
+            continue
+        query = parse_qs(link.query)
+        if (
+            link.scheme != "https"
+            or link.netloc != base.netloc
+            or set(query) != {"start"}
+            or len(query["start"]) != 1
+            or not query["start"][0].isdigit()
+        ):
+            raise AmagGroupParseError("AMAG Group catalog contains invalid pagination")
+        offsets.add(int(query["start"][0]))
+    ordered = sorted(offsets)
+    if ordered != list(range(0, ordered[-1] + 1, 100)):
+        raise AmagGroupParseError("AMAG Group catalog pagination is incomplete")
+    return records, ordered
 
 
 def parse_catalog_atom(
@@ -286,7 +384,8 @@ def parse_detail_html(
         canonical != expected_url
         or comparable_text(title) != comparable_text(expected_record.get("title"))
         or company != EXPECTED_COMPANY
-        or posted_at != expected_record.get("posted_at")
+        or not posted_at
+        or (expected_record.get("posted_at") and posted_at != expected_record["posted_at"])
         or not valid_through
         or not employment_type
         or not description
@@ -322,7 +421,10 @@ def normalize_job(record: dict[str, Any], *, base_url: str) -> ParsedJob:
         source="amag_group",
         title=optional_text(detail.get("title")) or optional_text(record.get("title")),
         company=EXPECTED_COMPANY,
-        location=format_locations(detail.get("locations")),
+        location=(
+            format_locations(detail.get("locations"))
+            or optional_text(record.get("listing_location"))
+        ),
         url=public_url,
         apply_url=optional_text(detail.get("apply_url")) or public_url,
         posted_at=optional_text(detail.get("posted_at")) or optional_text(record.get("posted_at")),

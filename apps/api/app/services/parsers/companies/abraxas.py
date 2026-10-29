@@ -31,7 +31,9 @@ SWISS_LOCATIONS = {
     "Bern",
     "Kloten",
     "Münchenstein",
+    "Morges",
     "St. Gallen",
+    "St. Gallen-Winkeln",
     "Zürich-Flughafen",
 }
 

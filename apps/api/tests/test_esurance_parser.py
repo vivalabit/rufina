@@ -309,3 +309,30 @@ def test_esurance_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "esurance AG import"
     assert stored["id"] == "esurance-https-esurance-jobs-personio-com-job-2759674"
+
+
+@pytest.mark.parametrize(
+    "feed,expected_jobs",
+    [
+        ('<?xml version="1.0" encoding="UTF-8"?><workzag-jobs/>', 0),
+        ("<workzag-jobs><position><id>2708252</id></position></workzag-jobs>", 1),
+        ("<html>Not found</html>", 1),
+    ],
+)
+def test_esurance_only_removes_stale_404_card_after_authoritative_empty_feed(
+    feed: str,
+    expected_jobs: int,
+) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "esurance.ch":
+            return httpx.Response(200, text=listing_html([listing_card(1)]), request=request)
+        if request.url.path == "/xml":
+            return httpx.Response(200, text=feed, request=request)
+        return httpx.Response(404, request=request)
+
+    result = EsuranceJobsParser(transport=httpx.MockTransport(handler)).search(
+        LinkedInSearchRequest(),
+    )
+    assert len(result.jobs) == expected_jobs
+    if expected_jobs:
+        assert "detail_error" in result.jobs[0].raw

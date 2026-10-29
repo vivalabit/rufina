@@ -486,6 +486,8 @@ def role_signature(value: Any) -> str:
     text = optional_text(value) or ""
     text = re.sub(r"\((?:[mwd]/){2}[mwd]\)", "", text, flags=re.IGNORECASE)
     text = re.sub(r"\b\d{1,3}\s*[-–]\s*\d{1,3}\s*%", "", text)
+    text = re.sub(r"\berfahren(?:er|e|es|en)?\b", "", text, flags=re.IGNORECASE)
+    text = re.sub(r"\bentwickler(?:in)?\b", "developer", text, flags=re.IGNORECASE)
     return re.sub(r"[^a-z0-9]+", "", text.casefold())
 
 

@@ -78,11 +78,16 @@ class EvidenSwitzerlandJobsParser:
             ) as client:
                 response = client.get(self.base_url, headers={"Accept": "text/html"})
                 response.raise_for_status()
-                records, total = parse_catalog_html(
-                    response.text,
-                    max_catalog_records=self.max_catalog_records,
-                )
-                swiss_records = swiss_catalog_records(records)
+                if CATALOG_SCRIPT_PATTERN.search(response.text):
+                    records, total = parse_catalog_html(
+                        response.text,
+                        max_catalog_records=self.max_catalog_records,
+                    )
+                    swiss_records = swiss_catalog_records(records)
+                    catalog_description = "global Eviden records in one catalog snapshot"
+                else:
+                    swiss_records, total = self.collect_linked_catalog(client, response)
+                    catalog_description = "records in the official Swiss Eviden catalog"
                 self.enrich_records(client, swiss_records)
         except EvidenSwitzerlandParseError:
             raise
@@ -101,10 +106,57 @@ class EvidenSwitzerlandJobsParser:
             jobs=jobs,
             message=(
                 f"Scanned {len(jobs)} verified Eviden Switzerland vacancies "
-                f"from {total} global Eviden records in one catalog snapshot "
+                f"from {total} {catalog_description} "
                 f"with {len(swiss_records)} detail requests"
             ),
         )
+
+    def collect_linked_catalog(
+        self,
+        client: httpx.Client,
+        landing: httpx.Response,
+    ) -> tuple[list[dict[str, Any]], int]:
+        parts = urlsplit(str(landing.url))
+        if (
+            parts.scheme != "https"
+            or parts.hostname != EVIDEN_CAREERS_HOST
+            or parts.path.rstrip("/") not in {"/careers", "/en/careers"}
+        ):
+            raise EvidenSwitzerlandParseError("Eviden careers redirected to an unexpected site")
+        links = set()
+        for value in Selector(landing.text).css("a::attr(href)").getall():
+            target = urlsplit(value)
+            if (
+                target.scheme == "https"
+                and target.netloc == EVIDEN_JOBS_HOST
+                and target.path == "/search/"
+                and parse_qs(target.query).get("q") == ["eviden"]
+            ):
+                links.add(value)
+        if len(links) != 1:
+            raise EvidenSwitzerlandParseError("Eviden careers is missing its official catalog link")
+        target = httpx.URL(next(iter(links))).copy_merge_params(
+            {"optionsFacetsDD_country": "CH", "locale": "en_US", "startrow": "0"},
+        )
+        records: list[dict[str, Any]] = []
+        total: int | None = None
+        while total is None or len(records) < total:
+            response = client.get(target.copy_merge_params({"startrow": str(len(records))}))
+            response.raise_for_status()
+            page_records, page_total = parse_linked_catalog_html(
+                response.text,
+                page_url=str(response.url),
+                offset=len(records),
+            )
+            if page_total > self.max_catalog_records:
+                raise EvidenSwitzerlandParseError("Eviden catalog is above the configured limit")
+            if total is not None and page_total != total:
+                raise EvidenSwitzerlandParseError("Eviden catalog changed during pagination")
+            total = page_total
+            records.extend(page_records)
+            if len({record["posting_id"] for record in records}) != len(records):
+                raise EvidenSwitzerlandParseError("Eviden catalog contains duplicate vacancy IDs")
+        return records, total or 0
 
     def enrich_records(
         self,
@@ -145,6 +197,65 @@ def validate_base_url(value: str) -> None:
         raise EvidenSwitzerlandParseError(
             "Eviden Switzerland base URL must target the official CH careers filter"
         )
+
+
+def parse_linked_catalog_html(
+    page_html: str,
+    *,
+    page_url: str,
+    offset: int,
+) -> tuple[list[dict[str, Any]], int]:
+    parts = urlsplit(page_url)
+    query = parse_qs(parts.query)
+    if (
+        parts.scheme != "https"
+        or parts.netloc != EVIDEN_JOBS_HOST
+        or parts.path != "/search/"
+        or query.get("q") != ["eviden"]
+        or query.get("optionsFacetsDD_country") != ["CH"]
+    ):
+        raise EvidenSwitzerlandParseError("Eviden catalog lost its brand or Swiss country filter")
+    page = Selector(page_html)
+    table = page.css("table#searchresults")
+    label = optional_text(" ".join(page.css(".paginationLabel ::text").getall())) or ""
+    match = re.search(r"Results\s+([\d,]+)\s*[–-]\s*([\d,]+)\s+of\s+([\d,]+)", label)
+    if not table or not match:
+        raise EvidenSwitzerlandParseError("Eviden catalog is missing its result range")
+    start, end, total = (int(value.replace(",", "")) for value in match.groups())
+    if (total == 0 and (start or end)) or (total and not offset + 1 == start <= end <= total):
+        raise EvidenSwitzerlandParseError("Eviden catalog returned an unexpected result range")
+    records = []
+    for row in table.css("tr.data-row"):
+        value = row.css("a.jobTitle-link::attr(href)").get()
+        url = urljoin(page_url, value) if value else None
+        posting_id = extract_job_id(url, expected_host=EVIDEN_JOBS_HOST)
+        title = optional_text(row.css("a.jobTitle-link::text").get())
+        location = optional_text(" ".join(row.css("td.colLocation .jobLocation::text").getall()))
+        posted_at = normalize_date(row.css("td.colDate .jobDate::text").get())
+        if (
+            not posting_id
+            or not title
+            or not location
+            or not is_swiss_address(location)
+            or not posted_at
+        ):
+            raise EvidenSwitzerlandParseError(
+                "Eviden catalog has an incomplete or non-Swiss vacancy"
+            )
+        records.append(
+            {
+                "id": posting_id,
+                "posting_id": posting_id,
+                "listing_url": url,
+                "title": title,
+                "posted_at": posted_at,
+                "location": location,
+                "catalog_format": "successfactors",
+            }
+        )
+    if len(records) != (end - start + 1 if total else 0):
+        raise EvidenSwitzerlandParseError("Eviden catalog returned an incomplete page")
+    return records, total
 
 
 def parse_catalog_html(
@@ -374,7 +485,7 @@ def normalize_job(record: Mapping[str, Any]) -> ParsedJob:
         url=required_text(detail, "canonical_url"),
         apply_url=required_text(detail, "apply_url"),
         posted_at=required_text(detail, "posted_at"),
-        seniority=required_text(record, "seniority"),
+        seniority=optional_text(record.get("seniority")),
         description=required_text(detail, "description"),
         raw=dict(record),
     )

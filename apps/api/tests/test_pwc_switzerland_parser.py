@@ -301,6 +301,33 @@ def test_pwc_jobs_render_as_direct_company_imports() -> None:
 
 def test_pwc_accepts_workday_job_landing_page_without_apply_suffix() -> None:
     from app.services.parsers.companies.pwc_switzerland import validate_listing_record
+
     record = listing_record(1)
     record["szas"]["sza_apply_link"] = record["szas"]["sza_apply_link"].removesuffix("/apply")
     validate_listing_record(record)
+
+
+def test_pwc_accepts_employment_type_from_catalog_attributes() -> None:
+    from app.services.parsers.companies.pwc_switzerland import validate_listing_record
+
+    record = listing_record(1)
+    del record["szas"]["sza_employment_type"]
+    validate_listing_record(record)
+    assert "Full-time" in normalize_job(record).employment_type
+    record["attributes"]["40"] = []
+    with pytest.raises(DirectCompanyRequestError):
+        validate_listing_record(record)
+
+
+def test_pwc_accepts_french_swiss_company_identity() -> None:
+    from app.services.parsers.companies.pwc_switzerland import validate_listing_record
+
+    record = listing_record(1, language="fr", country="Suisse")
+    record["szas"]["sza_company_profil"] = "Chez PwC Suisse, nous aidons nos clients."
+    record["links"]["directlink"] = record["links"]["directlink"].replace(
+        "consultant-1/", "stagiaire-mpc-3+1/"
+    )
+    validate_listing_record(record)
+    record["szas"]["sza_company_profil"] = "Chez PwC France, nous aidons nos clients."
+    with pytest.raises(DirectCompanyRequestError):
+        validate_listing_record(record)

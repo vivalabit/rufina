@@ -295,3 +295,69 @@ def test_amag_is_registered_and_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "AMAG Group import"
     assert stored["company"] == "AMAG Group"
+
+
+def catalog_html(records: list[dict[str, str]], offsets: tuple[int, ...] = (0,)) -> str:
+    cards = "".join(
+        f'<tr><td class="real_table_col1"><div id="jobStandort">Cham</div>'
+        f'<div id="jobTitel"><a href="{public_url(item["id"], item["slug"])}">'
+        f"{html.escape(item['title'])}</a></div></td></tr>"
+        for item in records
+    )
+    pages = "".join(
+        f'<a href="{BASE_URL}stellenangebote.html?start={offset}">page</a>' for offset in offsets
+    )
+    return (
+        f"<html><head><title>AMAG Group</title></head><body>"
+        f'<form name="list_filter" action="{BASE_URL}stellenangebote.html"></form>'
+        f"<table>{cards}</table>{pages}</body></html>"
+    )
+
+
+def test_amag_uses_complete_html_catalog_when_rss_is_unavailable() -> None:
+    items = [
+        record(str(24000 + index), title=f"Engineer {index}", slug=f"Engineer-{index}")
+        for index in range(101)
+    ]
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(str(request.url))
+        if request.url.path.endswith("rss_generator-rss0.php"):
+            return httpx.Response(401, request=request)
+        if request.url.path in {"/", "/stellenangebote.html"}:
+            selected = items[:100] if not request.url.params.get("start") else items[100:]
+            return httpx.Response(200, text=catalog_html(selected, (0, 100)), request=request)
+        item = next(
+            item for item in items if request.url.path == f"/{item['slug']}-de-j{item['id']}.html"
+        )
+        return httpx.Response(200, text=detail_html(item), request=request)
+
+    result = AmagGroupJobsParser(transport=httpx.MockTransport(handler)).search(
+        LinkedInSearchRequest(results_limit=1),
+    )
+    assert len(result.jobs) == 101
+    assert f"{BASE_URL}stellenangebote.html?start=100" in calls
+    assert all(job.description and job.posted_at == "2026-08-13" for job in result.jobs)
+    assert all("detail_error" not in job.raw for job in result.jobs)
+
+
+@pytest.mark.parametrize("failure", ["duplicate", "missing_page", "foreign_url", "wrong_identity"])
+def test_amag_html_fallback_rejects_incomplete_or_untrusted_catalog(failure: str) -> None:
+    item = official_records()[0]
+    body = catalog_html(
+        [item, item] if failure == "duplicate" else [item],
+        (0, 200) if failure == "missing_page" else (0,),
+    )
+    if failure == "foreign_url":
+        body = body.replace(public_url(item["id"], item["slug"]), "https://evil.example/job")
+    if failure == "wrong_identity":
+        body = body.replace("<title>AMAG Group</title>", "<title>Login</title>")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            401 if "rss_generator" in request.url.path else 200, text=body, request=request
+        )
+
+    with pytest.raises(AmagGroupParseError):
+        AmagGroupJobsParser(transport=httpx.MockTransport(handler)).search(LinkedInSearchRequest())

@@ -356,3 +356,16 @@ def test_abraxas_accepts_frauenfeld_without_accepting_unknown_cities() -> None:
     records = parse_listing_html(page, page_url=BASE_URL, expected_url=BASE_URL)
     assert records[0]["location"] == "Frauenfeld, Switzerland"
     assert normalize_location("London") is None
+
+
+def test_abraxas_accepts_current_swiss_office_locations() -> None:
+    from app.services.parsers.companies.abraxas import parse_listing_html
+
+    cards = [
+        listing_card(
+            "7612", slug="engineer", title="System Engineer", location="Morges, St. Gallen-Winkeln"
+        )
+    ]
+    records = parse_listing_html(listing_html(cards), page_url=BASE_URL, expected_url=BASE_URL)
+    assert len(records) == 1
+    assert records[0]["location"] == "Morges, St. Gallen-Winkeln, Switzerland"

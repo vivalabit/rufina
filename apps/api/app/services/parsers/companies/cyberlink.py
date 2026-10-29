@@ -94,8 +94,7 @@ class CyberlinkJobsParser:
             search_url=self.base_url,
             jobs=jobs,
             message=(
-                f"Scanned {len(jobs)} Cyberlink vacancies from the complete "
-                "Digitalent catalog"
+                f"Scanned {len(jobs)} Cyberlink vacancies from the complete Digitalent catalog"
             ),
         )
 
@@ -117,9 +116,7 @@ class CyberlinkJobsParser:
                 )
                 response.raise_for_status()
                 if extract_job_id(response.url) != record.get("id"):
-                    raise CyberlinkParseError(
-                        "Cyberlink detail page changed its vacancy ID"
-                    )
+                    raise CyberlinkParseError("Cyberlink detail page changed its vacancy ID")
                 detail = parse_detail_html(
                     response.text,
                     page_url=str(response.url),
@@ -201,16 +198,12 @@ def parse_listing_html(page_html: str, *, page_url: str) -> list[dict[str, Any]]
         detail_url = urljoin(page_url, detail_path) if detail_path else None
         job_id = extract_job_id(detail_url)
         title = selector_text(card_link, "h3.gridFontTitle")
-        facts = [
-            selector_text(node, "")
-            for node in card_link.css(".gridIconSetting")
-        ]
+        facts = [selector_text(node, "") for node in card_link.css(".gridIconSetting")]
         facts = [value for value in facts if value]
         workload = next((value for value in facts if WORKLOAD_PATTERN.search(value)), None)
         location = next((value for value in facts if value != workload), None)
         tags = [
-            optional_text(value)
-            for value in card_link.css(".taglist .badge-tag::text").getall()
+            optional_text(value) for value in card_link.css(".taglist .badge-tag::text").getall()
         ]
         tags = [value for value in tags if value]
         if (
@@ -224,9 +217,7 @@ def parse_listing_html(page_html: str, *, page_url: str) -> list[dict[str, Any]]
             or not tags
             or not valid_detail_url(detail_url)
         ):
-            raise CyberlinkParseError(
-                "Cyberlink listing contains an incomplete Swiss vacancy"
-            )
+            raise CyberlinkParseError("Cyberlink listing contains an incomplete Swiss vacancy")
         seen_ids.add(job_id)
         records.append(
             {
@@ -262,11 +253,22 @@ def parse_detail_html(
     organization = extract_hiring_organization(schema)
     location = extract_swiss_schema_location(schema)
     description_html = optional_text(schema.get("description"))
-    form_action = optional_text(
-        page.css('#contactModal form[action]::attr(action)').get()
+    form_action = optional_text(page.css("#contactModal form[action]::attr(action)").get())
+    form_id = optional_text(page.css('#contactModal [id^="umbraco_form_"]::attr(id)').get())
+    legacy_form = bool(
+        form_action
+        and form_id
+        and extract_job_id(urljoin(page_url, form_action)) == expected_job_id
     )
-    form_id = optional_text(
-        page.css('#contactModal [id^="umbraco_form_"]::attr(id)').get()
+    # Digitalent also serves its newer JavaScript application form without an action.
+    inline_form = bool(
+        expected_job_id
+        and extract_job_id(page_url) == expected_job_id
+        and page.css('meta[property="og:url"]::attr(content)').get() == page_url
+        and page.css('form#applyForm input[name="firstname"]')
+        and page.css('form#applyForm input[name="lastname"]')
+        and page.css('form#applyForm input[name="email"][type="email"]')
+        and page.css('form#applyForm input#fileInput[type="file"]')
     )
     if (
         not title
@@ -274,19 +276,13 @@ def parse_detail_html(
         or not description_html
         or organization.casefold() != "cyberlink ag"
         or not location
-        or not form_action
-        or not form_id
-        or extract_job_id(urljoin(page_url, form_action)) != expected_job_id
+        or not (legacy_form or inline_form)
     ):
-        raise CyberlinkParseError(
-            "Cyberlink detail page is missing required vacancy data"
-        )
+        raise CyberlinkParseError("Cyberlink detail page is missing required vacancy data")
     if expected_title and title.casefold() != expected_title.casefold():
         raise CyberlinkParseError("Cyberlink detail page returned a different vacancy")
     if schema_title.casefold() != title.casefold():
-        raise CyberlinkParseError(
-            "Cyberlink JobPosting title does not match the vacancy"
-        )
+        raise CyberlinkParseError("Cyberlink JobPosting title does not match the vacancy")
 
     description = html_to_text(description_html)
     if not description:
@@ -294,13 +290,13 @@ def parse_detail_html(
     return {
         "title": title,
         "location": location,
-        "apply_url": f"{page_url}#contactModal",
+        "apply_url": f"{page_url}#contactModal" if legacy_form else f"{page_url}#applyForm",
         "posted_at": normalize_posted_at(schema.get("datePosted")),
         "valid_through": optional_text(schema.get("validThrough")),
         "employment_type": schema.get("employmentType"),
         "description": description,
         "hiring_organization": organization,
-        "form_id": form_id,
+        "form_id": form_id if legacy_form else "applyForm",
         "schema": schema,
     }
 
@@ -322,9 +318,7 @@ def parse_job_posting_payload(raw_json: Any) -> Iterator[dict[str, Any]]:
         return
     for candidate in walk_json(payload):
         job_type = candidate.get("@type")
-        if job_type == "JobPosting" or (
-            isinstance(job_type, list) and "JobPosting" in job_type
-        ):
+        if job_type == "JobPosting" or (isinstance(job_type, list) and "JobPosting" in job_type):
             yield candidate
 
 
@@ -378,7 +372,11 @@ def extract_job_id(value: Any) -> str | None:
         return None
     parsed = urlsplit(text)
     slug = parsed.path.strip("/")
-    return slug if parsed.hostname == "cyberlink.digitalent.cloud" and SLUG_PATTERN.fullmatch(slug) else None
+    return (
+        slug
+        if parsed.hostname == "cyberlink.digitalent.cloud" and SLUG_PATTERN.fullmatch(slug)
+        else None
+    )
 
 
 def valid_detail_url(value: Any) -> bool:

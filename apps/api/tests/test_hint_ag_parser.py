@@ -136,10 +136,7 @@ def detail_html(
             },
         },
     }
-    canonical = (
-        f"https://jobs.dualoo.com/portal/{canonical_portal}/{internal_id}/"
-        "detail?lang=DE"
-    )
+    canonical = f"https://jobs.dualoo.com/portal/{canonical_portal}/{internal_id}/detail?lang=DE"
     return f"""
     <html lang="de"><head><link rel="canonical" href="{canonical}">
       <meta property="og:title" content="{title}">
@@ -260,9 +257,7 @@ def test_hint_ag_rejects_bad_portal_identity_and_duplicate_catalog() -> None:
     with pytest.raises(DirectCompanyRequestError, match="invalid identity"):
         parser_for(portal_html([], portal_id="wrong")).search(LinkedInSearchRequest())
     with pytest.raises(DirectCompanyRequestError, match="duplicate vacancy"):
-        parser_for(portal_html([catalog_fixture()[0]] * 2)).search(
-            LinkedInSearchRequest()
-        )
+        parser_for(portal_html([catalog_fixture()[0]] * 2)).search(LinkedInSearchRequest())
 
 
 def test_hint_ag_accepts_empty_catalog_and_enforces_job_limit() -> None:
@@ -281,9 +276,7 @@ def test_hint_ag_accepts_empty_catalog_and_enforces_job_limit() -> None:
     assert result.message.startswith("Scanned 0 HINT AG vacancies")
 
     with pytest.raises(DirectCompanyRequestError, match="configured limit of 1"):
-        parser_for(portal_html(catalog_fixture()), max_jobs=1).search(
-            LinkedInSearchRequest()
-        )
+        parser_for(portal_html(catalog_fixture()), max_jobs=1).search(LinkedInSearchRequest())
 
 
 def test_hint_ag_rejects_untrusted_detail_but_keeps_listing() -> None:
@@ -329,9 +322,7 @@ def test_hint_ag_rejects_untrusted_detail_but_keeps_listing() -> None:
 
 def test_hint_ag_wraps_http_errors() -> None:
     parser = HintAgJobsParser(
-        transport=httpx.MockTransport(
-            lambda request: httpx.Response(503, request=request)
-        )
+        transport=httpx.MockTransport(lambda request: httpx.Response(503, request=request))
     )
     with pytest.raises(DirectCompanyRequestError, match="vacancy request failed"):
         parser.search(LinkedInSearchRequest())
@@ -380,11 +371,27 @@ def test_hint_ag_jobs_render_as_direct_company_imports() -> None:
 
 def test_hint_career_identity_does_not_depend_on_preloaded_artwork() -> None:
     from app.services.parsers.companies.hint_ag import parse_career_page
+
     page = career_html().replace(
         "https://hintag.ch/wp-content/uploads/2022/08/hintag-lenzburg-1.svg",
         "https://hintag.ch/wp-content/uploads/2023/08/big-data-slider.jpeg",
     )
-    assert parse_career_page(
-        page, page_url=BASE_URL, expected_url=BASE_URL,
-        expected_portal_url="https://jobs.dualoo.com/portal/t1jerlne?lang=DE",
-    ) == "https://jobs.dualoo.com/portal/t1jerlne?lang=DE"
+    assert (
+        parse_career_page(
+            page,
+            page_url=BASE_URL,
+            expected_url=BASE_URL,
+            expected_portal_url="https://jobs.dualoo.com/portal/t1jerlne?lang=DE",
+        )
+        == "https://jobs.dualoo.com/portal/t1jerlne?lang=DE"
+    )
+
+
+def test_hint_accepts_portal_without_optional_start_date_attribute() -> None:
+    from app.services.parsers.companies.hint_ag import parse_portal_html
+
+    page = portal_html([portal_card(job_id=JOB_ONE, title="Application Engineer")]).replace(
+        ' data-date="IMMEDIATELY"', ""
+    )
+    records = parse_portal_html(page, page_url=PORTAL_URL, expected_url=PORTAL_URL, max_jobs=100)
+    assert records[0]["id"] == JOB_ONE

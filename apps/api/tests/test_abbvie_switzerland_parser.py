@@ -285,6 +285,32 @@ def test_abbvie_enforces_page_limit() -> None:
         parser.search(LinkedInSearchRequest())
 
 
+@pytest.mark.parametrize("industry", ["Corporate (Finance, IT, Legal etc)", "Commercial (Sales)"])
+def test_abbvie_handles_expanded_industry_label(industry: str) -> None:
+    record = {**vacancy_record(0), "function": "Corporate"}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/en/jobs":
+            return httpx.Response(200, text=listing_html([record], total=1))
+        return httpx.Response(
+            200,
+            text=detail_html(record).replace(
+                '"industry": ["Corporate"]',
+                f'"industry": ["{industry}"]',
+            ),
+        )
+
+    job = (
+        AbbVieSwitzerlandJobsParser(transport=httpx.MockTransport(handler))
+        .search(LinkedInSearchRequest())
+        .jobs[0]
+    )
+    if industry.startswith("Corporate"):
+        assert job.description and "detail_error" not in job.raw
+    else:
+        assert "detail_error" in job.raw
+
+
 def test_abbvie_keeps_listing_when_detail_is_invalid() -> None:
     record = vacancy_record(0)
 

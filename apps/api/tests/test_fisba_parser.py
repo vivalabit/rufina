@@ -11,7 +11,11 @@ from app.models.job_search import JobSearchManualRunRequest
 from app.models.parsers import LinkedInSearchRequest
 from app.services.job_search_execution import parsed_job_to_stored_job
 from app.services.parsers.companies.base import DirectCompanyRequestError
-from app.services.parsers.companies.fisba import FisbaJobsParser
+from app.services.parsers.companies.fisba import (
+    FisbaJobsParser,
+    is_fisba_apply_url,
+    parse_detail_html,
+)
 from app.services.vacancy_search import create_vacancy_search_runner
 
 
@@ -81,6 +85,22 @@ def detail_html(
       </div>
     </main></body></html>
     """
+
+
+def test_fisba_supports_migrated_abaservices_application_url() -> None:
+    apply_url = (
+        "https://app.jobportal.abaservices.ch/application-process/FISBAAG/"
+        "460edfe6-08c9-4fdd-577e-6ea76a63cde6?jp=CH_MEDIA"
+    )
+    detail = parse_detail_html(
+        detail_html("engineer", title="Engineer", application_path=apply_url),
+        page_url="https://www.fisba.test/en/jobs/engineer",
+        expected_job_id="engineer",
+    )
+    assert detail["apply_url"] == apply_url
+    assert not is_fisba_apply_url(apply_url.replace("FISBAAG", "OTHER"))
+    assert not is_fisba_apply_url(apply_url.replace("abaservices.ch", "attacker.example"))
+    assert not is_fisba_apply_url(apply_url.replace("460edfe6-", "invalid-"))
 
 
 def test_fisba_collects_vacancies_and_apprenticeships_with_details() -> None:

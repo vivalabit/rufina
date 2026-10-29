@@ -299,3 +299,52 @@ def test_manor_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Manor AG import"
     assert stored["company"] == "Manor AG"
+
+
+def test_manor_decodes_legacy_ligatures_before_comparing_vacancy_identity() -> None:
+    from app.services.parsers.companies.manor import parse_detail_html
+
+    title = "Concierge œnologue 100% (m/f/d)"
+    body = detail_html(0).replace(
+        json.dumps(TITLES[0]),
+        json.dumps(title.replace("œ", "\x9c")),
+    )
+    url = f"https://live.solique.ch/manor/job/details/{DETAIL_IDS[0]}/"
+    detail = parse_detail_html(
+        body,
+        page_url=url,
+        expected_url=url,
+        expected_title=title,
+        expected_requisition_id=REQUISITION_IDS[0],
+    )
+    assert detail["title"] == title
+
+
+def test_manor_restarts_changed_catalog_without_retaining_removed_vacancies() -> None:
+    first_pages = 0
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        nonlocal first_pages
+        if str(request.url) == BASE_URL:
+            return httpx.Response(200, text=careers_html(), request=request)
+        if request.url.path == "/manor/de/jobs/":
+            page = int(request.url.params["page"])
+            if page == 1:
+                first_pages += 1
+            indexes = ([0, 1] if page == 1 else [2]) if first_pages == 1 else [1, 2]
+            return httpx.Response(
+                200,
+                json=listing_payload(
+                    indexes,
+                    page=page,
+                    total=3 if first_pages == 1 and page == 1 else 2,
+                ),
+                request=request,
+            )
+        index = next(i for i, value in enumerate(DETAIL_IDS) if value in request.url.path)
+        return httpx.Response(200, text=detail_html(index), request=request)
+
+    result = ManorJobsParser(transport=httpx.MockTransport(handler)).search(LinkedInSearchRequest())
+    assert first_pages == 2
+    assert [job.raw["id"] for job in result.jobs] == list(DETAIL_IDS[1:])
+    assert all(job.raw["total_available"] == 2 for job in result.jobs)

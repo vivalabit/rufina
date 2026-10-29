@@ -183,7 +183,7 @@ def parse_careers_html(
     footer_text = html_to_text("".join(node.get() for node in page.css("footer")))
     if (
         canonicals != {expected_url}
-        or og_urls != {expected_url}
+        or (og_urls and og_urls != {expected_url})
         or languages != {"de-CH"}
         or len(loaders) != 1
         or optional_text(loaders[0].attrib.get("src"))
@@ -196,7 +196,7 @@ def parse_careers_html(
         or len(spontaneous_links) != 1
         or not {"Karriere", "Offene Stellen"}.issubset(headings)
         or EXPECTED_LOGO not in logos
-        or not organization_valid
+        or (organizations and not organization_valid)
         or not footer_text
         or not all(part in footer_text for part in EXPECTED_ADDRESS_PARTS)
     ):
@@ -210,6 +210,8 @@ def parse_catalog_payload(payload: Any) -> list[dict[str, Any]]:
     if not isinstance(error, dict):
         raise LoewenfelsParseError("Löwenfels catalog payload is malformed")
     if error_message := optional_text(error.get("message")):
+        if not payload["jobs"] and error_message == "Aktuell sind keine offenen Stellen vorhanden.":
+            return []
         raise LoewenfelsParseError(f"Löwenfels catalog returned an error: {error_message}")
 
     records: list[dict[str, Any]] = []

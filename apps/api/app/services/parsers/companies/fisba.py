@@ -251,10 +251,18 @@ def is_fisba_apply_url(value: Any) -> bool:
     if not text:
         return False
     parts = urlsplit(text)
-    return (
-        parts.scheme == "https"
-        and parts.netloc.casefold() == "fisba-job.abacuscity.ch"
-        and parts.path.startswith("/de/job")
+    return parts.scheme == "https" and (
+        (parts.netloc.casefold() == "fisba-job.abacuscity.ch" and parts.path.startswith("/de/job"))
+        or (
+            parts.netloc.casefold() == "app.jobportal.abaservices.ch"
+            and re.fullmatch(
+                r"/application-process/FISBAAG/[0-9a-f]{8}-[0-9a-f]{4}-"
+                r"[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}",
+                parts.path,
+                flags=re.IGNORECASE,
+            )
+            is not None
+        )
     )
 
 

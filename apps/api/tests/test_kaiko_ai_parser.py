@@ -394,3 +394,38 @@ def test_kaiko_ai_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "kaiko.ai Zürich import"
     assert stored["id"] == f"kaiko_ai-{JOB_TWO}"
+
+
+@pytest.mark.parametrize("heading,has_error", [("Open Application", False), ("Other role", True)])
+def test_kaiko_open_application_uses_verified_feed_when_page_omits_schema(
+    heading: str,
+    has_error: bool,
+) -> None:
+    import re
+
+    job_id, title, slug = "5447815", "Open Application", "open-application"
+    item = feed_item(
+        feed_id="cb448601-9f85-47a2-9e3a-e915ecc470e4", job_id=job_id, slug=slug, title=title
+    )
+    body = detail_html(job_id=job_id, title=title, slug=slug)
+    body = re.sub(r'<script type="application/ld\+json">.*?</script>', "", body, flags=re.DOTALL)
+    body = body.replace("</head>", '<meta property="og:site_name" content="kaiko.ai"></head>')
+    body = body.replace("<section>", f"<h1>{heading}</h1><section>")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return (
+            httpx.Response(200, json=feed_payload([item]), request=request)
+            if request.url.path == "/jobs.json"
+            else httpx.Response(200, text=body, request=request)
+        )
+
+    job = (
+        KaikoAiJobsParser(transport=httpx.MockTransport(handler))
+        .search(
+            LinkedInSearchRequest(),
+        )
+        .jobs[0]
+    )
+    assert ("detail_error" in job.raw) is has_error
+    if not has_error:
+        assert job.apply_url == f"{job_url(job_id, slug)}/applications/new"

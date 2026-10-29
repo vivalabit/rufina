@@ -359,3 +359,33 @@ def test_loewenfels_is_registered_and_renders_as_direct_company_source() -> None
     assert stored["logo"] == "company"
     assert stored["department"] == "Löwenfels Partner AG import"
     assert stored["id"] == "loewenfels-76584"
+
+
+def test_loewenfels_accepts_verified_portal_without_optional_social_metadata() -> None:
+    import re
+
+    from app.services.parsers.companies.loewenfels import parse_careers_html
+
+    page = re.sub(r'<script type="application/ld\+json">.*?</script>', "", careers_html())
+    page = re.sub(r'<meta property="og:url"[^>]*>', "", page)
+    parse_careers_html(page, page_url=BASE_URL, expected_url=BASE_URL, expected_api_url=API_URL)
+    with pytest.raises(DirectCompanyRequestError):
+        parse_careers_html(
+            page.replace("Löwenfels Partner AG", "Different Company"),
+            page_url=BASE_URL,
+            expected_url=BASE_URL,
+            expected_api_url=API_URL,
+        )
+
+
+def test_loewenfels_recognizes_only_explicit_empty_message() -> None:
+    from app.services.parsers.companies.loewenfels import parse_catalog_payload
+
+    message = "Aktuell sind keine offenen Stellen vorhanden."
+    assert parse_catalog_payload({"jobs": [], "error": {"message": message}}) == []
+    for payload in [
+        {"jobs": [], "error": {"message": "Service unavailable"}},
+        {"jobs": [listing_record()], "error": {"message": message}},
+    ]:
+        with pytest.raises(DirectCompanyRequestError):
+            parse_catalog_payload(payload)

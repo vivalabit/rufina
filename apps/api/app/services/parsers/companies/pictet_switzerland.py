@@ -371,7 +371,10 @@ def parse_detail_html(
 
 def decode_js_string(value: str) -> str:
     try:
-        return json.loads(f'"{value}"')
+        # DWR emits JavaScript strings: an escaped apostrophe is valid there,
+        # but not in JSON. Match escape pairs so literal backslashes survive.
+        normalized = re.sub(r"\\(.)", lambda match: "'" if match[1] == "'" else match[0], value)
+        return json.loads(f'"{normalized}"')
     except json.JSONDecodeError as exc:
         raise PictetSwitzerlandParseError("Pictet catalog contains an invalid string") from exc
 

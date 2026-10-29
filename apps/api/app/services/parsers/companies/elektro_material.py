@@ -97,7 +97,11 @@ class ElektroMaterialJobsParser:
         except (TypeError, ValueError) as exc:
             raise DirectCompanyRequestError("Elektro-Material vacancy parsing failed") from exc
 
-        jobs = [self.normalize_job(record) for record in records]
+        jobs = [
+            self.normalize_job(record)
+            for record in records
+            if not record.get("detail", {}).get("closed")
+        ]
         if request.deduplicate:
             jobs = deduplicate_jobs(jobs)
         return ParserSearchResponse(
@@ -364,8 +368,8 @@ def parse_smartrecruiters_payload(
         not job_id
         or not job_id.isdigit()
         or optional_text(payload.get("uuid")) != expected_uuid
-        or not titles_match(title, expected_title)
-        or payload.get("active") is not True
+        or not title
+        or not isinstance(payload.get("active"), bool)
         or optional_text(payload.get("visibility")) != "PUBLIC"
         or not isinstance(company, dict)
         or optional_text(company.get("identifier")) != SMARTRECRUITERS_COMPANY
@@ -384,6 +388,12 @@ def parse_smartrecruiters_payload(
     ):
         raise ElektroMaterialParseError(
             "Elektro-Material SmartRecruiters vacancy is incomplete or inconsistent"
+        )
+    if payload["active"] is False:
+        return {"id": job_id, "publication_uuid": expected_uuid, "closed": True}
+    if not titles_match(title, expected_title):
+        raise ElektroMaterialParseError(
+            "Elektro-Material SmartRecruiters vacancy title does not match the listing"
         )
     return {
         "id": job_id,

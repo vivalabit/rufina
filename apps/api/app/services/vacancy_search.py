@@ -547,13 +547,19 @@ def canonical_job_url(value: str | None) -> str:
         return value.strip().casefold()
     if not parts.netloc:
         return value.strip().casefold()
+    # CMS repeaters can expose separate vacancies only as UUID-bearing card
+    # anchors. Ordinary page sections/tracking fragments are still ignored.
+    item_anchor = parts.fragment if re.fullmatch(
+        r"[A-Za-z][A-Za-z0-9_-]*__[0-9a-fA-F]{8}(?:-[0-9a-fA-F]{4}){3}-[0-9a-fA-F]{12}",
+        parts.fragment,
+    ) else ""
     return urlunsplit(
         (
             parts.scheme.casefold(),
             parts.netloc.casefold(),
             parts.path.rstrip("/"),
             "",
-            "",
+            item_anchor,
         )
     )
 

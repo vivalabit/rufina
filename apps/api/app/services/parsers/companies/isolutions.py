@@ -109,8 +109,7 @@ class IsolutionsJobsParser:
             search_url=self.base_url,
             jobs=jobs,
             message=(
-                f"Scanned {len(jobs)} isolutions Switzerland vacancies from the "
-                "official catalog"
+                f"Scanned {len(jobs)} isolutions Switzerland vacancies from the official catalog"
             ),
         )
 
@@ -228,9 +227,7 @@ def parse_listing_html(
     for card in cards:
         class_tokens = set((optional_text(card.attrib.get("class")) or "").split())
         filter_ids = {
-            match.group(1)
-            for token in class_tokens
-            if (match := FILTER_PATTERN.fullmatch(token))
+            match.group(1) for token in class_tokens if (match := FILTER_PATTERN.fullmatch(token))
         }
         department_ids = filter_ids.intersection(departments)
         location_ids = filter_ids.intersection(locations)
@@ -242,9 +239,7 @@ def parse_listing_html(
         )
         location_values = [
             value
-            for node in card.css(
-                ":scope > .c-layout--md > .col-auto > p.c-text"
-            )
+            for node in card.css(":scope > .c-layout--md > .col-auto > p.c-text")
             if (value := html_to_text(node.get()))
         ]
         detail_url = urljoin(page_url, optional_text(card.attrib.get("href")) or "")
@@ -252,11 +247,7 @@ def parse_listing_html(
         title = next(iter(titles)) if len(titles) == 1 else None
         location_names = split_locations(location_values[1] if len(location_values) == 2 else None)
         expected_location_names = {locations[item] for item in location_ids}
-        department = (
-            departments[next(iter(department_ids))]
-            if len(department_ids) == 1
-            else None
-        )
+        department = departments[next(iter(department_ids))] if len(department_ids) == 1 else None
         if (
             not job_id
             or job_id in seen_ids
@@ -318,9 +309,7 @@ def parse_detail_html(
 
     description_section_id = job_description_section_id(page)
     description_sections = (
-        page.css(f"main section#{description_section_id}")
-        if description_section_id
-        else []
+        page.css(f"main section#{description_section_id}") if description_section_id else []
     )
     requirement_nodes: dict[str, Any] = {}
     for node in page.css("main section .c-text__col .c-rte"):
@@ -330,9 +319,7 @@ def parse_detail_html(
             if heading_key:
                 requirement_nodes[heading_key] = node
     description_parts = [
-        html_to_text(description_sections[0].get())
-        if len(description_sections) == 1
-        else None,
+        html_to_text(description_sections[0].get()) if len(description_sections) == 1 else None,
         *[
             html_to_text(requirement_nodes[key].get())
             for key in ("responsibilities", "requirements")
@@ -479,9 +466,7 @@ def single_job_posting(page_html: str, *, provider: str) -> dict[str, Any]:
         if isinstance(payload, dict) and payload.get("@type") == "JobPosting":
             postings.append(payload)
     if len(postings) != 1:
-        raise IsolutionsParseError(
-            f"isolutions {provider} page is missing JobPosting data"
-        )
+        raise IsolutionsParseError(f"isolutions {provider} page is missing JobPosting data")
     return postings[0]
 
 
@@ -563,7 +548,9 @@ def job_description_section_id(page: Selector) -> str | None:
         match.group(1)
         for node in links
         if comparable_text(node.attrib.get("title")) == "job description"
-        and (match := MODULE_FRAGMENT_PATTERN.fullmatch(optional_text(node.attrib.get("href")) or ""))
+        and (
+            match := MODULE_FRAGMENT_PATTERN.fullmatch(optional_text(node.attrib.get("href")) or "")
+        )
     }
     if len(ids) == 1:
         return next(iter(ids))
@@ -594,9 +581,7 @@ def split_locations(value: Any) -> list[str]:
 def normalize_employment_type(value: Any) -> str | None:
     values = value if isinstance(value, list) else [value]
     normalized = {
-        optional_text(item)
-        for item in values
-        if optional_text(item) in {"FULL_TIME", "PART_TIME"}
+        optional_text(item) for item in values if optional_text(item) in {"FULL_TIME", "PART_TIME"}
     }
     if normalized == {"FULL_TIME"}:
         return "Full-time"
@@ -705,7 +690,9 @@ def title_fingerprint(value: Any) -> tuple[str, ...]:
 
 
 def compatible_title(value: Any, expected: Any) -> bool:
-    actual_tokens = title_fingerprint(value)
+    actual_tokens = title_fingerprint(
+        re.sub(r"^isolutions\s*\|\s*", "", optional_text(value) or "", flags=re.IGNORECASE)
+    )
     expected_tokens = title_fingerprint(expected)
     return actual_tokens == expected_tokens or actual_tokens == (
         *expected_tokens,
@@ -745,9 +732,7 @@ def deduplicate_isolutions_jobs(jobs: Iterable[ParsedJob]) -> list[ParsedJob]:
 
 def unique_attribute_values(selector: Any, css: str, attribute: str) -> set[str]:
     return {
-        value
-        for node in selector.css(css)
-        if (value := optional_text(node.attrib.get(attribute)))
+        value for node in selector.css(css) if (value := optional_text(node.attrib.get(attribute)))
     }
 
 

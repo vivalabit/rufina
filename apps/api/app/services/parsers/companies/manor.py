@@ -39,6 +39,10 @@ EMPLOYMENT_TYPES = {
 }
 WINDOWS_1252_CONTROLS = str.maketrans(
     {
+        "\x80": "€",
+        "\x8a": "Š",
+        "\x8c": "Œ",
+        "\x8e": "Ž",
         "\x85": "…",
         "\x91": "‘",
         "\x92": "’",
@@ -47,6 +51,10 @@ WINDOWS_1252_CONTROLS = str.maketrans(
         "\x95": "•",
         "\x96": "–",
         "\x97": "—",
+        "\x9a": "š",
+        "\x9c": "œ",
+        "\x9e": "ž",
+        "\x9f": "Ÿ",
     }
 )
 
@@ -136,7 +144,8 @@ class ManorJobsParser:
             if expected_total is None:
                 expected_total = total
             elif total != expected_total:
-                raise ManorParseError("Manor changed its vacancy total during pagination")
+                records_by_id.clear()
+                expected_total = total
 
             if total == 0:
                 return [], pages_fetched, 0
@@ -150,6 +159,7 @@ class ManorJobsParser:
                 )
 
             page_results = [first_records]
+            catalog_changed = False
             for page_number in range(2, required_pages + 1):
                 response = client.get(self.feed_url, params={"page": page_number})
                 response.raise_for_status()
@@ -159,11 +169,21 @@ class ManorJobsParser:
                 )
                 pages_fetched += 1
                 if page_total != expected_total:
-                    raise ManorParseError("Manor changed its vacancy total during pagination")
+                    if catalog_pass == self.max_catalog_passes:
+                        raise ManorParseError("Manor changed its vacancy total during pagination")
+                    # Discard the mixed snapshot and restart at page one. Never
+                    # reconcile inventory against pages with different totals.
+                    records_by_id.clear()
+                    expected_total = None
+                    catalog_changed = True
+                    break
                 expected_count = min(page_size, total - ((page_number - 1) * page_size))
                 if len(page_records) != expected_count:
                     raise ManorParseError("Manor catalog returned an incomplete page")
                 page_results.append(page_records)
+
+            if catalog_changed:
+                continue
 
             for page_number, page_records in enumerate(page_results, start=1):
                 for record in page_records:

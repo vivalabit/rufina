@@ -55,8 +55,7 @@ def official_records() -> dict[str, dict[str, object]]:
             title="Head of Operations",
             created_at="2026-04-21T07:28:03.873Z",
             link=(
-                "https://www.linkedin.com/jobs/view/4404033535/"
-                "?refId=tracking&trackingId=campaign"
+                "https://www.linkedin.com/jobs/view/4404033535/?refId=tracking&trackingId=campaign"
             ),
         ),
         ITSM_ID: cms_record(
@@ -156,9 +155,9 @@ def test_operaio_collects_complete_wix_catalog() -> None:
             request=request,
         )
 
-    result = OperaioJobsParser(
-        transport=httpx.MockTransport(handler)
-    ).search(LinkedInSearchRequest(results_limit=1))
+    result = OperaioJobsParser(transport=httpx.MockTransport(handler)).search(
+        LinkedInSearchRequest(results_limit=1)
+    )
 
     assert calls == [BASE_URL]
     assert result.message == (
@@ -169,9 +168,7 @@ def test_operaio_collects_complete_wix_catalog() -> None:
     assert head.source == "operaio"
     assert head.title == "Head of Operations"
     assert head.company == "Operaio GmbH"
-    assert head.location == (
-        "Zürich Flughafen (ZH) oder Stettlen (BE), Switzerland"
-    )
+    assert head.location == ("Zürich Flughafen (ZH) oder Stettlen (BE), Switzerland")
     assert head.url == "https://www.linkedin.com/jobs/view/4404033535"
     assert head.apply_url == head.url
     assert head.posted_at == "2026-04-21T07:28:03.873Z"
@@ -188,13 +185,21 @@ def test_operaio_collects_complete_wix_catalog() -> None:
 
     itsm = result.jobs[1]
     assert itsm.title == "ITSM Consultant"
-    assert itsm.url is None
-    assert itsm.apply_url == (
-        "mailto:customer@operaio.ch?subject=Application+for+ITSM+Consultant"
-    )
+    assert itsm.url == f"{BASE_URL}#comp-jobs__{ITSM_ID}"
+    assert itsm.apply_url == ("mailto:customer@operaio.ch?subject=Application+for+ITSM+Consultant")
     assert result.jobs[2].apply_url == (
         "mailto:customer@operaio.ch?subject=Application+for+Engineering+Consultant"
     )
+    from app.services.discovered_vacancies import stable_job_id
+    from app.services.parser_validation import validate_parser_result
+    from app.services.vacancy_search import canonical_job_url, deduplicate_jobs
+
+    validated, error = validate_parser_result(result)
+    assert error is None
+    assert len(deduplicate_jobs(validated.jobs)) == 3
+    assert len({stable_job_id(job) for job in validated.jobs}) == 3
+    assert canonical_job_url(itsm.url) != canonical_job_url(result.jobs[2].url)
+    assert canonical_job_url(f"{BASE_URL}#details") == BASE_URL
 
 
 @pytest.mark.parametrize(
@@ -282,9 +287,7 @@ def test_operaio_rejects_unsafe_application_link_and_catalog_over_limit() -> Non
 
 def test_operaio_wraps_catalog_request_failures() -> None:
     parser = OperaioJobsParser(
-        transport=httpx.MockTransport(
-            lambda request: httpx.Response(503, request=request)
-        )
+        transport=httpx.MockTransport(lambda request: httpx.Response(503, request=request))
     )
     with pytest.raises(DirectCompanyRequestError, match="vacancy request failed"):
         parser.search(LinkedInSearchRequest())
@@ -316,9 +319,7 @@ def test_operaio_jobs_render_as_direct_company_imports() -> None:
         "location": "Zürich Flughafen (ZH) oder Stettlen (BE), Switzerland",
         "arrangement": "Hybrid",
         "workload": "80–100%",
-        "apply_url": (
-            "mailto:customer@operaio.ch?subject=Application+for+ITSM+Consultant"
-        ),
+        "apply_url": ("mailto:customer@operaio.ch?subject=Application+for+ITSM+Consultant"),
     }
     job = normalize_job(record)
     stored = parsed_job_to_stored_job(

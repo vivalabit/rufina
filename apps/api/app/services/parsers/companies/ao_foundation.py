@@ -79,7 +79,11 @@ class AoFoundationJobsParser:
         except (TypeError, ValueError) as exc:
             raise DirectCompanyRequestError("AO Foundation vacancy parsing failed") from exc
 
-        jobs = [self.normalize_job(record) for record in records]
+        jobs = [
+            self.normalize_job(record)
+            for record in records
+            if not record.get("detail", {}).get("closed")
+        ]
         if request.deduplicate:
             jobs = deduplicate_ao_foundation_jobs(jobs)
         request_label = "request" if pages_fetched == 1 else "requests"
@@ -220,6 +224,7 @@ class AoFoundationJobsParser:
                     response.text,
                     page_url=str(response.url),
                     expected_job_id=record["id"],
+                    expected_url=record["url"],
                 )
             except (httpx.HTTPError, AoFoundationParseError, ValueError) as exc:
                 record["detail_error"] = str(exc)
@@ -327,9 +332,19 @@ def parse_detail_html(
     *,
     page_url: str,
     expected_job_id: str | None,
+    expected_url: str | None = None,
 ) -> dict[str, Any]:
+    if expected_url is not None and page_url != expected_url:
+        raise AoFoundationParseError("AO Foundation detail page returned a different vacancy")
     page = Selector(page_html)
     if not page.css('[itemtype="http://schema.org/JobPosting"]').get():
+        closure = html_to_text(page.css(".jobDisplayShell .job").get() or "")
+        if (
+            expected_job_id
+            and extract_job_id(page_url) == expected_job_id
+            and closure == "Sorry, this position has been filled."
+        ):
+            return {"id": expected_job_id, "closed": True}
         raise AoFoundationParseError("AO Foundation detail page is missing its JobPosting data")
 
     title = property_text(page, "title")

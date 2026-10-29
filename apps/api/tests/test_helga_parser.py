@@ -105,11 +105,13 @@ def listing_html(
 ) -> str:
     return f"""
     <html lang="de">
-      {page_head(
-          canonical=canonical,
-          title="Werde Teil von Helga!",
-          organization=organization,
-      )}
+      {
+        page_head(
+            canonical=canonical,
+            title="Werde Teil von Helga!",
+            organization=organization,
+        )
+    }
       <body><main><article>
         <helga-section-title>{marker}</helga-section-title>
         {cards}
@@ -131,11 +133,13 @@ def detail_html(
     page_url = canonical or job_url(slug)
     return f"""
     <html lang="de">
-      {page_head(
-          canonical=page_url,
-          title=f"Werde {title} bei Helga",
-          organization=organization,
-      )}
+      {
+        page_head(
+            canonical=page_url,
+            title=f"Werde {title} bei Helga",
+            organization=organization,
+        )
+    }
       <body><main><article>
         <h1 class="c-page-intro__title"><span>{title}</span></h1>
         <p class="c-page-intro__lead">
@@ -233,9 +237,7 @@ def test_helga_scans_complete_catalog_and_enriches_details() -> None:
     assert "Was kann ich bewirken?" in first.description
     assert "Was sollte ich mitbringen?" in first.description
     assert first.raw["catalog_index"] == 0
-    assert first.raw["detail"]["metadata_title"] == (
-        "Werde Senior Drupal Developer bei Helga"
-    )
+    assert first.raw["detail"]["metadata_title"] == ("Werde Senior Drupal Developer bei Helga")
     assert result.jobs[1].raw["salary"] == "90–115k"
 
 
@@ -422,3 +424,38 @@ def test_helga_jobs_render_as_direct_company_imports() -> None:
     assert stored["department"] == "Helga Digitalagentur import"
     assert stored["company"] == "Helga Digitalagentur GmbH"
     assert stored["id"] == f"helga-{DRUPAL_SLUG}"
+
+
+def test_helga_preserves_animated_heading_and_department_application_email() -> None:
+    title = "Backend Engineer PHP"
+    card = vacancy_card(
+        slug="backend-engineer-php",
+        title=title,
+        summary="Develop robust web platforms with our experienced engineering team.",
+    )
+    letters = "".join(f"<span>{letter}</span>" for letter in title)
+    card = card.replace(f"<span>{title}</span>", letters)
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        body = (
+            listing_html(card)
+            if request.url.path == "/jobs"
+            else detail_html(
+                slug="backend-engineer-php",
+                title=title,
+                apply_email="devjobs@helga.ch",
+            )
+        )
+        return httpx.Response(200, text=body, request=request)
+
+    job = (
+        HelgaJobsParser(transport=httpx.MockTransport(handler))
+        .search(
+            LinkedInSearchRequest(),
+        )
+        .jobs[0]
+    )
+    assert job.title == title
+    assert job.apply_url == "mailto:devjobs@helga.ch"
+    assert "detail_error" not in job.raw
+    assert "Deine Wirkung" in job.description

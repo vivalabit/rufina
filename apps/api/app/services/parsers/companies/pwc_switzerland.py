@@ -20,6 +20,7 @@ PWC_SWITZERLAND_RESULTS_PER_PAGE = 96
 PWC_SWITZERLAND_ALLOWED_COUNTRIES = {
     "schweiz",
     "switzerland",
+    "suisse",
     "liechtenstein",
 }
 PWC_SWITZERLAND_HEADERS = {
@@ -36,7 +37,7 @@ VIEWKEY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 DIRECT_JOB_PATH_PATTERN = re.compile(
-    r"^/job-vacancies/[a-z0-9]+(?:-[a-z0-9]+)*/"
+    r"^/job-vacancies/[a-z0-9]+(?:[-+][a-z0-9]+)*/"
     r"([0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12})/?$",
     re.IGNORECASE,
 )
@@ -256,7 +257,6 @@ def validate_listing_record(item: Any) -> None:
         or not optional_text(szas.get("sza_title"))
         or not optional_text(szas.get("sza_tasks"))
         or not optional_text(szas.get("sza_requirements"))
-        or not optional_text(szas.get("sza_employment_type"))
         or not optional_text(szas.get("sza_pensum"))
         or not optional_text(szas.get("sza_reference_code"))
         or not country
@@ -335,7 +335,7 @@ def extract_description(szas: dict[str, Any]) -> str | None:
 
 def is_pwc_switzerland_profile(value: str) -> bool:
     normalized = value.casefold()
-    return normalized.startswith(("at pwc switzerland", "bei pwc schweiz"))
+    return normalized.startswith(("at pwc switzerland", "bei pwc schweiz", "chez pwc suisse"))
 
 
 def is_direct_job_url(value: Any, *, expected_viewkey: str) -> bool:

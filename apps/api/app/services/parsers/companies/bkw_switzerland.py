@@ -92,7 +92,9 @@ class BkwSwitzerlandJobsParser:
         except BkwSwitzerlandParseError:
             raise
         except httpx.HTTPError as exc:
-            raise DirectCompanyRequestError(f"BKW Switzerland vacancy request failed: {exc}") from exc
+            raise DirectCompanyRequestError(
+                f"BKW Switzerland vacancy request failed: {exc}"
+            ) from exc
         except (json.JSONDecodeError, TypeError, ValueError) as exc:
             raise DirectCompanyRequestError("BKW Switzerland vacancy parsing failed") from exc
 
@@ -165,7 +167,8 @@ class BkwSwitzerlandJobsParser:
         warnings = [
             f"Skipped vacancy with unverified country/location: {record['url']}: "
             f"{record.get('detail_error', 'detail unavailable')}"
-            for record in records if record.get("exclude_unverified")
+            for record in records
+            if record.get("exclude_unverified")
         ]
         records[:] = [record for record in records if not record.get("exclude_unverified")]
         return warnings
@@ -270,7 +273,6 @@ def parse_swiss_record(candidate: Any, *, listing_page_url: str) -> dict[str, An
         or not record_id.isdigit()
         or not title
         or not job_id
-        or not companies
         or (locations is not None and not isinstance(locations, list))
     ):
         raise BkwSwitzerlandParseError("BKW catalog contains an incomplete Swiss vacancy")

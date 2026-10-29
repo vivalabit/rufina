@@ -222,7 +222,7 @@ def test_huawei_switzerland_rejects_incomplete_catalog() -> None:
         )
     )
 
-    with pytest.raises(DirectCompanyRequestError, match="declared 2 jobs"):
+    with pytest.raises(DirectCompanyRequestError, match="incomplete or invalid pagination"):
         parser.search(LinkedInSearchRequest())
 
 
@@ -274,3 +274,44 @@ def test_huawei_reads_heading_counter_and_still_detects_missing_cards() -> None:
         parse_listing_html(
             page.replace("<h2>2 jobs", "<h2>3 jobs"), page_url="https://careers.huawei.test/jobs"
         )
+
+
+def test_huawei_collects_turbo_stream_pagination() -> None:
+    first = listing_html(include_second=False).replace(
+        "</body>",
+        '<div id="show_more_button"><a href="/jobs/show_more?page=2">More</a></div></body>',
+    )
+    second = listing_html().split("<li>")[2].split("</li>")[0]
+    stream = (
+        '<turbo-stream action="append" target="jobs_list_container"><template>'
+        f"<li>{second}</li></template></turbo-stream>"
+    )
+    calls: list[str] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request.url.path)
+        if request.url.path == "/jobs":
+            return httpx.Response(200, text=first)
+        if request.url.path == "/jobs/show_more":
+            assert request.url.params["page"] == "2"
+            return httpx.Response(200, text=stream)
+        return httpx.Response(503)
+
+    result = HuaweiSwitzerlandJobsParser(
+        base_url="https://careers.huawei.test/jobs", transport=httpx.MockTransport(handler)
+    ).search(LinkedInSearchRequest())
+    assert [job.raw["id"] for job in result.jobs] == ["1001", "1002"]
+    assert calls.count("/jobs/show_more") == 1
+
+
+def test_huawei_rejects_repeated_pagination_cards() -> None:
+    first = listing_html(declared_count=3).replace(
+        "</body>",
+        '<div id="show_more_button"><a href="/jobs/show_more?page=2">More</a></div></body>',
+    )
+    parser = HuaweiSwitzerlandJobsParser(
+        base_url="https://careers.huawei.test/jobs",
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, text=first)),
+    )
+    with pytest.raises(DirectCompanyRequestError, match="duplicate"):
+        parser.search(LinkedInSearchRequest())

@@ -217,9 +217,7 @@ class KomaxGroupJobsParser:
             if len(records_by_id) == expected_total:
                 return list(records_by_id.values()), pages_fetched, expected_total
             if len(records_by_id) > expected_total:
-                raise KomaxGroupParseError(
-                    "Komax Group catalog changed while pages were collected"
-                )
+                raise KomaxGroupParseError("Komax Group catalog changed while pages were collected")
 
         raise KomaxGroupParseError(
             f"Komax Group returned {len(records_by_id)} unique vacancies but "
@@ -272,8 +270,7 @@ class KomaxGroupJobsParser:
             location=optional_text(record.get("location")),
             url=optional_text(record.get("url")),
             apply_url=(
-                optional_text(detail.get("apply_url"))
-                or build_apply_url(self.base_url, job_id)
+                optional_text(detail.get("apply_url")) or build_apply_url(self.base_url, job_id)
             ),
             posted_at=optional_text(record.get("posted_at")),
             employment_type=(
@@ -329,7 +326,7 @@ def parse_listing_payload(
             or not URL_TITLE_PATTERN.fullmatch(url_title)
             or EXPECTED_LOCALE not in locales
             or not locations
-            or any(not is_swiss_location(value) for value in locations)
+            or not any(is_swiss_location(value) for value in locations)
             or not cities
             or len(cities) != len(locations)
             or len(job_functions) != 1

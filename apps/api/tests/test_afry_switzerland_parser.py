@@ -362,3 +362,17 @@ def test_afry_enriches_multicountry_role_without_relabeling_foreign_detail_city(
             expected_cities=listing["city_names"],
             listed_locations=listing["Cities"],
         )
+
+
+def test_afry_accepts_current_plural_careers_url() -> None:
+    from app.services.parsers.companies.afry_switzerland import parse_catalog_payload
+
+    payload = catalog_payload([0])
+    payload["Adverts"][0]["DetailUrl"] = payload["Adverts"][0]["DetailUrl"].replace(
+        "/career/", "/careers/"
+    )
+    records, _ = parse_catalog_payload(
+        payload, page_url=BASE_URL, detail_api_url=DETAIL_API_URL, max_records=100
+    )
+    assert len(records) == 1
+    assert "/careers/available-jobs/" in records[0]["public_url"]

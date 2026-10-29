@@ -388,7 +388,7 @@ def normalize_apply_url(value: Any, *, expected_req_id: str) -> str | None:
         or parts.fragment
         or not parts.path.startswith("/BMS/job/")
         or not parts.path.endswith("/apply")
-        or f"_{expected_req_id}/apply" not in parts.path
+        or not re.search(rf"_{re.escape(expected_req_id)}(?:-[1-9]\d*)?/apply$", parts.path)
         or set(query) - {"source", "utm_campaign"}
         or query.get("source") != ["Eightfold"]
     ):

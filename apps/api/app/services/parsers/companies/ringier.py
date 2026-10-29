@@ -4,13 +4,15 @@ import html
 import re
 from collections.abc import Iterable, Sequence
 from typing import Any
-from urllib.parse import urlsplit
+from urllib.parse import urljoin, urlsplit
 from uuid import UUID
 
 import httpx
+from scrapling import Selector
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
+from app.services.parsers.jobs_ch import JobsChParser, extract_job_posting_schema
 
 RINGIER_JOBS_BASE_URL = "https://career.ringier.ch/en/career"
 RINGIER_JOBS_API_URL = "https://career.ringier.ch/api/jobs-ringier-en.json"
@@ -67,10 +69,25 @@ class RingierJobsParser:
             ) as client:
                 response = client.get(self.api_url)
                 response.raise_for_status()
-                records = parse_catalog_payload(
-                    response.json(),
-                    max_jobs=self.max_jobs,
-                )
+                if str(response.url).startswith("https://www.jobs.ch/"):
+                    records = parse_redirected_catalog(
+                        response.text,
+                        page_url=str(response.url),
+                        max_jobs=self.max_jobs,
+                    )
+                    for record in records:
+                        detail = client.get(record["url"], headers={"Accept": "text/html"})
+                        detail.raise_for_status()
+                        record["job_posting_schema"] = parse_redirected_detail(
+                            detail.text,
+                            page_url=str(detail.url),
+                            record=record,
+                        )
+                else:
+                    records = parse_catalog_payload(
+                        response.json(),
+                        max_jobs=self.max_jobs,
+                    )
         except RingierParseError:
             raise
         except httpx.HTTPError as exc:
@@ -86,12 +103,14 @@ class RingierJobsParser:
             status="completed",
             search_url=self.base_url,
             jobs=jobs,
-            message=(
-                f"Scanned {len(jobs)} Swiss Ringier vacancies from the full Prospective catalog"
-            ),
+            message=(f"Scanned {len(jobs)} Swiss Ringier vacancies from the full official catalog"),
         )
 
     def normalize_job(self, record: dict[str, Any]) -> ParsedJob:
+        if "job_posting_schema" in record:
+            return (
+                JobsChParser().normalize_job(record).model_copy(update={"source": self.parser_id})
+            )
         attributes = record.get("attributes")
         attributes = attributes if isinstance(attributes, dict) else {}
         szas = record.get("szas")
@@ -113,6 +132,71 @@ class RingierJobsParser:
             description=extract_description(szas),
             raw=dict(record),
         )
+
+
+def parse_redirected_catalog(
+    page_html: str, *, page_url: str, max_jobs: int
+) -> list[dict[str, Any]]:
+    parts = urlsplit(page_url)
+    page = Selector(page_html)
+    title = optional_text(page.css("title::text").get()) or ""
+    count = re.fullmatch(r"Ringier AG - (\d+) Stellenangebote auf jobs\.ch", title)
+    company = optional_text(page.css('[data-cy="company-name"]::text').get())
+    if (
+        parts.scheme != "https"
+        or parts.netloc != "www.jobs.ch"
+        or parts.path != "/de/firmen/877-ringier-ag/stellenangebote/"
+        or parts.query
+        or parts.fragment
+        or not count
+        or company != "Ringier AG"
+    ):
+        raise RingierParseError("Ringier redirected catalog has an unexpected company identity")
+    total = int(count[1])
+    if total > max_jobs:
+        raise RingierParseError("Ringier catalog exceeds the configured vacancy limit")
+    records: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for card in page.css('a[data-cy="job-link"]'):
+        url = urljoin(page_url, card.attrib.get("href", ""))
+        match = re.fullmatch(
+            r"https://www\.jobs\.ch/de/stellenangebote/detail/([0-9a-f-]{36})/",
+            url,
+        )
+        job_id = normalize_uuid(match[1]) if match else None
+        job_title = optional_text(card.attrib.get("title"))
+        if not job_id or not job_title or job_id in seen:
+            raise RingierParseError("Ringier catalog contains an invalid or duplicate vacancy")
+        seen.add(job_id)
+        records.append({"id": job_id, "title": job_title, "url": url})
+    if len(records) != total:
+        raise RingierParseError(f"Ringier returned {len(records)} vacancies but declared {total}")
+    return records
+
+
+def parse_redirected_detail(
+    page_html: str, *, page_url: str, record: dict[str, Any]
+) -> dict[str, Any]:
+    schema = extract_job_posting_schema(page_html) or {}
+    organization = schema.get("hiringOrganization", {})
+    identifier = schema.get("identifier", {})
+    location = schema.get("jobLocation", {})
+    address = location.get("address", {}) if isinstance(location, dict) else {}
+    if (
+        page_url != record["url"]
+        or schema.get("url") != record["url"]
+        or not isinstance(identifier, dict)
+        or identifier.get("value") != record["id"]
+        or schema.get("title") != record["title"]
+        or not schema.get("description")
+        or not isinstance(organization, dict)
+        or organization.get("name") != "Ringier AG"
+        or schema.get("sameAs") != "https://www.jobs.ch/de/firmen/877-ringier-ag/"
+        or not isinstance(address, dict)
+        or address.get("addressCountry") != "CH"
+    ):
+        raise RingierParseError("Ringier vacancy has an unexpected identity or country")
+    return schema
 
 
 def parse_catalog_payload(

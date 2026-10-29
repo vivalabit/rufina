@@ -173,7 +173,7 @@ def test_lyreco_scans_every_page_and_enriches_all_jobs() -> None:
     assert len([url for url in calls if "/group/switzerland/de/jobs?" in url]) == 2
     assert len([url for url in calls if "/group/switzerland/de/jobs/" in url]) == 12
     assert result.message == (
-        "Scanned 12 Lyreco Switzerland vacancies from the complete Dietikon careers catalog"
+        "Scanned 12 Lyreco Switzerland vacancies from the complete Swiss careers catalog"
     )
     assert len(result.jobs) == 12
     first = result.jobs[0]
@@ -355,7 +355,13 @@ def test_lyreco_reconciles_global_catalog_before_selecting_dietikon() -> None:
     assert records[0]["location"] == "Dietikon ZH, Switzerland"
 
 
-def test_lyreco_resolves_missing_address_only_from_explicit_workplace() -> None:
+@pytest.mark.parametrize(
+    "city, expected_location",
+    [("Dietikon", "Dietikon ZH, Switzerland"), ("Dintikon", "Dintikon AG, Switzerland")],
+)
+def test_lyreco_resolves_missing_address_only_from_explicit_workplace(
+    city: str, expected_location: str
+) -> None:
     import re
 
     from scrapling import Selector
@@ -371,7 +377,7 @@ def test_lyreco_resolves_missing_address_only_from_explicit_workplace() -> None:
     html = re.sub(r'<div class="job__field-primary-location">.*?</div>', "", html)
     html = html.replace(
         '<div class="field--name-field-description">',
-        '<div class="field--name-field-description"><p>Arbeitsort: Dietikon</p>',
+        f'<div class="field--name-field-description"><p>Arbeitsort: {city}</p>',
     )
     html = html.replace("/job/Dietikon-ZH/", "/job/")
     expected = {
@@ -382,10 +388,20 @@ def test_lyreco_resolves_missing_address_only_from_explicit_workplace() -> None:
         "location_raw": None,
     }
     detail = parse_detail_html(html, page_url=job_url(record), expected_record=expected)
-    assert detail["location"] == "Dietikon ZH, Switzerland"
+    assert detail["location"] == expected_location
+    from app.services.parsers.companies.lyreco_switzerland import LyrecoForeignLocationError
+
+    with pytest.raises(LyrecoForeignLocationError):
+        parse_detail_html(
+            html.replace(
+                f"Arbeitsort: {city}", "Lokalizacja - Centrum Dystrybucyjne Lyreco Polska, Komorów"
+            ),
+            page_url=job_url(record),
+            expected_record=expected,
+        )
     with pytest.raises(DirectCompanyRequestError):
         parse_detail_html(
-            html.replace("Arbeitsort: Dietikon", "Arbeitsort: London"),
+            html.replace(f"Arbeitsort: {city}", "Arbeitsort: London"),
             page_url=job_url(record),
             expected_record=expected,
         )
@@ -422,3 +438,45 @@ def test_lyreco_reports_unclassifiable_location_without_discarding_swiss_jobs() 
     assert len(records) == 1
     assert records[0]["title"] == swiss["title"]
     assert len(warnings) == 1 and job_url(unknown) in warnings[0]
+
+
+def test_lyreco_global_redirect_reconciles_catalog_and_keeps_all_swiss_offices() -> None:
+    import re
+
+    records = [vacancy_record(i) for i in range(4)]
+    for record, location in zip(
+        records, ["Dietikon ZH", "Dintikon AG", "Field Based - Dietikon", "Berlin"]
+    ):
+        record["location"] = location
+    global_page = re.sub(
+        r'<a class="facet-item.*?</a>', "", listing_html(records, total=4), flags=re.DOTALL
+    )
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path == "/group/switzerland/de/jobs":
+            if request.url.query:
+                return httpx.Response(
+                    302,
+                    headers={"Location": "https://www.lyreco.com/group/switzerland/de/jobs"},
+                    request=request,
+                )
+            return httpx.Response(200, text=global_page, request=request)
+        record = next(record for record in records if request.url.path.endswith(record["slug"]))
+        return httpx.Response(
+            200,
+            text=detail_html(record).replace(
+                "/Dietikon-ZH/", "/" + record["location"].replace(" ", "-") + "/"
+            ),
+            request=request,
+        )
+
+    result = LyrecoSwitzerlandJobsParser(transport=httpx.MockTransport(handler)).search(
+        LinkedInSearchRequest()
+    )
+    assert len(result.jobs) == 3
+    assert {job.location for job in result.jobs} == {
+        "Dietikon ZH, Switzerland",
+        "Dintikon AG, Switzerland",
+        "Field Based - Dietikon, Switzerland",
+    }
+    assert all(not job.raw.get("detail_error") for job in result.jobs)

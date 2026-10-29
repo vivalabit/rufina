@@ -103,8 +103,7 @@ class InfosoftJobsParser:
             search_url=self.base_url,
             jobs=jobs,
             message=(
-                f"Scanned {len(jobs)} Infosoft Switzerland vacancies from the "
-                "official catalog"
+                f"Scanned {len(jobs)} Infosoft Switzerland vacancies from the official catalog"
             ),
         )
 
@@ -148,8 +147,7 @@ class InfosoftJobsParser:
             title=optional_text(detail.get("title")) or optional_text(record.get("title")),
             company=EXPECTED_COMPANY,
             location=(
-                optional_text(detail.get("location"))
-                or optional_text(record.get("location"))
+                optional_text(detail.get("location")) or optional_text(record.get("location"))
             ),
             url=public_url,
             apply_url=optional_text(detail.get("apply_url")) or public_url,
@@ -206,12 +204,7 @@ def parse_listing_html(
             optional_text(links[0].attrib.get("href")) or "",
         )
         job_id = extract_job_id(detail_url, expected_host=expected_host)
-        if (
-            metadata is None
-            or not summary
-            or not job_id
-            or job_id in seen_ids
-        ):
+        if metadata is None or not summary or not job_id or job_id in seen_ids:
             raise InfosoftParseError("Infosoft listing contains an invalid vacancy")
         seen_ids.add(job_id)
         records.append(
@@ -261,9 +254,7 @@ def parse_detail_html(
     summaries = unique_selector_texts(hero, ":scope > p")
     title = next(iter(titles)) if len(titles) == 1 else None
     metadata = (
-        parse_detail_metadata(next(iter(metadata_values)))
-        if len(metadata_values) == 1
-        else None
+        parse_detail_metadata(next(iter(metadata_values))) if len(metadata_values) == 1 else None
     )
     summary = next(iter(summaries)) if len(summaries) == 1 else None
 
@@ -288,7 +279,16 @@ def parse_detail_html(
         or metadata is None
         or metadata["employment_type"] != expected_workload
         or metadata["location"] != expected_location
-        or description_headings != EXPECTED_DETAIL_SECTIONS
+        or (
+            description_headings != EXPECTED_DETAIL_SECTIONS
+            and not (
+                expected_workload == "Apprenticeship"
+                and not description_headings
+                and summary
+                and "Das lernst du bei uns" in summary
+                and "Das bringst du mit" in summary
+            )
+        )
         or not description
         or len(apply_urls) != 1
         or schema is None
@@ -309,6 +309,13 @@ def parse_detail_html(
 
 def parse_listing_title(value: Any) -> dict[str, str] | None:
     text = optional_text(value)
+    apprenticeship = re.fullmatch(r"Lehrstelle Sommer \d{4}:\s*(.+)", text or "")
+    if apprenticeship:
+        return {
+            "title": "Lehrstelle als " + apprenticeship.group(1),
+            "employment_type": "Apprenticeship",
+            "location": EXPECTED_LOCATION,
+        }
     match = LISTING_TITLE_PATTERN.fullmatch(text or "")
     if not match:
         return None
@@ -326,6 +333,9 @@ def parse_listing_title(value: Any) -> dict[str, str] | None:
 
 def parse_detail_metadata(value: Any) -> dict[str, str] | None:
     text = optional_text(value)
+    apprenticeship = re.fullmatch(r"ab Sommer \d{4}\s*\|\s*(.+)", text or "")
+    if apprenticeship and normalize_location(apprenticeship.group(1)):
+        return {"employment_type": "Apprenticeship", "location": EXPECTED_LOCATION}
     match = DETAIL_META_PATTERN.fullmatch(text or "")
     if not match:
         return None

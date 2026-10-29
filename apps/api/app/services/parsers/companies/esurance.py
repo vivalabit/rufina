@@ -4,6 +4,7 @@ import html
 import json
 import re
 import unicodedata
+import xml.etree.ElementTree as ET
 from collections.abc import Iterable, Sequence
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import date
@@ -128,6 +129,8 @@ class EsuranceJobsParser:
         ) -> tuple[dict[str, Any], dict[str, Any] | None]:
             try:
                 response = client.get(record["url"], headers={"Referer": self.base_url})
+                if response.status_code == 404:
+                    record["detail_status"] = 404
                 response.raise_for_status()
                 detail = parse_personio_detail_html(
                     response.text,
@@ -148,6 +151,20 @@ class EsuranceJobsParser:
                 record, detail = future.result()
                 if detail is not None:
                     record["detail"] = detail
+
+        # The company page can retain an old card after Personio closes its
+        # last job. Require the authoritative feed to confirm an empty catalog;
+        # a lone 404, network failure or malformed feed must remain a partial scan.
+        if all(record.get("detail_status") == 404 for record in records):
+            feed_url = "https://esurance.jobs.personio.com/xml?language=en"
+            try:
+                response = client.get(feed_url)
+                response.raise_for_status()
+                root = ET.fromstring(response.content)
+                if str(response.url) == feed_url and root.tag == "workzag-jobs" and not len(root):
+                    records.clear()
+            except (httpx.HTTPError, ET.ParseError):
+                pass
 
 
 def parse_listing_html(

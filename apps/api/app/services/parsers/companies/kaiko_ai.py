@@ -124,6 +124,7 @@ class KaikoAiJobsParser:
                     expected_url=record["url"],
                     expected_job_id=record["id"],
                     expected_title=record["title"],
+                    listing_schema=record.get("schema"),
                 )
             except (httpx.HTTPError, KaikoAiParseError, ValueError) as exc:
                 record["detail_error"] = str(exc)
@@ -229,6 +230,7 @@ def parse_detail_html(
     expected_url: str,
     expected_job_id: str,
     expected_title: str,
+    listing_schema: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     if (
         not same_url(page_url, expected_url)
@@ -240,6 +242,15 @@ def parse_detail_html(
     page = Selector(page_html)
     public_urls = unique_attribute_values(page, 'meta[property="og:url"]', "content")
     schemas = list(extract_job_posting_schemas(page))
+    # Teamtailor omits JobPosting JSON-LD on spontaneous applications, while
+    # its official location-filtered feed still supplies the validated schema.
+    if not schemas and expected_title.casefold() == "open application" and listing_schema:
+        headings = {
+            optional_text("".join(node.css("::text").getall())) for node in page.css("main h1")
+        }
+        site_name = optional_text(page.css('meta[property="og:site_name"]::attr(content)').get())
+        if expected_title in headings and site_name == EXPECTED_COMPANY:
+            schemas = [listing_schema]
     if (
         public_urls != {expected_url}
         or len(schemas) != 1

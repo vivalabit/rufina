@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from datetime import UTC, datetime
 
 import httpx
@@ -12,8 +13,69 @@ from app.services.job_search_execution import parsed_job_to_stored_job
 from app.services.parsers.companies.base import DirectCompanyRequestError
 from app.services.parsers.companies.sap_switzerland import (
     SapSwitzerlandJobsParser,
+    parse_new_detail_html,
+    parse_new_listing_html,
 )
 from app.services.vacancy_search import create_vacancy_search_runner
+
+
+def new_record(job_id: str) -> dict[str, str]:
+    return {
+        "id": job_id,
+        "title": f"SAP Cloud Engineer {job_id}",
+        "url": f"/en/jobs/{job_id}/cloud-engineer/",
+        "locations": "Zurich, Switzerland",
+    }
+
+
+def flight_script(payload: object) -> str:
+    stream = "2e:" + json.dumps(payload)
+    # Real Flight payloads can split JSON across script tags.
+    return "".join(
+        f"<script>self.__next_f.push({json.dumps([1, chunk])})</script>"
+        for chunk in (stream[:31], stream[31:])
+    )
+
+
+def new_listing_html(records: list[dict[str, str]], *, total: int, page: int = 1) -> str:
+    metadata = {
+        "jobs": records,
+        "totalJobs": total,
+        "totalPages": max(1, total),
+        "currentPage": page,
+        "pageSize": 1,
+    }
+    links = "".join(f'<a href="{record["url"]}">{record["title"]}</a>' for record in records)
+    # Repeated hydration copies use different component references, but same jobs.
+    payload = [metadata, {**metadata, "displayMetadata": "$33:props:display"}]
+    return f"<title>Jobs | SAP Careers</title>{links}{flight_script(payload)}"
+
+
+def new_detail_html(record: dict[str, str], *, country: str = "CH") -> str:
+    url = "https://jobs.sap.com" + record["url"]
+    posting = {
+        "@type": "JobPosting",
+        "url": url,
+        "title": record["title"],
+        "hiringOrganization": {"name": "SAP Careers", "url": "https://jobs.sap.com"},
+        "jobLocation": {"address": {"addressCountry": country, "addressLocality": "Zurich"}},
+        "description": r"\u003cp>Build cloud applications and support enterprise customers. "
+        r"Collaborate with the Swiss team to deliver reliable software platforms.\u003c/p>",
+        "datePosted": "2026-10-27",
+        "employmentType": "FULL_TIME",
+        "identifier": {"value": "REF3170F"},
+    }
+    data = {
+        **record,
+        "applicationUrl": (
+            f"https://jobs.smartrecruiters.com/SAPITBusinessSysteme/{record['id']}-cloud-engineer?oga=true"
+        ),
+    }
+    return (
+        f'<link rel="canonical" href="{url}">'
+        f'<script type="application/ld+json">{json.dumps(posting)}</script>'
+        + flight_script({"jobData": data})
+    )
 
 
 def listing_html(
@@ -77,6 +139,94 @@ def detail_html(job_id: int, *, title: str | None = None) -> str:
       </div>
     </body></html>
     """
+
+
+@pytest.mark.parametrize("duplicate_page", [False, True])
+def test_sap_migration_collects_both_complete_swiss_catalogs(duplicate_page: bool) -> None:
+    calls: list[httpx.Request] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(request)
+        if request.url.host == "careers.sap.com":
+            if request.url.path.startswith("/go/"):
+                return httpx.Response(200, text=listing_html([101], start=1, end=1, total=1))
+            return httpx.Response(200, text=detail_html(101))
+        if request.url.path == "/en/jobs/":
+            assert request.url.params["country"] == "Switzerland"
+            page = int(request.url.params["page"])
+            index = 1 if duplicate_page else page
+            return httpx.Response(
+                200, text=new_listing_html([new_record(f"744000{index}")], total=2, page=page)
+            )
+        return httpx.Response(200, text=new_detail_html(new_record(request.url.path.split("/")[3])))
+
+    parser = SapSwitzerlandJobsParser(transport=httpx.MockTransport(handler))
+    if duplicate_page:
+        with pytest.raises(DirectCompanyRequestError, match="duplicate or missing"):
+            parser.search(LinkedInSearchRequest(results_limit=1))
+        return
+    result = parser.search(LinkedInSearchRequest(results_limit=1))
+    assert [job.raw["id"] for job in result.jobs] == ["101", "7440001", "7440002"]
+    assert all(job.description and "detail_error" not in job.raw for job in result.jobs)
+    assert result.jobs[0].url.startswith("https://careers.sap.com/job/")
+    assert result.jobs[1].apply_url.startswith("https://jobs.smartrecruiters.com/SAP")
+    assert "\\u003c" not in result.jobs[1].description
+    assert result.message.endswith("across 3 page requests")
+
+
+@pytest.mark.parametrize("corruption", ["country", "range", "hidden", "foreign_url"])
+def test_sap_new_catalog_rejects_unverified_records(corruption: str) -> None:
+    record = new_record("7440001")
+    if corruption == "country":
+        record["locations"] = "Walldorf, Germany"
+    if corruption == "foreign_url":
+        record["url"] = "https://attacker.example/en/jobs/7440001/cloud-engineer/"
+    page = new_listing_html([record], total=1)
+    if corruption == "range":
+        page = page.replace('\\"pageSize\\": 1', '\\"pageSize\\": 0')
+    if corruption == "hidden":
+        page = page.replace(f'<a href="{record["url"]}">', "<a>")
+    with pytest.raises(DirectCompanyRequestError):
+        parse_new_listing_html(
+            page, page_url="https://jobs.sap.com/en/jobs/?country=Switzerland", expected_page=1
+        )
+
+
+@pytest.mark.parametrize("country", ["CH", "DE"])
+def test_sap_new_detail_validates_country_and_application_identity(country: str) -> None:
+    record = new_record("7440001")
+    expected = {
+        **record,
+        "url": "https://jobs.sap.com" + record["url"],
+        "location": record["locations"],
+    }
+    page = new_detail_html(record, country=country)
+    if country == "DE":
+        with pytest.raises(DirectCompanyRequestError, match="Swiss JobPosting"):
+            parse_new_detail_html(page, page_url=expected["url"], expected_record=expected)
+    else:
+        assert parse_new_detail_html(page, page_url=expected["url"], expected_record=expected)[
+            "description"
+        ].startswith("Build cloud")
+        with pytest.raises(DirectCompanyRequestError, match="application URL"):
+            parse_new_detail_html(
+                page.replace("SAPITBusinessSysteme/7440001-", "SAPITBusinessSysteme/7440002-"),
+                page_url=expected["url"],
+                expected_record=expected,
+            )
+
+
+@pytest.mark.parametrize("pages", [0, 1])
+def test_sap_new_catalog_accepts_explicit_empty_results(pages: int) -> None:
+    page = new_listing_html([], total=0).replace(
+        '\\"totalPages\\": 1', f'\\"totalPages\\": {pages}'
+    )
+    records, metadata = parse_new_listing_html(
+        page,
+        page_url="https://jobs.sap.com/en/jobs/?country=Switzerland",
+        expected_page=1,
+    )
+    assert records == [] and metadata == {"total": 0, "pages": 1}
 
 
 def test_sap_switzerland_scans_full_catalog_and_enriches_every_record() -> None:

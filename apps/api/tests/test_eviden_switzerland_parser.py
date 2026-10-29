@@ -333,3 +333,84 @@ def test_eviden_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Eviden Switzerland import"
     assert stored["id"] == "eviden_switzerland-101"
+
+
+LINKED_SEARCH_URL = "https://jobs.atos.net/search/?q=eviden&optionsFacetsDD_country="
+
+
+def linked_catalog_html(records: list[dict[str, Any]], *, start: int, total: int) -> str:
+    rows = "".join(
+        f'<tr class="data-row"><td><a class="jobTitle-link" href="{item["url"]}">'
+        f'{item["title"]}</a></td><td class="colLocation"><span class="jobLocation">'
+        f'Zurich, CH</span></td><td class="colDate"><span class="jobDate">'
+        f"{item['date']}</span></td></tr>"
+        for item in records
+    )
+    end = start + len(records) - 1 if records else 0
+    return (
+        f'<html><body><span class="paginationLabel">Results {start} – {end} of {total}</span>'
+        f'<table id="searchresults"><tbody>{rows}</tbody></table></body></html>'
+    )
+
+
+def test_eviden_follows_official_migrated_catalog_and_collects_every_swiss_page() -> None:
+    records = [listing(101, 1401), listing(102, 1402), listing(103, 1403)]
+    offsets = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "eviden.com":
+            return httpx.Response(
+                200, text=f'<a href="{LINKED_SEARCH_URL}">Check jobs at Eviden</a>', request=request
+            )
+        if request.url.path == "/search/":
+            assert request.url.params["optionsFacetsDD_country"] == "CH"
+            assert request.url.params["q"] == "eviden"
+            offset = int(request.url.params["startrow"])
+            offsets.append(offset)
+            return httpx.Response(
+                200,
+                text=linked_catalog_html(
+                    records[offset : offset + 2],
+                    start=offset + 1,
+                    total=3,
+                ),
+                request=request,
+            )
+        item = next(
+            item for item in records if request.url.path.rstrip("/").split("/")[-1] in item["url"]
+        )
+        return httpx.Response(200, text=detail_html(item), request=request)
+
+    result = EvidenSwitzerlandJobsParser(transport=httpx.MockTransport(handler)).search(
+        LinkedInSearchRequest(results_limit=1),
+    )
+    assert offsets == [0, 2]
+    assert len(result.jobs) == 3
+    assert all(job.description and job.location == "Zurich, CH" for job in result.jobs)
+    assert all(job.seniority is None for job in result.jobs)
+
+
+@pytest.mark.parametrize("failure", ["wrong_country", "missing_row", "duplicate", "unsafe_link"])
+def test_eviden_migrated_catalog_rejects_unverified_or_incomplete_records(failure: str) -> None:
+    records = [listing(101, 1401), listing(102, 1402)]
+    if failure == "duplicate":
+        records[1] = records[0]
+    body = linked_catalog_html(records, start=1, total=2)
+    if failure == "wrong_country":
+        body = body.replace("Zurich, CH", "Berlin, DE")
+    if failure == "missing_row":
+        body = linked_catalog_html(records[:1], start=1, total=2).replace("1 – 1", "1 – 2")
+    if failure == "unsafe_link":
+        body = body.replace("https://jobs.atos.net/job/", "https://evil.example/job/")
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.host == "eviden.com":
+            return httpx.Response(
+                200, text=f'<a href="{LINKED_SEARCH_URL}">Jobs</a>', request=request
+            )
+        return httpx.Response(200, text=body, request=request)
+
+    with pytest.raises(DirectCompanyRequestError):
+        EvidenSwitzerlandJobsParser(transport=httpx.MockTransport(handler)).search(
+            LinkedInSearchRequest(),
+        )

@@ -305,3 +305,30 @@ def test_adcubum_is_registered_and_renders_as_direct_company() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Adcubum Switzerland import"
     assert stored["company"] == "Adcubum AG"
+
+
+def test_adcubum_reads_chunked_flight_with_length_delimited_text() -> None:
+    from scrapling import Selector
+
+    from app.services.parsers.companies.adcubum_switzerland import extract_next_job_lists
+
+    text = 'Lösung\n7:{"jobs":[{"fake":true}]}'
+    stream = ':HL["/style.css","style"]\n3:T' + format(len(text.encode("utf-8")), "x") + "," + text
+    records = [vacancy_record(0)]
+    stream += "c:" + json.dumps(["$", "main", None, {"jobs": records}]) + "\n"
+    scripts = "".join(
+        "<script>self.__next_f.push(" + json.dumps([1, chunk]) + ")</script>"
+        for chunk in [stream[:45], stream[45:]]
+    )
+    assert extract_next_job_lists(Selector(scripts)) == [records]
+
+
+@pytest.mark.parametrize("tail", ['7:{"jobs":', "7:T10,short"])
+def test_adcubum_rejects_truncated_flight_after_catalog(tail: str) -> None:
+    from scrapling import Selector
+
+    from app.services.parsers.companies.adcubum_switzerland import extract_next_job_lists
+
+    stream = '6:{"jobs":[]}\n' + tail
+    page = Selector("<script>self.__next_f.push(" + json.dumps([1, stream]) + ")</script>")
+    assert extract_next_job_lists(page) == []

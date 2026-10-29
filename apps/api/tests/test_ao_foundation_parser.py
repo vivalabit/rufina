@@ -181,6 +181,43 @@ def test_ao_foundation_repeats_shifted_pages_until_every_id_is_seen() -> None:
     assert result.message.endswith("across 4 page requests")
 
 
+@pytest.mark.parametrize(
+    "message", ["Sorry, this position has been filled.", "Temporarily unavailable"]
+)
+def test_ao_foundation_excludes_only_explicitly_closed_postings(message: str) -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        if request.url.path.startswith("/search/"):
+            return httpx.Response(200, text=listing_html([101, 102], start=1, end=2, total=2))
+        if request.url.path.endswith("/101/"):
+            return httpx.Response(200, text=detail_html(101))
+        return httpx.Response(
+            200,
+            text=f'<div class="jobDisplayShell"><div class="job"><p><strong>{message}</strong></p></div></div>',
+        )
+
+    result = AoFoundationJobsParser(transport=httpx.MockTransport(handler)).search(
+        LinkedInSearchRequest()
+    )
+    if message.startswith("Sorry"):
+        assert [job.raw["id"] for job in result.jobs] == ["101"]
+        assert "from 2 catalog records" in result.message
+    else:
+        assert len(result.jobs) == 2
+        assert "detail_error" in result.jobs[1].raw
+
+
+def test_ao_foundation_does_not_accept_closed_page_for_another_job() -> None:
+    from app.services.parsers.companies.ao_foundation import parse_detail_html
+
+    with pytest.raises(DirectCompanyRequestError, match="different vacancy"):
+        parse_detail_html(
+            '<div class="jobDisplayShell"><div class="job">Sorry, this position has been filled.</div></div>',
+            page_url="https://careers.aofoundation.org/job/Engineer/102/",
+            expected_url="https://careers.aofoundation.org/job/Engineer/101/",
+            expected_job_id="101",
+        )
+
+
 def test_ao_foundation_preserves_listing_when_detail_request_fails() -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         if request.url.path == "/search/locale=en_US":

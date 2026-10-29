@@ -43,11 +43,13 @@ class HuaweiSwitzerlandJobsParser:
         base_url: str = HUAWEI_SWITZERLAND_JOBS_BASE_URL,
         timeout_seconds: float = 30.0,
         detail_workers: int = 8,
+        max_pages: int = 100,
         transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.base_url = base_url
         self.timeout_seconds = timeout_seconds
         self.detail_workers = max(1, detail_workers)
+        self.max_pages = max(1, max_pages)
         self.transport = transport
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
@@ -60,7 +62,62 @@ class HuaweiSwitzerlandJobsParser:
             ) as client:
                 response = client.get(self.base_url)
                 response.raise_for_status()
-                records = parse_listing_html(response.text, page_url=str(response.url))
+                page = Selector(response.text)
+                if not page.css("#jobs_list_container"):
+                    raise HuaweiSwitzerlandParseError(
+                        "Huawei Switzerland listing page is missing its vacancy catalog"
+                    )
+                total = extract_result_count(page)
+                records = parse_listing_html(
+                    response.text,
+                    page_url=str(response.url),
+                    expected_count=total,
+                    allow_partial=True,
+                )
+                page_html = response.text
+                seen_pages = {str(response.url)}
+                while len(records) < total:
+                    link = (
+                        Selector(page_html)
+                        .css(
+                            "#show_more_button a::attr(href), "
+                            'turbo-stream[target="show_more_button"] template a::attr(href)'
+                        )
+                        .get()
+                    )
+                    next_url = urljoin(self.base_url, link or "")
+                    parts = urlsplit(next_url)
+                    if (
+                        not link
+                        or parts.netloc != urlsplit(self.base_url).netloc
+                        or parts.path != "/jobs/show_more"
+                        or next_url in seen_pages
+                        or len(seen_pages) >= self.max_pages
+                    ):
+                        raise HuaweiSwitzerlandParseError(
+                            "Huawei Switzerland catalog has incomplete or invalid pagination"
+                        )
+                    seen_pages.add(next_url)
+                    response = client.get(
+                        next_url, headers={"Accept": "text/vnd.turbo-stream.html"}
+                    )
+                    response.raise_for_status()
+                    page_html = response.text
+                    more = parse_listing_html(
+                        page_html,
+                        page_url=str(response.url),
+                        expected_count=total,
+                        allow_partial=True,
+                    )
+                    if not more or {item["id"] for item in records} & {item["id"] for item in more}:
+                        raise HuaweiSwitzerlandParseError(
+                            "Huawei Switzerland pagination returned duplicate or empty records"
+                        )
+                    records.extend(more)
+                if len(records) != total:
+                    raise HuaweiSwitzerlandParseError(
+                        "Huawei Switzerland catalog changed its count"
+                    )
                 self.enrich_records(client, records)
         except HuaweiSwitzerlandParseError:
             raise
@@ -77,7 +134,10 @@ class HuaweiSwitzerlandJobsParser:
             status="completed",
             search_url=self.base_url,
             jobs=jobs,
-            message=(f"Scanned {len(jobs)} Huawei Switzerland vacancies from one page"),
+            message=(
+                f"Scanned {len(jobs)} Huawei Switzerland vacancies from "
+                + ("one page" if len(seen_pages) == 1 else f"{len(seen_pages)} pages")
+            ),
         )
 
     def enrich_records(
@@ -150,17 +210,28 @@ class HuaweiSwitzerlandJobsParser:
         )
 
 
-def parse_listing_html(page_html: str, *, page_url: str) -> list[dict[str, Any]]:
+def parse_listing_html(
+    page_html: str,
+    *,
+    page_url: str,
+    expected_count: int | None = None,
+    allow_partial: bool = False,
+) -> list[dict[str, Any]]:
     page = Selector(page_html)
-    if not page.css("#jobs_list_container").get():
+    cards = page.css("#jobs_list_container > li")
+    if not page.css("#jobs_list_container").get() and allow_partial:
+        cards = page.css(
+            'turbo-stream[action="append"][target="jobs_list_container"] template > li'
+        )
+    if not page.css("#jobs_list_container").get() and not cards:
         raise HuaweiSwitzerlandParseError(
             "Huawei Switzerland listing page is missing its vacancy catalog"
         )
 
-    expected_count = extract_result_count(page)
+    expected_count = extract_result_count(page) if expected_count is None else expected_count
     records: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
-    for card in page.css("#jobs_list_container > li"):
+    for card in cards:
         path = optional_text(card.css('a[href*="/jobs/"]::attr(href)').get())
         title = optional_text(" ".join(card.css('a[href*="/jobs/"]::text').getall()))
         detail_url = urljoin(page_url, path) if path else None
@@ -187,7 +258,7 @@ def parse_listing_html(page_html: str, *, page_url: str) -> list[dict[str, Any]]
             }
         )
 
-    if len(records) != expected_count:
+    if not allow_partial and len(records) != expected_count:
         raise HuaweiSwitzerlandParseError(
             f"Huawei Switzerland listed {len(records)} vacancies but declared {expected_count} jobs"
         )

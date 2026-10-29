@@ -19,8 +19,7 @@ HINT_PORTAL_URL = "https://jobs.dualoo.com/portal/t1jerlne?lang=DE"
 HINT_COMPANY = "HINT AG"
 HINT_PORTAL_ID = "t1jerlne"
 HINT_SPONTANEOUS_APPLY_URL = (
-    "https://jobs.dualoo.com/link/d1d9bb61-5b5e-4ef0-afb6-939a38782679/"
-    "apply?lang=DE"
+    "https://jobs.dualoo.com/link/d1d9bb61-5b5e-4ef0-afb6-939a38782679/apply?lang=DE"
 )
 HINT_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
@@ -47,9 +46,7 @@ CANONICAL_DETAIL_PATH_PATTERN = re.compile(
     rf"^/portal/([a-z0-9]{{8}})/({UUID_PATTERN})/detail/?$",
     re.IGNORECASE,
 )
-WORKLOAD_RANGE_PATTERN = re.compile(
-    r"(?<!\d)(\d{1,3})\s*[-–]\s*(\d{1,3})\s*%(?!\d)"
-)
+WORKLOAD_RANGE_PATTERN = re.compile(r"(?<!\d)(\d{1,3})\s*[-–]\s*(\d{1,3})\s*%(?!\d)")
 WORKLOAD_PATTERN = re.compile(r"(?<!\d)(\d{1,3})\s*%(?!\d)")
 
 
@@ -123,8 +120,7 @@ class HintAgJobsParser:
             search_url=self.base_url,
             jobs=jobs,
             message=(
-                f"Scanned {len(jobs)} HINT AG vacancies from the complete "
-                "official Dualoo catalog"
+                f"Scanned {len(jobs)} HINT AG vacancies from the complete official Dualoo catalog"
             ),
         )
 
@@ -188,10 +184,7 @@ def parse_career_page(
         or unique_attribute_values(page, "html", "lang") != {"de-DE"}
         or selector_text(page, "title") != "Stellenangebote - HINT AG"
         or "Unsere Fachkräfte sind unsere Zukunft"
-        not in {
-            selector_text(heading)
-            for heading in page.css("h1.elementor-heading-title")
-        }
+        not in {selector_text(heading) for heading in page.css("h1.elementor-heading-title")}
     ):
         raise HintAgParseError("HINT AG careers page has an invalid identity")
 
@@ -226,8 +219,7 @@ def parse_portal_html(
     if (
         unique_attribute_values(page, 'meta[property="og:title"]', "content")
         != {"HINT AG - Offene Stellen"}
-        or unique_attribute_values(page, "#jobPortalUrl", "value")
-        != {HINT_PORTAL_ID}
+        or unique_attribute_values(page, "#jobPortalUrl", "value") != {HINT_PORTAL_ID}
         or unique_attribute_values(page, "#lang", "value") != {"DE"}
         or len(boxes) != 1
     ):
@@ -236,8 +228,7 @@ def parse_portal_html(
     cards = boxes[0].css(":scope > a.jobElement")
     if len(cards) > max_jobs:
         raise HintAgParseError(
-            f"HINT AG exposes {len(cards)} jobs, above the configured limit of "
-            f"{max_jobs}"
+            f"HINT AG exposes {len(cards)} jobs, above the configured limit of {max_jobs}"
         )
 
     records: list[dict[str, Any]] = []
@@ -257,12 +248,10 @@ def parse_portal_html(
             or not title
             or listing_location != "HINT AG - Lenzburg"
             or starts_at != "ab sofort"
-            or starts_at_code != "IMMEDIATELY"
+            or starts_at_code not in {None, "IMMEDIATELY"}
             or job_id in seen_ids
         ):
-            raise HintAgParseError(
-                "HINT AG catalog contains an invalid or duplicate vacancy"
-            )
+            raise HintAgParseError("HINT AG catalog contains an invalid or duplicate vacancy")
         seen_ids.add(job_id)
         records.append(
             {
@@ -310,8 +299,7 @@ def parse_detail_html(
     if (
         not canonical_url
         or len(schemas) != 1
-        or unique_attribute_values(page, "#jobPortalUrl", "value")
-        != {HINT_PORTAL_ID}
+        or unique_attribute_values(page, "#jobPortalUrl", "value") != {HINT_PORTAL_ID}
         or unique_attribute_values(page, "#lang", "value") != {"DE"}
     ):
         raise HintAgParseError("HINT AG detail page has an invalid identity")

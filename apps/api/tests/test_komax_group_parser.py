@@ -71,8 +71,7 @@ def detail_html(
 ) -> str:
     job_title = title or f"Development Engineer {job_id}"
     canonical = canonical_url or (
-        f"https://jobs.komaxgroup.test/job/Development-Engineer-{job_id}/"
-        f"{job_id}-en_US/"
+        f"https://jobs.komaxgroup.test/job/Development-Engineer-{job_id}/{job_id}-en_US/"
     )
     application_id = apply_job_id or job_id
     return f"""
@@ -160,8 +159,7 @@ def test_komax_group_scans_full_catalog_and_enriches_every_record() -> None:
 
     assert result.status == "completed"
     assert result.message == (
-        "Scanned 3 Komax Group Switzerland vacancies from 3 catalog records "
-        "across 2 page requests"
+        "Scanned 3 Komax Group Switzerland vacancies from 3 catalog records across 2 page requests"
     )
     assert len(result.jobs) == 3
     listing_requests = [request for request in requests if request.method == "POST"]
@@ -186,9 +184,7 @@ def test_komax_group_scans_full_catalog_and_enriches_every_record() -> None:
     assert job.title == "Development Engineer 2157"
     assert job.company == "Komax Group"
     assert job.location == "Dierikon, CHE, 6036"
-    assert job.url == (
-        "https://jobs.komaxgroup.test/job/Development-Engineer-2157/2157-en_US/"
-    )
+    assert job.url == ("https://jobs.komaxgroup.test/job/Development-Engineer-2157/2157-en_US/")
     assert job.apply_url == (
         "https://jobs.komaxgroup.test/talentcommunity/apply/2157/?locale=en_US"
     )
@@ -214,9 +210,7 @@ def test_komax_group_repeats_shifted_pages_until_every_id_is_seen() -> None:
         if request.method == "GET" and request.url.path == "/search/":
             return httpx.Response(200, text=search_html(), request=request)
         if request.method == "GET":
-            job_id = int(
-                request.url.path.rstrip("/").rsplit("/", maxsplit=1)[-1].split("-")[0]
-            )
+            job_id = int(request.url.path.rstrip("/").rsplit("/", maxsplit=1)[-1].split("-")[0])
             return httpx.Response(200, text=detail_html(job_id), request=request)
         page_number = json.loads(request.content)["pageNumber"]
         if page_number == 0:
@@ -289,9 +283,9 @@ def test_komax_group_rejects_duplicate_or_non_swiss_catalog_records() -> None:
     with pytest.raises(DirectCompanyRequestError, match="duplicate vacancy IDs"):
         parser_for([api_record(2157), api_record(2157)]).search(LinkedInSearchRequest())
     with pytest.raises(DirectCompanyRequestError, match="non-Swiss vacancy data"):
-        parser_for(
-            [api_record(2157, location="Aachen, DEU, 52062", city="Aachen")]
-        ).search(LinkedInSearchRequest())
+        parser_for([api_record(2157, location="Aachen, DEU, 52062", city="Aachen")]).search(
+            LinkedInSearchRequest()
+        )
 
 
 def test_komax_group_rejects_malformed_catalog_and_mismatched_detail() -> None:
@@ -311,14 +305,8 @@ def test_komax_group_rejects_malformed_catalog_and_mismatched_detail() -> None:
     with pytest.raises(DirectCompanyRequestError, match="incomplete vacancy"):
         parse_detail_html(
             detail_html(2157, apply_job_id=999),
-            page_url=(
-                "https://jobs.komaxgroup.test/job/Development-Engineer-2157/"
-                "2157-en_US/"
-            ),
-            expected_url=(
-                "https://jobs.komaxgroup.test/job/Development-Engineer-2157/"
-                "2157-en_US/"
-            ),
+            page_url=("https://jobs.komaxgroup.test/job/Development-Engineer-2157/2157-en_US/"),
+            expected_url=("https://jobs.komaxgroup.test/job/Development-Engineer-2157/2157-en_US/"),
             expected_job_id="2157",
             expected_title="Development Engineer 2157",
             expected_cities=["Dierikon"],
@@ -400,10 +388,7 @@ def test_komax_group_jobs_render_as_direct_company_imports() -> None:
             "location": "Dierikon, CHE, 6036",
             "posted_at": "2026-08-10",
             "employment_type": "Fulltime",
-            "url": (
-                "https://jobs.komaxgroup.com/job/Development-Engineer-Electronics/"
-                "2157-en_US/"
-            ),
+            "url": ("https://jobs.komaxgroup.com/job/Development-Engineer-Electronics/2157-en_US/"),
         }
     )
     stored = parsed_job_to_stored_job(
@@ -416,3 +401,21 @@ def test_komax_group_jobs_render_as_direct_company_imports() -> None:
     assert stored["department"] == "Komax Group import"
     assert stored["id"] == "komax_group-2157"
     assert stored["company"] == "Komax Group"
+
+
+def test_komax_accepts_multicountry_role_with_verified_swiss_location() -> None:
+    from app.services.parsers.companies.komax_group import parse_listing_payload
+
+    row = api_record(2415)
+    row["response"]["jobLocationShort"].insert(0, "Bucuresti - Sector 6, ROU, 62202<br/>")
+    row["response"]["sfstd_jobLocation_obj"].insert(0, "Bucharest")
+    records, total = parse_listing_payload(
+        api_payload([row], total=1), base_url=BASE_URL, page_number=0
+    )
+    assert total == 1
+    assert records[0]["cities"] == ["Bucharest", "Dierikon"]
+    assert "Dierikon, CHE" in records[0]["location"]
+    row["response"]["jobLocationShort"].pop()
+    row["response"]["sfstd_jobLocation_obj"].pop()
+    with pytest.raises(DirectCompanyRequestError, match="non-Swiss"):
+        parse_listing_payload(api_payload([row], total=1), base_url=BASE_URL, page_number=0)

@@ -178,8 +178,7 @@ def test_infosoft_collects_complete_catalog_and_enriches_details() -> None:
                 title="ICT Supporter/in",
                 workload="80–100 %",
                 apply_url=(
-                    "mailto:bewerbung@infosoft.swiss?subject="
-                    "Bewerbung als ICT Supporter/in"
+                    "mailto:bewerbung@infosoft.swiss?subject=Bewerbung als ICT Supporter/in"
                 ),
             ),
             request=request,
@@ -197,9 +196,7 @@ def test_infosoft_collects_complete_catalog_and_enriches_details() -> None:
         "/karriere/ict-supporter-in/",
     ]
     assert result.status == "completed"
-    assert result.message == (
-        "Scanned 2 Infosoft Switzerland vacancies from the official catalog"
-    )
+    assert result.message == ("Scanned 2 Infosoft Switzerland vacancies from the official catalog")
     assert len(result.jobs) == 2
 
     first = result.jobs[0]
@@ -207,12 +204,9 @@ def test_infosoft_collects_complete_catalog_and_enriches_details() -> None:
     assert first.title == "Senior Software Engineer/in .NET"
     assert first.company == "Infosoft Systems AG"
     assert first.location == "Luzern, Switzerland"
-    assert first.url == (
-        "https://infosoft.test/karriere/senior-software-engineer-in-net/"
-    )
+    assert first.url == ("https://infosoft.test/karriere/senior-software-engineer-in-net/")
     assert first.apply_url == (
-        "mailto:bewerbung@infosoft.swiss?subject="
-        "Bewerbung als Software Engineer/in .NET"
+        "mailto:bewerbung@infosoft.swiss?subject=Bewerbung als Software Engineer/in .NET"
     )
     assert first.posted_at == "2026-03-30T12:43:31+00:00"
     assert first.employment_type == "90–100%"
@@ -329,10 +323,7 @@ def test_infosoft_jobs_render_as_direct_company_imports() -> None:
             "title": "Senior Software Engineer .Net",
             "location": "Luzern, Switzerland",
             "employment_type": "90–100%",
-            "url": (
-                "https://infosoft.swiss/karriere/"
-                "senior-software-engineer-in-net/"
-            ),
+            "url": ("https://infosoft.swiss/karriere/senior-software-engineer-in-net/"),
         }
     )
     stored = parsed_job_to_stored_job(
@@ -344,3 +335,35 @@ def test_infosoft_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "Infosoft Systems AG import"
     assert stored["id"] == "infosoft-senior-software-engineer-in-net"
+
+
+def test_infosoft_accepts_apprenticeship_without_inventing_workload() -> None:
+    import re
+
+    from app.services.parsers.companies.infosoft import parse_detail_html, parse_listing_html
+
+    slug = "lehrstelle-informatiker-in-efz-applikationsentwicklung"
+    title = "Lehrstelle als Informatiker/-in EFZ Applikationsentwicklung"
+    card = listing_card(
+        slug, title="Lehrstelle Sommer 2027: Informatiker/-in EFZ Applikationsentwicklung"
+    ).replace(" &#8211; 90% bis 100% in Luzern", "")
+    records = parse_listing_html(listing_html([card]), page_url=BASE_URL, expected_url=BASE_URL)
+    assert records[0]["employment_type"] == "Apprenticeship"
+    page = detail_html(slug, title=title, workload="ab Sommer 2027")
+    page = page.replace(
+        "Entwickle verlässliche Software für den öffentlichen Verkehr.",
+        "Das lernst du bei uns: Software entwickeln. Das bringst du mit: Interesse an Technik.",
+    )
+    page = re.sub(r"<article>\s*<div>.*?</article>", "<article></article>", page, flags=re.DOTALL)
+    record = records[0]
+    detail = parse_detail_html(
+        page,
+        page_url=record["url"],
+        expected_url=record["url"],
+        expected_job_id=slug,
+        expected_title=record["title"],
+        expected_workload=record["employment_type"],
+        expected_location=record["location"],
+    )
+    assert detail["employment_type"] == "Apprenticeship"
+    assert detail["location"] == "Luzern, Switzerland"

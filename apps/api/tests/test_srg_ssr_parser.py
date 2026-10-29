@@ -234,3 +234,16 @@ def test_srg_ssr_jobs_render_as_direct_company_imports() -> None:
     assert stored["logo"] == "company"
     assert stored["department"] == "SRG SSR import"
     assert stored["id"] == f"srg_ssr-{JOB_ONE_ID}"
+
+
+def test_srg_accepts_deutschschweiz_regional_catalog_prefix() -> None:
+    from app.services.parsers.companies.srg_ssr import parse_listing_html
+
+    page = listing_html().replace("/srg/job-vacancies/", "/srgd/job-vacancies/")
+    records = parse_listing_html(page, page_url="https://ohws.prospective.ch/catalog")
+    assert len(records) == 2
+    assert all("/srgd/job-vacancies/" in record["url"] for record in records)
+    with pytest.raises(DirectCompanyRequestError):
+        parse_listing_html(
+            page.replace("/srgd/", "/unrelated/"), page_url="https://ohws.prospective.ch/catalog"
+        )
