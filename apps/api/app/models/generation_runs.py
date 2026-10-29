@@ -216,7 +216,7 @@ class GenerationRunCheckRecord(OwnerScoped, Base):
         nullable=True,
         index=True,
     )
-    check_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    check_type: Mapped[str] = mapped_column(Text, nullable=False)
     status: Mapped[str] = mapped_column(String(16), nullable=False)
     artifact_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
     data: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
