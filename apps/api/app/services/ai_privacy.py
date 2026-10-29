@@ -13,6 +13,7 @@ from app.models.documents import (
     utc_now,
 )
 from app.models.job_screening import JobScreeningDecisionRecord
+from app.models.job_search import JobSearchRunRecord
 from app.models.jobs import JobMatchRecord
 from app.models.privacy import AiPrivacySettingsRecord
 from app.models.profile import CandidateMatchSnapshotRecord
@@ -72,6 +73,16 @@ def delete_ai_data_for_owner(db: Session, owner_id: str) -> int:
     for model in models:
         result = db.execute(delete(model).where(model.owner_id == owner_id))
         deleted += result.rowcount or 0
+
+    # Reports contain copies of screening reasons. Respect the same deletion /
+    # retention policy as the original decisions, while retaining search totals.
+    runs = db.scalars(select(JobSearchRunRecord).where(
+        JobSearchRunRecord.owner_id == owner_id,
+        JobSearchRunRecord.report_version.is_not(None),
+    )).all()
+    for run in runs:
+        if run.report and not run.report.get("detailsRemoved"):
+            run.report = {**run.report, "vacancies": [], "detailsRemoved": True}
 
     record = privacy_settings_record(db, owner_id)
     if record:

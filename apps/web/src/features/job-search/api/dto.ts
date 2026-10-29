@@ -20,6 +20,9 @@ export type JobSourceConfigPayload = {
 
 export type JobSearchRunPayload = {
   id: string;
+  sessionId?: string | null;
+  reportVersion?: number | null;
+  configSnapshot?: Record<string, unknown>;
   runType: "manual" | "automatic";
   sources: string[];
   status: string;

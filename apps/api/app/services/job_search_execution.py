@@ -30,6 +30,7 @@ from app.models.job_search import (
     normalize_job_search_config,
 )
 from app.models.jobs import (
+    DiscoveredVacancyRecord,
     StoredJobRecord,
     is_replaceable_job_state_placeholder,
 )
@@ -47,7 +48,6 @@ from app.services.critical_notifications import create_parser_failure_notificati
 from app.services.discovered_vacancies import (
     DiscoveredVacancyUpsertResult,
     compact_screening_data,
-    mark_missing_vacancies_inactive,
     stable_job_id,
     upsert_discovered_vacancies,
 )
@@ -74,6 +74,11 @@ from app.services.job_screening_store import (
     build_screening_vacancy_hash,
     latest_screening_decision,
     persist_screening_decision,
+)
+from app.services.job_search_reports import (
+    build_search_report,
+    catalog_disappearances,
+    vacancy_snapshot,
 )
 from app.services.job_search_schedule import calculate_next_run_at
 from app.services.job_source_screening import screening_policies_for_jobs
@@ -381,6 +386,7 @@ def execute_job_search(
     reserved_run: JobSearchRunRecord | None = None,
     recalculate_schedule: bool = True,
     screening_required: bool = False,
+    session_id: str | None = None,
 ) -> JobSearchExecutionResult:
     started_at = now or datetime.now(UTC)
     if reserved_run is not None:
@@ -413,6 +419,8 @@ def execute_job_search(
     if reserved_run is None:
         run = JobSearchRunRecord(
             id=uuid4().hex,
+            session_id=session_id,
+            report_version=1,
             schedule_id=schedule.id if schedule else None,
             run_type=run_type,
             scheduled_for=scheduled_for,
@@ -427,6 +435,8 @@ def execute_job_search(
         db.add(run)
     else:
         run = reserved_run
+        run.report_version = 1
+        run.report = None
         run.config_snapshot = config_snapshot
         run.status = "running"
         run.jobs_found = 0
@@ -558,169 +568,211 @@ def execute_job_search(
         log_job_search_finished(run)
         raise
 
-    source_warning = parser_warnings(
-        search_result,
-        requests={source: source_requests.get(source, request) for source in run.sources},
-    )
-    run.warning = source_warning
-    run.source_errors = search_result.source_errors
-    create_parser_failure_notifications(
-        db,
-        run_id=run.id,
-        source_errors=search_result.source_errors,
-        source_attempts=search_result.source_attempts,
-    )
-    db.commit()
-
-    discovered_at = datetime.now(UTC)
-    inventory_result = upsert_discovered_vacancies(
-        db,
-        jobs=search_result.jobs,
-        run_id=run.id,
-        seen_at=discovered_at,
-        max_description_chars=settings.job_screening_max_description_chars,
-    )
-    reconcile_full_catalog_inventory(
-        db,
-        search_result=search_result,
-        inventory_result=inventory_result,
-        unavailable_at=discovered_at,
-    )
-    run.jobs_found = len(search_result.jobs)
-    run.jobs_discovered_new = inventory_result.jobs_discovered_new
-    run.jobs_discovered_updated = inventory_result.jobs_discovered_updated
-    run.jobs_already_observed = inventory_result.jobs_already_observed
-    run.source_errors = search_result.source_errors
-    db.commit()
-
-    candidates, jobs_already_known = prepare_new_job_candidates(
-        db,
-        jobs=[snapshot.job for snapshot in inventory_result.vacancies],
-        resolved_job_ids=[
-            snapshot.job_id for snapshot in inventory_result.vacancies
-        ],
-    )
-    candidate_policies = dict(zip(
-        (candidate.job_id for candidate in candidates),
-        screening_policies_for_jobs(
-            [candidate.job for candidate in candidates],
-            source_jobs=filter_jobs_by_date_posted(
-                [job for response in search_result.source_results.values() for job in response.jobs],
-                request=request,
-                source_requests=source_requests,
-            ),
-            default_policy=normalized_config.screening,
-            source_policies=source_screening_configs,
-        ),
-        strict=True,
-    ))
-    screening_result = screen_candidates_by_source(
-        db,
-        candidates=candidates,
-        screening_config=normalized_config.screening,
-        source_screening_configs=source_screening_configs,
-        candidate_screening_configs=candidate_policies,
-        rolling_posting_age=normalized_config.screening.max_posting_age_days is not None,
-        settings=settings,
-        search_config_id=(
-            config.id
-            if config is not None
-            else str(run.config_snapshot.get("id") or "") or None
-        ),
-        progress_callback=lambda progress: update_run_screening_progress(
+    try:
+        source_warning = parser_warnings(
+            search_result,
+            requests={source: source_requests.get(source, request) for source in run.sources},
+        )
+        run.warning = source_warning
+        run.source_errors = search_result.source_errors
+        create_parser_failure_notifications(
             db,
-            run=run,
-            progress=progress,
-        ),
-    )
-    persisted_at = datetime.now(UTC)
-    new_jobs = persist_new_jobs(
-        db,
-        jobs=screening_result.keep,
-        added_at=persisted_at,
-        provenance=JobImportProvenance(
+            run_id=run.id,
+            source_errors=search_result.source_errors,
+            source_attempts=search_result.source_attempts,
+        )
+        db.commit()
+
+        discovered_at = datetime.now(UTC)
+        inventory_result = upsert_discovered_vacancies(
+            db,
+            jobs=search_result.jobs,
+            run_id=run.id,
+            seen_at=discovered_at,
+            max_description_chars=settings.job_screening_max_description_chars,
+        )
+        missing_vacancies = reconcile_full_catalog_inventory(
+            db,
+            search_result=search_result,
+            inventory_result=inventory_result,
+            unavailable_at=discovered_at,
+        )
+        missing_vacancies = catalog_disappearances(
+            db, run=run, result=search_result, fallback=missing_vacancies,
+        )
+        run.jobs_found = len(search_result.jobs)
+        run.jobs_discovered_new = inventory_result.jobs_discovered_new
+        run.jobs_discovered_updated = inventory_result.jobs_discovered_updated
+        run.jobs_already_observed = inventory_result.jobs_already_observed
+        run.source_errors = search_result.source_errors
+        db.commit()
+
+        candidates, jobs_already_known = prepare_new_job_candidates(
+            db,
+            jobs=[snapshot.job for snapshot in inventory_result.vacancies],
+            resolved_job_ids=[
+                snapshot.job_id for snapshot in inventory_result.vacancies
+            ],
+        )
+        report_inputs = {
+            "sources": list(run.sources), "result": search_result, "inventory": inventory_result,
+            "candidate_ids": {candidate.job_id for candidate in candidates},
+            "request": request, "source_requests": source_requests, "missing": missing_vacancies,
+        }
+        run.report = build_search_report(**report_inputs)
+        db.commit()
+        candidate_policies = dict(zip(
+            (candidate.job_id for candidate in candidates),
+            screening_policies_for_jobs(
+                [candidate.job for candidate in candidates],
+                source_jobs=filter_jobs_by_date_posted(
+                    [job for response in search_result.source_results.values() for job in response.jobs],
+                    request=request,
+                    source_requests=source_requests,
+                ),
+                default_policy=normalized_config.screening,
+                source_policies=source_screening_configs,
+            ),
+            strict=True,
+        ))
+        screening_result = screen_candidates_by_source(
+            db,
+            candidates=candidates,
+            screening_config=normalized_config.screening,
+            source_screening_configs=source_screening_configs,
+            candidate_screening_configs=candidate_policies,
+            rolling_posting_age=normalized_config.screening.max_posting_age_days is not None,
+            settings=settings,
             search_config_id=(
                 config.id
                 if config is not None
                 else str(run.config_snapshot.get("id") or "") or None
             ),
-            search_config_version=(
-                str(run.config_snapshot.get("updatedAt") or "") or None
+            progress_callback=lambda progress: update_run_screening_progress(
+                db,
+                run=run,
+                progress=progress,
             ),
-            screening_config_hash=build_screening_config_hash(
-                normalized_config.screening
-            ),
-            screening_config_snapshot=normalized_config.screening.model_dump(
-                by_alias=True,
-                exclude_none=True,
-            ),
-        ),
-        candidate_provenance={
-            job_id: JobImportProvenance(
+        )
+        persisted_at = datetime.now(UTC)
+        new_jobs = persist_new_jobs(
+            db,
+            jobs=screening_result.keep,
+            added_at=persisted_at,
+            provenance=JobImportProvenance(
                 search_config_id=(
-                    config.id if config is not None
+                    config.id
+                    if config is not None
                     else str(run.config_snapshot.get("id") or "") or None
                 ),
-                search_config_version=str(run.config_snapshot.get("updatedAt") or "") or None,
-                screening_config_hash=build_screening_config_hash(policy),
-                screening_config_snapshot=policy.model_dump(by_alias=True, exclude_none=True),
-            )
-            for job_id, policy in candidate_policies.items()
-        },
-    )
-    run.jobs_already_known = jobs_already_known
-    run.jobs_screened = screening_result.jobs_screened
-    run.jobs_passed = screening_result.jobs_passed
-    run.jobs_rejected = screening_result.jobs_rejected
-    run.jobs_uncertain = screening_result.jobs_uncertain
-    run.jobs_added = len(new_jobs)
-    run.jobs_analyzed = 0
-    run.screening_errors = screening_result.screening_errors
-    run.jobs_screening_ai_calls = screening_result.jobs_screening_ai_calls
-    run.warning = combine_warnings(source_warning, screening_result.warning)
-    run.source_errors = search_result.source_errors
-    run.status = (
-        "partial"
-        if screening_result.screening_errors
-        else run_status(search_result)
-    )
-    db.commit()
-    log_job_search_results_persisted(run)
+                search_config_version=(
+                    str(run.config_snapshot.get("updatedAt") or "") or None
+                ),
+                screening_config_hash=build_screening_config_hash(
+                    normalized_config.screening
+                ),
+                screening_config_snapshot=normalized_config.screening.model_dump(
+                    by_alias=True,
+                    exclude_none=True,
+                ),
+            ),
+            candidate_provenance={
+                job_id: JobImportProvenance(
+                    search_config_id=(
+                        config.id if config is not None
+                        else str(run.config_snapshot.get("id") or "") or None
+                    ),
+                    search_config_version=str(run.config_snapshot.get("updatedAt") or "") or None,
+                    screening_config_hash=build_screening_config_hash(policy),
+                    screening_config_snapshot=policy.model_dump(by_alias=True, exclude_none=True),
+                )
+                for job_id, policy in candidate_policies.items()
+            },
+        )
+        run.jobs_already_known = jobs_already_known
+        run.report = build_search_report(
+            **report_inputs,
+            decisions=screening_result.decisions,
+            added_ids={job["id"] for job in new_jobs},
+        )
+        run.jobs_screened = screening_result.jobs_screened
+        run.jobs_passed = screening_result.jobs_passed
+        run.jobs_rejected = screening_result.jobs_rejected
+        run.jobs_uncertain = screening_result.jobs_uncertain
+        run.jobs_added = len(new_jobs)
+        run.jobs_analyzed = 0
+        run.screening_errors = screening_result.screening_errors
+        run.jobs_screening_ai_calls = screening_result.jobs_screening_ai_calls
+        run.warning = combine_warnings(source_warning, screening_result.warning)
+        run.source_errors = search_result.source_errors
+        run.status = (
+            "partial"
+            if screening_result.screening_errors
+            else run_status(search_result)
+        )
+        db.commit()
+        log_job_search_results_persisted(run)
 
-    # Auto AI Match is a global, explicit opt-in. The legacy per-run and
-    # per-schedule flags remain accepted for API compatibility, but the app
-    # setting is the single source of truth for automatic matching.
-    analysis_enabled = settings.auto_ai_match_enabled
-    match_warning = match_new_jobs_if_allowed(
-        db,
-        jobs=new_jobs,
-        enabled=analysis_enabled,
-        settings=settings,
-        owner_id=get_bound_owner_id(),
-        progress_callback=lambda processed, total: update_run_ai_match_progress(
+        # Auto AI Match is a global, explicit opt-in. The legacy per-run and
+        # per-schedule flags remain accepted for API compatibility, but the app
+        # setting is the single source of truth for automatic matching.
+        analysis_enabled = settings.auto_ai_match_enabled
+        match_warning = match_new_jobs_if_allowed(
             db,
-            run=run,
-            processed=processed,
-            total=total,
-        ),
-    )
-    run.jobs_analyzed = (
-        len(new_jobs)
-        if analysis_enabled and new_jobs and match_warning is None
-        else 0
-    )
-    run.warning = combine_warnings(source_warning, screening_result.warning, match_warning)
-    completed_at = datetime.now(UTC)
-    run.completed_at = completed_at
-    if schedule is not None:
-        schedule.last_run_at = completed_at
-        if recalculate_schedule:
-            recalculate_next_schedule_run(schedule, now=completed_at)
-        schedule.updated_at = completed_at
-    db.commit()
-    db.refresh(run)
-    log_job_search_finished(run)
-    return JobSearchExecutionResult(run=run, warning=run.warning)
+            jobs=new_jobs,
+            enabled=analysis_enabled,
+            settings=settings,
+            owner_id=get_bound_owner_id(),
+            progress_callback=lambda processed, total: update_run_ai_match_progress(
+                db,
+                run=run,
+                processed=processed,
+                total=total,
+            ),
+        )
+        run.jobs_analyzed = (
+            len(new_jobs)
+            if analysis_enabled and new_jobs and match_warning is None
+            else 0
+        )
+        run.warning = combine_warnings(source_warning, screening_result.warning, match_warning)
+        completed_at = datetime.now(UTC)
+        run.completed_at = completed_at
+        if schedule is not None:
+            schedule.last_run_at = completed_at
+            if recalculate_schedule:
+                recalculate_next_schedule_run(schedule, now=completed_at)
+            schedule.updated_at = completed_at
+        db.commit()
+        db.refresh(run)
+        log_job_search_finished(run)
+        return JobSearchExecutionResult(run=run, warning=run.warning)
+    except Exception:
+        db.rollback()
+        if run.report:
+            report = deepcopy(run.report)
+            for row in report["vacancies"]:
+                if row["outcome"] == "pending":
+                    row.update(
+                        outcome="error",
+                        reason="Search stopped before this vacancy finished processing.",
+                        reasonCode="processing_error",
+                    )
+            for source in report["sources"]:
+                source["error"] += source["pending"]
+                source["pending"] = 0
+            run.report = report
+        finish_failed_run(
+            run, schedule, completed_at=datetime.now(UTC),
+            source_errors={**run.source_errors, "processing": "Search processing failed."},
+            recalculate_schedule=recalculate_schedule,
+        )
+        if run.jobs_added:
+            run.status = "partial"
+        db.commit()
+        logger.exception("Search processing failed for run %s", run.id)
+        raise
+
 
 
 def log_job_search_finished(run: JobSearchRunRecord) -> None:
@@ -1026,7 +1078,8 @@ def reconcile_full_catalog_inventory(
     search_result: VacancySearchRunResult,
     inventory_result: DiscoveredVacancyUpsertResult,
     unavailable_at: datetime,
-) -> None:
+) -> dict[str, list[dict[str, Any]]]:
+    missing: dict[str, list[dict[str, Any]]] = {}
     seen_job_ids = {
         snapshot.job_id for snapshot in inventory_result.vacancies
     }
@@ -1039,12 +1092,27 @@ def reconcile_full_catalog_inventory(
             or source_result.status != "completed"
         ):
             continue
-        mark_missing_vacancies_inactive(
-            db,
-            source=source,
-            seen_job_ids=seen_job_ids,
-            unavailable_at=unavailable_at,
-        )
+        # Compare the complete source catalog, before cross-source deduplication.
+        # A vacancy retained under another source must not become a false disappearance.
+        source_urls = {canonical_job_url(job.url or job.apply_url) for job in source_result.jobs}
+        source_identities = {job_identity(job) for job in source_result.jobs}
+        records = db.scalars(select(DiscoveredVacancyRecord).where(
+            DiscoveredVacancyRecord.source == source,
+            DiscoveredVacancyRecord.availability == "active",
+        )).all()
+        missing[source] = []
+        for record in records:
+            job = ParsedJob.model_validate(record.data)
+            if (
+                record.id in seen_job_ids
+                or (canonical_job_url(job.url or job.apply_url) or None) in source_urls
+                or (job_identity(job) or None) in source_identities
+            ):
+                continue
+            missing[source].append(vacancy_snapshot(job, job_id=record.id))
+            record.availability = "inactive"
+            record.unavailable_at = unavailable_at
+    return missing
 
 
 def prepare_new_job_candidates(

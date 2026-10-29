@@ -47,6 +47,7 @@ export type JobSearchDialogProps = JobSearchConfigurationProps & {
   onToggleParser: (parser: ParserId) => void;
   onToggleDirectCompanies: () => void;
   onStartSearch: () => void | Promise<void>;
+  onViewReport?: () => void;
 };
 
 export function JobSearchDialog({
@@ -64,6 +65,7 @@ export function JobSearchDialog({
   onToggleParser,
   onToggleDirectCompanies,
   onStartSearch,
+  onViewReport,
   onFormChange,
   onReset,
   onSelectSourceConfig,
@@ -261,6 +263,11 @@ export function JobSearchDialog({
             ) : null}
           </p>
           <div className="flex gap-2">
+            {onViewReport && status !== "loading" && (
+              <Button variant="ghost" className="h-10 rounded-md border border-border px-4 text-[13px] text-accent" onClick={onViewReport}>
+                View report
+              </Button>
+            )}
             <Button
               variant="ghost"
               className="h-10 rounded-md border border-border bg-transparent px-6 text-[13px] text-[#1d1e1c] hover:bg-[#fff3e8]"

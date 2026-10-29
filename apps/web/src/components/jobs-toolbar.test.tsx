@@ -65,6 +65,7 @@ it("renders the requested action order and opens auto-searches locally", async (
     ),
   ).toEqual([
     "Search vacancies",
+    "Search history",
     "Add vacancy",
     "Search jobs",
     "Saved Jobs (2)",

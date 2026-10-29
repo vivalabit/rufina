@@ -5,6 +5,7 @@ import {
   Archive,
   Bookmark,
   ChevronDown,
+  History,
   Plus,
   Search,
   Settings,
@@ -14,6 +15,7 @@ import {
 import { AutoSearchDialog } from "@/components/auto-search-dialog";
 import { Button } from "@/components/ui/button";
 import { VacancyFilterDialog } from "@/components/vacancy-filter-dialog";
+import { SearchHistoryDialog } from "@/components/search-history-dialog";
 import { cn } from "@/lib/utils";
 import type { BulkAnalysisScope } from "@/features/jobs/model/types";
 
@@ -31,6 +33,7 @@ type JobsToolbarProps = {
   onSearchQueryChange: (value: string) => void;
   onAddVacancy: () => void;
   onSearchVacancies: () => void;
+  onSearchHistory?: () => void;
   onToggleSavedJobs: () => void;
   onToggleArchivedJobs: () => void;
   onAnalysisMenuOpenChange: (isOpen: boolean) => void;
@@ -55,6 +58,7 @@ export function JobsToolbar({
   onSearchQueryChange,
   onAddVacancy,
   onSearchVacancies,
+  onSearchHistory,
   onToggleSavedJobs,
   onToggleArchivedJobs,
   onAnalysisMenuOpenChange,
@@ -62,6 +66,7 @@ export function JobsToolbar({
   onVacanciesChanged,
 }: JobsToolbarProps) {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isVacancyFilterOpen, setIsVacancyFilterOpen] = useState(false);
   const [analysisMenuLeft, setAnalysisMenuLeft] = useState(0);
   const [analysisMenuTop, setAnalysisMenuTop] = useState(0);
@@ -107,13 +112,25 @@ export function JobsToolbar({
           aria-label="Jobs actions"
           className="flex min-w-0 flex-col gap-2 pb-1 xl:flex-row xl:items-center xl:justify-between"
         >
-        <div aria-label="Primary jobs actions" className="flex shrink-0 items-center gap-2">
+        <div aria-label="Primary jobs actions" className="flex min-w-0 shrink-0 flex-wrap items-center gap-2 sm:flex-nowrap">
         <Button
           className="h-10 shrink-0 rounded-lg border border-[#fa5d00] bg-[linear-gradient(135deg,#fa5d00_0%,#e95300_100%)] px-4 text-[13px] font-bold text-foreground shadow-[0_10px_28px_rgba(255,90,0,0.24),inset_0_1px_0_rgba(255,255,255,0.18)] hover:bg-[linear-gradient(135deg,#fa5d00_0%,#e95300_100%)] 2xl:h-12 2xl:px-5 2xl:text-sm"
           onClick={onSearchVacancies}
         >
           <Search className="h-[18px] w-[18px] stroke-[2.3] 2xl:h-5 2xl:w-5" />
           Search vacancies
+        </Button>
+
+        <Button
+          variant="ghost"
+          aria-label="Search history"
+          aria-haspopup="dialog"
+          title="Search history"
+          className={cn(secondaryButtonClass, "gap-2 !px-3")}
+          onClick={() => onSearchHistory ? onSearchHistory() : setIsHistoryOpen(true)}
+        >
+          <History className="h-[18px] w-[18px] 2xl:h-5 2xl:w-5" />
+          <span className="hidden sm:inline">History</span>
         </Button>
 
         <Button
@@ -269,6 +286,7 @@ export function JobsToolbar({
         onClose={() => setIsSettingsOpen(false)}
         onVacanciesChanged={onVacanciesChanged}
       />
+      {isHistoryOpen && <SearchHistoryDialog onClose={() => setIsHistoryOpen(false)} />}
       <VacancyFilterDialog
         open={isVacancyFilterOpen}
         onClose={() => setIsVacancyFilterOpen(false)}

@@ -1,14 +1,14 @@
 import logging
 from datetime import UTC, datetime, time
-from typing import Any
+from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import String, case, cast, func, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.identity import bind_request_identity
+from app.core.identity import bind_request_identity, get_bound_owner_id
 from app.core.settings import Settings, get_settings
 from app.models.job_screening import (
     JobScreeningAuditPayload,
@@ -19,6 +19,9 @@ from app.models.job_search import (
     JobSearchConfigPayload,
     JobSearchConfigRecord,
     JobSearchConfigUpdateRequest,
+    JobSearchHistoryDetail,
+    JobSearchHistoryEntry,
+    JobSearchHistoryPage,
     JobSearchManualRunRequest,
     JobSearchPresetCreateRequest,
     JobSearchPresetPayload,
@@ -825,6 +828,7 @@ def run_manual_search(
             run_type="manual",
             recalculate_schedule=False,
             screening_required=True,
+            session_id=request.session_id,
         )
         payload = JobSearchRunPayload.model_validate(result.run)
         return payload.model_copy(update={"warning": result.warning})
@@ -921,6 +925,82 @@ def list_runs(
                 ).limit(limit)
             ).all()
         )
+    except SQLAlchemyError as exc:
+        raise database_unavailable(exc) from exc
+
+
+@router.get("/history", response_model=JobSearchHistoryPage)
+def list_search_history(
+    db: Annotated[Session, Depends(get_db)],
+    limit: int = Query(default=25, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    query: str = Query(default="", max_length=200),
+    source: str | None = Query(default=None, max_length=160),
+    run_type: str | None = Query(default=None, alias="runType", pattern="^(manual|automatic)$"),
+    state: str | None = Query(default=None, alias="status", pattern="^(running|completed|partial|failed)$"),
+    since: Annotated[datetime | None, Query()] = None,
+) -> JobSearchHistoryPage:
+    try:
+        session_key = func.coalesce(JobSearchRunRecord.session_id, JobSearchRunRecord.id)
+        owner = JobSearchRunRecord.owner_id == get_bound_owner_id()
+        matching = select(session_key).where(owner)
+        if query:
+            escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+            matching = matching.where(
+                JobSearchRunRecord.config_snapshot["name"].as_string().ilike(
+                    f"%{escaped}%", escape="\\",
+                )
+            )
+        if source:
+            matching = matching.where(cast(JobSearchRunRecord.sources, String).contains(f'"{source}"'))
+        if run_type:
+            matching = matching.where(JobSearchRunRecord.run_type == run_type)
+        if since:
+            matching = matching.where(JobSearchRunRecord.started_at >= since)
+        grouped = select(session_key).where(owner, session_key.in_(matching)).group_by(session_key)
+        if state:
+            active = JobSearchRunRecord.status.in_(["queued", "running"]) | (
+                JobSearchRunRecord.status.in_(["completed", "partial"])
+                & JobSearchRunRecord.completed_at.is_(None)
+            )
+            grouped_status = case(
+                (func.max(case((active, 1), else_=0)) == 1, "running"),
+                (func.min(case((JobSearchRunRecord.status == "failed", 1), else_=0)) == 1, "failed"),
+                (func.max(case((JobSearchRunRecord.status.in_(["partial", "failed"]), 1), else_=0)) == 1, "partial"),
+                else_="completed",
+            )
+            grouped = grouped.having(grouped_status == state)
+        ids = list(db.scalars(grouped.order_by(
+            func.min(JobSearchRunRecord.started_at).desc(), session_key.desc(),
+        ).offset(offset).limit(limit + 1)).all())
+        runs = list(db.scalars(
+            select(JobSearchRunRecord).where(owner, session_key.in_(ids[:limit]))
+            .order_by(JobSearchRunRecord.started_at, JobSearchRunRecord.id)
+        ).all()) if ids else []
+        return JobSearchHistoryPage(
+            items=[JobSearchHistoryEntry(
+                id=key, runs=[run for run in runs if (run.session_id or run.id) == key],
+            ) for key in ids[:limit]],
+            next_offset=offset + limit if len(ids) > limit else None,
+        )
+    except SQLAlchemyError as exc:
+        raise database_unavailable(exc) from exc
+
+
+@router.get("/history/{session_id}", response_model=JobSearchHistoryDetail)
+def get_search_report(
+    session_id: str, db: Annotated[Session, Depends(get_db)],
+) -> JobSearchHistoryDetail:
+    try:
+        runs = list(db.scalars(
+            select(JobSearchRunRecord).where(
+                JobSearchRunRecord.owner_id == get_bound_owner_id(),
+                func.coalesce(JobSearchRunRecord.session_id, JobSearchRunRecord.id) == session_id,
+            ).order_by(JobSearchRunRecord.started_at, JobSearchRunRecord.id)
+        ).all())
+        if not runs:
+            raise HTTPException(status_code=404, detail="Search report not found")
+        return JobSearchHistoryDetail(id=session_id, runs=runs)
     except SQLAlchemyError as exc:
         raise database_unavailable(exc) from exc
 

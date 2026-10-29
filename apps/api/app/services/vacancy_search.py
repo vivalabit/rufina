@@ -55,6 +55,8 @@ class VacancySearchRunResult:
     source_results: dict[str, ParserSearchResponse]
     source_errors: dict[str, str]
     source_attempts: dict[str, int] = field(default_factory=dict)
+    source_durations: dict[str, float] = field(default_factory=dict)
+    source_invalid_jobs: dict[str, list[ParsedJob]] = field(default_factory=dict)
 
 
 class VacancySearchRunner:
@@ -176,6 +178,7 @@ class VacancySearchRunner:
         completed_results: dict[str, ParserSearchResponse] = {}
         source_errors: dict[str, str] = {}
         source_attempts: dict[str, int] = {}
+        source_invalid_jobs: dict[str, list[ParsedJob]] = {}
         source_durations = {source: 0.0 for source in ordered_sources}
         pending = deque((source, 1) for source in ordered_sources)
         in_flight: dict[
@@ -247,7 +250,12 @@ class VacancySearchRunner:
 
                     if not error and result is not None:
                         if result.status == "completed" and is_direct_company_source(source):
+                            original_jobs = result.jobs
                             result, validation_error = validate_parser_result(result)
+                            valid_objects = {id(job) for job in result.jobs}
+                            source_invalid_jobs[source] = [
+                                job for job in original_jobs if id(job) not in valid_objects
+                            ]
                             if validation_error:
                                 source_errors[source] = validation_error
                         completed_results[source] = result
@@ -307,6 +315,8 @@ class VacancySearchRunner:
             source_results=source_results,
             source_errors=source_errors,
             source_attempts=source_attempts,
+            source_durations=source_durations,
+            source_invalid_jobs=source_invalid_jobs,
         )
 
     def require_parser(self, source: str) -> Any:

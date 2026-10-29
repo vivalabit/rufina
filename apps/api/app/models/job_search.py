@@ -240,6 +240,12 @@ class JobSearchRunRecord(OwnerScoped, Base):
         primary_key=True,
         default=lambda: uuid4().hex,
     )
+    session_id: Mapped[str | None] = mapped_column(String(36), nullable=True, index=True)
+    report_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Detailed immutable snapshots are loaded only when opening a report.
+    report: Mapped[dict[str, Any] | None] = mapped_column(
+        JSON(none_as_null=True), nullable=True, deferred=True,
+    )
     schedule_id: Mapped[str | None] = mapped_column(
         String(36),
         ForeignKey("job_search_schedules.id", ondelete="SET NULL"),
@@ -1039,6 +1045,10 @@ class JobSearchRescreenPayload(BaseModel):
 
 
 class JobSearchManualRunRequest(BaseModel):
+    session_id: str | None = Field(
+        default=None, min_length=1, max_length=36, alias="sessionId",
+        pattern=r"^[A-Za-z0-9-]+$",
+    )
     preset_id: str | None = Field(
         default=None,
         min_length=1,
@@ -1262,6 +1272,8 @@ class JobSearchSchedulePayload(BaseModel):
 
 class JobSearchRunPayload(BaseModel):
     id: str
+    session_id: str | None = Field(default=None, alias="sessionId")
+    report_version: int | None = Field(default=None, alias="reportVersion")
     schedule_id: str | None = Field(alias="scheduleId")
     run_type: Literal["manual", "automatic"] = Field(alias="runType")
     scheduled_for: datetime | None = Field(alias="scheduledFor")
@@ -1297,6 +1309,27 @@ class JobSearchRunPayload(BaseModel):
     @classmethod
     def normalize_timestamps(cls, value: datetime | None) -> datetime | None:
         return as_utc(value) if value is not None else None
+
+
+class JobSearchRunDetailPayload(JobSearchRunPayload):
+    report: dict[str, Any] | None = None
+
+
+class JobSearchHistoryEntry(BaseModel):
+    id: str
+    runs: list[JobSearchRunPayload]
+
+
+class JobSearchHistoryDetail(BaseModel):
+    id: str
+    runs: list[JobSearchRunDetailPayload]
+
+
+class JobSearchHistoryPage(BaseModel):
+    items: list[JobSearchHistoryEntry]
+    next_offset: int | None = Field(default=None, alias="nextOffset")
+
+    model_config = {"populate_by_name": True}
 
 
 def as_utc(value: datetime) -> datetime:

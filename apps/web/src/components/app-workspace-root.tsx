@@ -39,6 +39,7 @@ import { DashboardView } from "@/components/dashboard-view";
 import { JobsToolbar } from "@/components/jobs-toolbar";
 import { JobMainPanel } from "@/components/job-main-panel";
 import { JobSearchDialog } from "@/components/job-search-dialog";
+import { SearchHistoryDialog } from "@/components/search-history-dialog";
 import {
   JobDetails,
   SalaryInsights,
@@ -595,6 +596,8 @@ export function AppWorkspaceRoot({
   const [isParserDialogOpen, setIsParserDialogOpen] = useState(false);
   const [parserSearchStatus, setParserSearchStatus] = useState<ParserSearchStatus>("idle");
   const [parserSearchMessage, setParserSearchMessage] = useState("");
+  const [historySessionId, setHistorySessionId] = useState<string | null | undefined>(undefined);
+  const [lastSearchSessionId, setLastSearchSessionId] = useState<string | null>(null);
   const [newProfession, setNewProfession] = useState("");
   const [forceMatchingJobId, setForceMatchingJobId] = useState("");
   const [matchingJobIds, setMatchingJobIds] = useState<string[]>([]);
@@ -2512,6 +2515,8 @@ export function AppWorkspaceRoot({
       });
     }
     const groupedRuns = [...runGroups.values()];
+    const searchSessionId = createClientId("search").replace(/^search-/, "");
+    setLastSearchSessionId(null);
     setParserSearchStatus("loading");
     setParserSearchMessage(`Searching ${parsersLabel}...`);
     appendAppLog({
@@ -2543,6 +2548,7 @@ export function AppWorkspaceRoot({
         );
         try {
           const run = await jobSearchState.run({
+              sessionId: searchSessionId,
               ...(group.configId
                 ? { configId: group.configId }
                 : {
@@ -2574,6 +2580,7 @@ export function AppWorkspaceRoot({
               aiAnalysisEnabled: true,
           });
           runs.push(run);
+          setLastSearchSessionId(searchSessionId);
         } catch (error) {
           requestFailures.push({
             sources: group.sources,
@@ -2960,6 +2967,7 @@ export function AppWorkspaceRoot({
                   setParserSearchMessage("");
                   setIsParserDialogOpen(true);
                 }}
+                onSearchHistory={() => setHistorySessionId(null)}
                 onToggleSavedJobs={() => {
                   setShowSavedJobs((current) => !current);
                   setShowArchivedJobs(false);
@@ -3511,6 +3519,10 @@ export function AppWorkspaceRoot({
                 onToggleParser={toggleParser}
                 onToggleDirectCompanies={toggleDirectCompanies}
                 onStartSearch={runParsers}
+                onViewReport={lastSearchSessionId ? () => {
+                  setIsParserDialogOpen(false);
+                  setHistorySessionId(lastSearchSessionId);
+                } : undefined}
                 onFormChange={updateParserSearchForm}
                 onReset={resetParserSearch}
                 onSelectSourceConfig={selectSourceSearchConfig}
@@ -3521,6 +3533,19 @@ export function AppWorkspaceRoot({
                 onRemoveProfession={removeProfession}
               />
             ) : null}
+            {historySessionId !== undefined && (
+              <SearchHistoryDialog
+                initialSessionId={historySessionId}
+                availableJobIds={new Set(jobList.map((job) => job.id))}
+                onOpenJob={(jobId) => {
+                  clearAllJobFilters();
+                  setShowArchivedJobs(archivedJobIds.includes(jobId));
+                  setSelectedJobId(jobId);
+                  setHistorySessionId(undefined);
+                }}
+                onClose={() => setHistorySessionId(undefined)}
+              />
+            )}
           </section>
         )}
         {isProfileDialogOpen && (

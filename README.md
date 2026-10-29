@@ -235,6 +235,23 @@ application submitted remain separate user actions.
 - [Direct Companies](docs/direct-companies.md) — official company career pages
 - Manual vacancy entry
 
+### Search History
+
+In Jobs, select **History** beside **Search vacancies** to review manual and
+automatic searches. Filter by name, source, trigger or period, then open a report
+to see source counts, processing time, attempts, errors and the saved search
+settings. Select a count to inspect the vacancies and their processing reasons.
+**View report** opens the latest report after a manual search finishes.
+
+Configuration flows started by one manual search share a history entry. New
+searches retain source and vacancy snapshots; older searches retain their
+existing summary without invented source counts. Missing vacancies are reported
+only after a successful complete company catalog scan. Limited search results
+and failed or partial scans cannot establish that a vacancy disappeared.
+
+Vacancy decisions copied into reports follow the AI data deletion and retention
+settings. Search summaries remain available after these details are removed.
+
 ## Stack
 
 - **Frontend:** Next.js 16, React 19, TypeScript, Tailwind CSS
