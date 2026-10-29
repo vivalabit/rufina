@@ -199,6 +199,13 @@ OPENCLAW_AGENT_ID=rufina-assistant
 pnpm openclaw:setup
 ```
 
+The agent allows GPT-6.1 Sol, GPT-6 Astra, and the selected screening model.
+Use `pnpm openclaw:setup --screening-model openai/gpt-6.1-sol` to allow Sol for
+screening, and select the same model in the application's AI settings. Additional
+models can be registered with repeatable `--allow-model` arguments. Docker uses
+Codex CLI 0.165.0 explicitly; the older CLI bundled with OpenClaw 2026.7.1 cannot
+run these models.
+
 ### Application Document Pipeline
 
 The application workspace runs document preparation as a recoverable server
@@ -251,6 +258,20 @@ and failed or partial scans cannot establish that a vacancy disappeared.
 
 Vacancy decisions copied into reports follow the AI data deletion and retention
 settings. Search summaries remain available after these details are removed.
+
+After fixing an AI provider failure, retry the failed decisions from saved
+vacancies without scanning company websites again:
+
+```bash
+docker compose exec -T api python /workspace/scripts/retry_failed_job_screening.py \
+  --source-run-id SEARCH_RUN_ID --model openai/gpt-6.1-sol --dry-run
+```
+
+Remove `--dry-run` to process the vacancies. Use `--max-batches 1` for a pilot,
+then resume the returned run with `--recovery-run-id RECOVERY_RUN_ID`. Up to four
+batches can run concurrently with `--workers 4`. Each batch is saved separately;
+provider errors stop new batches. The retry retains the original filters and
+creates its own history report, adding only approved vacancies.
 
 ## Stack
 

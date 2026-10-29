@@ -9,6 +9,7 @@ import os
 import shutil
 import subprocess
 import sys
+from collections.abc import Sequence
 from pathlib import Path
 from typing import Any
 
@@ -16,6 +17,7 @@ AGENT_ID = "rufina-assistant"
 LEGACY_AGENT_ID = "tasko-assistant"
 DEFAULT_MODEL = "openai/gpt-6.1-sol"
 DEFAULT_SCREENING_MODEL = "openai/gpt-6-luna"
+DEFAULT_ALLOWED_MODELS = ("openai/gpt-6-astra",)
 LEGACY_SCREENING_MODELS = {
     "openai/gpt-5-mini",
     "openai/gpt-5.4-nano",
@@ -110,12 +112,14 @@ def configure_agent(
     workspace: Path,
     model: str,
     screening_model: str,
+    allowed_models: Sequence[str] = DEFAULT_ALLOWED_MODELS,
 ) -> None:
     agents = load_agents(command)
     allowed_plugins = load_allowed_plugins(command)
+    model_keys = {model, screening_model, *allowed_models}
     provider_models = registered_provider_models(
         command,
-        {model, screening_model},
+        model_keys,
     )
     index = next(
         (index for index, agent in enumerate(agents) if agent.get("id") == AGENT_ID),
@@ -142,14 +146,10 @@ def configure_agent(
     prefix = f"agents.list[{index}]"
     operations = [
         {"path": "plugins.allow", "value": sorted({*allowed_plugins, "codex"})},
-        {
-            "path": f'agents.defaults.models["{model}"]',
-            "value": {},
-        },
-        {
-            "path": f'agents.defaults.models["{screening_model}"]',
-            "value": {},
-        },
+        *(
+            {"path": f'agents.defaults.models["{model_key}"]', "value": {}}
+            for model_key in sorted(model_keys)
+        ),
         *(
             {
                 "path": f'models.providers["{provider}"].models',
@@ -167,8 +167,8 @@ def configure_agent(
         {
             "path": f"{prefix}.models",
             "value": {
-                model: {"agentRuntime": {"id": "codex"}},
-                screening_model: {"agentRuntime": {"id": "codex"}},
+                model_key: {"agentRuntime": {"id": "codex"}}
+                for model_key in sorted(model_keys)
             },
         },
         {"path": f"{prefix}.thinkingDefault", "value": "off"},
@@ -202,7 +202,7 @@ def configure_agent(
         "--strict-json",
         "--replace",
     )
-    for legacy_model in LEGACY_SCREENING_MODELS - {model, screening_model}:
+    for legacy_model in LEGACY_SCREENING_MODELS - model_keys:
         try:
             run_openclaw(
                 command,
@@ -238,6 +238,15 @@ def main() -> int:
             f"(default: {DEFAULT_SCREENING_MODEL})"
         ),
     )
+    parser.add_argument(
+        "--allow-model",
+        action="append",
+        default=list(DEFAULT_ALLOWED_MODELS),
+        help=(
+            "Additional model allowed for this agent (repeatable; "
+            f"always includes {', '.join(DEFAULT_ALLOWED_MODELS)})"
+        ),
+    )
     args = parser.parse_args()
 
     command = shutil.which(args.command)
@@ -246,7 +255,9 @@ def main() -> int:
 
     workspace = install_workspace(Path.home())
     try:
-        configure_agent(command, workspace, args.model, args.screening_model)
+        configure_agent(
+            command, workspace, args.model, args.screening_model, args.allow_model
+        )
     except (subprocess.CalledProcessError, json.JSONDecodeError, RuntimeError) as exc:
         if isinstance(exc, subprocess.CalledProcessError) and exc.stderr:
             print(exc.stderr.strip(), file=sys.stderr)
