@@ -145,9 +145,24 @@ def test_job_filter_settings_upsert_is_atomic() -> None:
         {"enabled": "true"},
         {"postingAgeEnabled": True},
         {"postingAgeEnabled": True, "maxPostingAgeDays": 3},
+        {"cantonEnabled": "true"},
+        {"allowedCantons": ["XX"]},
+        {"allowedCantons": ["zh"]},
+        {"allowedCantons": "ZH"},
+        {"allowedCantons": ["ZH"] * 27},
         {"unknown": True},
     ],
 )
 def test_job_filter_settings_reject_invalid_values(payload: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         JobFilterSettings.model_validate(payload)
+
+
+def test_canton_settings_round_trip_and_deduplicate() -> None:
+    settings = JobFilterSettings(enabled=True, cantonEnabled=True, allowedCantons=["ZH", "BE", "ZH"])
+
+    snapshot = job_filter_settings_snapshot(settings)
+
+    assert snapshot["cantonEnabled"] is True
+    assert snapshot["allowedCantons"] == ["ZH", "BE"]
+    assert job_filter_settings_from_snapshot(snapshot) == settings

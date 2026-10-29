@@ -18,6 +18,10 @@ import {
   type VacancyFilterSettings,
   type VacancySeniority,
 } from "@/features/job-search/api/filter-client";
+import {
+  swissCantons,
+  type SwissCanton,
+} from "@/features/job-search/model/swiss-cantons";
 import { cn } from "@/lib/utils";
 
 export type { VacancyFilterSettings } from "@/features/job-search/api/filter-client";
@@ -48,6 +52,8 @@ type VacancyFilterDraft = {
   excludedSeniority: VacancySeniority[];
   postingAgeEnabled: boolean;
   maxPostingAgeDays: PostingAgeDays;
+  cantonEnabled: boolean;
+  allowedCantons: SwissCanton[];
   technologyStackEnabled: boolean;
   targetTechnologies: string;
   excludedTechnologies: string;
@@ -74,6 +80,8 @@ const defaultSettings: VacancyFilterSettings = {
   excludedSeniority: [],
   postingAgeEnabled: false,
   maxPostingAgeDays: 7,
+  cantonEnabled: false,
+  allowedCantons: [],
   technologyStackEnabled: true,
   targetTechnologies: [],
   excludedTechnologies: [],
@@ -180,6 +188,7 @@ export function VacancyFilterDialog({
     field:
       | "seniorityEnabled"
       | "postingAgeEnabled"
+      | "cantonEnabled"
       | "technologyStackEnabled",
   ) {
     setDraft((current) => ({ ...current, [field]: !current[field] }));
@@ -209,6 +218,8 @@ export function VacancyFilterDialog({
         excludedSeniority: draft.excludedSeniority,
         postingAgeEnabled: draft.postingAgeEnabled,
         maxPostingAgeDays: draft.maxPostingAgeDays,
+        cantonEnabled: draft.cantonEnabled,
+        allowedCantons: draft.allowedCantons,
         technologyStackEnabled: draft.technologyStackEnabled,
         targetTechnologies,
         excludedTechnologies,
@@ -410,6 +421,81 @@ export function VacancyFilterDialog({
                       </button>
                     );
                   })}
+                </div>
+              </section>
+
+              <section className="grid gap-4 rounded-xl border border-border bg-[#fff8f1] p-4">
+                <CriterionHeader
+                  title="Canton"
+                  description="Choose Swiss cantons. Cities and postcodes are used to identify the canton, so Stäfa matches Zürich. Locations that cannot be resolved confidently are kept."
+                  enabled={draft.cantonEnabled}
+                  onToggle={() => toggleCriterion("cantonEnabled")}
+                />
+                <div>
+                  <div
+                    role="group"
+                    aria-label="Allowed cantons"
+                    className={cn(
+                      "flex flex-wrap gap-1.5 rounded-lg border border-border bg-black/10 p-2 transition",
+                      !draft.cantonEnabled && "opacity-50",
+                    )}
+                  >
+                    {swissCantons.map((canton) => {
+                      const active = draft.allowedCantons.includes(canton.code);
+                      return (
+                        <button
+                          key={canton.code}
+                          type="button"
+                          aria-pressed={active}
+                          disabled={!draft.cantonEnabled}
+                          onClick={() => {
+                            setDraft((current) => ({
+                              ...current,
+                              allowedCantons: current.allowedCantons.includes(canton.code)
+                                ? current.allowedCantons.filter(
+                                    (code) => code !== canton.code,
+                                  )
+                                : swissCantons
+                                    .map((option) => option.code)
+                                    .filter(
+                                      (code) => code === canton.code || current.allowedCantons.includes(code),
+                                    ),
+                            }));
+                            setStatus("idle");
+                            setMessage("");
+                          }}
+                          className={cn(
+                            "inline-flex min-h-8 items-center gap-1 rounded-md border px-2.5 py-1 text-[10px] font-bold transition disabled:cursor-not-allowed",
+                            active
+                              ? "border-accent/25 bg-accent/10 text-foreground"
+                              : "border-border bg-[#fff8f1] text-muted hover:text-foreground",
+                          )}
+                        >
+                          {active ? <Check className="h-3 w-3" /> : null}
+                          {canton.name} ({canton.code})
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-2 flex items-center justify-between gap-3">
+                    <p className="text-[10px] leading-4 text-muted">
+                      No selection means no canton restriction. With several
+                      locations, a vacancy is kept if any location matches or is
+                      uncertain.
+                    </p>
+                    <button
+                      type="button"
+                      disabled={!draft.cantonEnabled || draft.allowedCantons.length === 0}
+                      onClick={() => {
+                        setDraft((current) => ({ ...current, allowedCantons: [] }));
+                        setStatus("idle");
+                        setMessage("");
+                      }}
+                      className="shrink-0 text-[10px] font-bold text-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Clear cantons
+                    </button>
+                  </div>
                 </div>
               </section>
 
@@ -624,6 +710,8 @@ function settingsToDraft(settings: VacancyFilterSettings): VacancyFilterDraft {
     excludedSeniority: [...settings.excludedSeniority],
     postingAgeEnabled: settings.postingAgeEnabled ?? false,
     maxPostingAgeDays: settings.maxPostingAgeDays ?? 7,
+    cantonEnabled: settings.cantonEnabled ?? false,
+    allowedCantons: [...(settings.allowedCantons ?? [])],
     technologyStackEnabled: settings.technologyStackEnabled ?? true,
     targetTechnologies: settings.targetTechnologies.join("\n"),
     excludedTechnologies: settings.excludedTechnologies.join("\n"),
@@ -687,6 +775,7 @@ function filterSummary(
       (draft.allowedSeniority.length === 0 &&
         draft.excludedSeniority.length === 0)) &&
     !draft.postingAgeEnabled &&
+    (!draft.cantonEnabled || draft.allowedCantons.length === 0) &&
     (!draft.technologyStackEnabled ||
       (targetTechnologies.length === 0 &&
         excludedTechnologies.length === 0))
@@ -707,6 +796,14 @@ function filterSummary(
   }
   if (draft.technologyStackEnabled && targetTechnologies.length > 0) {
     parts.push(`target ${targetTechnologies.join(", ")}`);
+  }
+  if (draft.cantonEnabled && draft.allowedCantons.length > 0) {
+    const names = swissCantons
+      .filter((canton) => draft.allowedCantons.includes(canton.code))
+      .map((canton) => `${canton.name} (${canton.code})`);
+    parts.push(
+      `keep vacancies in ${names.join(", ")} and locations whose canton is uncertain`,
+    );
   }
   if (draft.seniorityEnabled && draft.excludedSeniority.length > 0) {
     parts.push(`exclude ${seniorityLabels(draft.excludedSeniority)} seniority`);

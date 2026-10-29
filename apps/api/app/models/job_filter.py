@@ -6,7 +6,7 @@ from sqlalchemy import JSON, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.database import Base, OwnerScoped
-from app.models.job_search import ScreeningSeniority
+from app.models.job_search import ScreeningSeniority, SwissCanton
 
 
 def utc_now() -> datetime:
@@ -45,6 +45,12 @@ class JobFilterSettings(BaseModel):
         default=None,
         alias="maxPostingAgeDays",
     )
+    canton_enabled: bool | None = Field(default=None, alias="cantonEnabled")
+    allowed_cantons: list[SwissCanton] | None = Field(
+        default=None,
+        max_length=26,
+        alias="allowedCantons",
+    )
     technology_stack_enabled: bool | None = Field(
         default=None,
         alias="technologyStackEnabled",
@@ -73,6 +79,11 @@ class JobFilterSettings(BaseModel):
         value: list[ScreeningSeniority],
     ) -> list[ScreeningSeniority]:
         return list(dict.fromkeys(value))
+
+    @field_validator("allowed_cantons")
+    @classmethod
+    def deduplicate_cantons(cls, value: list[SwissCanton] | None) -> list[SwissCanton] | None:
+        return list(dict.fromkeys(value)) if value is not None else None
 
     @field_validator(
         "target_technologies",

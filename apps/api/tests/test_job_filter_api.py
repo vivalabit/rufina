@@ -157,3 +157,22 @@ def test_put_job_filter_settings_rejects_conflicts_without_overwriting() -> None
         assert record is not None
         assert record.data["targetTechnologies"] == ["Python"]
         assert record.data["excludedTechnologies"] == []
+
+
+def test_canton_filter_is_saved_and_loaded() -> None:
+    client, _sessions = job_filter_client()
+    headers = {"X-Rufina-Owner-Id": "canton-owner"}
+    try:
+        saved = client.put(
+            "/job-search/filter-settings",
+            headers=headers,
+            json={"enabled": True, "cantonEnabled": True, "allowedCantons": ["ZH", "BE", "ZH"]},
+        )
+        loaded = client.get("/job-search/filter-settings", headers=headers)
+    finally:
+        app.dependency_overrides.clear()
+
+    assert saved.status_code == 200
+    assert loaded.status_code == 200
+    assert loaded.json()["allowedCantons"] == ["ZH", "BE"]
+    assert loaded.json()["cantonEnabled"] is True

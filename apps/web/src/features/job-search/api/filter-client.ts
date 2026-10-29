@@ -1,4 +1,8 @@
 import { apiClient } from "@/shared/api/client";
+import {
+  swissCantons,
+  type SwissCanton,
+} from "@/features/job-search/model/swiss-cantons";
 
 export type VacancySeniority =
   | "intern"
@@ -20,6 +24,8 @@ export type VacancyFilterSettings = {
   excludedSeniority: VacancySeniority[];
   postingAgeEnabled?: boolean;
   maxPostingAgeDays?: PostingAgeDays | null;
+  cantonEnabled?: boolean;
+  allowedCantons?: SwissCanton[];
   technologyStackEnabled?: boolean;
   targetTechnologies: string[];
   excludedTechnologies: string[];
@@ -30,6 +36,7 @@ const seniorities = new Set<VacancySeniority>([
   "intern", "entry", "junior", "associate", "mid", "senior", "lead",
   "director", "executive",
 ]);
+const cantonCodes = new Set<string>(swissCantons.map((canton) => canton.code));
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -59,6 +66,10 @@ export function normalizeVacancyFilterSettings(value: unknown): VacancyFilterSet
     excludedSeniority: seniorityList(payload.excludedSeniority),
     postingAgeEnabled: typeof payload.postingAgeEnabled === "boolean" ? payload.postingAgeEnabled : false,
     maxPostingAgeDays: postingAge === 1 || postingAge === 7 || postingAge === 30 ? postingAge : 7,
+    cantonEnabled: typeof payload.cantonEnabled === "boolean" ? payload.cantonEnabled : false,
+    allowedCantons: stringList(payload.allowedCantons).filter(
+      (code): code is SwissCanton => cantonCodes.has(code),
+    ),
     technologyStackEnabled: typeof payload.technologyStackEnabled === "boolean" ? payload.technologyStackEnabled : true,
     targetTechnologies: stringList(payload.targetTechnologies),
     excludedTechnologies: stringList(payload.excludedTechnologies),

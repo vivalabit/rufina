@@ -492,6 +492,12 @@ class ScreeningRule(BaseModel):
     }
 
 
+SwissCanton = Literal[
+    "AG", "AI", "AR", "BE", "BL", "BS", "FR", "GE", "GL", "GR", "JU", "LU", "NE",
+    "NW", "OW", "SG", "SH", "SO", "SZ", "TG", "TI", "UR", "VD", "VS", "ZG", "ZH",
+]
+
+
 class ScreeningConfig(BaseModel):
     enabled: bool = False
     target_roles: list[str] = Field(
@@ -532,6 +538,11 @@ class ScreeningConfig(BaseModel):
     max_posting_age_days: Literal[1, 7, 30] | None = Field(
         default=None,
         alias="maxPostingAgeDays",
+    )
+    allowed_cantons: list[SwissCanton] | None = Field(
+        default=None,
+        max_length=26,
+        alias="allowedCantons",
     )
     hard_rules: list[ScreeningRule] = Field(
         default_factory=list,
@@ -585,6 +596,11 @@ class ScreeningConfig(BaseModel):
         value: list[ScreeningSeniority],
     ) -> list[ScreeningSeniority]:
         return list(dict.fromkeys(value))
+
+    @field_validator("allowed_cantons")
+    @classmethod
+    def deduplicate_cantons(cls, value: list[SwissCanton] | None) -> list[SwissCanton] | None:
+        return list(dict.fromkeys(value)) if value is not None else None
 
     @model_validator(mode="after")
     def reject_conflicting_seniority(self) -> "ScreeningConfig":

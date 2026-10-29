@@ -93,6 +93,8 @@ it("loads the global filter and preserves its criteria when it is disabled", asy
     excludedSeniority: ["director"],
     postingAgeEnabled: true,
     maxPostingAgeDays: 7,
+    cantonEnabled: false,
+    allowedCantons: [],
     technologyStackEnabled: true,
     targetTechnologies: ["Python", "Django"],
     excludedTechnologies: ["C#", ".NET"],
@@ -255,6 +257,88 @@ it("shows load failures, retries, and lets the user cancel without saving", asyn
       ([, init]) => (init as RequestInit | undefined)?.method === "PUT",
     ),
   ).toHaveLength(0);
+});
+
+it("selects and saves cantons while preserving them when the criterion is disabled", async () => {
+  let savedBody: Record<string, unknown> | null = null;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      if (init?.method === "PUT") {
+        savedBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+        return response({ ...initialSettings, ...savedBody });
+      }
+      return response(initialSettings);
+    }),
+  );
+
+  render(<VacancyFilterDialog open onClose={vi.fn()} />);
+  const cantonSwitch = await screen.findByRole("switch", {
+    name: "Enable canton filter",
+  });
+  const cantonGroup = screen.getByRole("group", { name: "Allowed cantons" });
+  const zurich = within(cantonGroup).getByRole("button", { name: "Zürich (ZH)" });
+  const zug = within(cantonGroup).getByRole("button", { name: "Zug (ZG)" });
+
+  expect(within(cantonGroup).getAllByRole("button")).toHaveLength(26);
+  expect(cantonSwitch).toHaveAttribute("aria-checked", "false");
+  expect(zurich).toBeDisabled();
+  expect(screen.getByText(/Stäfa matches Zürich/)).toBeInTheDocument();
+
+  fireEvent.click(cantonSwitch);
+  fireEvent.click(zurich);
+  fireEvent.click(zug);
+  expect(zurich).toHaveAttribute("aria-pressed", "true");
+  expect(zug).toHaveAttribute("aria-pressed", "true");
+  expect(
+    screen.getByText(/keep vacancies in Zug \(ZG\), Zürich \(ZH\) and locations whose canton is uncertain/),
+  ).toBeInTheDocument();
+
+  fireEvent.click(cantonSwitch);
+  expect(zurich).toBeDisabled();
+  expect(zurich).toHaveAttribute("aria-pressed", "true");
+  fireEvent.click(screen.getByRole("button", { name: "Save filter" }));
+
+  await waitFor(() => expect(savedBody).not.toBeNull());
+  expect(savedBody).toMatchObject({
+    cantonEnabled: false,
+    allowedCantons: ["ZG", "ZH"],
+  });
+});
+
+it("loads saved cantons and clearing them removes the canton restriction", async () => {
+  let savedBody: Record<string, unknown> | null = null;
+  vi.stubGlobal(
+    "fetch",
+    vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+      const settings = {
+        ...initialSettings,
+        seniorityEnabled: false,
+        postingAgeEnabled: false,
+        technologyStackEnabled: false,
+        cantonEnabled: true,
+        allowedCantons: ["ZH"],
+      };
+      if (init?.method === "PUT") {
+        savedBody = JSON.parse(String(init.body)) as Record<string, unknown>;
+        return response({ ...settings, ...savedBody });
+      }
+      return response(settings);
+    }),
+  );
+
+  render(<VacancyFilterDialog open onClose={vi.fn()} />);
+  const zurich = await screen.findByRole("button", { name: "Zürich (ZH)" });
+  expect(zurich).toHaveAttribute("aria-pressed", "true");
+  expect(screen.getByText(/^Keep vacancies in Zürich \(ZH\)/)).toBeInTheDocument();
+
+  fireEvent.click(screen.getByRole("button", { name: "Clear cantons" }));
+  expect(zurich).toHaveAttribute("aria-pressed", "false");
+  expect(screen.getByText(/enabled but has no criteria/)).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Save filter" }));
+
+  await waitFor(() => expect(savedBody).not.toBeNull());
+  expect(savedBody).toMatchObject({ cantonEnabled: true, allowedCantons: [] });
 });
 
 it("keeps keyboard focus inside the dialog and restores it after closing", async () => {

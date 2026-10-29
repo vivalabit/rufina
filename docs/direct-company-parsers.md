@@ -56,8 +56,15 @@ is added.
    Active and dismissed user records are not processed further.
 8. Direct Companies always receive a neutral parser request and scan their full
    catalog. The manual-search direction is applied only after discovery, and
-   the global Vacancy Filter supplies seniority, posting-age, and technology
+   the global Vacancy Filter supplies seniority, posting-age, canton, and technology
    criteria. Aggregator-specific query filters remain scoped to their source.
+   Swiss cantons are resolved locally from canton names/codes, localities,
+   municipalities, and postcodes using the bundled official swisstopo directory
+   (`apps/api/app/data/swiss_localities.json`). Only confidently resolved locations
+   outside all selected cantons are rejected; unknown, ambiguous, and remote
+   locations pass this criterion. With several locations, any matching canton
+   suffices. Other active criteria still apply. Refresh the snapshot with
+   `scripts/update_swiss_localities.py` using its documented CSV ZIP import command.
    Explicit seniority mismatches found in structured seniority or the vacancy
    title are rejected deterministically before AI. Remaining candidates without
    a reusable decision are sent to AI in batches.

@@ -62,6 +62,7 @@ from app.services.job_screening import (
     JobScreeningDecision,
     JobScreeningPayload,
     create_job_screening_ai_facade,
+    deterministic_canton_decision,
     deterministic_posting_age_decision,
     deterministic_seniority_decision,
     normalize_screening_decisions,
@@ -194,12 +195,13 @@ def effective_screening_config(
             ),
             "targetRoles": target_roles,
             "allowedSeniority": allowed_seniority,
-            # Technology and posting-age constraints are global-user-filter-only.
+            # Technology, canton and posting-age constraints are global-user-filter-only.
             # Ignore any values embedded in a per-search config.
             "targetTechnologies": None,
             "excludedTechnologies": None,
             "postedAfter": None,
             "maxPostingAgeDays": None,
+            "allowedCantons": None,
         }
     )
     if (
@@ -230,6 +232,10 @@ def job_filter_has_criteria(job_filter: JobFilterSettings) -> bool:
         or (
             job_filter.posting_age_enabled is True
             and job_filter.max_posting_age_days is not None
+        )
+        or (
+            job_filter.canton_enabled is not False
+            and job_filter.allowed_cantons
         )
     )
 
@@ -308,6 +314,11 @@ def combine_screening_with_job_filter(
             "excludedTechnologies": excluded_technologies,
             "postedAfter": cutoff.isoformat() if cutoff is not None else None,
             "maxPostingAgeDays": max_posting_age_days,
+            "allowedCantons": (
+                job_filter.allowed_cantons or None
+                if job_filter.canton_enabled is not False
+                else None
+            ),
         }
     )
 
@@ -1277,6 +1288,17 @@ def screen_new_job_candidates(
     uncached: list[NewJobCandidate] = []
 
     for candidate in candidates:
+        # Run canton checks before posting-age checks, which can return an
+        # immediate keep when there are no remaining AI criteria.
+        canton_decision = deterministic_canton_decision(
+            screening_config,
+            compact_jobs[candidate.job_id],
+            job_id=candidate.job_id,
+        )
+        if canton_decision is not None:
+            decisions_by_id[candidate.job_id] = canton_decision
+            deterministic.append(candidate)
+            continue
         posting_age_decision = deterministic_posting_age_decision(
             screening_config,
             compact_jobs[candidate.job_id],
@@ -1305,7 +1327,9 @@ def screen_new_job_candidates(
             model=model,
             prompt_version=JOB_SCREENING_PROMPT_VERSION,
         )
-        if cached is None or cached.reason_code == "screening_error":
+        if cached is None or cached.reason_code in {
+            "screening_error", "canton_mismatch", "canton_match", "canton_unknown",
+        }:
             uncached.append(candidate)
             continue
         try:
@@ -1361,6 +1385,9 @@ def screen_new_job_candidates(
                         update={"posted_after": None, "max_posting_age_days": None}
                     )
                 )
+                # Canton evidence is resolved locally, including the explicit
+                # keep-on-unknown policy, and must not be reinterpreted by AI.
+                ai_config = ai_config.model_copy(update={"allowed_cantons": None})
                 # Known ISO dates already passed the deterministic check. AI
                 # evaluates only stable rules for decisions in the rolling cache.
                 for offset in range(0, len(group), batch_size):

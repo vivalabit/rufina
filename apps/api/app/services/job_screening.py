@@ -33,6 +33,7 @@ from app.services.resume_import import (
     extract_openclaw_text_payloads,
     summarize_openclaw_error,
 )
+from app.services.swiss_locations import resolve_swiss_cantons
 
 JOB_SCREENING_PROMPT_VERSION = "job-screening-prompt-v4"
 MAX_SCREENING_REASON_CHARS = 500
@@ -234,6 +235,47 @@ def deterministic_seniority_decision(
     )
 
 
+def deterministic_canton_decision(
+    screening_config: ScreeningConfig,
+    job: CompactScreeningJob | dict[str, Any],
+    *,
+    job_id: str,
+) -> JobScreeningDecision | None:
+    """Reject only a resolved location wholly outside the selected cantons.
+
+    Unknown and ambiguous locations pass this criterion. Other active criteria
+    must still be evaluated before a vacancy can be kept.
+    """
+    if not screening_config.allowed_cantons:
+        return None
+    location = job.location if isinstance(job, CompactScreeningJob) else str(job.get("location") or "")
+    cantons = resolve_swiss_cantons(location)
+    if cantons and cantons.isdisjoint(screening_config.allowed_cantons):
+        return JobScreeningDecision(
+            id=job_id,
+            decision="reject",
+            reasonCode="canton_mismatch",
+            matchedRuleIds=[],
+            reason=(
+                f"Vacancy location resolves to {', '.join(sorted(cantons))}; "
+                f"allowed cantons: {', '.join(screening_config.allowed_cantons)}"
+            ),
+        )
+    if screening_config.posted_after or has_non_posting_criteria(screening_config):
+        return None
+    return JobScreeningDecision(
+        id=job_id,
+        decision="keep",
+        reasonCode="canton_match" if cantons else "canton_unknown",
+        matchedRuleIds=[],
+        reason=(
+            "Vacancy location matches a selected canton"
+            if cantons
+            else "Canton could not be resolved confidently; vacancy retained"
+        ),
+    )
+
+
 def deterministic_posting_age_decision(
     screening_config: ScreeningConfig,
     job: CompactScreeningJob | dict[str, Any],
@@ -335,6 +377,7 @@ def as_utc_datetime(value: datetime) -> datetime:
 
 
 def has_non_posting_criteria(config: ScreeningConfig) -> bool:
+    """Return remaining criteria after the pipeline's local canton check."""
     return bool(
         config.target_roles
         or config.excluded_roles
@@ -686,7 +729,7 @@ def build_job_screening_prompt(
 ) -> str:
     config_payload = screening_config.model_dump(
         by_alias=True,
-        exclude={"enabled"},
+        exclude={"enabled", "allowed_cantons"},
         exclude_none=True,
     )
     config_payload["hardRules"] = [
