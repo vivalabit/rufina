@@ -209,6 +209,8 @@ describe("JobSearchConfiguration", () => {
     expect(
       screen.queryByRole("combobox", { name: /query config/i }),
     ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Backend" }));
+    expect(onFormChange).toHaveBeenCalledWith("directCompanySpecializations", ["Backend"]);
     fireEvent.click(screen.getByRole("checkbox", { name: /Swisscom/ }));
     expect(onSelectedDirectCompaniesChange).toHaveBeenCalledWith([
       "sbb",
@@ -223,6 +225,24 @@ describe("JobSearchConfiguration", () => {
       "directCompanyDirection",
       "design",
     );
+  });
+
+  it("displays saved custom specializations and resets unsaved input when direction changes", () => {
+    const props = configurationProps({
+      activeSource: "direct_companies",
+      form: { ...defaultParserSearchForm, directCompanySpecializations: ["Platform Engineering"] },
+    });
+    const { rerender } = render(<JobSearchConfiguration {...props} />);
+    expect(screen.getByRole("button", { name: "Platform Engineering" })).toHaveAttribute("aria-pressed", "true");
+    fireEvent.change(screen.getByRole("textbox", { name: "Custom direct company specialization" }), {
+      target: { value: "Draft role" },
+    });
+    rerender(<JobSearchConfiguration {...props} form={{
+      ...props.form, directCompanyDirection: "design", directCompanySpecializations: [],
+    }} />);
+    expect(screen.getByRole("textbox", { name: "Custom direct company specialization" })).toHaveValue("");
+    expect(screen.queryByRole("button", { name: "Backend" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "UX Design" })).toHaveAttribute("aria-pressed", "false");
   });
 
   it("explains jobs.ch capabilities without clearing saved unsupported filters", () => {

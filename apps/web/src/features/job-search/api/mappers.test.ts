@@ -16,7 +16,7 @@ describe("job-search API mappers", () => {
         deduplicate: false,
         folder: "saved",
       },
-      screening: { target_roles: ["Design"] },
+      screening: { target_roles: ["Design"], target_specializations: ["UX Design", "Product Design"] },
     };
     const config = parserSearchConfigFromApi({
       id: "config-1",
@@ -31,6 +31,7 @@ describe("job-search API mappers", () => {
       directCompaniesEnabled: true,
       directCompanyIds: ["acme", "beta"],
       directCompanyDirection: "design",
+      directCompanySpecializations: ["UX Design", "Product Design"],
       experienceLevel: "Entry level",
       jobType: "Full-time",
       datePosted: "Past week",
@@ -55,6 +56,7 @@ describe("job-search API mappers", () => {
     expect(config.form).toMatchObject({
       parsers: [],
       directCompaniesEnabled: false,
+      directCompanySpecializations: [],
       remote: "Any",
       resultsLimit: "10",
       limitPerInput: "25",

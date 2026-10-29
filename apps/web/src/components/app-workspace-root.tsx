@@ -1292,12 +1292,20 @@ export function AppWorkspaceRoot({
   ) {
     hasParserSearchInteractionRef.current = true;
     setParserSearchForm((current) => {
-      const next = { ...current, [field]: value };
+      const next = {
+        ...current,
+        [field]: value,
+        ...(field === "directCompanyDirection" && value !== current.directCompanyDirection
+          ? { directCompanySpecializations: [] }
+          : {}),
+      };
       if (
         activeSearchSource !== "direct_companies" &&
         field !== "parsers" &&
         field !== "directCompaniesEnabled" &&
         field !== "directCompanyIds" &&
+        field !== "directCompanyDirection" &&
+        field !== "directCompanySpecializations" &&
         field !== "searchName" &&
         field !== "folder"
       ) {
@@ -1467,7 +1475,10 @@ export function AppWorkspaceRoot({
       sourceSearchConfigs,
     );
     setParserSearchForm(
-      defaultSelection?.form ?? { ...defaultParserSearchForm },
+      {
+        ...(defaultSelection?.form ?? defaultParserSearchForm),
+        directCompanySpecializations: [],
+      },
     );
     setActiveSearchSource("linkedin");
     setSourceSearchDrafts(
@@ -2526,7 +2537,7 @@ export function AppWorkspaceRoot({
       details: [
         `${groupedRuns.length} independent config ${groupedRuns.length === 1 ? "flow" : "flows"}`,
         directSources.length > 0
-          ? `Direct-company direction: ${directCompanyDirections.find((option) => option.id === parserSearchForm.directCompanyDirection)?.label ?? "Any"}`
+          ? `Direct-company direction: ${directCompanyDirections.find((option) => option.id === parserSearchForm.directCompanyDirection)?.label ?? "Any"}; specializations: ${parserSearchForm.directCompanySpecializations.join(", ") || "All in this direction"}`
           : `Professions: ${parserSearchForm.keywords || "Any"}`,
         `Location: ${parserSearchForm.location || parserSearchForm.country || "Any"}`,
         `Remote: ${parserSearchForm.remote}`,

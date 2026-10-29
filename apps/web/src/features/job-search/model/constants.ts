@@ -27,6 +27,7 @@ export const defaultParserSearchForm: ParserSearchForm = {
   directCompaniesEnabled: false,
   directCompanyIds: [],
   directCompanyDirection: "information_technology",
+  directCompanySpecializations: [],
   keywords: "",
   location: "",
   remote: "Any",

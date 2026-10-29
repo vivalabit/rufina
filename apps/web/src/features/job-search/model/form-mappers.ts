@@ -189,6 +189,7 @@ export function directCompanyDirectionFromFilters(
   if (!Array.isArray(targetRoles)) {
     return defaultParserSearchForm.directCompanyDirection;
   }
+  if (targetRoles.length === 0) return "all";
   const normalizedRoles = new Set(
     targetRoles.flatMap((role) =>
       typeof role === "string" ? [role.trim().toLocaleLowerCase()] : [],
@@ -203,6 +204,28 @@ export function directCompanyDirectionFromFilters(
   );
 }
 
+export function normalizeDirectCompanySpecializations(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const seen = new Set<string>();
+  return value.flatMap((item) => {
+    if (typeof item !== "string") return [];
+    const specialization = item.trim().replace(/\s+/g, " ");
+    const key = specialization.toLocaleLowerCase();
+    if (!specialization || specialization.length > 160 || seen.has(key)) return [];
+    seen.add(key);
+    return [specialization];
+  }).slice(0, 50);
+}
+
+export function directCompanySpecializationsFromFilters(
+  filters: Record<string, unknown>,
+): string[] {
+  const screening = isRecord(filters.screening) ? filters.screening : null;
+  return normalizeDirectCompanySpecializations(
+    screening?.targetSpecializations ?? screening?.target_specializations,
+  );
+}
+
 export function directCompanySearchFiltersFromForm(
   form: ParserSearchForm,
 ): Record<string, unknown> {
@@ -211,6 +234,9 @@ export function directCompanySearchFiltersFromForm(
       (option) => option.id === form.directCompanyDirection,
     ) ?? directCompanyDirections[0];
   const targetRoles = direction.targetRole ? [direction.targetRole] : [];
+  const targetSpecializations = normalizeDirectCompanySpecializations(
+    form.directCompanySpecializations,
+  );
 
   return {
     schemaVersion: 2,
@@ -228,8 +254,9 @@ export function directCompanySearchFiltersFromForm(
       folder: form.folder,
     },
     screening: {
-      enabled: targetRoles.length > 0,
+      enabled: targetRoles.length > 0 || targetSpecializations.length > 0,
       targetRoles,
+      ...(targetSpecializations.length > 0 ? { targetSpecializations } : {}),
       excludedRoles: [],
       allowedSeniority: [],
       excludedSeniority: [],

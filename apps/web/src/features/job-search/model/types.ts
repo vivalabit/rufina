@@ -28,6 +28,7 @@ export type ParserSearchForm = {
   directCompaniesEnabled: boolean;
   directCompanyIds: string[];
   directCompanyDirection: DirectCompanyDirection;
+  directCompanySpecializations: string[];
   keywords: string;
   location: string;
   remote: string;

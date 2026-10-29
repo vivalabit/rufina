@@ -3,6 +3,7 @@
 import { ChevronDown, Info, Plus, RotateCcw, Save, X } from "lucide-react";
 
 import { DirectCompaniesSource } from "@/components/direct-companies-source";
+import { DirectCompanySpecializations } from "@/components/direct-company-specializations";
 import { Button } from "@/components/ui/button";
 import type { JobSourceConfigPayload } from "@/features/job-search/api/dto";
 import { getParserLabel } from "@/features/job-search/formatting";
@@ -111,7 +112,7 @@ export function JobSearchConfiguration({
           </h3>
           <p className="mt-1 text-xs font-medium text-muted">
             {activeSource === "direct_companies"
-              ? "Choose career pages and one broad direction. The Vacancy Filter handles the remaining criteria."
+              ? "Choose career pages, a direction, and the specializations that interest you. The Vacancy Filter handles the remaining criteria."
               : `These query fields belong only to ${getParserLabel(activeSource)}.`}
           </p>
         </div>
@@ -199,9 +200,16 @@ export function JobSearchConfiguration({
               </label>
               <p className="mt-2 text-xs font-medium leading-5 text-muted">
                 Every vacancy is collected from the selected company pages
-                first. Direction is applied afterwards; seniority, posting date,
-                and technologies come from the global Vacancy Filter.
+                first. Direction and specializations are applied afterwards;
+                seniority, posting date, cantons, and technologies come from the
+                global Vacancy Filter.
               </p>
+              <DirectCompanySpecializations
+                key={`${selectedParserSearchConfigId}:${form.directCompanyDirection}`}
+                direction={form.directCompanyDirection}
+                selected={form.directCompanySpecializations ?? []}
+                onChange={(values) => onFormChange("directCompanySpecializations", values)}
+              />
             </section>
           </>
         ) : null}

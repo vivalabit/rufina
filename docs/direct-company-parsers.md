@@ -55,7 +55,16 @@ is added.
    `StoredJobRecord` entries by stable job ID, canonical URL, and identity.
    Active and dismissed user records are not processed further.
 8. Direct Companies always receive a neutral parser request and scan their full
-   catalog. The manual-search direction is applied only after discovery, and
+   catalog. Each search can select a broad Direction and several Specializations
+   (for example, IT with Backend and Frontend). Empty specialization selection
+   means all professions in that direction. `screening.targetRoles` stores the
+   direction and `screening.targetSpecializations` stores the narrower choices;
+   a vacancy must match the direction **and at least one** selected specialization.
+   Both are applied after discovery using the title and primary responsibilities,
+   including synonymous and multilingual job titles. A generic title such as
+   Software Engineer is assessed using the description; incidental technology or
+   collaboration mentions do not establish a specialization. These choices belong
+   to the search config and are preserved in scheduled searches. Independently,
    the global Vacancy Filter supplies seniority, posting-age, canton, and technology
    criteria. Aggregator-specific query filters remain scoped to their source.
    Swiss cantons are resolved locally from canton names/codes, localities,

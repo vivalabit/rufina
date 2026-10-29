@@ -4,8 +4,10 @@ import { defaultParserSearchForm } from "@/features/job-search/model/constants";
 import {
   directCompanyDirectionFromFilters,
   directCompanySearchFiltersFromForm,
+  directCompanySpecializationsFromFilters,
   keywordsFromProfessions,
   normalizeDirectCompanyIds,
+  normalizeDirectCompanySpecializations,
   normalizeParserIds,
   parserSearchFiltersFromForm,
   parserSearchSourceIds,
@@ -146,5 +148,53 @@ describe("job-search form mappers", () => {
       screening: { enabled: true, targetRoles: ["Engineering and Technical"] },
     });
     expect(directCompanyDirectionFromFilters(filters)).toBe("engineering");
+  });
+
+  it("keeps broad direction separate from the selected specializations", () => {
+    const filters = directCompanySearchFiltersFromForm({
+      ...defaultParserSearchForm,
+      directCompanySpecializations: ["Backend", "Frontend", "backend"],
+    });
+
+    expect(filters.screening).toMatchObject({
+      enabled: true,
+      targetRoles: ["Information Technology"],
+      targetSpecializations: ["Backend", "Frontend"],
+    });
+    expect(directCompanyDirectionFromFilters(filters)).toBe("information_technology");
+    expect(directCompanySpecializationsFromFilters(filters)).toEqual(["Backend", "Frontend"]);
+  });
+
+  it("round-trips all directions and enables a specialization-only search", () => {
+    const filters = directCompanySearchFiltersFromForm({
+      ...defaultParserSearchForm,
+      directCompanyDirection: "all",
+      directCompanySpecializations: ["Technical Writer"],
+    });
+
+    expect(filters.screening).toMatchObject({
+      enabled: true,
+      targetRoles: [],
+      targetSpecializations: ["Technical Writer"],
+    });
+    expect(directCompanyDirectionFromFilters(filters)).toBe("all");
+    expect(directCompanyDirectionFromFilters({})).toBe("information_technology");
+  });
+
+  it("preserves legacy broad-direction filters without a specialization restriction", () => {
+    const filters = directCompanySearchFiltersFromForm(defaultParserSearchForm);
+    expect(filters.screening).not.toHaveProperty("targetSpecializations");
+    expect(directCompanySpecializationsFromFilters(filters)).toEqual([]);
+    expect(directCompanySpecializationsFromFilters({
+      screening: { target_specializations: [" Backend ", "backend", "Data   Engineering"] },
+    })).toEqual(["Backend", "Data Engineering"]);
+  });
+
+  it("normalizes custom specializations within the API limits", () => {
+    expect(normalizeDirectCompanySpecializations([" ", 5, "x".repeat(161), "  Tax ", "tax"]))
+      .toEqual(["Tax"]);
+    expect(normalizeDirectCompanySpecializations(
+      Array.from({ length: 51 }, (_, index) => `Profession ${index}`),
+    )).toHaveLength(50);
   });
 });

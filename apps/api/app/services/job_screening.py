@@ -35,7 +35,7 @@ from app.services.resume_import import (
 )
 from app.services.swiss_locations import resolve_swiss_cantons
 
-JOB_SCREENING_PROMPT_VERSION = "job-screening-prompt-v4"
+JOB_SCREENING_PROMPT_VERSION = "job-screening-prompt-v5"
 MAX_SCREENING_REASON_CHARS = 500
 MAX_COMPACT_TEXT_CHARS = 1_000
 MAX_SCREENING_JOBS_PER_RESPONSE = 100
@@ -380,6 +380,7 @@ def has_non_posting_criteria(config: ScreeningConfig) -> bool:
     """Return remaining criteria after the pipeline's local canton check."""
     return bool(
         config.target_roles
+        or config.target_specializations
         or config.excluded_roles
         or config.allowed_seniority
         or config.excluded_seniority
@@ -779,6 +780,24 @@ def build_job_screening_prompt(
         "- keep: the vacancy passes the configured criteria.\n"
         "- reject: the vacancy clearly contradicts the configured criteria.\n"
         "- uncertain: the vacancy lacks enough evidence to establish that it passes.\n"
+        "- targetRoles describes the requested roles or broad direction; an empty "
+        "targetRoles list imposes no direction restriction. When "
+        "targetSpecializations is present, it is a separate ANY-match constraint: "
+        "the vacancy must satisfy targetRoles AND at least one selected specialization. "
+        "A broad direction such as Information Technology never overrides a specialization "
+        "mismatch. An absent or empty specialization list adds no restriction.\n"
+        "- Determine specialization from the title AND primary responsibilities in the "
+        "description, recognizing equivalent titles, synonyms, and multilingual wording. "
+        "A generic title such as Software Engineer is not by itself a mismatch; inspect "
+        "the responsibilities. Technologies alone do not establish a profession, and "
+        "incidental collaboration with a team is not evidence of doing that team's work.\n"
+        "- Backend means substantive server-side services, APIs, or application logic; "
+        "Frontend means substantive user-interface or client-side application work. "
+        "Full-stack requires both as primary responsibilities. A full-stack vacancy can "
+        "match Backend or Frontend when that selected work is a primary responsibility. "
+        "Apply the same responsibility-based reasoning to other specializations. Reject "
+        "a clear specialization mismatch; return uncertain when there is insufficient "
+        "evidence, rather than rejecting only because a keyword is missing.\n"
         "- allowedSeniority is a strict allow-list and excludedSeniority is a strict "
         "deny-list. Explicit vacancy seniority and role-title markers are evidence; "
         "when seniority is required but cannot be established, return uncertain.\n"

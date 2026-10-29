@@ -505,6 +505,11 @@ class ScreeningConfig(BaseModel):
         max_length=50,
         alias="targetRoles",
     )
+    target_specializations: list[str] | None = Field(
+        default=None,
+        max_length=50,
+        alias="targetSpecializations",
+    )
     excluded_roles: list[str] = Field(
         default_factory=list,
         max_length=50,
@@ -565,6 +570,24 @@ class ScreeningConfig(BaseModel):
         if any(len(role) > 160 for role in normalized):
             raise ValueError("role entries must be at most 160 characters")
         return normalized
+
+    @field_validator("target_specializations")
+    @classmethod
+    def normalize_specializations(cls, value: list[str] | None) -> list[str] | None:
+        normalized: list[str] = []
+        seen: set[str] = set()
+        for specialization in value or []:
+            item = " ".join(specialization.split())
+            if not item:
+                raise ValueError("specialization entries must not be empty")
+            if len(item) > 160:
+                raise ValueError("specialization entries must be at most 160 characters")
+            key = item.casefold()
+            if key not in seen:
+                normalized.append(item)
+                seen.add(key)
+        # An empty selection imposes no constraint and keeps legacy cache identity.
+        return normalized or None
 
     @field_validator("target_technologies", "excluded_technologies")
     @classmethod

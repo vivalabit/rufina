@@ -393,6 +393,9 @@ describe("AutoSearchDialog", () => {
     fireEvent.change(screen.getByLabelText("Target professions"), {
       target: { value: "Backend Engineer\nSoftware Engineer" },
     });
+    fireEvent.change(screen.getByLabelText("Target specializations"), {
+      target: { value: "Backend\nFrontend" },
+    });
     fireEvent.change(screen.getByLabelText("Excluded professions"), {
       target: { value: "Sales Manager, Recruiter" },
     });
@@ -434,6 +437,7 @@ describe("AutoSearchDialog", () => {
           screening: {
             enabled: true,
             targetRoles: ["Backend Engineer", "Software Engineer"],
+            targetSpecializations: ["Backend", "Frontend"],
             excludedRoles: ["Sales Manager", "Recruiter"],
             allowedSeniority: ["mid"],
             excludedSeniority: ["director"],
@@ -476,6 +480,7 @@ describe("AutoSearchDialog", () => {
         screening: {
           enabled: true,
           targetRoles: ["Platform Engineer"],
+          target_specializations: ["Backend"],
           excludedRoles: ["Sales Manager"],
           allowedSeniority: ["mid", "senior"],
           excludedSeniority: ["director"],
@@ -540,7 +545,7 @@ describe("AutoSearchDialog", () => {
 
     expect(
       await screen.findByText(
-        "Screening on · 1 target role · 1 excluded role · 3 seniority filters · 1 hard rule",
+        "Screening on · 1 target role · 1 specialization · 1 excluded role · 3 seniority filters · 1 hard rule",
       ),
     ).toBeInTheDocument();
     fireEvent.click(
@@ -549,11 +554,15 @@ describe("AutoSearchDialog", () => {
     expect(screen.getByLabelText("Target professions")).toHaveValue(
       "Platform Engineer",
     );
+    expect(screen.getByLabelText("Target specializations")).toHaveValue("Backend");
     expect(screen.getByLabelText("Excluded professions")).toHaveValue(
       "Sales Manager",
     );
     fireEvent.change(screen.getByLabelText("Target professions"), {
       target: { value: "Platform Engineer\nBackend Engineer" },
+    });
+    fireEvent.change(screen.getByLabelText("Target specializations"), {
+      target: { value: "" },
     });
     fireEvent.change(screen.getByLabelText("Results limit"), {
       target: { value: "35" },
@@ -569,6 +578,7 @@ describe("AutoSearchDialog", () => {
     });
     expect(filters.screening).toMatchObject({
       targetRoles: ["Platform Engineer", "Backend Engineer"],
+      targetSpecializations: [],
       futureScreening: { threshold: 0.8 },
       hardRules: [
         expect.objectContaining({
@@ -576,6 +586,7 @@ describe("AutoSearchDialog", () => {
         }),
       ],
     });
+    expect(filters.screening).not.toHaveProperty("target_specializations");
   });
 
   it("preserves current screening when only search settings are edited from a partial config", async () => {

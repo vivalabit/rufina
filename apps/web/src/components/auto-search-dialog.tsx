@@ -173,6 +173,7 @@ type ScheduleDraft = {
   screeningTouched: boolean;
   screeningEnabled: boolean;
   targetRoles: string;
+  targetSpecializations: string;
   excludedRoles: string;
   allowedSeniority: ScreeningSeniority[];
   excludedSeniority: ScreeningSeniority[];
@@ -203,6 +204,7 @@ function defaultDraft(): ScheduleDraft {
     screeningTouched: false,
     screeningEnabled: false,
     targetRoles: "",
+    targetSpecializations: "",
     excludedRoles: "",
     allowedSeniority: [],
     excludedSeniority: [],
@@ -970,6 +972,7 @@ function AutoSearchForm({
         "deduplicate",
         "screeningEnabled",
         "targetRoles",
+        "targetSpecializations",
         "excludedRoles",
         "allowedSeniority",
         "excludedSeniority",
@@ -1606,6 +1609,26 @@ function AutoSearchForm({
                 </Field>
               </div>
 
+              <Field label="Target specializations">
+                <textarea
+                  aria-label="Target specializations"
+                  value={draft.targetSpecializations}
+                  onChange={(event) =>
+                    patch({
+                      screeningTouched: true,
+                      targetSpecializations: event.target.value,
+                    })
+                  }
+                  className={textareaClass}
+                  placeholder={"Backend\nFrontend"}
+                />
+                <span className="text-[10px] leading-4 text-muted">
+                  One specialization per line or separated by commas. Match any
+                  listed specialization in addition to the configured target
+                  professions. Leave empty to allow all specializations.
+                </span>
+              </Field>
+
               <div className="grid gap-3 lg:grid-cols-2">
                 <SeniorityPicker
                   label="Allowed seniority"
@@ -1975,6 +1998,11 @@ function applyConfigToDraft(
     "targetRoles",
     "target_roles",
   ).join("\n");
+  draft.targetSpecializations = stringListFilter(
+    screening,
+    "targetSpecializations",
+    "target_specializations",
+  ).join("\n");
   draft.excludedRoles = stringListFilter(
     screening,
     "excludedRoles",
@@ -2037,6 +2065,7 @@ function configHasEditableChanges(
   return JSON.stringify(editableScreeningState(screening)) !== JSON.stringify({
     enabled: draft.screeningEnabled,
     targetRoles: splitList(draft.targetRoles),
+    targetSpecializations: splitList(draft.targetSpecializations),
     excludedRoles: splitList(draft.excludedRoles),
     allowedSeniority: draft.allowedSeniority,
     excludedSeniority: draft.excludedSeniority,
@@ -2058,6 +2087,11 @@ function editableScreeningState(
       screening,
       "targetRoles",
       "target_roles",
+    ),
+    targetSpecializations: stringListFilter(
+      screening,
+      "targetSpecializations",
+      "target_specializations",
     ),
     excludedRoles: stringListFilter(
       screening,
@@ -2133,10 +2167,15 @@ function screeningPayload(
   draft: ScheduleDraft,
   original: Record<string, unknown>,
 ): Record<string, unknown> {
+  const specializations = splitList(draft.targetSpecializations);
   return {
     ...original,
     enabled: draft.screeningEnabled,
     targetRoles: splitList(draft.targetRoles),
+    target_specializations: undefined,
+    ...(specializations.length > 0 || "targetSpecializations" in original || "target_specializations" in original
+      ? { targetSpecializations: specializations }
+      : {}),
     excludedRoles: splitList(draft.excludedRoles),
     allowedSeniority: draft.allowedSeniority,
     excludedSeniority: draft.excludedSeniority,
@@ -2244,6 +2283,11 @@ function screeningSummary(filters: Record<string, unknown>): string {
     "excludedRoles",
     "excluded_roles",
   ).length;
+  const specializationCount = stringListFilter(
+    screening,
+    "targetSpecializations",
+    "target_specializations",
+  ).length;
   const seniorityCount =
     seniorityListFilter(
       screening,
@@ -2265,6 +2309,9 @@ function screeningSummary(filters: Record<string, unknown>): string {
     : 0;
   const parts = [
     targetCount ? `${targetCount} target role${targetCount === 1 ? "" : "s"}` : "",
+    specializationCount
+      ? `${specializationCount} specialization${specializationCount === 1 ? "" : "s"}`
+      : "",
     excludedCount
       ? `${excludedCount} excluded role${excludedCount === 1 ? "" : "s"}`
       : "",
@@ -2295,6 +2342,13 @@ function validateDraft(draft: ScheduleDraft): string {
   }
   if (splitList(draft.targetRoles).length > 50) {
     return "Target professions must contain at most 50 entries";
+  }
+  const specializations = splitList(draft.targetSpecializations);
+  if (specializations.length > 50) {
+    return "Target specializations must contain at most 50 entries";
+  }
+  if (specializations.some((value) => value.length > 160)) {
+    return "Each target specialization must be at most 160 characters";
   }
   if (splitList(draft.excludedRoles).length > 50) {
     return "Excluded professions must contain at most 50 entries";

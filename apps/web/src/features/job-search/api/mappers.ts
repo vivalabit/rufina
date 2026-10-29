@@ -2,6 +2,7 @@ import type { JobSearchConfigPayload } from "@/features/job-search/api/dto";
 import { defaultParserSearchForm } from "@/features/job-search/model/constants";
 import {
   directCompanyDirectionFromFilters,
+  directCompanySpecializationsFromFilters,
   filterBoolean,
   filterNumber,
   filterString,
@@ -54,6 +55,7 @@ export function parserSearchConfigFromApi(
       directCompaniesEnabled,
       directCompanyIds,
       directCompanyDirection: directCompanyDirectionFromFilters(filters),
+      directCompanySpecializations: directCompanySpecializationsFromFilters(filters),
       keywords: filterString(searchFilters, "keywords"),
       location: filterString(searchFilters, "location"),
       remote:
