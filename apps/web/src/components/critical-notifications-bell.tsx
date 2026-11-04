@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { AlertTriangle, Bell, LoaderCircle, Trash2, X } from "lucide-react";
 
 import {
+  deleteAllCriticalNotifications,
   deleteCriticalNotification,
   fetchCriticalNotifications,
   type CriticalNotification,
@@ -17,13 +18,17 @@ export function CriticalNotificationsBell() {
   const [isOpen, setIsOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [deletingId, setDeletingId] = useState("");
+  const [isClearing, setIsClearing] = useState(false);
   const [error, setError] = useState("");
   const containerRef = useRef<HTMLDivElement>(null);
   const deletedIdsRef = useRef(new Set<string>());
+  const loadVersionRef = useRef(0);
 
   const loadNotifications = useCallback(async (signal?: AbortSignal) => {
+    const version = loadVersionRef.current;
     try {
       const notifications = await fetchCriticalNotifications(signal);
+      if (version !== loadVersionRef.current) return;
       setNotifications(
         notifications.filter(
           (notification) => !deletedIdsRef.current.has(notification.id),
@@ -31,6 +36,7 @@ export function CriticalNotificationsBell() {
       );
       setError("");
     } catch (caught) {
+      if (version !== loadVersionRef.current) return;
       setError(
         caught instanceof Error
           ? caught.message
@@ -97,6 +103,26 @@ export function CriticalNotificationsBell() {
     }
   }
 
+  async function clearNotifications() {
+    loadVersionRef.current += 1;
+    setIsClearing(true);
+    setError("");
+    try {
+      await deleteAllCriticalNotifications();
+      loadVersionRef.current += 1;
+      setNotifications([]);
+      void loadNotifications();
+    } catch (caught) {
+      setError(
+        caught instanceof Error
+          ? caught.message
+          : "Critical notifications could not be cleared",
+      );
+    } finally {
+      setIsClearing(false);
+    }
+  }
+
   const count = notifications.length;
   const buttonLabel = count
     ? `Critical notifications (${count})`
@@ -155,6 +181,20 @@ export function CriticalNotificationsBell() {
             </button>
           </header>
 
+          {count > 0 ? (
+            <div className="flex justify-end border-b border-border px-4 py-2">
+              <button
+                type="button"
+                disabled={isClearing || Boolean(deletingId)}
+                onClick={() => void clearNotifications()}
+                className="inline-flex items-center gap-1.5 rounded-md px-2 py-1 text-xs font-semibold text-muted transition hover:bg-[#fff0e7] hover:text-[#d9480f] disabled:opacity-50"
+              >
+                {isClearing ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Clear all
+              </button>
+            </div>
+          ) : null}
+
           {error ? (
             <p role="alert" className="border-b border-[#d9480f]/20 bg-[#fff4ed] px-4 py-2.5 text-xs font-semibold leading-5 text-[#b9380a]">
               {error}
@@ -204,7 +244,7 @@ export function CriticalNotificationsBell() {
                           type="button"
                           aria-label={`Delete ${notification.title}`}
                           title="Delete notification"
-                          disabled={deletingId === notification.id}
+                          disabled={isClearing || Boolean(deletingId)}
                           onClick={() => void deleteNotification(notification)}
                           className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-muted transition hover:bg-[#fff0e7] hover:text-[#d9480f] disabled:opacity-50"
                         >

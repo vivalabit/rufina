@@ -51,3 +51,11 @@ export async function deleteCriticalNotification(
     errorMessage: "Critical notification could not be deleted",
   });
 }
+
+export async function deleteAllCriticalNotifications() {
+  await apiClient.empty({
+    path: "/notifications/critical",
+    method: "DELETE",
+    errorMessage: "Critical notifications could not be cleared",
+  });
+}

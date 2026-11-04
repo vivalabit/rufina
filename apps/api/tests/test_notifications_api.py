@@ -162,6 +162,33 @@ def test_critical_notifications_are_owner_scoped_and_deleted_only_manually(
     ] == ["notice-owner-b"]
 
 
+def test_clear_all_critical_notifications_is_owner_scoped_and_unlimited(
+    notification_api: tuple[TestClient, sessionmaker[Session]],
+) -> None:
+    client, sessions = notification_api
+    with sessions() as db:
+        db.add_all([
+            CriticalNotificationRecord(
+                id=f"notice-{i}", owner_id="owner-a", severity="critical",
+                category="parser_failure", source=f"source-{i}", title="Failed",
+                description="Error", attempts=3, run_id=f"run-{i}",
+            )
+            for i in range(101)
+        ])
+        db.add(CriticalNotificationRecord(
+            id="other-owner", owner_id="owner-b", severity="critical",
+            category="parser_failure", source="other", title="Failed",
+            description="Error", attempts=3, run_id="other-run",
+        ))
+        db.commit()
+
+    headers = {"X-Rufina-Owner-Id": "owner-a"}
+    assert len(client.get("/notifications/critical", headers=headers).json()) == 100
+    assert client.delete("/notifications/critical", headers=headers).status_code == 204
+    assert client.get("/notifications/critical", headers=headers).json() == []
+    assert len(client.get("/notifications/critical", headers={"X-Rufina-Owner-Id": "owner-b"}).json()) == 1
+
+
 def test_partial_parser_result_creates_persistent_notification_through_api(
     notification_api,
 ) -> None:

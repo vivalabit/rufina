@@ -92,3 +92,34 @@ it("shows partial results without claiming that all parser attempts failed", asy
   expect(screen.getByText("SBB parser returned partial results")).toBeInTheDocument();
   expect(screen.queryByText("Failed after 1 attempts")).not.toBeInTheDocument();
 });
+
+it("clears all notifications and updates the bell", async () => {
+  let cleared = false;
+  const fetchMock = vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) => {
+    if (init?.method === "DELETE") {
+      cleared = true;
+      return new Response(null, { status: 204 });
+    }
+    return Response.json(cleared ? [] : [notification, { ...notification, id: "notice-2", title: "Another failure" }]);
+  });
+  vi.stubGlobal("fetch", fetchMock);
+  render(<CriticalNotificationsBell />);
+  fireEvent.click(await screen.findByRole("button", { name: "Critical notifications (2)" }));
+  fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+  await screen.findByText("No critical notifications");
+  expect(screen.getByRole("button", { name: "Critical notifications" })).toBeInTheDocument();
+  expect(fetchMock.mock.calls.some(([input, init]) =>
+    new URL(String(input)).pathname === "/notifications/critical" && init?.method === "DELETE",
+  )).toBe(true);
+});
+
+it("keeps notifications visible when clearing fails", async () => {
+  vi.stubGlobal("fetch", vi.fn(async (_input: RequestInfo | URL, init?: RequestInit) =>
+    init?.method === "DELETE" ? new Response(null, { status: 503 }) : Response.json([notification]),
+  ));
+  render(<CriticalNotificationsBell />);
+  fireEvent.click(await screen.findByRole("button", { name: "Critical notifications (1)" }));
+  fireEvent.click(screen.getByRole("button", { name: "Clear all" }));
+  expect(await screen.findByRole("alert")).toBeInTheDocument();
+  expect(screen.getByText("SBB parser failed")).toBeInTheDocument();
+});

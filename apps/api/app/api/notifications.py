@@ -1,12 +1,12 @@
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.core.identity import bind_request_identity
+from app.core.identity import bind_request_identity, get_bound_owner_id
 from app.models.notifications import (
     CriticalNotificationPayload,
     CriticalNotificationRecord,
@@ -33,6 +33,23 @@ def list_critical_notifications(
             ).all()
         )
     except SQLAlchemyError as exc:
+        raise database_unavailable(exc) from exc
+
+
+@router.delete("/critical", status_code=status.HTTP_204_NO_CONTENT)
+def delete_all_critical_notifications(
+    db: Annotated[Session, Depends(get_db)],
+) -> None:
+    try:
+        db.execute(
+            delete(CriticalNotificationRecord).where(
+                CriticalNotificationRecord.owner_id == get_bound_owner_id(),
+                CriticalNotificationRecord.severity == "critical",
+            )
+        )
+        db.commit()
+    except SQLAlchemyError as exc:
+        db.rollback()
         raise database_unavailable(exc) from exc
 
 
