@@ -1,0 +1,2682 @@
+{
+  "schemaVersion": 1,
+  "version": "2026-11-09.1",
+  "description": "Curated seed dictionary of technology skills with EN/DE/FR aliases. Aliases match case-insensitively; caseSensitiveAliases match exact case; ambiguousAliases match exact case and only inside explicit skill phrases, never in free text.",
+  "skills": [
+    {
+      "id": "python",
+      "label": "Python",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "Python",
+          "Python 3",
+          "Python3"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "java",
+      "label": "Java",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "Java",
+          "Java SE",
+          "Java EE",
+          "Jakarta EE"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "javascript",
+      "label": "JavaScript",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "JavaScript",
+          "ECMAScript",
+          "ES6"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": [
+        "JS"
+      ]
+    },
+    {
+      "id": "typescript",
+      "label": "TypeScript",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "TypeScript"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": [
+        "TS"
+      ]
+    },
+    {
+      "id": "csharp",
+      "label": "C#",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "C#",
+          "C Sharp",
+          "CSharp"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "cpp",
+      "label": "C++",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "C++",
+          "Cpp"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "c",
+      "label": "C",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "ANSI C"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": [
+        "C"
+      ]
+    },
+    {
+      "id": "go",
+      "label": "Go",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "Golang"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": [
+        "Go"
+      ]
+    },
+    {
+      "id": "rust",
+      "label": "Rust",
+      "category": "language",
+      "aliases": {
+        "en": [],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [
+        "Rust"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "kotlin",
+      "label": "Kotlin",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "Kotlin"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "swift",
+      "label": "Swift",
+      "category": "language",
+      "aliases": {
+        "en": [],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [
+        "Swift"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "objective_c",
+      "label": "Objective-C",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "Objective-C",
+          "ObjC"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "php",
+      "label": "PHP",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "PHP"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "ruby",
+      "label": "Ruby",
+      "category": "language",
+      "aliases": {
+        "en": [],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [
+        "Ruby"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "scala",
+      "label": "Scala",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "Scala"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "r",
+      "label": "R",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "R Studio",
+          "RStudio"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": [
+        "R"
+      ]
+    },
+    {
+      "id": "sql",
+      "label": "SQL",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "SQL",
+          "T-SQL",
+          "TSQL",
+          "PL/SQL",
+          "PL/pgSQL"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "bash",
+      "label": "Bash",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "Bash",
+          "Shell scripting",
+          "Shell scripts"
+        ],
+        "de": [
+          "Shell-Skripting",
+          "Shell-Skripte"
+        ],
+        "fr": [
+          "scripts shell"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": [
+        "Shell"
+      ]
+    },
+    {
+      "id": "powershell",
+      "label": "PowerShell",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "PowerShell"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "html",
+      "label": "HTML",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "HTML",
+          "HTML5"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "css",
+      "label": "CSS",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "CSS",
+          "CSS3",
+          "SCSS",
+          "Sass"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "matlab",
+      "label": "MATLAB",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "MATLAB"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "vba",
+      "label": "VBA",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "VBA",
+          "Visual Basic for Applications"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "abap",
+      "label": "ABAP",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "ABAP"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "cobol",
+      "label": "COBOL",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "COBOL"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "dart",
+      "label": "Dart",
+      "category": "language",
+      "aliases": {
+        "en": [],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [
+        "Dart"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "perl",
+      "label": "Perl",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "Perl"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "groovy",
+      "label": "Groovy",
+      "category": "language",
+      "aliases": {
+        "en": [
+          "Groovy"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "django",
+      "label": "Django",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "Django",
+          "Django REST Framework",
+          "DRF"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "fastapi",
+      "label": "FastAPI",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "FastAPI"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "flask",
+      "label": "Flask",
+      "category": "framework",
+      "aliases": {
+        "en": [],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [
+        "Flask"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "spring",
+      "label": "Spring",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "Spring Framework"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [
+        "Spring"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "spring_boot",
+      "label": "Spring Boot",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "Spring Boot",
+          "SpringBoot"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "dotnet",
+      "label": ".NET",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          ".NET",
+          ".NET Core",
+          ".NET Framework",
+          "dotnet"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "aspnet",
+      "label": "ASP.NET",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "ASP.NET",
+          "ASP.NET Core",
+          "ASP.NET MVC"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "react",
+      "label": "React",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "React.js",
+          "ReactJS"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [
+        "React"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "react_native",
+      "label": "React Native",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "React Native"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "angular",
+      "label": "Angular",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "Angular",
+          "AngularJS"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "vue",
+      "label": "Vue.js",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "Vue",
+          "Vue.js",
+          "VueJS",
+          "Nuxt",
+          "Nuxt.js"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "nextjs",
+      "label": "Next.js",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "Next.js",
+          "NextJS"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "nodejs",
+      "label": "Node.js",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "Node.js",
+          "NodeJS"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": [
+        "Node"
+      ]
+    },
+    {
+      "id": "express",
+      "label": "Express",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "Express.js",
+          "ExpressJS"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": [
+        "Express"
+      ]
+    },
+    {
+      "id": "nestjs",
+      "label": "NestJS",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "NestJS",
+          "Nest.js"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "svelte",
+      "label": "Svelte",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "Svelte",
+          "SvelteKit"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "jquery",
+      "label": "jQuery",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "jQuery"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "tailwind",
+      "label": "Tailwind CSS",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "Tailwind CSS",
+          "Tailwind",
+          "TailwindCSS"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "flutter",
+      "label": "Flutter",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "Flutter"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "laravel",
+      "label": "Laravel",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "Laravel"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "symfony",
+      "label": "Symfony",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "Symfony"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "rails",
+      "label": "Ruby on Rails",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "Ruby on Rails",
+          "RoR"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": [
+        "Rails"
+      ]
+    },
+    {
+      "id": "qt",
+      "label": "Qt",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "Qt"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "hibernate",
+      "label": "Hibernate",
+      "category": "framework",
+      "aliases": {
+        "en": [
+          "Hibernate",
+          "JPA"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "sqlalchemy",
+      "label": "SQLAlchemy",
+      "category": "library",
+      "aliases": {
+        "en": [
+          "SQLAlchemy"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "pydantic",
+      "label": "Pydantic",
+      "category": "library",
+      "aliases": {
+        "en": [
+          "Pydantic"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "celery",
+      "label": "Celery",
+      "category": "library",
+      "aliases": {
+        "en": [],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [
+        "Celery"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "pandas",
+      "label": "pandas",
+      "category": "library",
+      "aliases": {
+        "en": [
+          "pandas"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "numpy",
+      "label": "NumPy",
+      "category": "library",
+      "aliases": {
+        "en": [
+          "NumPy"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "scikit_learn",
+      "label": "scikit-learn",
+      "category": "library",
+      "aliases": {
+        "en": [
+          "scikit-learn",
+          "sklearn"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "pytorch",
+      "label": "PyTorch",
+      "category": "library",
+      "aliases": {
+        "en": [
+          "PyTorch"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "tensorflow",
+      "label": "TensorFlow",
+      "category": "library",
+      "aliases": {
+        "en": [
+          "TensorFlow"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "keras",
+      "label": "Keras",
+      "category": "library",
+      "aliases": {
+        "en": [
+          "Keras"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "langchain",
+      "label": "LangChain",
+      "category": "library",
+      "aliases": {
+        "en": [
+          "LangChain"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "spark",
+      "label": "Apache Spark",
+      "category": "data",
+      "aliases": {
+        "en": [
+          "Apache Spark",
+          "PySpark"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [
+        "Spark"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "hadoop",
+      "label": "Hadoop",
+      "category": "data",
+      "aliases": {
+        "en": [
+          "Hadoop",
+          "Apache Hadoop"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "kafka",
+      "label": "Apache Kafka",
+      "category": "data",
+      "aliases": {
+        "en": [
+          "Apache Kafka",
+          "Kafka"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "rabbitmq",
+      "label": "RabbitMQ",
+      "category": "tool",
+      "aliases": {
+        "en": [
+          "RabbitMQ"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "postgresql",
+      "label": "PostgreSQL",
+      "category": "database",
+      "aliases": {
+        "en": [
+          "PostgreSQL",
+          "Postgres",
+          "Postgre SQL"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "mysql",
+      "label": "MySQL",
+      "category": "database",
+      "aliases": {
+        "en": [
+          "MySQL"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "mariadb",
+      "label": "MariaDB",
+      "category": "database",
+      "aliases": {
+        "en": [
+          "MariaDB"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "oracle_db",
+      "label": "Oracle Database",
+      "category": "database",
+      "aliases": {
+        "en": [
+          "Oracle Database",
+          "Oracle DB",
+          "Oracle SQL"
+        ],
+        "de": [
+          "Oracle-Datenbank",
+          "Oracle-Datenbanken"
+        ],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": [
+        "Oracle"
+      ]
+    },
+    {
+      "id": "sql_server",
+      "label": "Microsoft SQL Server",
+      "category": "database",
+      "aliases": {
+        "en": [
+          "SQL Server",
+          "MS SQL",
+          "MSSQL",
+          "Microsoft SQL Server"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "sqlite",
+      "label": "SQLite",
+      "category": "database",
+      "aliases": {
+        "en": [
+          "SQLite"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "mongodb",
+      "label": "MongoDB",
+      "category": "database",
+      "aliases": {
+        "en": [
+          "MongoDB",
+          "Mongo DB"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": [
+        "Mongo"
+      ]
+    },
+    {
+      "id": "redis",
+      "label": "Redis",
+      "category": "database",
+      "aliases": {
+        "en": [
+          "Redis"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "elasticsearch",
+      "label": "Elasticsearch",
+      "category": "database",
+      "aliases": {
+        "en": [
+          "Elasticsearch",
+          "Elastic Search",
+          "OpenSearch",
+          "ELK Stack",
+          "ELK"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "cassandra",
+      "label": "Cassandra",
+      "category": "database",
+      "aliases": {
+        "en": [
+          "Cassandra",
+          "Apache Cassandra"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "dynamodb",
+      "label": "DynamoDB",
+      "category": "database",
+      "aliases": {
+        "en": [
+          "DynamoDB"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "neo4j",
+      "label": "Neo4j",
+      "category": "database",
+      "aliases": {
+        "en": [
+          "Neo4j"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "snowflake",
+      "label": "Snowflake",
+      "category": "database",
+      "aliases": {
+        "en": [
+          "Snowflake"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "bigquery",
+      "label": "BigQuery",
+      "category": "database",
+      "aliases": {
+        "en": [
+          "BigQuery",
+          "Google BigQuery"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "aws",
+      "label": "AWS",
+      "category": "cloud",
+      "aliases": {
+        "en": [
+          "AWS",
+          "Amazon Web Services"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "azure",
+      "label": "Microsoft Azure",
+      "category": "cloud",
+      "aliases": {
+        "en": [
+          "Azure",
+          "Microsoft Azure"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "gcp",
+      "label": "Google Cloud",
+      "category": "cloud",
+      "aliases": {
+        "en": [
+          "GCP",
+          "Google Cloud",
+          "Google Cloud Platform"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "docker",
+      "label": "Docker",
+      "category": "devops",
+      "aliases": {
+        "en": [
+          "Docker",
+          "Docker Compose",
+          "Containerization"
+        ],
+        "de": [
+          "Containerisierung"
+        ],
+        "fr": [
+          "conteneurs",
+          "conteneurisation"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "kubernetes",
+      "label": "Kubernetes",
+      "category": "devops",
+      "aliases": {
+        "en": [
+          "Kubernetes",
+          "K8s",
+          "AKS",
+          "EKS",
+          "GKE"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "openshift",
+      "label": "OpenShift",
+      "category": "devops",
+      "aliases": {
+        "en": [
+          "OpenShift"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "helm",
+      "label": "Helm",
+      "category": "devops",
+      "aliases": {
+        "en": [
+          "Helm Charts"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": [
+        "Helm"
+      ]
+    },
+    {
+      "id": "terraform",
+      "label": "Terraform",
+      "category": "devops",
+      "aliases": {
+        "en": [
+          "Terraform"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "ansible",
+      "label": "Ansible",
+      "category": "devops",
+      "aliases": {
+        "en": [
+          "Ansible"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "jenkins",
+      "label": "Jenkins",
+      "category": "devops",
+      "aliases": {
+        "en": [
+          "Jenkins"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "github_actions",
+      "label": "GitHub Actions",
+      "category": "devops",
+      "aliases": {
+        "en": [
+          "GitHub Actions"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "gitlab_ci",
+      "label": "GitLab CI",
+      "category": "devops",
+      "aliases": {
+        "en": [
+          "GitLab CI",
+          "GitLab CI/CD"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "azure_devops",
+      "label": "Azure DevOps",
+      "category": "devops",
+      "aliases": {
+        "en": [
+          "Azure DevOps",
+          "Azure Pipelines"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "argocd",
+      "label": "Argo CD",
+      "category": "devops",
+      "aliases": {
+        "en": [
+          "Argo CD",
+          "ArgoCD"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "cicd",
+      "label": "CI/CD",
+      "category": "devops",
+      "aliases": {
+        "en": [
+          "CI/CD",
+          "CI/CD pipelines",
+          "Continuous Integration",
+          "Continuous Delivery",
+          "Continuous Deployment"
+        ],
+        "de": [
+          "CI/CD-Pipelines",
+          "kontinuierliche Integration"
+        ],
+        "fr": [
+          "intégration continue",
+          "déploiement continu"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "devops",
+      "label": "DevOps",
+      "category": "method",
+      "aliases": {
+        "en": [
+          "DevOps"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "iac",
+      "label": "Infrastructure as Code",
+      "category": "devops",
+      "aliases": {
+        "en": [
+          "Infrastructure as Code",
+          "IaC"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "git",
+      "label": "Git",
+      "category": "tool",
+      "aliases": {
+        "en": [
+          "Git"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "github",
+      "label": "GitHub",
+      "category": "tool",
+      "aliases": {
+        "en": [
+          "GitHub"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "gitlab",
+      "label": "GitLab",
+      "category": "tool",
+      "aliases": {
+        "en": [
+          "GitLab"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "bitbucket",
+      "label": "Bitbucket",
+      "category": "tool",
+      "aliases": {
+        "en": [
+          "Bitbucket"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "linux",
+      "label": "Linux",
+      "category": "platform",
+      "aliases": {
+        "en": [
+          "Linux",
+          "Unix",
+          "Ubuntu",
+          "Debian",
+          "RHEL",
+          "Red Hat Enterprise Linux"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "windows_server",
+      "label": "Windows Server",
+      "category": "platform",
+      "aliases": {
+        "en": [
+          "Windows Server"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "nginx",
+      "label": "Nginx",
+      "category": "tool",
+      "aliases": {
+        "en": [
+          "Nginx"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "prometheus",
+      "label": "Prometheus",
+      "category": "tool",
+      "aliases": {
+        "en": [
+          "Prometheus"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "grafana",
+      "label": "Grafana",
+      "category": "tool",
+      "aliases": {
+        "en": [
+          "Grafana"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "serverless",
+      "label": "Serverless",
+      "category": "cloud",
+      "aliases": {
+        "en": [
+          "Serverless",
+          "AWS Lambda",
+          "Azure Functions"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "android",
+      "label": "Android",
+      "category": "platform",
+      "aliases": {
+        "en": [
+          "Android"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "ios",
+      "label": "iOS",
+      "category": "platform",
+      "aliases": {
+        "en": [
+          "iOS"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "rest_api",
+      "label": "REST APIs",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "RESTful",
+          "REST API",
+          "REST APIs",
+          "RESTful APIs",
+          "RESTful services"
+        ],
+        "de": [
+          "REST-Schnittstellen",
+          "REST-Schnittstelle",
+          "REST-APIs"
+        ],
+        "fr": [
+          "API REST",
+          "API RESTful",
+          "services REST"
+        ]
+      },
+      "caseSensitiveAliases": [
+        "REST"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "graphql",
+      "label": "GraphQL",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "GraphQL"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "grpc",
+      "label": "gRPC",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "gRPC"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "soap",
+      "label": "SOAP",
+      "category": "concept",
+      "aliases": {
+        "en": [],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [
+        "SOAP"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "microservices",
+      "label": "Microservices",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "Microservices",
+          "Microservice architecture",
+          "Microservice"
+        ],
+        "de": [
+          "Microservice-Architektur",
+          "Microservices-Architektur",
+          "Microservice-Architekturen"
+        ],
+        "fr": [
+          "architecture microservices"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "software_architecture",
+      "label": "Software Architecture",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "Software Architecture",
+          "Software Design"
+        ],
+        "de": [
+          "Softwarearchitektur",
+          "Software-Architektur"
+        ],
+        "fr": [
+          "architecture logicielle"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "domain_driven_design",
+      "label": "Domain-Driven Design",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "Domain-Driven Design",
+          "DDD"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "event_driven",
+      "label": "Event-Driven Architecture",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "Event-Driven Architecture",
+          "Event Sourcing",
+          "Event-driven"
+        ],
+        "de": [
+          "ereignisgesteuerte Architektur"
+        ],
+        "fr": [
+          "architecture événementielle"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "design_patterns",
+      "label": "Design Patterns",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "Design Patterns"
+        ],
+        "de": [
+          "Entwurfsmuster"
+        ],
+        "fr": [
+          "patrons de conception"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "oop",
+      "label": "Object-Oriented Programming",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "Object-Oriented Programming",
+          "Object-oriented design",
+          "OOP"
+        ],
+        "de": [
+          "objektorientierte Programmierung",
+          "Objektorientierung",
+          "objektorientierte Softwareentwicklung"
+        ],
+        "fr": [
+          "programmation orientée objet",
+          "POO"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "clean_code",
+      "label": "Clean Code",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "Clean Code"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "uml",
+      "label": "UML",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "UML"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "bpmn",
+      "label": "BPMN",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "BPMN"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "oauth",
+      "label": "OAuth",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "OAuth",
+          "OAuth2",
+          "OAuth 2.0",
+          "OpenID Connect",
+          "OIDC"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "it_security",
+      "label": "IT Security",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "IT Security",
+          "Cyber Security",
+          "Cybersecurity",
+          "Information Security",
+          "Application Security"
+        ],
+        "de": [
+          "IT-Sicherheit",
+          "Informationssicherheit",
+          "Cybersicherheit"
+        ],
+        "fr": [
+          "sécurité informatique",
+          "cybersécurité",
+          "sécurité de l'information"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "networking",
+      "label": "Networking",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "Computer Networks",
+          "TCP/IP"
+        ],
+        "de": [
+          "Netzwerktechnik"
+        ],
+        "fr": [
+          "réseaux informatiques"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "embedded",
+      "label": "Embedded Systems",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "Embedded Systems",
+          "Embedded Software"
+        ],
+        "de": [
+          "Embedded-Systeme",
+          "eingebettete Systeme",
+          "Embedded-Software"
+        ],
+        "fr": [
+          "systèmes embarqués",
+          "logiciel embarqué"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "cloud_computing",
+      "label": "Cloud Computing",
+      "category": "concept",
+      "aliases": {
+        "en": [
+          "Cloud Computing",
+          "Cloud-native",
+          "Cloud Native"
+        ],
+        "de": [
+          "Cloud-Technologien"
+        ],
+        "fr": [
+          "informatique en nuage"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "machine_learning",
+      "label": "Machine Learning",
+      "category": "ml",
+      "aliases": {
+        "en": [
+          "Machine Learning"
+        ],
+        "de": [
+          "maschinelles Lernen"
+        ],
+        "fr": [
+          "apprentissage automatique"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": [
+        "ML"
+      ]
+    },
+    {
+      "id": "deep_learning",
+      "label": "Deep Learning",
+      "category": "ml",
+      "aliases": {
+        "en": [
+          "Deep Learning",
+          "Neural Networks"
+        ],
+        "de": [
+          "neuronale Netze"
+        ],
+        "fr": [
+          "apprentissage profond",
+          "réseaux de neurones"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "nlp",
+      "label": "Natural Language Processing",
+      "category": "ml",
+      "aliases": {
+        "en": [
+          "Natural Language Processing",
+          "NLP"
+        ],
+        "de": [],
+        "fr": [
+          "traitement automatique du langage",
+          "traitement du langage naturel"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "llm",
+      "label": "Large Language Models",
+      "category": "ml",
+      "aliases": {
+        "en": [
+          "Large Language Models",
+          "Large Language Model",
+          "LLM",
+          "LLMs",
+          "Generative AI",
+          "GenAI"
+        ],
+        "de": [
+          "generative KI"
+        ],
+        "fr": [
+          "IA générative"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "computer_vision",
+      "label": "Computer Vision",
+      "category": "ml",
+      "aliases": {
+        "en": [
+          "Computer Vision"
+        ],
+        "de": [
+          "Bildverarbeitung"
+        ],
+        "fr": [
+          "vision par ordinateur"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "data_analysis",
+      "label": "Data Analysis",
+      "category": "data",
+      "aliases": {
+        "en": [
+          "Data Analysis",
+          "Data Analytics"
+        ],
+        "de": [
+          "Datenanalyse",
+          "Datenanalysen"
+        ],
+        "fr": [
+          "analyse de données",
+          "analyse des données"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "data_engineering",
+      "label": "Data Engineering",
+      "category": "data",
+      "aliases": {
+        "en": [
+          "Data Engineering",
+          "Data Pipelines"
+        ],
+        "de": [
+          "Datenpipelines"
+        ],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "etl",
+      "label": "ETL",
+      "category": "data",
+      "aliases": {
+        "en": [
+          "ETL",
+          "ELT"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "data_warehouse",
+      "label": "Data Warehousing",
+      "category": "data",
+      "aliases": {
+        "en": [
+          "Data Warehouse",
+          "Data Warehousing",
+          "DWH"
+        ],
+        "de": [
+          "Datawarehouse"
+        ],
+        "fr": [
+          "entrepôt de données"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "airflow",
+      "label": "Apache Airflow",
+      "category": "data",
+      "aliases": {
+        "en": [
+          "Apache Airflow",
+          "Airflow"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "databricks",
+      "label": "Databricks",
+      "category": "data",
+      "aliases": {
+        "en": [
+          "Databricks"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "dbt",
+      "label": "dbt",
+      "category": "data",
+      "aliases": {
+        "en": [
+          "dbt"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "power_bi",
+      "label": "Power BI",
+      "category": "data",
+      "aliases": {
+        "en": [
+          "Power BI",
+          "PowerBI"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "tableau",
+      "label": "Tableau",
+      "category": "data",
+      "aliases": {
+        "en": [],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [
+        "Tableau"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "excel",
+      "label": "Microsoft Excel",
+      "category": "tool",
+      "aliases": {
+        "en": [
+          "MS Excel",
+          "Microsoft Excel"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [
+        "Excel"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "statistics",
+      "label": "Statistics",
+      "category": "data",
+      "aliases": {
+        "en": [
+          "Statistical analysis"
+        ],
+        "de": [
+          "Statistik"
+        ],
+        "fr": [
+          "statistiques",
+          "statistique"
+        ]
+      },
+      "caseSensitiveAliases": [
+        "Statistics"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "sap",
+      "label": "SAP",
+      "category": "tool",
+      "aliases": {
+        "en": [
+          "SAP",
+          "SAP S/4HANA",
+          "S/4HANA",
+          "SAP HANA"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "salesforce",
+      "label": "Salesforce",
+      "category": "tool",
+      "aliases": {
+        "en": [
+          "Salesforce"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "jira",
+      "label": "Jira",
+      "category": "tool",
+      "aliases": {
+        "en": [
+          "Jira"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "confluence",
+      "label": "Confluence",
+      "category": "tool",
+      "aliases": {
+        "en": [
+          "Confluence"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "figma",
+      "label": "Figma",
+      "category": "tool",
+      "aliases": {
+        "en": [
+          "Figma"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "pytest",
+      "label": "pytest",
+      "category": "testing",
+      "aliases": {
+        "en": [
+          "pytest"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "junit",
+      "label": "JUnit",
+      "category": "testing",
+      "aliases": {
+        "en": [
+          "JUnit"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "jest",
+      "label": "Jest",
+      "category": "testing",
+      "aliases": {
+        "en": [],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [
+        "Jest"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "selenium",
+      "label": "Selenium",
+      "category": "testing",
+      "aliases": {
+        "en": [
+          "Selenium"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "playwright",
+      "label": "Playwright",
+      "category": "testing",
+      "aliases": {
+        "en": [
+          "Playwright"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "cypress",
+      "label": "Cypress",
+      "category": "testing",
+      "aliases": {
+        "en": [],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [
+        "Cypress"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "unit_testing",
+      "label": "Unit Testing",
+      "category": "testing",
+      "aliases": {
+        "en": [
+          "Unit Testing",
+          "Unit Tests",
+          "Unittests"
+        ],
+        "de": [
+          "Unit-Tests",
+          "Unit-Testing",
+          "Komponententests"
+        ],
+        "fr": [
+          "tests unitaires"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "test_automation",
+      "label": "Test Automation",
+      "category": "testing",
+      "aliases": {
+        "en": [
+          "Test Automation",
+          "Automated Testing",
+          "Automated Tests"
+        ],
+        "de": [
+          "Testautomatisierung",
+          "automatisierte Tests"
+        ],
+        "fr": [
+          "automatisation des tests",
+          "tests automatisés"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "tdd",
+      "label": "Test-Driven Development",
+      "category": "testing",
+      "aliases": {
+        "en": [
+          "Test-Driven Development",
+          "TDD"
+        ],
+        "de": [
+          "testgetriebene Entwicklung"
+        ],
+        "fr": [
+          "développement piloté par les tests"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "agile",
+      "label": "Agile",
+      "category": "method",
+      "aliases": {
+        "en": [
+          "Agile methodologies",
+          "Agile methods",
+          "Agile development"
+        ],
+        "de": [
+          "agil",
+          "agile Methoden",
+          "agilen",
+          "agiler",
+          "agile Softwareentwicklung",
+          "agilen Umfeld"
+        ],
+        "fr": [
+          "méthodes agiles",
+          "méthodologies agiles"
+        ]
+      },
+      "caseSensitiveAliases": [
+        "Agile"
+      ],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "scrum",
+      "label": "Scrum",
+      "category": "method",
+      "aliases": {
+        "en": [
+          "Scrum"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "kanban",
+      "label": "Kanban",
+      "category": "method",
+      "aliases": {
+        "en": [
+          "Kanban"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "safe",
+      "label": "SAFe",
+      "category": "method",
+      "aliases": {
+        "en": [
+          "Scaled Agile Framework"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": [
+        "SAFe"
+      ]
+    },
+    {
+      "id": "itil",
+      "label": "ITIL",
+      "category": "method",
+      "aliases": {
+        "en": [
+          "ITIL"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "prince2",
+      "label": "PRINCE2",
+      "category": "method",
+      "aliases": {
+        "en": [
+          "PRINCE2"
+        ],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "hermes",
+      "label": "HERMES",
+      "category": "method",
+      "aliases": {
+        "en": [],
+        "de": [],
+        "fr": []
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": [
+        "HERMES"
+      ]
+    },
+    {
+      "id": "project_management",
+      "label": "Project Management",
+      "category": "method",
+      "aliases": {
+        "en": [
+          "Project Management"
+        ],
+        "de": [
+          "Projektmanagement",
+          "Projektleitung"
+        ],
+        "fr": [
+          "gestion de projet",
+          "gestion de projets"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "requirements_engineering",
+      "label": "Requirements Engineering",
+      "category": "method",
+      "aliases": {
+        "en": [
+          "Requirements Engineering",
+          "Requirements Analysis",
+          "Requirements Management"
+        ],
+        "de": [
+          "Anforderungsmanagement",
+          "Anforderungsanalyse"
+        ],
+        "fr": [
+          "ingénierie des exigences",
+          "analyse des besoins"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    },
+    {
+      "id": "code_review",
+      "label": "Code Reviews",
+      "category": "method",
+      "aliases": {
+        "en": [
+          "Code Review",
+          "Code Reviews"
+        ],
+        "de": [],
+        "fr": [
+          "revue de code",
+          "revues de code"
+        ]
+      },
+      "caseSensitiveAliases": [],
+      "ambiguousAliases": []
+    }
+  ]
+}
