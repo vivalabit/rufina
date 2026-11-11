@@ -1,3 +1,4 @@
+import type { AiBackend } from "@/lib/ai-source";
 import { resolveApiUrl } from "@/shared/api/config";
 import type { WorkTechnology, WorkResponsibility, WorkProject } from "@/shared/types/profile";
 import { apiClient, ApiDecodeError } from "@/shared/api/client";
@@ -125,7 +126,7 @@ export type MasterResumeImportResponse = {
     itemCount: number;
   }>;
   model: string;
-  backend: "openclaw_codex" | "openai_api";
+  backend: AiBackend;
 };
 
 export type MasterResumeConfirmationResponse = {

@@ -1,6 +1,8 @@
-import type { AiBackend } from "@/lib/ai-source";
+import type { AiBackend, AiModelFamily } from "@/lib/ai-source";
 
 export type AIBackendName = AiBackend;
+export type AIModelOption = { value: string; label: string };
+export type AnthropicEffort = "low" | "medium" | "high" | "xhigh" | "max";
 export type OpenAIReasoningEffort = "none" | "low" | "medium" | "high" | "xhigh" | "max";
 export type AIWorkloadReasoningEffort = "off" | OpenAIReasoningEffort;
 
@@ -8,6 +10,13 @@ export type AppSettings = {
   has_brightdata_api_key: boolean;
   brightdata_api_key_preview: string;
   ai_backend: AIBackendName;
+  ai_model_family: AiModelFamily;
+  ai_model_options: AIModelOption[];
+  anthropic_api_key_configured: boolean;
+  anthropic_api_key_preview: string;
+  anthropic_api_model: string;
+  anthropic_api_effort: AnthropicEffort;
+  document_generation_model: string;
   openai_api_key_configured: boolean;
   openai_api_key_preview: string;
   openai_api_model: string;
@@ -32,6 +41,10 @@ export type AppSettings = {
 export type AppSettingsUpdate = Partial<{
   brightdata_api_key: string;
   ai_backend: AIBackendName;
+  anthropic_api_key: string;
+  anthropic_api_model: string;
+  anthropic_api_effort: AnthropicEffort;
+  document_generation_model: string;
   openai_api_key: string;
   openai_api_model: string;
   openai_api_reasoning_effort: OpenAIReasoningEffort;

@@ -61,7 +61,7 @@ import type {
   AssistantMessage,
   AssistantThread,
 } from "@/features/assistant/model/types";
-import { getAiSourceLabel } from "@/lib/ai-source";
+import { getAiSourceLabel, isAiBackend } from "@/lib/ai-source";
 import { cn } from "@/lib/utils";
 
 export type {
@@ -715,7 +715,7 @@ export function AssistantView({
           }
           if (event === "done" && data.metadata && typeof data.metadata === "object") {
             const metadata = data.metadata as Record<string, unknown>;
-            if (metadata.backend === "openclaw_codex" || metadata.backend === "openai_api") {
+            if (isAiBackend(metadata.backend)) {
               streamBackend = metadata.backend;
             }
             if (typeof metadata.sessionKey === "string") {

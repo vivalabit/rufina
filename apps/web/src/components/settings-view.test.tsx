@@ -176,3 +176,58 @@ it("blocks OpenAI API mode until its draft is valid", () => {
     }),
   );
 });
+
+it("switches every workload to Claude models when a Claude backend is selected", () => {
+  const onSaveAi = vi.fn();
+  renderSettingsView({ onSaveAi });
+
+  fireEvent.click(screen.getByRole("radio", { name: /Claude API/ }));
+
+  expect(screen.getByRole("alert")).toHaveTextContent(
+    "Add an Anthropic API key before enabling this mode.",
+  );
+  expect(screen.getByRole("combobox", { name: "Vacancy pre-screening model" })).toHaveValue(
+    "anthropic/claude-haiku-5-5",
+  );
+  expect(screen.getByRole("combobox", { name: "Full AI Match model" })).toHaveValue(
+    "anthropic/claude-sonnet-5-5",
+  );
+
+  fireEvent.change(screen.getByLabelText("Anthropic API key"), {
+    target: { value: " sk-ant-test " },
+  });
+  fireEvent.change(screen.getByRole("combobox", { name: "Application documents model" }), {
+    target: { value: "anthropic/claude-opus-5-5" },
+  });
+  fireEvent.click(screen.getByRole("button", { name: "Save AI settings" }));
+
+  expect(onSaveAi).toHaveBeenCalledWith(
+    expect.objectContaining({
+      ai_backend: "anthropic_api",
+      anthropic_api_key: "sk-ant-test",
+      anthropic_api_model: "claude-sonnet-5-5",
+      document_generation_model: "anthropic/claude-opus-5-5",
+      ai_match_model: "anthropic/claude-sonnet-5-5",
+      job_screening_model: "anthropic/claude-haiku-5-5",
+    }),
+  );
+});
+
+it("offers Claude through OpenClaw without asking for an API key", () => {
+  const onSaveAi = vi.fn();
+  renderSettingsView({ onSaveAi });
+
+  fireEvent.click(screen.getByRole("radio", { name: /Claude via OpenClaw/ }));
+
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.getByText(/openclaw:setup --provider anthropic/)).toBeInTheDocument();
+  expect(screen.getByRole("combobox", { name: "Full AI Match reasoning" })).toBeDisabled();
+  fireEvent.click(screen.getByRole("button", { name: "Save AI settings" }));
+  expect(onSaveAi).toHaveBeenCalledWith(
+    expect.objectContaining({
+      ai_backend: "openclaw_claude",
+      ai_match_reasoning: "off",
+      job_screening_model: "anthropic/claude-haiku-5-5",
+    }),
+  );
+});

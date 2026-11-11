@@ -15,16 +15,21 @@ import {
 
 import { Button } from "@/components/ui/button";
 import {
-  AI_WORKLOAD_MODEL_OPTIONS,
+  AI_MODEL_CATALOG,
+  aiModelOptionsFor,
+  defaultWorkloadModel,
   isAllowedAIWorkloadModel,
+  workloadModelValue,
 } from "@/features/settings/model/defaults";
 import type {
   AIBackendName,
   AIWorkloadReasoningEffort,
+  AnthropicEffort,
   AppSettings,
   AppSettingsUpdate,
   OpenAIReasoningEffort,
 } from "@/features/settings/model/types";
+import { aiModelFamily, isOpenClawBackend } from "@/lib/ai-source";
 import { cn } from "@/lib/utils";
 
 export function SettingsView({
@@ -53,6 +58,14 @@ export function SettingsView({
   const [apiKeyDraft, setApiKeyDraft] = useState("");
   const hasApiKeyDraft = apiKeyDraft.trim().length > 0;
   const [aiBackendDraft, setAiBackendDraft] = useState<AIBackendName>(settings.ai_backend);
+  const [anthropicApiKeyDraft, setAnthropicApiKeyDraft] = useState("");
+  const [anthropicModelDraft, setAnthropicModelDraft] = useState(settings.anthropic_api_model);
+  const [anthropicEffortDraft, setAnthropicEffortDraft] = useState<AnthropicEffort>(
+    settings.anthropic_api_effort,
+  );
+  const [documentModelDraft, setDocumentModelDraft] = useState(
+    workloadModelValue(settings.ai_backend, settings.document_generation_model),
+  );
   const [openAiApiKeyDraft, setOpenAiApiKeyDraft] = useState("");
   const [openAiModelDraft, setOpenAiModelDraft] = useState(settings.openai_api_model);
   const [openAiReasoningDraft, setOpenAiReasoningDraft] = useState<OpenAIReasoningEffort>(
@@ -82,7 +95,29 @@ export function SettingsView({
     settings.job_screening_max_description_chars,
   );
   const hasUsableOpenAiKey = settings.openai_api_key_configured || Boolean(openAiApiKeyDraft.trim());
-  const aiConnectionValidationMessage = aiBackendDraft === "openai_api"
+  const hasUsableAnthropicKey =
+    settings.anthropic_api_key_configured || Boolean(anthropicApiKeyDraft.trim());
+  const usesOpenClaw = isOpenClawBackend(aiBackendDraft);
+  const modelOptions = aiModelOptionsFor(aiBackendDraft);
+
+  function selectAiBackend(next: AIBackendName) {
+    // Workload models belong to one provider. Moving to another provider resets
+    // them to that provider's defaults, so the form never saves a mixed set.
+    if (aiModelFamily(next) !== aiModelFamily(aiBackendDraft)) {
+      setScreeningModelDraft(defaultWorkloadModel(next, "screening"));
+      setAiMatchModelDraft(defaultWorkloadModel(next, "match"));
+      setDocumentModelDraft(defaultWorkloadModel(next, "documents"));
+    }
+    setAiBackendDraft(next);
+  }
+
+  const aiConnectionValidationMessage = aiBackendDraft === "anthropic_api"
+    ? !hasUsableAnthropicKey
+      ? "Add an Anthropic API key before enabling this mode."
+      : !anthropicModelDraft.trim()
+        ? "Select a default Claude model before enabling this mode."
+        : ""
+    : aiBackendDraft === "openai_api"
     ? !hasUsableOpenAiKey
       ? "Add an OpenAI API key before enabling this mode."
       : !openAiModelDraft.trim()
@@ -95,7 +130,10 @@ export function SettingsView({
               ? "OpenAI retry backoff must be between 0 and 10 seconds."
               : ""
     : "";
-  const aiMatchValidationMessage = !isAllowedAIWorkloadModel(aiMatchModelDraft)
+  const documentValidationMessage = !isAllowedAIWorkloadModel(documentModelDraft, aiBackendDraft)
+    ? "Select an allowed model for application documents."
+    : "";
+  const aiMatchValidationMessage = !isAllowedAIWorkloadModel(aiMatchModelDraft, aiBackendDraft)
     ? "Select an allowed model for Full AI Match."
     : !Number.isInteger(aiMatchBatchSizeDraft) || aiMatchBatchSizeDraft < 1 || aiMatchBatchSizeDraft > 100
       ? "Full AI Match batch size must be between 1 and 100."
@@ -104,7 +142,7 @@ export function SettingsView({
         : !Number.isInteger(aiMatchAttemptsDraft) || aiMatchAttemptsDraft < 1 || aiMatchAttemptsDraft > 4
           ? "Full AI Match max attempts must be between 1 and 4."
           : "";
-  const screeningValidationMessage = !isAllowedAIWorkloadModel(screeningModelDraft)
+  const screeningValidationMessage = !isAllowedAIWorkloadModel(screeningModelDraft, aiBackendDraft)
     ? "Select an allowed model for vacancy pre-screening."
     : !Number.isInteger(screeningBatchSizeDraft) || screeningBatchSizeDraft < 1 || screeningBatchSizeDraft > 100
       ? "Pre-screening batch size must be between 1 and 100."
@@ -118,7 +156,10 @@ export function SettingsView({
             ? "Pre-screening description limit must be between 1,000 and 200,000 characters."
             : "";
   const aiValidationMessage =
-    aiConnectionValidationMessage || aiMatchValidationMessage || screeningValidationMessage;
+    aiConnectionValidationMessage
+    || aiMatchValidationMessage
+    || screeningValidationMessage
+    || documentValidationMessage;
   const currentKeyPreview = settings.brightdata_api_key_preview || "No key saved";
   const statusMessage =
     status === "error"
@@ -130,6 +171,12 @@ export function SettingsView({
 
   useEffect(() => {
     setAiBackendDraft(settings.ai_backend);
+    setAnthropicApiKeyDraft("");
+    setAnthropicModelDraft(settings.anthropic_api_model);
+    setAnthropicEffortDraft(settings.anthropic_api_effort);
+    setDocumentModelDraft(
+      workloadModelValue(settings.ai_backend, settings.document_generation_model),
+    );
     setOpenAiApiKeyDraft("");
     setOpenAiModelDraft(settings.openai_api_model);
     setOpenAiReasoningDraft(settings.openai_api_reasoning_effort);
@@ -156,6 +203,11 @@ export function SettingsView({
     settings.ai_match_timeout_seconds,
     settings.auto_ai_match_enabled,
     settings.ai_backend,
+    settings.anthropic_api_effort,
+    settings.anthropic_api_key_configured,
+    settings.anthropic_api_key_preview,
+    settings.anthropic_api_model,
+    settings.document_generation_model,
     settings.job_screening_batch_size,
     settings.job_screening_max_attempts,
     settings.job_screening_max_description_chars,
@@ -174,6 +226,10 @@ export function SettingsView({
   function saveAiBackendSettings() {
     onSaveAi({
       ai_backend: aiBackendDraft,
+      ...(anthropicApiKeyDraft.trim() ? { anthropic_api_key: anthropicApiKeyDraft.trim() } : {}),
+      anthropic_api_model: anthropicModelDraft.trim(),
+      anthropic_api_effort: anthropicEffortDraft,
+      document_generation_model: documentModelDraft.trim(),
       ...(openAiApiKeyDraft.trim() ? { openai_api_key: openAiApiKeyDraft.trim() } : {}),
       openai_api_model: openAiModelDraft.trim(),
       openai_api_reasoning_effort: openAiReasoningDraft,
@@ -181,13 +237,13 @@ export function SettingsView({
       openai_api_max_attempts: openAiAttemptsDraft,
       openai_api_retry_backoff_seconds: openAiBackoffDraft,
       ai_match_model: aiMatchModelDraft.trim(),
-      ai_match_reasoning: aiBackendDraft === "openclaw_codex" ? "off" : aiMatchReasoningDraft,
+      ai_match_reasoning: usesOpenClaw ? "off" : aiMatchReasoningDraft,
       ai_match_batch_size: aiMatchBatchSizeDraft,
       ai_match_timeout_seconds: aiMatchTimeoutDraft,
       ai_match_max_attempts: aiMatchAttemptsDraft,
       auto_ai_match_enabled: autoAiMatchEnabledDraft,
       job_screening_model: screeningModelDraft.trim(),
-      job_screening_reasoning: aiBackendDraft === "openclaw_codex" ? "off" : screeningReasoningDraft,
+      job_screening_reasoning: usesOpenClaw ? "off" : screeningReasoningDraft,
       job_screening_batch_size: screeningBatchSizeDraft,
       job_screening_timeout_seconds: screeningTimeoutDraft,
       job_screening_max_attempts: screeningAttemptsDraft,
@@ -204,10 +260,20 @@ export function SettingsView({
     }
   }
 
+  // A stored key can only be deleted while its direct API is not the saved
+  // backend, so the save also moves off that backend if it is still selected.
   function clearOpenAiApiKey() {
-    setAiBackendDraft("openclaw_codex");
+    const backend = aiBackendDraft === "openai_api" ? "openclaw_codex" : aiBackendDraft;
+    selectAiBackend(backend);
     setOpenAiApiKeyDraft("");
-    onSaveAi({ ai_backend: "openclaw_codex", openai_api_key: "" });
+    onSaveAi({ ai_backend: backend, openai_api_key: "" });
+  }
+
+  function clearAnthropicApiKey() {
+    const backend = aiBackendDraft === "anthropic_api" ? "openclaw_codex" : aiBackendDraft;
+    selectAiBackend(backend);
+    setAnthropicApiKeyDraft("");
+    onSaveAi({ ai_backend: backend, anthropic_api_key: "" });
   }
 
   return (
@@ -279,6 +345,16 @@ export function SettingsView({
                     title: "OpenAI API",
                     description: "Call the OpenAI Responses API directly with your server-side API key.",
                   },
+                  {
+                    value: "anthropic_api" as const,
+                    title: "Claude API",
+                    description: "Call the Anthropic Messages API directly with your server-side API key.",
+                  },
+                  {
+                    value: "openclaw_claude" as const,
+                    title: "Claude via OpenClaw",
+                    description: "Use Claude through the OpenClaw agent, with a Claude Code login or the key stored in OpenClaw.",
+                  },
                 ]).map((option) => {
                   const selected = aiBackendDraft === option.value;
                   return (
@@ -297,7 +373,7 @@ export function SettingsView({
                           name="ai-backend"
                           value={option.value}
                           checked={selected}
-                          onChange={() => setAiBackendDraft(option.value)}
+                          onChange={() => selectAiBackend(option.value)}
                           className="mt-1 h-4 w-4 accent-[#fa5d00]"
                         />
                         <span>
@@ -314,6 +390,89 @@ export function SettingsView({
             <div className="rounded-lg border border-accent/25 bg-accent/10 px-4 py-3 text-xs leading-5 text-accent">
               Switching applies to new operations. Running chat, document generation, imports, snapshots, and matching jobs keep the mode they started with.
             </div>
+
+            {aiBackendDraft === "anthropic_api" ? (
+              <div className="grid gap-5 rounded-xl border border-border bg-black/15 p-4 sm:p-5">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <h3 className="text-sm font-bold text-foreground">Claude API configuration</h3>
+                    <p className="mt-1 text-xs text-muted">The full key remains server-side and is never returned to the browser.</p>
+                  </div>
+                  <span className={cn(
+                    "rounded-full border px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.08em]",
+                    hasUsableAnthropicKey
+                      ? "border-success/30 bg-success/10 text-success"
+                      : "border-accent/25 bg-accent/10 text-accent",
+                  )}>
+                    {anthropicApiKeyDraft.trim() ? "New key ready" : settings.anthropic_api_key_configured ? "Key configured" : "Key required"}
+                  </span>
+                </div>
+
+                <div className="grid gap-4 lg:grid-cols-3">
+                  <label className="grid gap-2 lg:col-span-1">
+                    <span className="text-sm font-bold text-[#1d1e1c] 2xl:text-base">Anthropic API key</span>
+                    <input
+                      type="password"
+                      aria-label="Anthropic API key"
+                      value={anthropicApiKeyDraft}
+                      onChange={(event) => setAnthropicApiKeyDraft(event.target.value)}
+                      placeholder={settings.anthropic_api_key_preview || "Enter an Anthropic API key"}
+                      className="h-12 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none placeholder:text-muted/70 focus:border-accent/70 2xl:h-[52px] 2xl:px-4 2xl:text-base"
+                      autoComplete="off"
+                    />
+                    <span className="text-xs font-medium text-muted">
+                      {settings.anthropic_api_key_configured
+                        ? `Saved key: ${settings.anthropic_api_key_preview}. Leave blank to keep it.`
+                        : "No API key is configured."}
+                    </span>
+                  </label>
+
+                  <label className="grid content-start gap-2">
+                    <span className="text-sm font-bold text-[#1d1e1c] 2xl:text-base">Main Claude model</span>
+                    <select
+                      aria-label="Main Claude model"
+                      value={workloadModelValue("anthropic_api", anthropicModelDraft)}
+                      onChange={(event) => setAnthropicModelDraft(event.target.value.replace("anthropic/", ""))}
+                      className="h-12 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70 2xl:h-[52px]"
+                    >
+                      {AI_MODEL_CATALOG.anthropic.map((option) => (
+                        <option key={option.value} value={option.value}>{option.label}</option>
+                      ))}
+                    </select>
+                    <span className="text-xs font-medium text-muted">Used for the assistant and profile import.</span>
+                  </label>
+
+                  <label className="grid content-start gap-2">
+                    <span className="text-sm font-bold text-[#1d1e1c] 2xl:text-base">Effort</span>
+                    <select
+                      aria-label="Claude effort"
+                      value={anthropicEffortDraft}
+                      onChange={(event) => setAnthropicEffortDraft(event.target.value as AnthropicEffort)}
+                      className="h-12 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70 2xl:h-[52px]"
+                    >
+                      {(["low", "medium", "high"] as AnthropicEffort[]).map((effort) => <option key={effort} value={effort}>{effort}</option>)}
+                    </select>
+                    <span className="text-xs font-medium text-muted">Higher effort is slower and uses more tokens.</span>
+                  </label>
+                </div>
+              </div>
+            ) : settings.anthropic_api_key_configured ? (
+              <div className="flex flex-col gap-3 rounded-lg border border-border bg-[#fff8f1] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-foreground">Anthropic API key saved but not in use</p>
+                  <p className="mt-1 text-xs text-muted">{settings.anthropic_api_key_preview} remains stored for a future switch to Claude API.</p>
+                </div>
+                <Button type="button" variant="ghost" className="h-10 shrink-0 rounded-md border border-accent/25 px-4 text-xs text-accent hover:bg-accent/10" disabled={aiStatus === "loading"} onClick={clearAnthropicApiKey}>
+                  Delete saved Anthropic API key
+                </Button>
+              </div>
+            ) : null}
+
+            {aiBackendDraft === "openclaw_claude" ? (
+              <div className="rounded-lg border border-border bg-[#fff8f1] px-4 py-3 text-xs leading-5 text-muted">
+                Run <code className="font-mono text-foreground">pnpm openclaw:setup --provider anthropic</code> once so the OpenClaw agent allows Claude models.
+              </div>
+            ) : null}
 
             {aiBackendDraft === "openai_api" ? (
               <div className="grid gap-5 rounded-xl border border-border bg-black/15 p-4 sm:p-5">
@@ -395,6 +554,33 @@ export function SettingsView({
               </div>
             ) : null}
 
+            <section className="grid gap-4 rounded-xl border border-border bg-[#fff8f1] p-4 sm:grid-cols-[minmax(0,1fr)_minmax(220px,320px)] sm:items-center sm:p-5">
+              <div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h3 className="text-sm font-bold text-foreground 2xl:text-base">Application documents</h3>
+                  <span className="rounded-full border border-accent/30 bg-accent/10 px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.08em] text-accent">
+                    Writing model
+                  </span>
+                </div>
+                <p className="mt-1.5 text-xs leading-5 text-muted">
+                  Words the tailored resume and cover letter. Vacancy parsing for tailoring uses the pre-screening model.
+                </p>
+              </div>
+              <label className="grid gap-2">
+                <span className="text-sm font-bold text-[#1d1e1c]">Model</span>
+                <select
+                  aria-label="Application documents model"
+                  value={documentModelDraft}
+                  onChange={(event) => setDocumentModelDraft(event.target.value)}
+                  className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
+                >
+                  {modelOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+              </label>
+            </section>
+
             <div className="grid gap-4 xl:grid-cols-2">
               <section className="grid content-start gap-5 rounded-xl border border-accent/25 bg-accent/10 p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-3">
@@ -419,7 +605,7 @@ export function SettingsView({
                     onChange={(event) => setScreeningModelDraft(event.target.value)}
                     className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/25"
                   >
-                    {AI_WORKLOAD_MODEL_OPTIONS.map((option) => (
+                    {modelOptions.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
                   </select>
@@ -430,9 +616,9 @@ export function SettingsView({
                     <span className="text-sm font-bold text-[#1d1e1c]">Reasoning</span>
                     <select
                       aria-label="Vacancy pre-screening reasoning"
-                      value={aiBackendDraft === "openclaw_codex" ? "off" : screeningReasoningDraft}
+                      value={usesOpenClaw ? "off" : screeningReasoningDraft}
                       onChange={(event) => setScreeningReasoningDraft(event.target.value as AIWorkloadReasoningEffort)}
-                      disabled={aiBackendDraft === "openclaw_codex"}
+                      disabled={usesOpenClaw}
                       className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/25"
                     >
                       {(["off", "low", "medium", "high", "xhigh", "max"] as AIWorkloadReasoningEffort[]).map((effort) => (
@@ -546,7 +732,7 @@ export function SettingsView({
                     onChange={(event) => setAiMatchModelDraft(event.target.value)}
                     className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                   >
-                    {AI_WORKLOAD_MODEL_OPTIONS.map((option) => (
+                    {modelOptions.map((option) => (
                       <option key={option.value} value={option.value}>{option.label}</option>
                     ))}
                   </select>
@@ -557,9 +743,9 @@ export function SettingsView({
                     <span className="text-sm font-bold text-[#1d1e1c]">Reasoning</span>
                     <select
                       aria-label="Full AI Match reasoning"
-                      value={aiBackendDraft === "openclaw_codex" ? "off" : aiMatchReasoningDraft}
+                      value={usesOpenClaw ? "off" : aiMatchReasoningDraft}
                       onChange={(event) => setAiMatchReasoningDraft(event.target.value as AIWorkloadReasoningEffort)}
-                      disabled={aiBackendDraft === "openclaw_codex"}
+                      disabled={usesOpenClaw}
                       className="h-11 rounded-md border border-border bg-[#ffffff] px-3 text-sm font-semibold text-foreground outline-none focus:border-accent/70"
                     >
                       {(["off", "low", "medium", "high", "xhigh", "max"] as AIWorkloadReasoningEffort[]).map((effort) => (

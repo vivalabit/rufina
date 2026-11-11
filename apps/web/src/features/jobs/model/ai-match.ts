@@ -3,6 +3,7 @@ import {
   isManualJob,
 } from "@/features/jobs/model/sources";
 import { getAiMatchAnalysisStatus } from "@/lib/ai-match";
+import { isAiBackend } from "@/lib/ai-source";
 import type { Job } from "@/shared/types/job";
 
 export type AiMatchPresentationState =
@@ -21,8 +22,7 @@ export type AiMatchPresentation = {
 export function hasAiBackendMatch(job: Job) {
   return (
     !job.aiMatch?.providerError &&
-    (job.aiMatch?.source === "openclaw_codex" ||
-      job.aiMatch?.source === "openai_api") &&
+    isAiBackend(job.aiMatch?.source) &&
     Number.isInteger(job.aiMatch.score) &&
     job.aiMatch.score >= 0 &&
     job.aiMatch.score <= 100
