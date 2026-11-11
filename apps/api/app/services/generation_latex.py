@@ -6,6 +6,7 @@ import subprocess
 import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Literal
 from urllib.parse import urlparse
@@ -17,6 +18,7 @@ from app.services.generation_resume_templates import (
     DEFAULT_GENERATION_RESUME_TEMPLATE_ID,
     resolve_generation_resume_template,
 )
+from app.services.resume_skills import CORE_SKILL_CATEGORIES, normalize_skill_category
 
 LatexEngine = Literal["lualatex", "xelatex"]
 LatexRunner = Callable[..., subprocess.CompletedProcess[str]]
@@ -41,6 +43,8 @@ def render_generation_bundle(
     bundle: DraftBundle,
     *,
     resume_template_id: str = DEFAULT_GENERATION_RESUME_TEMPLATE_ID,
+    sender_basics: ResumeBasics | None = None,
+    letter_date: date | None = None,
     runner: LatexRunner = subprocess.run,
 ) -> tuple[CompiledDocument, ...]:
     rendered: list[CompiledDocument] = []
@@ -60,9 +64,13 @@ def render_generation_bundle(
                 document_type="cover_letter",
                 engine="xelatex",
                 file_name="cover-letter.pdf",
-                tex_source=build_cover_letter_tex(bundle.cover_letter),
+                tex_source=build_cover_letter_tex(
+                    bundle.cover_letter,
+                    template_id=resume_template_id,
+                    sender_basics=sender_basics or (bundle.resume.basics if bundle.resume else None),
+                    letter_date=letter_date,
+                ),
                 runner=runner,
-                include_cover_assets=True,
             )
         )
     return tuple(rendered)
@@ -140,8 +148,8 @@ def build_resume_tex(
     template_id: str = DEFAULT_GENERATION_RESUME_TEMPLATE_ID,
 ) -> str:
     template = resolve_generation_resume_template(template_id)
-    if template.id == "ishchenko_classic":
-        return _build_ishchenko_resume_tex(resume)
+    if template.id == "roman":
+        return _build_roman_resume_tex(resume)
     return _build_moderncv_resume_tex(resume)
 
 
@@ -153,6 +161,16 @@ def _build_moderncv_resume_tex(resume: FinalResume) -> str:
         r"\moderncvcolor{blue}",
         r"\usepackage[utf8]{inputenc}",
         r"\usepackage[scale=0.80]{geometry}",
+        r"\usepackage{enumitem,needspace}",
+        r"\newsavebox{\taskoroleheader}",
+        (
+            r"\newcommand{\taskoroleheading}[4]{"
+            r"\sbox{\taskoroleheader}{\begin{minipage}{\linewidth}"
+            r"\cventry{#1}{#2}{#3}{#4}{}{}\end{minipage}}"
+            r"\Needspace{\dimexpr\ht\taskoroleheader+\dp\taskoroleheader+"
+            r"3\baselineskip\relax}"
+            r"\noindent\usebox{\taskoroleheader}\par\nopagebreak[4]}"
+        ),
         rf"\name{{{latex_escape(first_name)}}}{{{latex_escape(last_name)}}}",
     ]
     _append_resume_contacts(lines, resume.basics)
@@ -163,23 +181,32 @@ def _build_moderncv_resume_tex(resume: FinalResume) -> str:
         elif section == "skills" and resume.skills:
             lines.extend([r"\section{Core Competencies}", r"\begin{itemize}"])
             lines.extend(
-                rf"\item \textbf{{{latex_escape(item.category or 'Skills')}}}: "
-                rf"{latex_escape(item.name)}"
-                for item in resume.skills
+                rf"\item \textbf{{{latex_escape(category)}:}} "
+                rf"{latex_escape(', '.join(names))}"
+                for category, names in _resume_skill_groups(resume).items()
             )
             lines.append(r"\end{itemize}")
         elif section == "experience" and resume.experiences:
-            lines.extend([r"\section{Professional Experience}", r"\begin{itemize}"])
+            lines.append(r"\section{Professional Experience}")
             for experience in resume.experiences:
+                # Banking puts cventry's description in one unbreakable minipage.
+                # Keep only the heading boxed; the achievements must flow between
+                # pages, with the list's first lines attached to their heading.
                 lines.append(
-                    rf"\item{{\cventry{{{latex_escape(experience.period)}}}"
+                    rf"\taskoroleheading{{{latex_escape(experience.period)}}}"
                     rf"{{{latex_escape(experience.title)}}}"
                     rf"{{{latex_escape(experience.company)}}}"
-                    rf"{{{latex_escape(experience.location)}}}{{}}{{\begin{{itemize}}"
+                    rf"{{{latex_escape(experience.location)}}}"
                 )
+                lines.extend([
+                    r"{\small\clubpenalty=10000\widowpenalty=10000",
+                    (
+                        r"\begin{itemize}[leftmargin=1.5em,topsep=0pt,partopsep=0pt,"
+                        r"itemsep=1pt,parsep=0pt,beginpenalty=10000]"
+                    ),
+                ])
                 lines.extend(rf"\item {latex_escape(item.text)}" for item in experience.bullets)
-                lines.append(r"\end{itemize}}}")
-            lines.append(r"\end{itemize}")
+                lines.extend([r"\end{itemize}}", r"\addvspace{6pt}"])
         elif section == "education" and resume.education:
             lines.extend([r"\section{Education}", r"\begin{itemize}"])
             for item in resume.education:
@@ -221,7 +248,7 @@ def _build_moderncv_resume_tex(resume: FinalResume) -> str:
     return "\n".join(lines) + "\n"
 
 
-def _build_ishchenko_resume_tex(resume: FinalResume) -> str:
+def _build_roman_resume_tex(resume: FinalResume) -> str:
     """Typeset the supplied DOCX's serif layout with structured resume content."""
     lines = [
         r"\documentclass[10pt,a4paper]{article}",
@@ -343,11 +370,8 @@ def _build_ishchenko_resume_tex(resume: FinalResume) -> str:
             )
         elif section == "skills" and resume.skills:
             lines.append(r"\cvsection{Skills}")
-            categories: dict[str, list[str]] = {}
-            for item in resume.skills:
-                categories.setdefault(item.category, []).append(item.name)
-            for category, names in categories.items():
-                label = rf"\textbf{{{latex_escape(category)}:}} " if category else ""
+            for category, names in _resume_skill_groups(resume).items():
+                label = rf"\textbf{{{latex_escape(category)}:}} "
                 lines.append(label + latex_escape(", ".join(names)) + r"\par")
         elif section == "projects" and resume.projects:
             lines.append(r"\cvsection{Projects}")
@@ -381,6 +405,25 @@ def _build_ishchenko_resume_tex(resume: FinalResume) -> str:
     return "\n".join(lines) + "\n"
 
 
+def _resume_skill_groups(resume: FinalResume) -> dict[str, list[str]]:
+    """Show core categories first while retaining skill priority within each group."""
+    categories: dict[str, list[str]] = {}
+    for item in resume.skills:
+        category = normalize_skill_category(item.category) or "Other skills"
+        categories.setdefault(category, []).append(item.name)
+    ordered_categories = {
+        category: categories[category]
+        for category in CORE_SKILL_CATEGORIES
+        if category in categories
+    }
+    ordered_categories.update(
+        (category, names)
+        for category, names in categories.items()
+        if category not in CORE_SKILL_CATEGORIES
+    )
+    return ordered_categories
+
+
 def _append_classic_bullets(lines: list[str], items: list[str]) -> None:
     if items:
         lines.append(r"\begin{itemize}")
@@ -402,37 +445,78 @@ def _resume_link(value: str, label: str) -> str:
     return rf"\href{{{latex_escape(value)}}}{{\underline{{{latex_escape(label)}}}}}"
 
 
-def build_cover_letter_tex(letter: CoverLetterDraft) -> str:
-    lines = [
-        r"\documentclass[]{cover}",
-        r"\usepackage{fancyhdr}",
-        r"\pagestyle{fancy}",
-        r"\fancyhf{}",
-        r"\rfoot{Page \thepage}",
-        r"\thispagestyle{empty}",
-        r"\renewcommand{\headrulewidth}{0pt}",
+def build_cover_letter_tex(
+    letter: CoverLetterDraft,
+    *,
+    template_id: str = DEFAULT_GENERATION_RESUME_TEMPLATE_ID,
+    sender_basics: ResumeBasics | None = None,
+    letter_date: date | None = None,
+) -> str:
+    """Use the CV's design family; Roman follows the supplied Word reference."""
+    template = resolve_generation_resume_template(template_id)
+    roman = template.id == "roman"
+    if roman:
+        lines = [
+            r"\documentclass[10pt,a4paper]{article}",
+            r"\usepackage[top=18mm,bottom=18mm,left=25mm,right=25mm]{geometry}",
+            r"\usepackage{fontspec}",
+            r"\IfFontExistsTF{Times New Roman}{\setmainfont{Times New Roman}}{\setmainfont{Liberation Serif}}",
+        ]
+    else:
+        name = sender_basics.full_name if sender_basics else letter.signature
+        first_name, last_name = _split_name(name)
+        lines = [
+            r"\documentclass[11pt,a4paper,sans]{moderncv}",
+            r"\moderncvstyle{banking}",
+            r"\moderncvcolor{blue}",
+            r"\usepackage[scale=0.80]{geometry}",
+            rf"\name{{{latex_escape(first_name)}}}{{{latex_escape(last_name)}}}",
+        ]
+        if sender_basics:
+            _append_resume_contacts(lines, sender_basics)
+    lines.extend([
+        r"\pagestyle{empty}",
+        r"\setlength{\parindent}{0pt}",
+        r"\setlength{\parskip}{0pt}",
+        r"\setlength{\emergencystretch}{2em}",
         r"\begin{document}",
-        rf"\namesection{{}}{{\Huge{{{latex_escape(letter.signature)}}}}}{{}}",
-        r"\currentdate{\today}",
-    ]
-    if letter.recipient:
-        lines.append(rf"\companyname{{{latex_escape(letter.recipient)}}}")
-    lines.extend(
-        [
-            rf"\lettercontent{{\textbf{{{latex_escape(letter.subject)}}}}}",
-            rf"\lettercontent{{{latex_escape(letter.salutation)}}}",
-        ]
-    )
-    lines.extend(rf"\lettercontent{{{latex_escape(item.text)}}}" for item in letter.paragraphs)
-    lines.extend(
-        [
-            r"\begin{flushright}",
-            rf"\closing{{{latex_escape(letter.closing)}}}",
-            rf"\signature{{{latex_escape(letter.signature)}}}",
-            r"\end{flushright}",
-            r"\end{document}",
-        ]
-    )
+    ])
+    if roman:
+        lines.append(r"\fontsize{10.5}{12.6}\selectfont")
+    else:
+        lines.extend([r"\makecvtitle", r"\pagestyle{empty}"])
+    lines.append(r"\raggedright")
+    recipient = [line.strip() for line in letter.recipient.splitlines() if line.strip()]
+    if recipient:
+        lines.append(r"\begin{samepage}")
+        lines.extend(latex_escape(line) + r"\par" for line in recipient)
+        lines.extend([r"\end{samepage}", r"\vspace{10pt}"])
+    # Use the run's frozen date and profile, including for cover-letter-only runs.
+    dateline = (letter_date or datetime.now(UTC).date()).strftime("%d.%m.%Y")
+    if sender_basics and sender_basics.location:
+        dateline = f"{sender_basics.location}, {dateline}"
+    lines.extend([
+        latex_escape(dateline) + r"\par",
+        r"\vspace{18pt}",
+        (r"{\fontsize{16}{18.4}\selectfont " if roman else r"{\large\bfseries\color{color1} ")
+        + latex_escape(letter.subject) + r"\par}",
+        r"\vspace{12pt}",
+        latex_escape(letter.salutation) + r"\par\nopagebreak",
+        r"\vspace{10pt}",
+    ])
+    lines.extend(latex_escape(item.text) + r"\par\vspace{10pt}" for item in letter.paragraphs)
+    lines.extend([
+        r"\begin{samepage}",
+        r"\vspace{5pt}",
+        latex_escape(letter.closing) + r"\par\vspace{10pt}",
+        latex_escape(sender_basics.full_name if sender_basics else letter.signature) + r"\par",
+    ])
+    if roman and sender_basics:
+        lines.extend(
+            latex_escape(value) + r"\par" for value in (sender_basics.phone, sender_basics.email)
+            if value
+        )
+    lines.extend([r"\end{samepage}", r"\end{document}"])
     return "\n".join(lines) + "\n"
 
 

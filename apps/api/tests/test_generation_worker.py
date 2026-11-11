@@ -11,6 +11,7 @@ from app.core.database import Base
 from app.core.identity import get_bound_owner_id
 from app.models.generation_runs import (
     ApplicationGenerationRunRecord,
+    GenerationRunCheckRecord,
     GenerationRunEventRecord,
     GenerationRunStartRequest,
 )
@@ -132,6 +133,51 @@ def test_worker_reserves_pauses_and_resumes_a_run(sessions: sessionmaker[Session
         assert run is not None and run.status == "completed"
         assert run.lease_token is None and run.lease_until is None
     assert workflow.owner_ids == ["local-owner", "local-owner"]
+
+
+@pytest.mark.parametrize("database_failure", [False, True])
+def test_unhandled_worker_failure_is_terminal_and_releases_lease(
+    sessions: sessionmaker[Session], database_failure: bool,
+) -> None:
+    seed_complete_sources(sessions)
+    with sessions() as db:
+        run = create_generation_run(
+            db, application_id="application-1", request=_start(), settings=_settings(),
+        )
+        run_id = run.id
+
+    class BrokenWorkflow(FakeWorkflow):
+        def evaluate_fit(self, db, run):
+            transition_generation_run(
+                db, run=run, status="running", stage="fit", event_kind="fit.started",
+            )
+            if database_failure:
+                db.add(GenerationRunCheckRecord(
+                    id="invalid-check", run_id=run.id, check_type="example", status=None,
+                ))
+                db.flush()
+            raise RuntimeError("Unexpected workflow failure")
+
+    assert run_generation_cycle(
+        settings=_settings(), session_factory=sessions,
+        workflow_factory=lambda _settings: BrokenWorkflow(),
+    ) == run_id
+    with sessions() as db:
+        run = db.get(ApplicationGenerationRunRecord, run_id)
+        assert run.status == "failed"
+        assert run.error["code"] == "worker_failed"
+        assert run.completed_at is not None
+        assert run.lease_token is None and run.lease_until is None
+        assert db.get(GenerationRunCheckRecord, "invalid-check") is None
+        failures = db.scalars(select(GenerationRunEventRecord).where(
+            GenerationRunEventRecord.run_id == run_id,
+            GenerationRunEventRecord.kind == "run.failed",
+        )).all()
+        assert len(failures) == 1
+    assert run_generation_cycle(
+        settings=_settings(), session_factory=sessions,
+        workflow_factory=lambda _settings: BrokenWorkflow(),
+    ) is None
 
 
 def test_expired_running_lease_is_requeued_with_an_audit_event(

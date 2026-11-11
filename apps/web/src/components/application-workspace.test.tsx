@@ -1,4 +1,4 @@
-import { fireEvent, screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
 import { ApplicationWorkspace } from "@/components/application-workspace";
@@ -173,12 +173,13 @@ describe("ApplicationWorkspace", () => {
     expect(screen.getByRole("heading", { name: "Senior Product Designer" })).toBeInTheDocument();
     expect(screen.getByText(/Acme Labs · Zurich, Switzerland/)).toBeInTheDocument();
     const workflow = screen.getByRole("list", { name: "Application document workflow" });
-    expect(workflow).toHaveClass("sm:grid-cols-5");
+    expect(workflow).toHaveClass("grid-cols-5");
     expect(screen.getByText("Draft & review")).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Prepare your application pack" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start application" })).toBeEnabled();
-    expect(screen.getAllByText("ModernCV · Banking")).toHaveLength(2);
-    expect(screen.getAllByText("Classic letter")).toHaveLength(2);
+    expect(screen.getByRole("button", { name: "Check fit" })).toBeEnabled();
+    expect(screen.getAllByText("ModernCV · Banking")).toHaveLength(1);
+    expect(screen.queryByText("Classic letter")).not.toBeInTheDocument();
+    expect(screen.getByRole("group", { name: "Document template" })).toBeInTheDocument();
   });
 
   it("starts CV and cover letter from saved user options", async () => {
@@ -188,7 +189,7 @@ describe("ApplicationWorkspace", () => {
 
     const preferences = await screen.findByRole("textbox", { name: "Your preferences" });
     fireEvent.change(preferences, { target: { value: "Emphasize design systems." } });
-    fireEvent.click(screen.getByRole("button", { name: "Start application" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check fit" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/applications/application/generation/runs"),
@@ -197,19 +198,44 @@ describe("ApplicationWorkspace", () => {
     const request = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
     expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
       documentTypes: ["tailored_resume", "cover_letter"],
-      language: "English",
+      language: "Auto",
       userPreferences: "Emphasize design systems.",
     });
     expect(props.onPreparationSettingsChange).toHaveBeenCalled();
     expect(await screen.findByText("Preparing sources")).toBeInTheDocument();
   });
 
-  it("persists a selected CV template and sends it to generation", async () => {
+  it("uses vacancy language for both documents even with a different profile and saved language", async () => {
+    const fetchMock = installApplicationWorkspaceApiMock({
+      currentMasterResume: {
+        masterResumeId: "master-resume-1", version: 1,
+        masterResume: { language: "English" },
+      },
+      startedGenerationRun: generationRun({ status: "queued", stage: "sources", revision: 1 }),
+    });
+    renderApplicationWorkspace(createWorkspaceApplication({
+      job: { overview: "Wir suchen eine erfahrene Designerin. Sie gestalten unsere Produkte und arbeiten mit unserem Team." },
+      documentPreparation: { ...defaultDocumentPreparationSettings, language: "German" },
+    }));
+
+    const start = await screen.findByRole("button", { name: "Check fit" });
+    expect(screen.getByLabelText("Document language")).toHaveTextContent("Auto · Vacancy language");
+    expect(screen.queryByRole("heading", { name: "Review summary" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("combobox", { name: /language/i })).not.toBeInTheDocument();
+    fireEvent.click(start);
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(true));
+    const request = JSON.parse(String(fetchMock.mock.calls.find(([, init]) => init?.method === "POST")?.[1]?.body));
+    expect(request.language).toBe("Auto");
+    expect(request.formattingParameters.tailored_resume).not.toHaveProperty("language");
+    expect(request.formattingParameters.cover_letter).not.toHaveProperty("language");
+  });
+
+  it("persists one template for both documents and sends it to generation", async () => {
     const started = generationRun({ status: "queued", stage: "sources", revision: 1 });
     const fetchMock = installApplicationWorkspaceApiMock({ startedGenerationRun: started });
     const { props } = renderApplicationWorkspace(createWorkspaceApplication());
 
-    const template = await screen.findByRole("radio", { name: "Ishchenko · Classic" });
+    const template = await screen.findByRole("radio", { name: "Roman" });
     fireEvent.click(template);
 
     expect(template).toBeChecked();
@@ -217,14 +243,12 @@ describe("ApplicationWorkspace", () => {
     expect(props.onPreparationSettingsChange).toHaveBeenLastCalledWith(
       "application",
       expect.objectContaining({
-        formatting: expect.objectContaining({ resumeTemplateId: "ishchenko_classic" }),
+        formatting: expect.objectContaining({ resumeTemplateId: "roman", coverLetterTemplateId: "roman" }),
       }),
     );
-    const brief = screen.getByRole("heading", { name: "Application brief" }).closest("aside")!;
-    expect(within(brief).getByText("Ishchenko · Classic")).toBeInTheDocument();
-    expect(within(brief).queryByText("ModernCV · Banking")).not.toBeInTheDocument();
+    expect(screen.queryByRole("heading", { name: "Application brief" })).not.toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Start application" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check fit" }));
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/generation/runs"),
       expect.objectContaining({ method: "POST" }),
@@ -232,9 +256,24 @@ describe("ApplicationWorkspace", () => {
     const request = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
     expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
       formattingParameters: {
-        tailored_resume: { templateId: "ishchenko_classic", pageSize: "A4", maxPages: 2 },
+        tailored_resume: { templateId: "roman", pageSize: "A4", maxPages: 2 },
+        cover_letter: { templateId: "roman", pageSize: "A4" },
       },
     });
+  });
+
+  it("keeps the shared template selectable when generating only a cover letter", async () => {
+    const fetchMock = installApplicationWorkspaceApiMock({
+      startedGenerationRun: generationRun({ status: "queued", stage: "sources", revision: 1 }),
+    });
+    renderApplicationWorkspace(createWorkspaceApplication());
+    fireEvent.click(await screen.findByRole("checkbox", { name: "CV" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Roman" }));
+    fireEvent.click(screen.getByRole("button", { name: "Check fit" }));
+    await waitFor(() => expect(fetchMock.mock.calls.some(([, init]) => init?.method === "POST")).toBe(true));
+    const request = JSON.parse(String(fetchMock.mock.calls.find(([, init]) => init?.method === "POST")?.[1]?.body));
+    expect(request.documentTypes).toEqual(["cover_letter"]);
+    expect(request.formattingParameters).toEqual({ cover_letter: { templateId: "roman", pageSize: "A4" } });
   });
 
   it("restores the saved template when reopening preparation", async () => {
@@ -242,11 +281,11 @@ describe("ApplicationWorkspace", () => {
     renderApplicationWorkspace(createWorkspaceApplication({
       documentPreparation: {
         ...defaultDocumentPreparationSettings,
-        formatting: { ...defaultDocumentPreparationSettings.formatting, resumeTemplateId: "ishchenko_classic" },
+        formatting: { ...defaultDocumentPreparationSettings.formatting, resumeTemplateId: "roman" },
       },
     }));
 
-    expect(await screen.findByRole("radio", { name: "Ishchenko · Classic" })).toBeChecked();
+    expect(await screen.findByRole("radio", { name: "Roman" })).toBeChecked();
   });
 
   it("keeps the idempotency key within the API limit for long application ids", async () => {
@@ -261,7 +300,7 @@ describe("ApplicationWorkspace", () => {
     const application = createWorkspaceApplication({ id: applicationId });
     renderApplicationWorkspace(application);
 
-    fireEvent.click(await screen.findByRole("button", { name: "Start application" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Check fit" }));
 
     await waitFor(() => expect(fetchMock).toHaveBeenCalledWith(
       expect.stringContaining("/generation/runs"),
@@ -354,9 +393,78 @@ describe("ApplicationWorkspace", () => {
     });
     renderApplicationWorkspace(createWorkspaceApplication());
 
-    expect(await screen.findByText("PDF verification did not pass after three attempts")).toBeInTheDocument();
+    expect(await screen.findByText(/The documents still need corrections after the PDF checks/)).toBeVisible();
+    const technicalDetails = screen.getByText("PDF verification did not pass after three attempts");
+    expect(technicalDetails).not.toBeVisible();
+    fireEvent.click(screen.getByText("Technical details"));
+    expect(technicalDetails).toBeVisible();
     expect(screen.getByRole("button", { name: "Start a new run" })).toBeInTheDocument();
     expect(screen.queryByText("Ready for your review")).not.toBeInTheDocument();
+  });
+
+  it("keeps the last successful PDFs accessible after a failed revision", async () => {
+    const previous = completedRun({ id: "previous-success" });
+    const failed = generationRun({
+      id: "failed-revision", status: "failed", stage: "pdf_checks",
+      error: { code: "pdf_verification_failed", message: "Layout needs correction" },
+    });
+    installApplicationWorkspaceApiMock({
+      currentGenerationRun: failed, generationRuns: [failed, previous],
+    });
+    renderApplicationWorkspace(createWorkspaceApplication());
+
+    fireEvent.click(await screen.findByRole("button", { name: "View last successful version" }));
+    expect(await screen.findByLabelText("CV PDF preview panel")).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Download CV" })).toHaveAttribute("href", expect.stringContaining("document-cv"));
+    expect(screen.getByText(/You are viewing a previous successful version/)).toBeVisible();
+    expect(screen.queryByRole("heading", { name: "Generation needs attention" })).not.toBeInTheDocument();
+    expect(screen.getByRole("combobox", { name: "Document version" })).toHaveValue("");
+
+    fireEvent.click(screen.getByRole("button", { name: "View latest run" }));
+    expect(await screen.findByRole("heading", { name: "Generation needs attention" })).toBeInTheDocument();
+  });
+
+  it("shows checks for the final PDF hash instead of failures from previous attempts", async () => {
+    const completed = completedRun();
+    completed.artifacts.push({
+      ...completed.artifacts[0], id: "final-attempt", artifactType: "resume_pdf_attempt",
+    });
+    // Production checks reference the attempt; publication creates another
+    // artifact with identical PDF bytes and therefore the same hash.
+    completed.checks = completed.checks.map((check) => ({ ...check, artifactId: "final-attempt" }));
+    completed.artifacts.unshift({
+      ...completed.artifacts[0], id: "old-attempt", artifactType: "resume_pdf_attempt",
+      contentSha256: "d".repeat(64),
+    });
+    completed.checks.unshift({
+      ...completed.checks[0], id: "old-layout-failure", artifactId: "old-attempt",
+      artifactSha256: "d".repeat(64), checkType: "layout_geometry", status: "failed",
+    });
+    completed.checks.push({
+      ...completed.checks[0], id: "mismatched-check", artifactId: "artifact-cv",
+      artifactSha256: "e".repeat(64), checkType: "layout_geometry", status: "failed",
+    });
+    installApplicationWorkspaceApiMock({ currentGenerationRun: completed, generationRuns: [completed] });
+    renderApplicationWorkspace(createWorkspaceApplication());
+
+    expect(await screen.findByText("Checks complete")).toBeInTheDocument();
+    expect(screen.getByText("PDF text is readable")).toBeInTheDocument();
+    expect(screen.queryByText("PDF layout")).not.toBeInTheDocument();
+    expect(screen.queryByText("Review in progress")).not.toBeInTheDocument();
+  });
+
+  it("shows advisory PDF warnings without marking completed checks as failed", async () => {
+    const completed = completedRun();
+    completed.checks.push({
+      ...completed.checks[0], id: "layout-warning", checkType: "layout_geometry", status: "warning",
+      data: { message: "The last page has extra white space." },
+    });
+    installApplicationWorkspaceApiMock({ currentGenerationRun: completed, generationRuns: [completed] });
+    renderApplicationWorkspace(createWorkspaceApplication());
+
+    expect(await screen.findByText("Checks complete")).toBeInTheDocument();
+    fireEvent.click(screen.getByText("Suggestions (1)"));
+    expect(screen.getByText("The last page has extra white space.")).toBeVisible();
   });
 
   it("reviews both PDFs, changes, checks, and starts an audited revision", async () => {
@@ -416,10 +524,8 @@ describe("ApplicationWorkspace", () => {
     }));
 
     expect(await screen.findByRole("button", { name: "Create revision" })).toBeDisabled();
-    fireEvent.click(screen.getByRole("radio", { name: "Ishchenko · Classic" }));
-    const brief = screen.getByRole("heading", { name: "Application brief" }).closest("aside")!;
-    expect(within(brief).getByText("ModernCV · Banking")).toBeInTheDocument();
-    expect(within(brief).queryByText("Ishchenko · Classic")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("radio", { name: "Roman" }));
+    expect(screen.getByLabelText("Current document template")).toHaveTextContent("ModernCV · Banking");
     expect(screen.getByRole("textbox", { name: "Revision request" })).toHaveValue("");
     expect(screen.getByRole("button", { name: "Create revision" })).toBeEnabled();
     fireEvent.click(screen.getByRole("button", { name: "Create revision" }));
@@ -431,11 +537,11 @@ describe("ApplicationWorkspace", () => {
     const request = fetchMock.mock.calls.find(([, init]) => init?.method === "POST");
     expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
       userPreferences: "Keep the tone direct.",
-      formattingParameters: { tailored_resume: { templateId: "ishchenko_classic" } },
+      formattingParameters: { tailored_resume: { templateId: "roman" } },
     });
   });
 
-  it.each(["moderncv_banking", "ishchenko_classic"])(
+  it.each(["moderncv_banking", "roman"])(
     "opens regeneration from the header and creates a new version with %s",
     async (templateId) => {
       const current = completedRun();
@@ -461,8 +567,8 @@ describe("ApplicationWorkspace", () => {
       expect(screen.queryByLabelText("CV PDF preview panel")).not.toBeInTheDocument();
       expect(screen.getAllByRole("radio")).toHaveLength(2);
       expect(fetchMock.mock.calls.filter(([, init]) => init?.method === "POST")).toHaveLength(0);
-      if (templateId === "ishchenko_classic") {
-        fireEvent.click(screen.getByRole("radio", { name: "Ishchenko · Classic" }));
+      if (templateId === "roman") {
+        fireEvent.click(screen.getByRole("radio", { name: "Roman" }));
       }
       const generate = screen.getByRole("button", { name: "Generate new version" });
       expect(generate).toBeEnabled();
@@ -514,20 +620,17 @@ describe("ApplicationWorkspace", () => {
   });
 
   it("shows the template recorded on a run rather than later preparation settings", async () => {
-    const current = generationRun();
-    current.events[0].data.resumeTemplateId = "ishchenko_classic";
+    const current = completedRun();
+    current.events[0].data.resumeTemplateId = "roman";
     installApplicationWorkspaceApiMock({ currentGenerationRun: current, generationRuns: [current] });
     renderApplicationWorkspace(createWorkspaceApplication());
 
-    await screen.findByText("Writing drafts");
-    const brief = screen.getByRole("heading", { name: "Application brief" }).closest("aside")!;
-    expect(within(brief).getByText("Ishchenko · Classic")).toBeInTheDocument();
-    expect(within(brief).queryByText("ModernCV · Banking")).not.toBeInTheDocument();
+    expect(await screen.findByLabelText("Current document template")).toHaveTextContent("Roman");
   });
 
   it("keeps the reviewed historical PDF selected when the parent persists a revision template", async () => {
     const current = completedRun();
-    current.events[0].data.resumeTemplateId = "ishchenko_classic";
+    current.events[0].data.resumeTemplateId = "roman";
     const older = completedRun({ id: "older-run", createdAt: "2026-09-12T10:00:00.000Z" });
     installApplicationWorkspaceApiMock({
       currentGenerationRun: current,
@@ -543,14 +646,13 @@ describe("ApplicationWorkspace", () => {
 
     const versions = await screen.findByRole("combobox", { name: "Document version" });
     fireEvent.change(versions, { target: { value: older.id } });
-    fireEvent.click(screen.getByRole("radio", { name: "Ishchenko · Classic" }));
+    fireEvent.click(screen.getByRole("radio", { name: "Roman" }));
     const savedSettings = vi.mocked(props.onPreparationSettingsChange).mock.calls.at(-1)![1];
     rerender(<ApplicationWorkspace {...props} application={{ ...application, documentPreparation: savedSettings }} />);
 
     expect(screen.getByRole("combobox", { name: "Document version" })).toHaveValue(older.id);
-    expect(screen.getByRole("radio", { name: "Ishchenko · Classic" })).toBeChecked();
-    const brief = screen.getByRole("heading", { name: "Application brief" }).closest("aside")!;
-    expect(within(brief).getByText("ModernCV · Banking")).toBeInTheDocument();
+    expect(screen.getByRole("radio", { name: "Roman" })).toBeChecked();
+    expect(screen.getByLabelText("Current document template")).toHaveTextContent("ModernCV · Banking");
     expect(screen.getByRole("button", { name: "Create revision" })).toBeEnabled();
   });
 });

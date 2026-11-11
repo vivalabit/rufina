@@ -25,17 +25,18 @@ export const generationResumeTemplates = [
   {
     id: "moderncv_banking",
     name: "ModernCV · Banking",
-    description: "A spacious layout with blue section headings and a centered header.",
+    description: "Clean sans serif with a centered header and blue accents.",
   },
   {
-    id: "ishchenko_classic",
-    name: "Ishchenko · Classic",
-    description: "Times New Roman, a centered header, and bold section titles with thin black rules.",
+    id: "roman",
+    name: "Roman",
+    description: "Times New Roman with restrained black-and-white styling.",
   },
 ] as const;
 
 export function generationResumeTemplate(templateId: unknown) {
-  const id = typeof templateId === "string" ? templateId.trim() : "";
+  const requestedId = typeof templateId === "string" ? templateId.trim() : "";
+  const id = requestedId === "ishchenko_classic" ? "roman" : requestedId;
   // Previously saved HTML template ids all used the Banking renderer.
   return generationResumeTemplates.find((template) => template.id === id)
     ?? generationResumeTemplates[0];
@@ -43,12 +44,12 @@ export function generationResumeTemplate(templateId: unknown) {
 
 export const defaultDocumentPreparationSettings: DocumentPreparationSettings = {
   documentTypes: ["tailored_resume", "cover_letter"],
-  language: "English",
+  language: "Auto",
   formatting: {
     pageSize: "A4",
     resumeTemplateId: generationResumeTemplates[0].id,
     resumeMaxPages: 2,
-    coverLetterTemplateId: "",
+    coverLetterTemplateId: generationResumeTemplates[0].id,
   },
   submission: {
     tailored_resume: null,
@@ -62,7 +63,7 @@ const documentTypes: PreparationDocumentType[] = [
   "tailored_resume",
   "cover_letter",
 ];
-const languages: PreparationLanguage[] = ["English", "German"];
+const languages: PreparationLanguage[] = ["Auto", "English", "German"];
 const pageSizes: PreparationPageSize[] = ["A4", "Letter"];
 const resumePageCounts: PreparationResumeMaxPages[] = [1, 2, 3];
 const generationStates: GenerationDocumentState[] = [
@@ -222,10 +223,8 @@ export function normalizeDocumentPreparationSettings(
       )
         ? (formatting.resumeMaxPages as PreparationResumeMaxPages)
         : defaultDocumentPreparationSettings.formatting.resumeMaxPages,
-      coverLetterTemplateId:
-        typeof formatting.coverLetterTemplateId === "string"
-          ? formatting.coverLetterTemplateId.trim().slice(0, 160)
-          : defaultDocumentPreparationSettings.formatting.coverLetterTemplateId,
+      // Keep the persisted legacy field in sync with the single design selection.
+      coverLetterTemplateId: generationResumeTemplate(formatting.resumeTemplateId).id,
     },
     submission: {
       tailored_resume: normalizeSubmissionSelection(
@@ -259,15 +258,14 @@ export function generationRequestFromSettings(
   if (settings.documentTypes.includes("cover_letter")) {
     formattingParameters.cover_letter = {
       pageSize: settings.formatting.pageSize,
-      ...(settings.formatting.coverLetterTemplateId
-        ? { templateId: settings.formatting.coverLetterTemplateId }
-        : {}),
+      templateId: generationResumeTemplate(settings.formatting.resumeTemplateId).id,
     };
   }
 
   return {
     documentTypes: settings.documentTypes,
-    language: settings.language,
+    // Older saved choices must not override the vacancy-based generation policy.
+    language: "Auto",
     formattingParameters,
     userPreferences: settings.userPreferences.trim(),
   };

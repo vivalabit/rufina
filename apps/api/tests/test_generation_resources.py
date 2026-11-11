@@ -43,7 +43,7 @@ def test_adapted_instructions_record_source_and_upstream_sha(
 
 
 def test_generation_resources_publish_a_version_and_license() -> None:
-    assert INSTRUCTION_VERSION == "tasko-apply-1.0.0"
+    assert INSTRUCTION_VERSION == "tasko-apply-1.4.2"
     assert (RESOURCE_ROOT / "upstream" / "LICENSE").read_text(
         encoding="utf-8"
     ).startswith("MIT License")

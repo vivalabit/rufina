@@ -38,12 +38,12 @@ describe("document preparation settings", () => {
       }),
     ).toEqual({
       documentTypes: ["cover_letter"],
-      language: "English",
+      language: "Auto",
       formatting: {
         pageSize: "A4",
         resumeTemplateId: "moderncv_banking",
         resumeMaxPages: 2,
-        coverLetterTemplateId: "letter-template",
+        coverLetterTemplateId: "moderncv_banking",
       },
       submission: {
         tailored_resume: { documentId: "stored-resume", version: 3 },
@@ -65,8 +65,27 @@ describe("document preparation settings", () => {
 
   it("restores the selected generation template", () => {
     expect(normalizeDocumentPreparationSettings({
-      formatting: { resumeTemplateId: " ishchenko_classic " },
-    }).formatting.resumeTemplateId).toBe("ishchenko_classic");
+      formatting: { resumeTemplateId: " roman " },
+    }).formatting.resumeTemplateId).toBe("roman");
+  });
+
+  it("normalizes old mismatched settings and cannot send different document styles", () => {
+    const settings = {
+      ...defaultDocumentPreparationSettings,
+      formatting: { ...defaultDocumentPreparationSettings.formatting, resumeTemplateId: "roman", coverLetterTemplateId: "moderncv_banking" },
+    };
+    expect(normalizeDocumentPreparationSettings(settings).formatting).toMatchObject({
+      resumeTemplateId: "roman", coverLetterTemplateId: "roman",
+    });
+    const request = generationRequestFromSettings(settings);
+    expect(request.formattingParameters.tailored_resume.templateId).toBe("roman");
+    expect(request.formattingParameters.cover_letter.templateId).toBe("roman");
+  });
+
+  it("migrates the previous Roman template id", () => {
+    expect(normalizeDocumentPreparationSettings({
+      formatting: { resumeTemplateId: "ishchenko_classic" },
+    }).formatting.resumeTemplateId).toBe("roman");
   });
 
   it("restores a valid per-document generation result", () => {
@@ -122,7 +141,7 @@ describe("document preparation settings", () => {
       language: "German",
       formatting: {
         pageSize: "Letter",
-        resumeTemplateId: "ishchenko_classic",
+        resumeTemplateId: "roman",
         resumeMaxPages: 1,
         coverLetterTemplateId: "unused-template",
       },
@@ -131,11 +150,11 @@ describe("document preparation settings", () => {
 
     expect(request).toEqual({
       documentTypes: ["tailored_resume"],
-      language: "German",
+      language: "Auto",
       formattingParameters: {
         tailored_resume: {
           pageSize: "Letter",
-          templateId: "ishchenko_classic",
+          templateId: "roman",
           maxPages: 1,
         },
       },

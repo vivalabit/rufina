@@ -141,9 +141,11 @@ def test_every_author_reviewer_and_pdf_repair_sees_frozen_structured_details():
         frozen = run.input_snapshot["request"]["masterProfileVersion"]
         master = profile_resume(ProfilePayload.model_validate(frozen["data"]), "default")
         draft = detailed_bundle(master)
+        generated_draft = deepcopy(draft)
+        del generated_draft["resume"]["evidence"]
         review = {**_review(), "findings": [{"severity": "warning", "category": "clarity", "message": "Clarify the context", "document": "resume"}]}
         visual_failure = {"approved": False, "summary": "Shorten wording to fit the page", "findings": []}
-        backend = FakeBackend([_fit(), draft, review, draft, visual_failure, draft, _visual_review()])
+        backend = FakeBackend([_fit(), generated_draft, review, generated_draft, visual_failure, generated_draft, _visual_review()])
         workflow = GenerationWorkflow(settings=_settings(), backend=backend, renderer=_renderer, verifier=_verifier)
         changed = deepcopy(data)
         changed["experience"] = json.dumps([{**two_jobs()[0], "stack": [{"id": "new", "technology": "NEW AFTER START"}]}])
@@ -152,6 +154,7 @@ def test_every_author_reviewer_and_pdf_repair_sees_frozen_structured_details():
         workflow.evaluate_fit(db, run)
         workflow.respond_to_fit(db, run, continue_generation=True)
         assert run.status == "completed"
+        assert run.result["draft"]["resume"]["evidence"] == draft["resume"]["evidence"]
         assert len(backend.requests) == 7
         for request in backend.requests:
             context = json.loads(request.prompt.split("BEGIN UNTRUSTED APPLICATION DATA\n")[1].split("\nEND UNTRUSTED")[0])
@@ -163,7 +166,14 @@ def test_every_author_reviewer_and_pdf_repair_sees_frozen_structured_details():
             assert jobs[1]["stack"][0]["technology"] == "Go"
             assert "NEW AFTER START" not in request.prompt
             assert "future contributions" in request.prompt
-            assert "retain selected" in request.prompt
+            assert "Preserve key source achievements" in request.prompt
+            policy = context["experienceContentPolicy"]
+            assert policy["allowContentReduction"] is False
+            assert policy["verifiedOverflow"] is None
+            assert policy["sourceAchievements"][0]["achievements"][0]["text"] == "Original achievement"
+            for key in ("draft", "previousDraft"):
+                if key in context:
+                    assert "evidence" not in context[key]["resume"]
     engine.dispose()
 
 

@@ -100,6 +100,7 @@ def create_generation_run(
             "applicationRevision": snapshot.request.application.revision,
             "vacancyRevision": snapshot.request.vacancy.revision,
             "masterProfileVersion": snapshot.request.master_profile_version.version,
+            "documentTemplateId": snapshot.templates[0].template_id,
             **({"resumeTemplateId": resume_template.template_id} if resume_template else {}),
         },
     )

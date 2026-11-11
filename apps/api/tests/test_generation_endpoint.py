@@ -122,7 +122,7 @@ def generation_payload() -> dict[str, object]:
     }
 
 
-@pytest.mark.parametrize("template_id", ["moderncv_banking", "ishchenko_classic"])
+@pytest.mark.parametrize("template_id", ["moderncv_banking", "roman"])
 def test_run_endpoint_persists_selected_resume_template(
     generation_api: tuple[TestClient, sessionmaker[Session]],
     template_id: str,
@@ -294,6 +294,26 @@ def test_versioned_run_endpoint_lists_and_restores_the_immutable_run(
         "vacancyRevision": 1,
         "masterProfileVersion": 2,
         "resumeTemplateId": "moderncv_banking",
+        "documentTemplateId": "moderncv_banking",
     }
     assert foreign_history.status_code == 200
     assert foreign_history.json() == []
+
+
+def test_versioned_run_endpoint_rejects_mixed_document_templates(generation_api) -> None:
+    client, _ = generation_api
+    response = client.post(
+        "/applications/application-1/generation/runs",
+        json={
+            **generation_payload(),
+            "documentTypes": ["tailored_resume", "cover_letter"],
+            "formattingParameters": {
+                "tailored_resume": {"templateId": "roman"},
+                "cover_letter": {"templateId": "moderncv_banking"},
+            },
+            "idempotencyKey": "mismatched-template-run",
+        },
+    )
+    assert response.status_code == 409
+    assert response.json()["detail"]["code"] == "document_template_mismatch"
+    assert client.get("/applications/application-1/generation/runs").json() == []

@@ -88,7 +88,7 @@ def test_generation_snapshot_pins_sources_templates_and_backend(
         "cover_letter",
     ]
     assert snapshot.templates[0].template_id == "moderncv_banking"
-    assert snapshot.templates[0].template_version == "1.0.0"
+    assert snapshot.templates[0].template_version == "1.0.3"
     assert snapshot.templates[0].content_sha256 == (
         resolve_generation_resume_template("moderncv_banking").content_sha256
     )
@@ -130,7 +130,7 @@ def test_generation_snapshot_fingerprint_is_stable_for_identical_inputs(
     assert first.fingerprint == second.fingerprint
 
 
-@pytest.mark.parametrize("template_id", ["moderncv_banking", "ishchenko_classic"])
+@pytest.mark.parametrize("template_id", ["moderncv_banking", "roman"])
 def test_generation_snapshot_pins_selected_latex_template(sessions, template_id: str) -> None:
     seed_complete_sources(sessions)
     start = GenerationStartRequest(
@@ -157,7 +157,7 @@ def test_generation_snapshot_pins_selected_latex_template(sessions, template_id:
     assert template.template_id == template_id
     assert template.renderer == "lualatex"
     assert default.templates[0].template_id == "moderncv_banking"
-    if template_id == "ishchenko_classic":
+    if template_id == "roman":
         assert template.content_sha256 != default.templates[0].content_sha256
         assert snapshot.fingerprint != default.fingerprint
 
@@ -167,6 +167,14 @@ def test_saved_legacy_resume_selections_resolve_to_original_banking_renderer(tem
     assert resolve_generation_resume_template(template_id) == resolve_generation_resume_template(
         "moderncv_banking"
     )
+
+
+def test_renamed_roman_template_id_resolves_to_the_current_template() -> None:
+    renamed = resolve_generation_resume_template("ishchenko_classic")
+    current = resolve_generation_resume_template("roman")
+
+    assert renamed == current
+    assert current.id == "roman"
 
 
 @pytest.mark.parametrize(
@@ -189,3 +197,82 @@ def test_generation_snapshot_rejects_unsupported_resume_templates(sessions, temp
             settings=runtime_settings(),
         )
     assert failure.value.code == "resume_template_unsupported"
+
+
+@pytest.mark.parametrize("document_types,formatting", [
+    (("tailored_resume", "cover_letter"), {"tailored_resume": {"templateId": "roman"}}),
+    (("tailored_resume", "cover_letter"), {"cover_letter": {"templateId": "roman"}}),
+    (("cover_letter",), {"cover_letter": {"templateId": "roman"}}),
+])
+def test_document_family_is_shared_even_when_only_one_selection_is_provided(
+    sessions, document_types, formatting,
+) -> None:
+    from app.services.generation_snapshot import resolve_run_document_template_id
+
+    seed_complete_sources(sessions)
+    with sessions() as db:
+        snapshot = build_generation_run_snapshot(
+            db, application_id="application-1", settings=runtime_settings(),
+            start=GenerationStartRequest(
+                document_types=document_types, language="Auto",
+                formatting_parameters=formatting, user_preferences="",
+            ),
+        )
+    assert {item.template_id for item in snapshot.templates} == {"roman"}
+    assert resolve_run_document_template_id(snapshot) == "roman"
+    letter = next(item for item in snapshot.templates if item.document_type == "cover_letter")
+    assert letter.renderer == "xelatex"
+    assert letter.template_version == "1.0.0"
+    assert len(letter.content_sha256) == 64
+
+
+@pytest.mark.parametrize("cv,letter", [("roman", "moderncv_banking"), ("moderncv_banking", "roman")])
+def test_new_runs_reject_mismatched_document_families(sessions, cv, letter) -> None:
+    seed_complete_sources(sessions)
+    with sessions() as db, pytest.raises(GenerationInputError) as failure:
+        build_generation_run_snapshot(
+            db, application_id="application-1", settings=runtime_settings(),
+            start=GenerationStartRequest(
+                document_types=("tailored_resume", "cover_letter"), language="Auto",
+                formatting_parameters={
+                    "tailored_resume": {"templateId": cv}, "cover_letter": {"templateId": letter},
+                }, user_preferences="",
+            ),
+        )
+    assert failure.value.code == "document_template_mismatch"
+
+
+@pytest.mark.parametrize("template_id", [42, "unknown", "../../outside.tex", "standard-letter"])
+def test_new_runs_reject_unsupported_cover_letter_templates(sessions, template_id) -> None:
+    seed_complete_sources(sessions)
+    with sessions() as db, pytest.raises(GenerationInputError) as failure:
+        build_generation_run_snapshot(
+            db, application_id="application-1", settings=runtime_settings(),
+            start=GenerationStartRequest(
+                document_types=("cover_letter",), language="Auto",
+                formatting_parameters={"cover_letter": {"templateId": template_id}}, user_preferences="",
+            ),
+        )
+    assert failure.value.code == "cover_letter_template_unsupported"
+
+
+def test_cover_letter_renderer_is_pinned_and_cannot_silently_change(sessions, tmp_path, monkeypatch) -> None:
+    from app.services import generation_resume_templates
+    from app.services.generation_snapshot import resolve_run_cover_letter_template
+
+    seed_complete_sources(sessions)
+    with sessions() as db:
+        snapshot = build_generation_run_snapshot(
+            db, application_id="application-1", settings=runtime_settings(),
+            start=GenerationStartRequest(
+                document_types=("cover_letter",), language="Auto",
+                formatting_parameters={"cover_letter": {"templateId": "roman"}}, user_preferences="",
+            ),
+        )
+    assert resolve_run_cover_letter_template(snapshot) == snapshot.templates[0]
+    changed = tmp_path / "changed-renderer.py"
+    changed.write_text("changed renderer")
+    monkeypatch.setattr(generation_resume_templates, "_RENDERER_SOURCE", changed)
+    with pytest.raises(GenerationInputError) as failure:
+        resolve_run_cover_letter_template(snapshot)
+    assert failure.value.code == "cover_letter_template_changed"

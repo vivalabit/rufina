@@ -8,7 +8,7 @@ from pathlib import Path
 RESOURCE_ROOT = Path(__file__).resolve().parent.parent / "generator_resources"
 INSTRUCTION_ROOT = RESOURCE_ROOT / "instructions"
 UPSTREAM_SHA = "c7bd494f11e792508534c1c795e24694498395c4"
-INSTRUCTION_VERSION = "tasko-apply-1.0.0"
+INSTRUCTION_VERSION = "tasko-apply-1.4.2"
 
 
 def load_instruction(name: str) -> str:

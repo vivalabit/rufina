@@ -3,9 +3,8 @@ from __future__ import annotations
 import re
 import shutil
 import subprocess
-import sys
 import tempfile
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Literal
@@ -16,9 +15,7 @@ from pypdf.errors import PdfReadError
 
 from app.models.generation_workflow import DraftBundle, FitKeyword
 from app.services.generation_latex import CompiledDocument
-from app.services.generation_resources import RESOURCE_ROOT
-
-VERIFY_LAYOUT_PATH = RESOURCE_ROOT / "upstream" / "tools" / "verify_layout.py"
+from app.services.generation_pdf_geometry import GeometryUnavailable, inspect_pdf_geometry
 
 
 class PdfCheck(BaseModel):
@@ -176,21 +173,31 @@ def _render_pages(pdf_path: Path, workdir: Path) -> tuple[tuple[bytes, ...], Pdf
 
 def _layout_check(pdf_path: Path) -> PdfCheck:
     try:
-        result = subprocess.run(
-            [sys.executable, str(VERIFY_LAYOUT_PATH), str(pdf_path)],
-            capture_output=True,
-            check=False,
-            text=True,
-            timeout=60,
+        geometry = inspect_pdf_geometry(pdf_path)
+    except GeometryUnavailable as exc:
+        return PdfCheck(
+            name="layout_unavailable",
+            status="failed",
+            message="PDF layout could not be checked because the geometry extractor failed.",
+            details={
+                "available": False,
+                "extractor": "pdfplumber",
+                "errorType": type(exc.__cause__).__name__,
+            },
         )
-    except (OSError, subprocess.SubprocessError) as exc:
-        return _check("layout_geometry", False, f"Layout check could not run: {exc}")
-    detail = (result.stdout or result.stderr or "Layout check returned no detail").strip()
+    failed = [finding for finding in geometry.findings if finding.severity == "failed"]
+    status = "failed" if failed else "warning" if geometry.findings else "passed"
     return PdfCheck(
         name="layout_geometry",
-        status="passed" if result.returncode == 0 else "failed",
-        message=detail[-2_000:],
-        details={"exitCode": result.returncode},
+        status=status,
+        message=" ".join(finding.message for finding in (failed or geometry.findings))
+        or "Text fits within every visible page; no geometry concerns found.",
+        details={
+            "available": True,
+            "extractor": "pdfplumber",
+            "findings": [asdict(finding) for finding in geometry.findings],
+            "pages": list(geometry.pages),
+        },
     )
 
 

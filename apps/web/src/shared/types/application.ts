@@ -1,7 +1,7 @@
 import type { Job } from "@/shared/types/job";
 
 export type PreparationDocumentType = "tailored_resume" | "cover_letter";
-export type PreparationLanguage = "English" | "German";
+export type PreparationLanguage = "Auto" | "English" | "German";
 export type PreparationPageSize = "A4" | "Letter";
 export type PreparationResumeMaxPages = 1 | 2 | 3;
 

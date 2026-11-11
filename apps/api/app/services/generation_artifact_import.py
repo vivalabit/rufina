@@ -23,6 +23,7 @@ from app.services.generation_snapshot import (
     GenerationRunSnapshot,
     GenerationTemplateSnapshot,
     resolve_run_resume_template,
+    resolve_run_cover_letter_template,
 )
 from app.services.generation_store import persist_run_artifact
 
@@ -42,6 +43,8 @@ def import_compiled_generation_documents(
     templates = {item.document_type: item for item in snapshot.templates}
     if "tailored_resume" in snapshot.request.document_types:
         templates["tailored_resume"] = resolve_run_resume_template(snapshot)
+    if "cover_letter" in snapshot.request.document_types:
+        templates["cover_letter"] = resolve_run_cover_letter_template(snapshot)
     documents: list[DocumentRecord] = []
     for rendered in compiled:
         structured = (

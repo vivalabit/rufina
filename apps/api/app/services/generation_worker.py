@@ -98,8 +98,30 @@ def run_generation_cycle(
                     workflow.continue_approved_run(db, run)
                 elif run.stage == "pdf_checks":
                     workflow.resume_pdf_checks(db, run)
-            except Exception:
+            except Exception as exc:
                 logger.exception("Application generation run failed: run_id=%s", run_id)
+                # Also cover failures outside the workflow's own error handler.
+                # Never release a failed run as 'running' with no lease to recover it.
+                db.rollback()
+                run = db.get(ApplicationGenerationRunRecord, run_id)
+                if (
+                    run is not None
+                    and run.lease_token == lease_token
+                    and run.status not in {"completed", "failed", "cancelled"}
+                ):
+                    transition_generation_run(
+                        db,
+                        run=run,
+                        status="failed",
+                        stage=run.stage,
+                        event_kind="run.failed",
+                        event_data={"code": "worker_failed", "retryable": False},
+                        error={
+                            "code": "worker_failed",
+                            "message": str(exc),
+                            "retryable": False,
+                        },
+                    )
             finally:
                 _release_lease(db, run_id=run_id, lease_token=lease_token)
             return run_id
@@ -177,6 +199,8 @@ def recover_expired_generation_runs(
 
 
 def _release_lease(db: Session, *, run_id: str, lease_token: str) -> None:
+    if not db.is_active:
+        db.rollback()
     run = db.get(ApplicationGenerationRunRecord, run_id)
     if run is None or run.lease_token != lease_token:
         return

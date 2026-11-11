@@ -1,5 +1,6 @@
 import shutil
 import subprocess
+from datetime import date
 from io import BytesIO
 from pathlib import Path
 from types import SimpleNamespace
@@ -206,13 +207,13 @@ def test_latex_sources_escape_untrusted_values() -> None:
 
     assert "APIs & platforms" not in resume_tex
     assert r"APIs \& platforms" in resume_tex
-    assert r"\documentclass[]{cover}" in letter_tex
+    assert r"\moderncvstyle{banking}" in letter_tex
     assert "\\write18" not in resume_tex + letter_tex
 
 
 def test_classic_template_preserves_all_resume_sections_and_groups_skills() -> None:
     resume = _full_resume()
-    tex = build_resume_tex(resume, template_id="ishchenko_classic")
+    tex = build_resume_tex(resume, template_id="roman")
 
     for text in (
         resume.basics.full_name,
@@ -256,16 +257,74 @@ def test_classic_template_preserves_all_resume_sections_and_groups_skills() -> N
     assert positions == sorted(positions)
 
 
-@pytest.mark.parametrize("template_id", ["moderncv_banking", "ishchenko_classic"])
+@pytest.mark.parametrize("template_id", ["moderncv_banking", "roman"])
+def test_templates_order_core_skill_groups_and_preserve_skill_priority(template_id: str) -> None:
+    data = _resume().model_dump(by_alias=True)
+    data["skills"] = [
+        {"id": "skill-1", "name": "OpenAI API", "category": " AI  Engineering "},
+        {"id": "skill-2", "name": "PostgreSQL", "category": "Databases"},
+        {"id": "skill-3", "name": "Git", "category": " DevOps "},
+        {"id": "skill-4", "name": "FastAPI", "category": "Python frameworks"},
+        {"id": "skill-5", "name": "AsyncIO", "category": ""},
+        {"id": "skill-6", "name": "Python", "category": " Programming  languages "},
+        {"id": "skill-7", "name": "MySQL", "category": " Databases "},
+        {"id": "skill-8", "name": "Docker", "category": "Tools / DevOps"},
+        {"id": "skill-9", "name": "Django", "category": " Frameworks "},
+        {"id": "skill-10", "name": "Go", "category": "Languages"},
+        {"id": "skill-11", "name": "Celery", "category": " \t "},
+        {"id": "skill-12", "name": "LLM evaluations", "category": "AI Engineering"},
+    ]
+    for skill in data["skills"]:
+        skill["evidenceIds"] = ["source:one"]
+    data["sectionOrder"] = ["summary", "skills"]
+
+    tex = build_resume_tex(FinalResume.model_validate(data), template_id=template_id)
+
+    expected_groups = [
+        r"\textbf{Languages:} Python, Go",
+        r"\textbf{Frameworks:} FastAPI, Django",
+        r"\textbf{Databases:} PostgreSQL, MySQL",
+        r"\textbf{Tools / DevOps:} Git, Docker",
+        r"\textbf{AI Engineering:} OpenAI API, LLM evaluations",
+        r"\textbf{Other skills:} AsyncIO, Celery",
+    ]
+    for group in expected_groups:
+        assert tex.count(group) == 1
+    positions = [tex.index(group) for group in expected_groups]
+    assert positions == sorted(positions)
+    assert r"\textbf{:}" not in tex
+
+
+@pytest.mark.parametrize("template_id", ["moderncv_banking", "roman"])
+def test_templates_do_not_add_empty_core_skill_groups(template_id: str) -> None:
+    data = _resume().model_dump(by_alias=True)
+    data["skills"] = [
+        {
+            "id": "skill-1", "name": "FastAPI", "category": "Frameworks",
+            "evidenceIds": ["source:one"],
+        },
+    ]
+    data["sectionOrder"] = ["summary", "skills"]
+
+    tex = build_resume_tex(FinalResume.model_validate(data), template_id=template_id)
+
+    assert r"\textbf{Frameworks:} FastAPI" in tex
+    for absent_group in ("Languages", "Databases", "Tools / DevOps", "Other skills"):
+        assert rf"\textbf{{{absent_group}:}}" not in tex
+
+
+@pytest.mark.parametrize("template_id", ["moderncv_banking", "roman"])
 def test_both_templates_escape_tex_commands_in_resume_content(template_id: str) -> None:
     data = _full_resume().model_dump(by_alias=True)
     injection = r"R&D_100% #{x} \input{/etc/passwd} \write18{touch marker}"
     data["summary"]["text"] = injection
     data["experiences"][0]["title"] = injection
     data["projects"][0]["bullets"][0]["text"] = injection
+    data["skills"][0]["category"] = injection
+    data["skills"][0]["name"] = injection
     tex = build_resume_tex(FinalResume.model_validate(data), template_id=template_id)
 
-    assert tex.count(latex_escape(injection)) == 3
+    assert tex.count(latex_escape(injection)) == 5
     assert r"\input{" not in tex
     assert r"\write18{" not in tex
 
@@ -278,7 +337,7 @@ def test_classic_template_never_activates_non_web_or_malformed_links(url: str) -
     data = _full_resume().model_dump(by_alias=True)
     data["basics"].update(linkedin=url, github="", portfolio="")
     data["projects"][0]["url"] = url
-    tex = build_resume_tex(FinalResume.model_validate(data), template_id="ishchenko_classic")
+    tex = build_resume_tex(FinalResume.model_validate(data), template_id="roman")
 
     assert tex.count(latex_escape(url)) == 2
     assert r"\href{" not in tex
@@ -288,7 +347,7 @@ def test_classic_template_keeps_http_links_with_escaped_query_parameters() -> No
     data = _full_resume().model_dump(by_alias=True)
     url = "https://example.com/profile?q=R&D_100%#work"
     data["basics"].update(linkedin=url, github="", portfolio="")
-    tex = build_resume_tex(FinalResume.model_validate(data), template_id="ishchenko_classic")
+    tex = build_resume_tex(FinalResume.model_validate(data), template_id="roman")
 
     assert rf"\href{{{latex_escape(url)}}}" in tex
     assert url not in tex
@@ -299,7 +358,7 @@ def test_renderer_rejects_an_unsupported_template() -> None:
         build_resume_tex(_resume(), template_id="unregistered-template")
 
 
-def test_bundle_compiles_the_selected_cv_template_and_keeps_the_cover_letter(
+def test_bundle_compiles_both_documents_in_the_selected_family(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     compiled_sources: list[str] = []
@@ -313,16 +372,51 @@ def test_bundle_compiles_the_selected_cv_template_and_keeps_the_cover_letter(
     monkeypatch.setattr(generation_latex.shutil, "which", lambda name: f"/usr/bin/{name}")
     bundle = DraftBundle(resume=_full_resume(), coverLetter=_letter())
     documents = render_generation_bundle(
-        bundle, resume_template_id="ishchenko_classic", runner=runner,
+        bundle, resume_template_id="roman", runner=runner,
     )
 
-    expected_cv = build_resume_tex(bundle.resume, template_id="ishchenko_classic")
-    expected_letter = build_cover_letter_tex(bundle.cover_letter)
+    expected_cv = build_resume_tex(bundle.resume, template_id="roman")
+    expected_letter = build_cover_letter_tex(
+        bundle.cover_letter, template_id="roman", sender_basics=bundle.resume.basics,
+    )
     assert compiled_sources == [expected_cv, expected_cv, expected_letter, expected_letter]
     assert [(document.document_type, document.tex_source) for document in documents] == [
         ("tailored_resume", expected_cv), ("cover_letter", expected_letter),
     ]
     assert expected_cv != build_resume_tex(bundle.resume, template_id="moderncv_banking")
+
+
+@pytest.mark.parametrize("template_id", ["moderncv_banking", "roman"])
+def test_cover_letter_only_uses_frozen_sender_and_date(template_id: str) -> None:
+    letter = _letter().model_copy(update={
+        "recipient": "Example AG\nRecruiting Team\nZurich",
+        "signature": "Model-invented name",
+        "subject": r"Application & R&D_100% \input{secrets}",
+    })
+    basics = _full_resume().basics
+    tex = build_cover_letter_tex(
+        letter, template_id=template_id, sender_basics=basics, letter_date=date(2026, 9, 18),
+    )
+    assert "18.09.2026" in tex
+    assert r"\today" not in tex
+    assert "Model-invented name" not in tex
+    assert "Ada Lovelace" in tex
+    assert latex_escape(basics.email) in tex
+    assert latex_escape(basics.phone) in tex
+    assert r"Example AG\par" in tex
+    assert r"Recruiting Team\par" in tex
+    assert r"\input{secrets}" not in tex
+    assert latex_escape(letter.subject) in tex
+    if template_id == "roman":
+        assert r"\fontsize{10.5}{12.6}" in tex
+        assert r"\fontsize{16}{18.4}" in tex
+        assert "top=18mm,bottom=18mm,left=25mm,right=25mm" in tex
+        assert "Times New Roman" in tex
+        assert "Liberation Serif" in tex
+        assert r"\makecvtitle" not in tex
+    else:
+        assert r"\moderncvstyle{banking}" in tex
+        assert r"\makecvtitle" in tex
 
 
 def test_compiler_uses_no_shell_escape_and_copies_versioned_cover_assets(
@@ -353,7 +447,7 @@ def test_compiler_uses_no_shell_escape_and_copies_versioned_cover_assets(
     assert "-no-shell-escape" in commands[0]
 
 
-@pytest.mark.parametrize("template_id", ["moderncv_banking", "ishchenko_classic"])
+@pytest.mark.parametrize("template_id", ["moderncv_banking", "roman"])
 def test_real_compilers_produce_readable_resume_and_cover_letter_pdfs(template_id: str) -> None:
     if not shutil.which("lualatex") or not shutil.which("xelatex"):
         pytest.skip("The local host does not provide the Docker TeX toolchain")
@@ -389,14 +483,83 @@ def test_real_compilers_produce_readable_resume_and_cover_letter_pdfs(template_i
                 "local coding club",
             ):
                 assert expected in text
-            if template_id == "ishchenko_classic":
+            if template_id == "roman":
                 for expected in (
                     "R&D_100% Engineer", "Swiss work permit",
                     "Thesis on dependable systems.", "Maintainer", "2023-06",
                 ):
                     assert expected in text
         else:
+            assert len(PdfReader(BytesIO(document.pdf)).pages) == 1
             assert "I build reliable platforms." in text
+            assert "ada@example.com" in text
+            with pdfplumber.open(BytesIO(document.pdf)) as pdf:
+                if template_id == "roman":
+                    assert all("Serif" in char["fontname"] or "TimesNewRoman" in char["fontname"]
+                               for char in pdf.pages[0].chars if char["text"].strip())
+
+
+@pytest.mark.parametrize("near_page_end", [False, True])
+def test_moderncv_long_role_flows_across_pages_without_stranding_its_heading(
+    near_page_end: bool,
+) -> None:
+    if not shutil.which("lualatex"):
+        pytest.skip("The local host does not provide the Docker TeX toolchain")
+
+    data = _full_resume().model_dump(by_alias=True)
+    role = data["experiences"][0]
+    role.update(company="Boundary Systems", title="Platform Engineer")
+    # A role longer than one page exposed Banking's unbreakable description
+    # minipage: it either stranded the heading or printed bullets off the page.
+    role["bullets"] = [
+        {
+            "id": f"achievement-{index}",
+            "text": (
+                f"Achievement {index:02d}: Built reliable services, improved operational "
+                "visibility, and documented recovery procedures for the engineering team "
+                "while preserving the supported implementation details and outcomes. "
+                "Coordinated deployment changes, monitored production performance, and "
+                "reduced incident recovery time through repeatable operational practices."
+            ),
+            "evidenceIds": ["source:one"],
+        }
+        for index in range(20)
+    ]
+    data["sectionOrder"] = ["experience"]
+    for key in (
+        "summary", "skills", "education", "projects", "certifications", "languages",
+        "additionalSections",
+    ):
+        data[key] = None if key == "summary" else []
+    tex = build_resume_tex(FinalResume.model_validate(data))
+    if near_page_end:
+        # Put the role below existing content with room for a heading but not its
+        # first achievement. It must move together, without moving the whole role.
+        tex = tex.replace(
+            r"\section{Professional Experience}",
+            r"\newpage\null\vspace*{0.90\textheight}",
+        )
+    document = compile_latex_document(
+        document_type="tailored_resume",
+        engine="lualatex",
+        file_name="long-role.pdf",
+        tex_source=tex,
+    )
+    with pdfplumber.open(BytesIO(document.pdf)) as pdf:
+        page_text = [" ".join((page.extract_text() or "").split()) for page in pdf.pages]
+        heading_page = next(i for i, text in enumerate(page_text) if "Boundary Systems" in text)
+        first_bullet_page = next(i for i, text in enumerate(page_text) if "Achievement 00:" in text)
+        last_bullet_page = next(i for i, text in enumerate(page_text) if "Achievement 19:" in text)
+        assert heading_page == first_bullet_page
+        assert last_bullet_page > first_bullet_page
+        extracted = " ".join(page_text)
+        for index in range(20):
+            assert extracted.count(f"Achievement {index:02d}:") == 1
+        for page in pdf.pages:
+            for char in page.chars:
+                if char["text"].strip():
+                    assert -1 <= char["x0"] <= char["x1"] <= page.width + 1
+                    assert -1 <= char["top"] <= char["bottom"] <= page.height + 1
 
 
 def test_compiled_pdf_is_imported_once_and_attached_to_application(

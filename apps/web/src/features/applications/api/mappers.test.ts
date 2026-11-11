@@ -70,7 +70,7 @@ describe("application API mappers", () => {
     expect(application.documentPreparation).toMatchObject({
       documentTypes: ["cover_letter"],
       language: "German",
-      formatting: { coverLetterTemplateId: "standard-letter" },
+      formatting: { resumeTemplateId: "moderncv_banking", coverLetterTemplateId: "moderncv_banking" },
       latestGeneration: { executionId: "generation-restored" },
     });
     expect(applicationPayloadForApi(application)).toMatchObject({

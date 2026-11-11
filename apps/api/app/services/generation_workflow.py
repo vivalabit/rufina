@@ -6,12 +6,14 @@ from collections.abc import Callable
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
+from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app.models.generation_runs import ApplicationGenerationRunRecord
 from app.models.generation_workflow import (
     DraftBundle,
     FitEvaluation,
+    GeneratedDraftBundle,
     ReviewedDraftBundle,
     ReviewerFeedback,
     VisualReview,
@@ -28,11 +30,12 @@ from app.services.ai_backend import (
 )
 from app.services.candidate_profile import canonical_hash, profile_resume
 from app.services.generation_artifact_import import import_compiled_generation_documents
-from app.services.generation_grounding import validate_grounded_bundle
+from app.services.generation_experience import experience_content_policy
+from app.services.generation_grounding import ground_generated_bundle
 from app.services.generation_latex import CompiledDocument, render_generation_bundle
 from app.services.generation_resources import load_instruction
 from app.services.generation_resume_templates import DEFAULT_GENERATION_RESUME_TEMPLATE_ID
-from app.services.generation_snapshot import GenerationRunSnapshot, resolve_run_resume_template
+from app.services.generation_snapshot import GenerationRunSnapshot, resolve_run_document_template_id
 from app.services.generation_store import (
     GenerationStoreError,
     append_run_message,
@@ -41,6 +44,7 @@ from app.services.generation_store import (
     transition_generation_run,
 )
 from app.services.generation_verification import VerifiedPdf, verify_compiled_document
+from app.services.resume_skills import source_skill_policy
 
 
 class GenerationWorkflowError(RuntimeError):
@@ -62,7 +66,7 @@ class GenerationWorkflow:
         self.settings = settings
         self.backend_override = backend
         self.renderer = renderer or render_generation_bundle
-        self._renderer_accepts_template = _accepts_template_selection(self.renderer)
+        self._renderer_accepts_template = _accepts_renderer_keyword(self.renderer, "resume_template_id")
         self.verifier = verifier or verify_compiled_document
 
     def evaluate_fit(
@@ -89,7 +93,6 @@ class GenerationWorkflow:
                 context={
                     "vacancy": snapshot.request.vacancy.model_dump(mode="json", by_alias=True),
                     "masterResume": snapshot.request.master_profile_version.data,
-                    "language": snapshot.request.language,
                 },
                 response_model=FitEvaluation,
             )
@@ -229,18 +232,10 @@ class GenerationWorkflow:
                 "formattingParameters": snapshot.request.formatting_parameters,
                 "userPreferences": snapshot.request.user_preferences,
             }
-            draft = self._request_model(
+            draft = self._request_draft(
                 db,
                 run,
-                actor="author",
-                session_suffix="author",
-                instruction_name="draft",
                 context=base_context,
-                response_model=DraftBundle,
-            )
-            _require_requested_documents(draft, run.document_types)
-            validate_grounded_bundle(
-                draft,
                 master_resume=master_resume,
                 target_job_id=target_job_id,
             )
@@ -269,7 +264,7 @@ class GenerationWorkflow:
                 instruction_name="review",
                 context={
                     **base_context,
-                    "draft": draft.model_dump(mode="json", by_alias=True),
+                    "draft": _draft_context(draft),
                 },
                 response_model=ReviewerFeedback,
                 enable_web_search=True,
@@ -285,26 +280,21 @@ class GenerationWorkflow:
             )
             final_draft = draft
             if review.findings:
-                final_draft = self._request_model(
+                final_draft = self._request_draft(
                     db,
                     run,
-                    actor="author",
-                    session_suffix="author",
-                    instruction_name="draft",
                     context={
                         **base_context,
-                        "previousDraft": draft.model_dump(mode="json", by_alias=True),
+                        "previousDraft": _draft_context(draft),
                         "reviewFeedback": review.model_dump(mode="json", by_alias=True),
-                        "task": "Revise the prior draft. Return only the complete DraftBundle.",
+                        "task": (
+                            "Revise the prior draft. Return the complete GeneratedDraftBundle "
+                            "with evidenceIds only."
+                        ),
                     },
-                    response_model=DraftBundle,
+                    master_resume=master_resume,
+                    target_job_id=target_job_id,
                 )
-            _require_requested_documents(final_draft, run.document_types)
-            validate_grounded_bundle(
-                final_draft,
-                master_resume=master_resume,
-                target_job_id=target_job_id,
-            )
             persist_run_artifact(
                 db,
                 run=run,
@@ -338,12 +328,22 @@ class GenerationWorkflow:
         target_job_id: str,
     ) -> DraftBundle:
         snapshot = _run_snapshot(run)
-        fit = FitEvaluation.model_validate(run.result.get("fit"))
-        resume_template_id = (
-            resolve_run_resume_template(snapshot).template_id
-            if "tailored_resume" in snapshot.request.document_types
-            else DEFAULT_GENERATION_RESUME_TEMPLATE_ID
+        # Recovery can load drafts persisted before the current retention policy.
+        # Resolve them against the same frozen source before any PDF is rendered.
+        generated = GeneratedDraftBundle.model_validate(_draft_context(draft))
+        _require_requested_documents(generated, run.document_types)
+        _require_resolved_document_languages(generated)
+        draft = ground_generated_bundle(
+            generated, master_resume=master_resume, target_job_id=target_job_id
         )
+        fit = FitEvaluation.model_validate(run.result.get("fit"))
+        resume_template_id = resolve_run_document_template_id(snapshot)
+        letter_context = {
+            key: value for key, value in {
+                "sender_basics": master_resume.basics,
+                "letter_date": snapshot.created_at.date(),
+            }.items() if _accepts_renderer_keyword(self.renderer, key)
+        }
         transition_generation_run(
             db,
             run=run,
@@ -363,7 +363,9 @@ class GenerationWorkflow:
         current_draft = draft
         for attempt in range(1, 4):
             if self._renderer_accepts_template:
-                compiled = self.renderer(current_draft, resume_template_id=resume_template_id)
+                compiled = self.renderer(
+                    current_draft, resume_template_id=resume_template_id, **letter_context,
+                )
             elif resume_template_id == DEFAULT_GENERATION_RESUME_TEMPLATE_ID:
                 # Existing integrations may inject a single-argument renderer
                 # for the original Banking template.
@@ -445,6 +447,17 @@ class GenerationWorkflow:
                         }
                     )
 
+            if any(
+                check.status == "failed" and check.name in {"layout_unavailable", "page_images"}
+                for _, verified in verified_documents
+                for check in verified.report.checks
+            ):
+                raise GenerationWorkflowError(
+                    "PDF verification is temporarily unavailable. Please retry the run.",
+                    code="pdf_verification_unavailable",
+                    retryable=True,
+                )
+
             visual = (
                 self._request_model(
                     db,
@@ -459,7 +472,7 @@ class GenerationWorkflow:
                             verified.report.model_dump(mode="json", by_alias=True)
                             for _, verified in verified_documents
                         ],
-                        "draft": current_draft.model_dump(mode="json", by_alias=True),
+                        "draft": _draft_context(current_draft),
                     },
                     response_model=VisualReview,
                     image_inputs=tuple(image_inputs),
@@ -471,6 +484,10 @@ class GenerationWorkflow:
                     findings=(),
                 )
             )
+            if visual.approved and any(
+                finding.severity == "blocking" for finding in visual.findings
+            ):
+                visual = visual.model_copy(update={"approved": False})
             persist_run_artifact(
                 db,
                 run=run,
@@ -519,26 +536,21 @@ class GenerationWorkflow:
                     code="pdf_verification_failed",
                     retryable=True,
                 )
-            current_draft = self._request_model(
+            current_draft = self._request_draft(
                 db,
                 run,
-                actor="author",
-                session_suffix="author",
-                instruction_name="draft",
                 context={
-                    "task": "Repair the complete DraftBundle using the PDF and visual findings.",
-                    "previousDraft": current_draft.model_dump(mode="json", by_alias=True),
+                    "task": (
+                        "Repair the complete GeneratedDraftBundle using the PDF and visual "
+                        "findings. Return evidenceIds only."
+                    ),
+                    "previousDraft": _draft_context(current_draft),
                     "verificationReports": [
                         verified.report.model_dump(mode="json", by_alias=True)
                         for _, verified in verified_documents
                     ],
                     "visualReview": visual.model_dump(mode="json", by_alias=True),
                 },
-                response_model=DraftBundle,
-            )
-            _require_requested_documents(current_draft, run.document_types)
-            validate_grounded_bundle(
-                current_draft,
                 master_resume=master_resume,
                 target_job_id=target_job_id,
             )
@@ -561,6 +573,38 @@ class GenerationWorkflow:
             )
         raise AssertionError("unreachable")
 
+    def _request_draft(
+        self,
+        db: Session,
+        run: ApplicationGenerationRunRecord,
+        *,
+        context: dict[str, Any],
+        master_resume: MasterResume,
+        target_job_id: str,
+    ) -> DraftBundle:
+        generated = self._request_model(
+            db,
+            run,
+            actor="author",
+            session_suffix="author",
+            instruction_name="draft",
+            context=context,
+            response_model=GeneratedDraftBundle,
+        )
+        _require_requested_documents(generated, run.document_types)
+        _require_resolved_document_languages(generated)
+        try:
+            return ground_generated_bundle(
+                generated,
+                master_resume=master_resume,
+                target_job_id=target_job_id,
+            )
+        except ValidationError as exc:
+            raise GenerationWorkflowError(
+                "AI backend returned an invalid structured response",
+                code="invalid_ai_response",
+            ) from exc
+
     def _request_model[T: BaseModel](
         self,
         db: Session,
@@ -575,14 +619,20 @@ class GenerationWorkflow:
         image_inputs: tuple[AIImageInput, ...] = (),
     ) -> T:
         snapshot = _run_snapshot(run)
+        master_resume = _snapshot_resume(snapshot)
         source_context = {
             "candidateProfileVersion": snapshot.request.master_profile_version.model_dump(mode="json", by_alias=True),
-            "masterResume": _snapshot_resume(snapshot).model_dump(mode="json", by_alias=True),
+            "masterResume": master_resume.model_dump(mode="json", by_alias=True),
+            "skillPolicy": source_skill_policy(master_resume),
+            "experienceContentPolicy": experience_content_policy(
+                db, run, master_resume, max_pages=_max_pages(snapshot, "tailored_resume")
+            ),
             "vacancy": snapshot.request.vacancy.model_dump(mode="json", by_alias=True),
             "documentTypes": list(snapshot.request.document_types),
             "formattingParameters": snapshot.request.formatting_parameters,
             "userPreferences": snapshot.request.user_preferences,
-            "language": snapshot.request.language,
+            "requestedLanguage": snapshot.request.language,
+            "documentLanguages": _document_languages(context),
         }
         prompt = _build_prompt(instruction_name, {**context, **source_context}, response_model)
         append_run_message(
@@ -647,10 +697,19 @@ class GenerationWorkflow:
         run: ApplicationGenerationRunRecord,
         exc: Exception,
     ) -> None:
+        # A failed flush expires ORM attributes and leaves the transaction unusable.
+        # Roll back before even reading run.status, then persist the failure separately.
+        if not db.is_active:
+            db.rollback()
         if run.status in {"completed", "failed", "cancelled"}:
             return
         retryable = bool(getattr(exc, "retryable", False))
-        code = getattr(exc, "code", "workflow_failed")
+        database_failure = isinstance(exc, SQLAlchemyError)
+        code = "database_error" if database_failure else getattr(exc, "code", "workflow_failed")
+        message = (
+            "Could not save generation results to the database."
+            if database_failure else str(exc)
+        )
         try:
             transition_generation_run(
                 db,
@@ -659,13 +718,13 @@ class GenerationWorkflow:
                 stage=run.stage,
                 event_kind="run.failed",
                 event_data={"code": code, "retryable": retryable},
-                error={"code": code, "message": str(exc), "retryable": retryable},
+                error={"code": code, "message": message, "retryable": retryable},
             )
         except GenerationStoreError:
             db.rollback()
 
 
-def _accepts_template_selection(renderer: Callable[..., object]) -> bool:
+def _accepts_renderer_keyword(renderer: Callable[..., object], keyword: str) -> bool:
     try:
         parameters = inspect.signature(renderer).parameters.values()
     except (TypeError, ValueError):
@@ -673,11 +732,31 @@ def _accepts_template_selection(renderer: Callable[..., object]) -> bool:
     return any(
         parameter.kind == inspect.Parameter.VAR_KEYWORD
         or (
-            parameter.name == "resume_template_id"
+            parameter.name == keyword
             and parameter.kind != inspect.Parameter.POSITIONAL_ONLY
         )
         for parameter in parameters
     )
+
+
+def _document_languages(context: dict[str, Any]) -> dict[str, str]:
+    """Separate current document metadata from the unchanged request preference."""
+    draft = context.get("draft") or context.get("previousDraft") or {}
+    return {
+        document_type: document["language"]
+        for key, document_type in (("resume", "tailored_resume"), ("coverLetter", "cover_letter"))
+        if isinstance(document := draft.get(key), dict)
+        and isinstance(document.get("language"), str)
+    }
+
+
+def _require_resolved_document_languages(bundle: GeneratedDraftBundle) -> None:
+    for document in (bundle.resume, bundle.cover_letter):
+        if document is not None and document.language.strip().casefold() == "auto":
+            raise GenerationWorkflowError(
+                "Generated documents must specify their actual language; Auto is a request preference.",
+                code="invalid_ai_response",
+            )
 
 
 def _brief_diagnostic(value: str, limit: int = 300) -> str:
@@ -757,9 +836,15 @@ def _build_prompt(
         "Keep these details under their original employer and cite their evidence_ids; never transfer them to another role. "
         "Connect relevant experience to vacancy tasks. In the cover letter explain plausible future contributions "
         "grounded in that experience, clearly distinguishing proposed contributions from past achievements. "
-        "Review these connections and employer attribution. During all revisions and PDF repairs, retain selected "
-        "substantive technologies, context, responsibilities, decisions and project scale; shorten wording before "
-        "dropping useful facts. Unknown fields are unknown: do not invent technologies, metrics, teams or decisions.\n\n"
+        "Review these connections and employer attribution. Preserve key source achievements, "
+        "technologies, metrics, responsibilities, decisions and project scale throughout drafting and repairs. "
+        "Use experienceContentPolicy.sourceAchievements to compare source points with visible CV content; "
+        "citations alone do not prove that an achievement survived. Adapt emphasis and wording to the vacancy, "
+        "without a default bullet-count target. Shorten wording and remove repetition before reducing content. "
+        "Only experienceContentPolicy.allowContentReduction can permit necessary content reduction after "
+        "measured CV page overflow. If currentResumePages fits maxResumePages, do not make further cuts; "
+        "verifiedOverflow may justify necessary reductions from an earlier repair. "
+        "Unknown fields are unknown: do not invent technologies, metrics, teams or decisions.\n\n"
         "Return JSON matching this schema exactly:\n"
         f"{json.dumps(response_model.model_json_schema(), ensure_ascii=False)}\n\n"
         "BEGIN UNTRUSTED APPLICATION DATA\n"
@@ -778,7 +863,15 @@ def _validated_result[T: BaseModel](result: AIResult, response_model: type[T]) -
         ) from exc
 
 
-def _require_requested_documents(bundle: DraftBundle, document_types: list[str]) -> None:
+def _draft_context(bundle: DraftBundle) -> dict[str, Any]:
+    """Keep model-facing drafts in the same evidence-ID-only response format."""
+    return bundle.model_dump(mode="json", by_alias=True, exclude={"resume": {"evidence"}})
+
+
+def _require_requested_documents(
+    bundle: GeneratedDraftBundle,
+    document_types: list[str],
+) -> None:
     if "tailored_resume" in document_types and bundle.resume is None:
         raise GenerationWorkflowError(
             "AI draft omitted the requested resume",

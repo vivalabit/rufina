@@ -5,7 +5,7 @@ from typing import Literal
 from pydantic import Field, model_validator
 
 from app.models.generation import GenerationContractModel
-from app.models.resume import EvidenceId, FinalResume
+from app.models.resume import EvidenceId, FinalResume, ResumeDraft
 
 
 class FitKeyword(GenerationContractModel):
@@ -45,15 +45,23 @@ class CoverLetterDraft(GenerationContractModel):
     signature: str = Field(min_length=1, max_length=500)
 
 
-class DraftBundle(GenerationContractModel):
-    resume: FinalResume | None = None
+class GeneratedDraftBundle(GenerationContractModel):
+    """Model response: document content and evidence IDs, without an evidence catalog."""
+
+    resume: ResumeDraft | None = None
     cover_letter: CoverLetterDraft | None = Field(default=None, alias="coverLetter")
 
     @model_validator(mode="after")
-    def require_a_document(self) -> DraftBundle:
+    def require_a_document(self) -> GeneratedDraftBundle:
         if self.resume is None and self.cover_letter is None:
             raise ValueError("Draft bundle must contain at least one document")
         return self
+
+
+class DraftBundle(GeneratedDraftBundle):
+    """Persisted/renderable documents with evidence resolved by the server."""
+
+    resume: FinalResume | None = None
 
 
 class ReviewFinding(GenerationContractModel):
@@ -114,6 +122,7 @@ __all__ = [
     "DraftBundle",
     "FitEvaluation",
     "FitKeyword",
+    "GeneratedDraftBundle",
     "ReviewFinding",
     "ReviewedDraftBundle",
     "ReviewerFeedback",

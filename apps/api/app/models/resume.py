@@ -663,8 +663,12 @@ class RewrittenExperience(StrictResumeModel):
         return self
 
 
-class FinalResume(StrictResumeModel):
-    """Self-contained tailored resume ready for deterministic rendering."""
+class ResumeDraft(StrictResumeModel):
+    """AI-authored resume content referencing, but never redefining, source evidence.
+
+    The complete graph is validated when the server resolves these references
+    into a FinalResume using the frozen Master Resume.
+    """
 
     schema_version: Literal["1.0"] = Field(default="1.0", alias="schemaVersion")
     id: ResumeId
@@ -702,12 +706,17 @@ class FinalResume(StrictResumeModel):
         alias="additionalSections",
         max_length=MAX_ITEMS_PER_SECTION,
     )
-    evidence: list[ResumeEvidence] = Field(min_length=1, max_length=2_000)
     section_order: list[ResumeSectionName] = Field(
         alias="sectionOrder",
         min_length=1,
         max_length=8,
     )
+
+
+class FinalResume(ResumeDraft):
+    """Self-contained tailored resume with server-owned evidence for rendering."""
+
+    evidence: list[ResumeEvidence] = Field(min_length=1, max_length=2_000)
 
     @model_validator(mode="after")
     def validate_final_resume(self) -> FinalResume:
@@ -852,7 +861,8 @@ def _all_item_ids(resume: MasterResume | FinalResume) -> list[ResumeItemId]:
     return item_ids
 
 
-def _all_evidence_references(resume: MasterResume | FinalResume) -> list[EvidenceId]:
+def resume_evidence_ids(resume: MasterResume | ResumeDraft) -> list[EvidenceId]:
+    """Collect source references from every supported resume content section."""
     references: list[EvidenceId] = []
     if resume.summary is not None:
         references.extend(resume.summary.evidence_ids)
@@ -893,7 +903,7 @@ def _validate_resume_graph(resume: MasterResume | FinalResume) -> None:
     _require_unique(_all_item_ids(resume), "resume item IDs")
     evidence_ids = [item.id for item in resume.evidence]
     _require_unique(evidence_ids, "evidence IDs")
-    unknown_evidence_ids = sorted(set(_all_evidence_references(resume)) - set(evidence_ids))
+    unknown_evidence_ids = sorted(set(resume_evidence_ids(resume)) - set(evidence_ids))
     if unknown_evidence_ids:
         raise ValueError(f"resume content references unknown evidence IDs: {unknown_evidence_ids}")
 
@@ -932,6 +942,7 @@ __all__ = [
     "MasterSkill",
     "ResumeBasics",
     "ResumeBullet",
+    "ResumeDraft",
     "ResumeEvidence",
     "ResumeId",
     "ResumeItemId",
@@ -945,4 +956,5 @@ __all__ = [
     "RewrittenExperience",
     "StrictResumeModel",
     "TailoredResume",
+    "resume_evidence_ids",
 ]
