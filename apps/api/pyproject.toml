@@ -45,5 +45,6 @@ app = [
   "data/*.json",
   "services/*.mjs",
   "templates/resume_pdf/*/*",
+  "templates/cover_letter_pdf/*",
   "generator_resources/**/*",
 ]

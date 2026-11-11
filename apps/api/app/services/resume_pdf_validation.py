@@ -14,7 +14,6 @@ from typing import Literal
 import pdfplumber
 from pypdf import PdfReader, PdfWriter
 
-
 PDF_RASTER_TIMEOUT_SECONDS = 30
 PDF_TEMPLATE_ID_METADATA_KEY = "/ResumeTemplateId"
 PDF_TEMPLATE_VERSION_METADATA_KEY = "/ResumeTemplateVersion"
@@ -124,8 +123,23 @@ def validate_resume_pdf(
         for fragment in expected_text_fragments
         if (normalized := normalize_pdf_text(fragment))
     ]
-    validate_expected_text(extracted_text, normalized_fragments)
-    validate_reading_order(extracted_text, normalized_fragments)
+    try:
+        validate_expected_text(extracted_text, normalized_fragments)
+        validate_reading_order(extracted_text, normalized_fragments)
+    except ResumePdfValidationError:
+        # pypdf cannot decode fonts that Chromium embeds as Type 3 (OpenType CFF
+        # fonts such as an installed Inter). Poppler reads them, so it gets the
+        # final say. It joins words hyphenated at a line end, hence the
+        # comparison without hyphens.
+        poppler_text = extract_pdf_text_with_poppler(pdf)
+        if poppler_text is None:
+            raise
+        poppler_text = normalize_pdf_text(poppler_text).replace("-", "")
+        poppler_fragments = [fragment.replace("-", "") for fragment in normalized_fragments]
+        validate_expected_text(poppler_text, poppler_fragments)
+        if policy.reading_order == "resumeSectionOrder":
+            # Poppler orders the columns of a sidebar layout by its own rules.
+            validate_reading_order(poppler_text, poppler_fragments)
 
     pdf_overflow_issues = inspect_pdf_overflow(pdf)
     overflow_issues = (*html_overflow_issues, *pdf_overflow_issues)
@@ -176,6 +190,24 @@ def validate_template_metadata(
         raise ResumePdfValidationError(
             "Rendered resume PDF template metadata does not match the manifest"
         )
+
+
+def extract_pdf_text_with_poppler(pdf: bytes) -> str | None:
+    """Text in reading order from `pdftotext`, or None when Poppler is unavailable."""
+    executable = shutil.which("pdftotext")
+    if not executable:
+        return None
+    try:
+        completed = subprocess.run(
+            [executable, "-enc", "UTF-8", "-", "-"],
+            input=pdf,
+            capture_output=True,
+            check=True,
+            timeout=PDF_RASTER_TIMEOUT_SECONDS,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+    return completed.stdout.decode("utf-8", errors="replace")
 
 
 def validate_expected_text(
@@ -320,6 +352,7 @@ __all__ = [
     "ResumePdfValidationError",
     "ResumePdfValidationPolicy",
     "ResumePdfValidationReport",
+    "extract_pdf_text_with_poppler",
     "inspect_pdf_overflow",
     "normalize_pdf_text",
     "render_and_validate_png_pages",

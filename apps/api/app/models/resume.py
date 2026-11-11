@@ -455,6 +455,23 @@ class ResumeBullet(EvidenceBackedText):
     id: ResumeItemId
 
 
+class RewrittenBullet(ResumeBullet):
+    """A tailored experience statement with optional phrases to set in bold.
+
+    Every emphasis phrase must occur verbatim in the text; templates without
+    inline emphasis ignore it.
+    """
+
+    emphasis: list[StrictText] = Field(default_factory=list, max_length=8)
+
+    @model_validator(mode="after")
+    def require_emphasis_inside_text(self) -> RewrittenBullet:
+        missing = [phrase for phrase in self.emphasis if phrase not in self.text]
+        if missing:
+            raise ValueError(f"emphasis phrases must occur in the text: {missing}")
+        return self
+
+
 class ResumeBasics(StrictResumeModel):
     full_name: StrictText = Field(alias="fullName", max_length=200)
     headline: OptionalText = Field(default="", max_length=300)
@@ -656,7 +673,7 @@ class RewrittenExperience(StrictResumeModel):
     title: StrictText = Field(max_length=300)
     location: OptionalText = Field(default="", max_length=240)
     period: StrictText = Field(max_length=100)
-    bullets: list[ResumeBullet] = Field(min_length=1, max_length=20)
+    bullets: list[RewrittenBullet] = Field(min_length=1, max_length=20)
 
     @model_validator(mode="after")
     def reject_duplicate_bullet_ids(self) -> RewrittenExperience:
@@ -943,6 +960,7 @@ __all__ = [
     "MasterSkill",
     "ResumeBasics",
     "ResumeBullet",
+    "RewrittenBullet",
     "ResumeDraft",
     "ResumeEvidence",
     "ResumeId",

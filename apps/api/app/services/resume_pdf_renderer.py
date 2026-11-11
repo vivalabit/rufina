@@ -1,11 +1,12 @@
 from __future__ import annotations
 
-import json
-import re
 import hashlib
+import json
+import os
+import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Literal, cast
+from typing import Any, Literal, Self, cast
 from urllib.parse import urlparse
 
 from jinja2 import Environment, FileSystemLoader, StrictUndefined, select_autoescape
@@ -19,6 +20,7 @@ from app.models.resume_templates import (
     ResumeTemplateDefinitionRecord,
     ResumeTemplateDesignTokens,
 )
+from app.services.resume_emphasis import emphasis_segments
 from app.services.resume_pdf_validation import (
     ResumePdfValidationError,
     ResumePdfValidationPolicy,
@@ -31,13 +33,14 @@ from app.services.resume_template_registry import (
     is_bundled_resume_template_id,
 )
 
-
 DEFAULT_RESUME_PDF_TEMPLATE_ID: ResumeTemplateId = "classic_single"
 TEMPLATE_ROOT = Path(__file__).resolve().parent.parent / "templates" / "resume_pdf"
 MAX_MANIFEST_BYTES = 16_000
 MAX_TEMPLATE_BYTES = 256_000
 MAX_STYLESHEET_BYTES = 256_000
 PDF_RENDER_TIMEOUT_MS = 30_000
+CHROMIUM_EXECUTABLE_ENV = "RESUME_PDF_CHROMIUM_EXECUTABLE"
+MIN_FIT_SCALE = 0.85
 _SAFE_ASSET_NAME = re.compile(r"^[a-z0-9][a-z0-9_.-]*$")
 _UNSAFE_CSS = re.compile(
     r"@import|expression\s*\(|javascript\s*:|"
@@ -215,7 +218,9 @@ def render_resolved_final_resume_html(
     final_resume_json: dict[str, object],
     *,
     template: ResolvedResumeTemplate,
+    fit_scale: float = 1.0,
 ) -> tuple[str, ResumePdfTemplateBundle]:
+    """Render the resume HTML; `fit_scale` below 1 shrinks the whole layout to fit pages."""
     try:
         resume = FinalResume.model_validate(final_resume_json)
     except ValidationError as exc:
@@ -257,7 +262,13 @@ def render_resolved_final_resume_html(
         raise ResumePdfRenderError(
             "Resume HTML template has an invalid stylesheet slot"
         )
-    html = html.replace(_STYLESHEET_SENTINEL, template.stylesheet, 1)
+    stylesheet = template.stylesheet
+    if fit_scale != 1.0:
+        if not MIN_FIT_SCALE <= fit_scale <= 1.0:
+            raise ResumePdfRenderError("Resume fit scale is outside the supported range")
+        # Server-owned rule: text and spacing shrink together and the text reflows.
+        stylesheet += f"\n.resume-shell {{ zoom: {css_number(fit_scale)}; }}"
+    html = html.replace(_STYLESHEET_SENTINEL, stylesheet, 1)
     if "<script" in html.lower():
         raise ResumePdfRenderError("Rendered resume HTML contains a script element")
     return html, bundle
@@ -684,7 +695,40 @@ def resume_view_model(resume: FinalResume) -> dict[str, object]:
         "section_order": list(resume.section_order),
         "section_titles": section_titles,
     }
-    return normalize_display_mapping(view_model)
+    normalized = normalize_display_mapping(view_model)
+    _attach_emphasis_segments(normalized, resume)
+    return normalized
+
+
+def _attach_emphasis_segments(view_model: dict[str, object], resume: FinalResume) -> None:
+    """Give every statement its plain and emphasized runs for templates that use them."""
+    technologies = [skill.name for skill in resume.skills]
+
+    def attach(statement: dict[str, object]) -> None:
+        explicit = statement.get("emphasis")
+        statement["segments"] = [
+            segment.as_dict()
+            for segment in emphasis_segments(
+                str(statement.get("text", "")),
+                explicit=[
+                    str(normalize_display_value(phrase)) for phrase in explicit
+                ] if isinstance(explicit, list) else (),
+                technologies=technologies,
+            )
+        ]
+
+    for section, key in (
+        ("experiences", "bullets"),
+        ("projects", "bullets"),
+        ("education", "details"),
+        ("additional_sections", "items"),
+    ):
+        entries = view_model.get(section)
+        for entry in entries if isinstance(entries, list) else ():
+            statements = entry.get(key) if isinstance(entry, dict) else None
+            for statement in statements if isinstance(statements, list) else ():
+                if isinstance(statement, dict):
+                    attach(statement)
 
 
 def skill_group_view(resume: FinalResume) -> list[dict[str, object]]:
@@ -892,70 +936,108 @@ def safe_web_url(value: str) -> str:
     return value if parsed.scheme in {"http", "https"} and parsed.netloc else ""
 
 
-def chromium_pdf_from_html(
-    html: str,
-    page_manifest: ResumePdfPageManifest,
-) -> ChromiumPdfRenderResult:
-    try:
-        from playwright.sync_api import Error as PlaywrightError
-        from playwright.sync_api import sync_playwright
-    except ImportError as exc:
-        raise ResumePdfRenderError("Playwright is required for PDF rendering") from exc
+_OVERFLOW_PROBE = """
+() => {
+  const issues = [];
+  const root = document.documentElement;
+  if (root.scrollWidth > root.clientWidth + 1) {
+    issues.push("document has horizontal overflow");
+  }
+  const shell = document.querySelector(".resume-shell");
+  if (!shell) {
+    issues.push("resume shell is missing");
+    return issues;
+  }
+  const shellRect = shell.getBoundingClientRect();
+  for (const element of shell.querySelectorAll("*")) {
+    const rect = element.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) continue;
+    // Glyphs of a tight heading line may overhang its line box by a few
+    // pixels without clipping anything, depending on the installed font.
+    const verticalTolerance = Math.min(4, Math.max(1, element.clientHeight * 0.1));
+    if (
+      element.scrollWidth > element.clientWidth + 1 ||
+      element.scrollHeight > element.clientHeight + verticalTolerance
+    ) {
+      issues.push(
+        `${element.tagName.toLowerCase()} content exceeds its box`
+      );
+    }
+    if (
+      rect.left < shellRect.left - 1 ||
+      rect.right > shellRect.right + 1
+    ) {
+      issues.push(
+        `${element.tagName.toLowerCase()} exceeds resume width`
+      );
+    }
+    if (issues.length >= 20) break;
+  }
+  return issues;
+}
+"""
 
-    try:
-        with sync_playwright() as playwright:
-            browser = playwright.chromium.launch(headless=True)
+
+def chromium_executable_path() -> str | None:
+    """Optional system Chromium/Chrome binary instead of Playwright's download."""
+    return os.environ.get(CHROMIUM_EXECUTABLE_ENV, "").strip() or None
+
+
+class ChromiumPdfSession:
+    """One headless browser for several renders, such as page fitting or previews.
+
+    Launching Chromium dominates the cost of a render, so callers that render the
+    same document repeatedly keep one session open.
+    """
+
+    def __init__(self) -> None:
+        self._playwright_context: Any = None
+        self._browser: Any = None
+        self._error: type[Exception] = Exception
+
+    def __enter__(self) -> Self:
+        try:
+            from playwright.sync_api import Error as PlaywrightError
+            from playwright.sync_api import sync_playwright
+        except ImportError as exc:
+            raise ResumePdfRenderError("Playwright is required for PDF rendering") from exc
+        self._error = PlaywrightError
+        self._playwright_context = sync_playwright()
+        try:
+            playwright = self._playwright_context.__enter__()
+            self._browser = playwright.chromium.launch(
+                headless=True,
+                executable_path=chromium_executable_path(),
+            )
+        except PlaywrightError as exc:
+            self._playwright_context.__exit__(None, None, None)
+            raise ResumePdfRenderError("Chromium PDF rendering failed") from exc
+        return self
+
+    def __exit__(self, *exc_info: object) -> None:
+        try:
+            if self._browser is not None:
+                self._browser.close()
+        finally:
+            self._playwright_context.__exit__(None, None, None)
+
+    def render(
+        self,
+        html: str,
+        page_manifest: ResumePdfPageManifest,
+        *,
+        probe_overflow: bool = True,
+    ) -> ChromiumPdfRenderResult:
+        try:
+            context = self._browser.new_context(java_script_enabled=False)
             try:
-                context = browser.new_context(java_script_enabled=False)
                 page = context.new_page()
                 page.set_default_timeout(PDF_RENDER_TIMEOUT_MS)
                 page.route("**/*", lambda route: route.abort())
-                page.set_content(
-                    html,
-                    wait_until="load",
-                    timeout=PDF_RENDER_TIMEOUT_MS,
-                )
+                page.set_content(html, wait_until="load", timeout=PDF_RENDER_TIMEOUT_MS)
                 page.emulate_media(media="print")
-                overflow_issues = tuple(
-                    page.evaluate(
-                        """
-                        () => {
-                          const issues = [];
-                          const root = document.documentElement;
-                          if (root.scrollWidth > root.clientWidth + 1) {
-                            issues.push("document has horizontal overflow");
-                          }
-                          const shell = document.querySelector(".resume-shell");
-                          if (!shell) {
-                            issues.push("resume shell is missing");
-                            return issues;
-                          }
-                          const shellRect = shell.getBoundingClientRect();
-                          for (const element of shell.querySelectorAll("*")) {
-                            const rect = element.getBoundingClientRect();
-                            if (rect.width === 0 || rect.height === 0) continue;
-                            if (
-                              element.scrollWidth > element.clientWidth + 1 ||
-                              element.scrollHeight > element.clientHeight + 1
-                            ) {
-                              issues.push(
-                                `${element.tagName.toLowerCase()} content exceeds its box`
-                              );
-                            }
-                            if (
-                              rect.left < shellRect.left - 1 ||
-                              rect.right > shellRect.right + 1
-                            ) {
-                              issues.push(
-                                `${element.tagName.toLowerCase()} exceeds resume width`
-                              );
-                            }
-                            if (issues.length >= 20) break;
-                          }
-                          return issues;
-                        }
-                        """
-                    )
+                overflow_issues = (
+                    tuple(page.evaluate(_OVERFLOW_PROBE)) if probe_overflow else ()
                 )
                 pdf = page.pdf(
                     format=page_manifest.format,
@@ -963,14 +1045,19 @@ def chromium_pdf_from_html(
                     prefer_css_page_size=True,
                     display_header_footer=False,
                 )
-                return ChromiumPdfRenderResult(
-                    pdf=pdf,
-                    overflow_issues=overflow_issues,
-                )
+                return ChromiumPdfRenderResult(pdf=pdf, overflow_issues=overflow_issues)
             finally:
-                browser.close()
-    except PlaywrightError as exc:
-        raise ResumePdfRenderError("Chromium PDF rendering failed") from exc
+                context.close()
+        except self._error as exc:
+            raise ResumePdfRenderError("Chromium PDF rendering failed") from exc
+
+
+def chromium_pdf_from_html(
+    html: str,
+    page_manifest: ResumePdfPageManifest,
+) -> ChromiumPdfRenderResult:
+    with ChromiumPdfSession() as session:
+        return session.render(html, page_manifest)
 
 
 def validate_rendered_pdf(
@@ -1018,7 +1105,10 @@ def validate_rendered_pdf(
 
 
 __all__ = [
+    "CHROMIUM_EXECUTABLE_ENV",
+    "MIN_FIT_SCALE",
     "ChromiumPdfRenderResult",
+    "ChromiumPdfSession",
     "DEFAULT_RESUME_PDF_TEMPLATE_ID",
     "ResolvedResumeTemplate",
     "ResumePdfPageManifest",

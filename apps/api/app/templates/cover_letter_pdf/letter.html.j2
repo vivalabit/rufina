@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="{{ letter.language_code }}">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="generator" content="Rufina deterministic cover letter renderer">
+  <title>{{ sender.full_name }} - Cover letter</title>
+  <style>{{ stylesheet }}</style>
+</head>
+<body class="letter-{{ template_id }} letter-header-{{ header_align }}">
+<div class="letter-shell">
+  <header class="letter-sender">
+    <p class="sender-name">{{ sender.full_name }}</p>
+    {% if sender.contact_lines %}
+    <p class="sender-contacts">{{ sender.contact_lines | join(" | ") }}</p>
+    {% endif %}
+  </header>
+  {% if letter.recipient_lines %}
+  <address class="letter-recipient">
+    {% for line in letter.recipient_lines %}<span>{{ line }}</span>{% endfor %}
+  </address>
+  {% endif %}
+  <p class="letter-date">{{ letter.dateline }}</p>
+  <h1 class="letter-subject">{{ letter.subject }}</h1>
+  <p class="letter-salutation">{{ letter.salutation }}</p>
+  <main class="letter-body">
+    {% for paragraph in letter.paragraphs %}<p>{{ paragraph }}</p>{% endfor %}
+  </main>
+  <footer class="letter-closing">
+    <p>{{ letter.closing }}</p>
+    <p class="letter-signature">{{ sender.full_name }}</p>
+  </footer>
+</div>
+</body>
+</html>

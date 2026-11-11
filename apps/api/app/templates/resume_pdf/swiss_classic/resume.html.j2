@@ -12,6 +12,10 @@
   {% if contact.href -%}<a href="{{ contact.href }}" rel="noreferrer">{{ label or contact.value }}</a>{%- else -%}{{ label or contact.value }}{%- endif %}
 {%- endmacro %}
 
+{% macro rich(statement) -%}
+  {% for segment in statement.segments %}{% if segment.strong %}<strong>{{ segment.text }}</strong>{% else %}{{ segment.text }}{% endif %}{% endfor %}
+{%- endmacro %}
+
 {% macro render_section(section) %}
   {% if section == "summary" and resume.summary %}
   <section class="resume-section section-summary">
@@ -31,7 +35,7 @@
         {% if experience.location %}<p class="item-location">{{ experience.location }}</p>{% endif %}
       </div>
       <ul>
-        {% for bullet in experience.bullets %}<li>{{ bullet.text }}</li>{% endfor %}
+        {% for bullet in experience.bullets %}<li>{{ rich(bullet) }}</li>{% endfor %}
       </ul>
     </article>
     {% endfor %}
@@ -56,11 +60,9 @@
   {% elif section == "languages" and resume.languages %}
   <section class="resume-section section-languages">
     <h2>{{ resume.section_titles.languages }}</h2>
-    <div class="language-list">
-      {% for language in resume.languages %}
-      <p>{{ language.name }}</p><p>{{ language.proficiency }}</p>
-      {% endfor %}
-    </div>
+    <p class="language-line">
+      {% for language in resume.languages %}<span class="language-entry"><strong>{{ language.name }}:</strong> {{ language.proficiency }}</span>{% if not loop.last %} {% endif %}{% endfor %}
+    </p>
   </section>
   {% elif section == "skills" and resume.skill_groups %}
   <section class="resume-section section-skills">
@@ -81,7 +83,7 @@
         {% if project.role %}<p class="item-period">{{ project.role }}</p>{% endif %}
       </div>
       {% if project.url %}<p class="project-url"><a href="{{ project.url }}" rel="noreferrer">{{ project.url }}</a></p>{% endif %}
-      <ul>{% for bullet in project.bullets %}<li>{{ bullet.text }}</li>{% endfor %}</ul>
+      <ul>{% for bullet in project.bullets %}<li>{{ rich(bullet) }}</li>{% endfor %}</ul>
     </article>
     {% endfor %}
   </section>
