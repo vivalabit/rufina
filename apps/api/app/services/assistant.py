@@ -11,6 +11,7 @@ from typing import Any
 
 from pydantic import ValidationError
 
+from app.core.ai_models import is_openclaw_backend
 from app.core.settings import Settings
 from app.models.assistant import (
     AddApplicationNoteProposal,
@@ -215,11 +216,7 @@ def create_assistant_ai_facade(settings: Settings) -> AssistantAIFacade:
         ),
         command=settings.openclaw_command,
         agent_id=settings.openclaw_assistant_agent_id,
-        model=(
-            settings.openai_api_model
-            if settings.ai_backend_mode == "openai_api"
-            else settings.openclaw_assistant_model
-        ),
+        model=settings.main_model_value(),
         thinking=settings.ai_reasoning_for(settings.openclaw_assistant_thinking),
         timeout_seconds=settings.ai_timeout_for(settings.openclaw_assistant_timeout_seconds),
         max_prompt_chars=settings.openclaw_assistant_max_prompt_chars,
@@ -350,7 +347,7 @@ async def run_ai_assistant(
             log_assistant_event(
                 (
                     "assistant.openclaw.completed"
-                    if backend_result.backend == "openclaw_codex"
+                    if is_openclaw_backend(backend_result.backend)
                     else "assistant.completed"
                 ),
                 thread_id=thread_id,
@@ -371,7 +368,7 @@ async def run_ai_assistant(
             log_assistant_event(
                 (
                     "assistant.openclaw.attempt_failed"
-                    if selected_backend.name == "openclaw_codex"
+                    if is_openclaw_backend(selected_backend.name)
                     else "assistant.attempt_failed"
                 ),
                 thread_id=thread_id,
@@ -466,7 +463,7 @@ async def run_ai_attempt(
                 code="incomplete_response",
                 retryable=exc.retryable,
             ) from exc
-        if backend.name != "openclaw_codex":
+        if not is_openclaw_backend(backend.name):
             raise AssistantError(
                 "The assistant service failed to generate a response. Please try again.",
                 code=exc.code or "provider_error",

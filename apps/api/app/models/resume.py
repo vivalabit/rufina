@@ -18,6 +18,7 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.ai_models import AIBackendMode
 from app.core.database import Base, OwnerScoped
 from app.models.work_experience import (
     WorkProject,
@@ -746,7 +747,7 @@ class MasterResumeImportResponse(StrictResumeModel):
         max_length=len(MASTER_RESUME_REVIEW_SECTIONS),
     )
     model: StrictText = Field(max_length=160)
-    backend: Literal["openclaw_codex", "openai_api"]
+    backend: AIBackendMode
 
     @model_validator(mode="after")
     def validate_review_sections(self) -> MasterResumeImportResponse:

@@ -74,11 +74,7 @@ def create_master_resume_import_ai_facade(
 ) -> MasterResumeImportAIFacade:
     return MasterResumeImportAIFacade(
         backend=create_configured_ai_backend(settings),
-        model=(
-            settings.openai_api_model
-            if settings.ai_backend_mode == "openai_api"
-            else ""
-        ),
+        model=settings.profile_import_model_value(),
         agent_id=settings.openclaw_agent_id,
         thinking=settings.ai_reasoning_for(
             settings.openclaw_resume_import_thinking

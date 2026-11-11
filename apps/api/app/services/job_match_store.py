@@ -8,6 +8,7 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
+from app.core.ai_models import AI_SOURCES
 from app.core.identity import get_bound_owner_id
 from app.models.ai_match import AiMatchMetadata
 from app.models.jobs import JobMatchRecord, StoredJobRecord
@@ -58,7 +59,7 @@ def latest_match_record(
             JobMatchRecord.profile_hash == profile_hash,
             JobMatchRecord.vacancy_hash == vacancy_hash,
             JobMatchRecord.matcher_version == MATCHER_VERSION,
-            JobMatchRecord.source.in_(("openclaw_codex", "openai_api", "local")),
+            JobMatchRecord.source.in_(AI_SOURCES),
             JobMatchRecord.provider_error.is_(None),
         )
         .order_by(JobMatchRecord.created_at.desc(), JobMatchRecord.id.desc())

@@ -1,6 +1,7 @@
-from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+from app.core.ai_models import AISource
 
 
 class AiMatchScore(BaseModel):
@@ -16,10 +17,10 @@ class AiMatchMetadata(AiMatchScore):
     profile_hash: str = Field(alias="profileHash")
     vacancy_hash: str = Field(alias="vacancyHash")
     model: str
-    backend: Literal["openclaw_codex", "openai_api", "local"]
+    backend: AISource
     prompt_version: str = Field(alias="promptVersion")
     cache_key: str = Field(alias="cacheKey")
-    source: Literal["openclaw_codex", "openai_api", "local"]
+    source: AISource
     updated_at: str = Field(alias="updatedAt")
     provider_error: str | None = Field(default=None, alias="providerError", max_length=240)
     revision: str | None = None

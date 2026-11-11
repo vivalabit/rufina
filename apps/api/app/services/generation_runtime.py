@@ -7,7 +7,7 @@ import shutil
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
-from app.services.ai_backend import AIBackendMode
+from app.core.ai_models import AI_BACKEND_MODES, AIBackendMode, is_direct_api_backend
 from app.services.generation_resources import INSTRUCTION_VERSION, UPSTREAM_SHA
 
 RuntimeStatus = Literal["ready", "missing"]
@@ -44,9 +44,12 @@ class GenerationRuntimeReport:
 
 def snapshot_generation_execution(settings: Any) -> GenerationExecutionSnapshot:
     backend: AIBackendMode = settings.ai_backend_mode
-    if backend == "openai_api":
-        model = settings.openai_api_model
-        reasoning = settings.openai_api_reasoning_effort
+    if is_direct_api_backend(backend):
+        model, reasoning = (
+            (settings.anthropic_api_model, settings.anthropic_api_effort)
+            if backend == "anthropic_api"
+            else (settings.openai_api_model, settings.openai_api_reasoning_effort)
+        )
         timeout = settings.openai_api_timeout_seconds
         attempts = settings.openai_api_max_attempts
         backoff = settings.openai_api_retry_backoff_seconds
@@ -80,16 +83,21 @@ def probe_generation_runtime(
         _command_dependency("pdftoppm", which),
         _module_dependency("pypdf"),
     ]
-    if backend == "openai_api":
+    if is_direct_api_backend(backend):
+        provider, key, env_name = (
+            ("Anthropic", getattr(settings, "anthropic_api_key", ""), "ANTHROPIC_API_KEY")
+            if backend == "anthropic_api"
+            else ("OpenAI", settings.openai_api_key, "OPENAI_API_KEY")
+        )
         dependencies.insert(
             0,
             RuntimeDependency(
-                name="openai_api",
-                status="ready" if settings.openai_api_key.strip() else "missing",
+                name=backend,
+                status="ready" if key.strip() else "missing",
                 detail=(
-                    "OpenAI API key configured"
-                    if settings.openai_api_key.strip()
-                    else "OPENAI_API_KEY is not configured"
+                    f"{provider} API key configured"
+                    if key.strip()
+                    else f"{env_name} is not configured"
                 ),
             ),
         )
@@ -109,7 +117,7 @@ def probe_both_generation_backends(
 ) -> dict[AIBackendMode, GenerationRuntimeReport]:
     return {
         backend: probe_generation_runtime(settings, backend=backend, which=which)
-        for backend in ("openai_api", "openclaw_codex")
+        for backend in AI_BACKEND_MODES
     }
 
 

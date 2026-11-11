@@ -5,6 +5,14 @@ from typing import Literal
 from fastapi import APIRouter, HTTPException, status
 from pydantic import BaseModel, Field, SecretStr
 
+from app.core.ai_models import (
+    AI_MODEL_CATALOG,
+    AIBackendMode,
+    backend_family,
+    default_workload_model,
+    is_openclaw_backend,
+    model_family,
+)
 from app.core.settings import (
     REPO_ROOT,
     get_settings,
@@ -17,6 +25,10 @@ router = APIRouter()
 
 BRIGHTDATA_API_KEY_ENV = "BRIGHTDATA_API_KEY"
 AI_BACKEND_ENV = "AI_BACKEND"
+ANTHROPIC_API_KEY_ENV = "ANTHROPIC_API_KEY"
+ANTHROPIC_API_MODEL_ENV = "ANTHROPIC_API_MODEL"
+ANTHROPIC_API_EFFORT_ENV = "ANTHROPIC_API_EFFORT"
+DOCUMENT_GENERATION_MODEL_ENV = "DOCUMENT_GENERATION_MODEL"
 OPENAI_API_KEY_ENV = "OPENAI_API_KEY"
 OPENAI_API_MODEL_ENV = "OPENAI_API_MODEL"
 OPENAI_API_REASONING_EFFORT_ENV = "OPENAI_API_REASONING_EFFORT"
@@ -37,14 +49,27 @@ JOB_SCREENING_MAX_ATTEMPTS_ENV = "JOB_SCREENING_MAX_ATTEMPTS"
 JOB_SCREENING_MAX_DESCRIPTION_CHARS_ENV = "JOB_SCREENING_MAX_DESCRIPTION_CHARS"
 TASKO_SETTINGS_FILE_ENV = "TASKO_SETTINGS_FILE"
 
-AIBackendName = Literal["openclaw_codex", "openai_api"]
+AIBackendName = AIBackendMode
 ReasoningEffort = Literal["off", "none", "low", "medium", "high", "xhigh", "max"]
+AnthropicEffort = Literal["low", "medium", "high", "xhigh", "max"]
+
+
+class AIModelOption(BaseModel):
+    value: str
+    label: str
 
 
 class AppSettingsResponse(BaseModel):
     has_brightdata_api_key: bool
     brightdata_api_key_preview: str = ""
     ai_backend: AIBackendName
+    ai_model_family: Literal["openai", "anthropic"]
+    ai_model_options: list[AIModelOption]
+    anthropic_api_key_configured: bool
+    anthropic_api_key_preview: str = ""
+    anthropic_api_model: str
+    anthropic_api_effort: AnthropicEffort
+    document_generation_model: str
     openai_api_key_configured: bool
     openai_api_key_preview: str = ""
     openai_api_model: str
@@ -69,6 +94,10 @@ class AppSettingsResponse(BaseModel):
 class AppSettingsUpdateRequest(BaseModel):
     brightdata_api_key: str | None = Field(default=None, max_length=4096)
     ai_backend: AIBackendName | None = None
+    anthropic_api_key: SecretStr | None = None
+    anthropic_api_model: str | None = Field(default=None, max_length=256)
+    anthropic_api_effort: AnthropicEffort | None = None
+    document_generation_model: str | None = Field(default=None, max_length=256)
     openai_api_key: SecretStr | None = None
     openai_api_model: str | None = Field(default=None, max_length=256)
     openai_api_reasoning_effort: ReasoningEffort | None = None
@@ -155,8 +184,19 @@ def build_settings_response() -> AppSettingsResponse:
     settings = get_settings()
     brightdata_api_key = settings.brightdata_api_key or ""
     openai_api_key = settings.openai_api_key.strip()
+    anthropic_api_key = settings.anthropic_api_key.strip()
+    family = backend_family(settings.ai_backend_mode)
 
     return AppSettingsResponse(
+        ai_model_family=family,
+        ai_model_options=[
+            AIModelOption(value=value, label=label) for value, label in AI_MODEL_CATALOG[family]
+        ],
+        anthropic_api_key_configured=bool(anthropic_api_key),
+        anthropic_api_key_preview=mask_secret(anthropic_api_key),
+        anthropic_api_model=settings.anthropic_api_model,
+        anthropic_api_effort=settings.anthropic_api_effort,
+        document_generation_model=settings.document_model_value(),
         has_brightdata_api_key=bool(brightdata_api_key.strip()),
         brightdata_api_key_preview=mask_secret(brightdata_api_key.strip()),
         ai_backend=settings.ai_backend_mode,
@@ -202,10 +242,35 @@ def update_app_settings(payload: AppSettingsUpdateRequest) -> AppSettingsRespons
             detail="OpenAI API key is too long",
         )
 
+    submitted_anthropic_key = (
+        payload.anthropic_api_key.get_secret_value().strip()
+        if payload.anthropic_api_key is not None
+        else None
+    )
+    if submitted_anthropic_key is not None and len(submitted_anthropic_key) > 4096:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Anthropic API key is too long",
+        )
+
     if payload.brightdata_api_key is not None:
         updates[BRIGHTDATA_API_KEY_ENV] = payload.brightdata_api_key.strip()
     if payload.ai_backend is not None:
         updates[AI_BACKEND_ENV] = payload.ai_backend
+    if submitted_anthropic_key is not None:
+        updates[ANTHROPIC_API_KEY_ENV] = submitted_anthropic_key
+    if payload.anthropic_api_model is not None:
+        anthropic_model = payload.anthropic_api_model.strip()
+        if not anthropic_model:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Anthropic API model cannot be empty",
+            )
+        updates[ANTHROPIC_API_MODEL_ENV] = anthropic_model
+    if payload.anthropic_api_effort is not None:
+        updates[ANTHROPIC_API_EFFORT_ENV] = payload.anthropic_api_effort
+    if payload.document_generation_model is not None:
+        updates[DOCUMENT_GENERATION_MODEL_ENV] = payload.document_generation_model.strip()
     if submitted_openai_key is not None:
         updates[OPENAI_API_KEY_ENV] = submitted_openai_key
     if payload.openai_api_model is not None:
@@ -282,9 +347,42 @@ def update_app_settings(payload: AppSettingsUpdateRequest) -> AppSettingsRespons
             status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail="Configure an OpenAI API key before enabling openai_api",
         )
-    if next_backend == "openclaw_codex":
+    next_anthropic_key = (
+        submitted_anthropic_key
+        if submitted_anthropic_key is not None
+        else current.anthropic_api_key.strip()
+    )
+    if next_backend == "anthropic_api" and not next_anthropic_key:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Configure an Anthropic API key before enabling anthropic_api",
+        )
+    if is_openclaw_backend(next_backend):
         updates[AI_MATCH_REASONING_ENV] = "off"
         updates[JOB_SCREENING_REASONING_ENV] = "off"
+    # Every workload must use a model of the selected provider. Reject an
+    # explicit cross-provider choice and move untouched workloads to defaults.
+    next_family = backend_family(next_backend)
+    for env_name, workload, submitted, label in (
+        (AI_MATCH_MODEL_ENV, "match", payload.ai_match_model, "Full AI Match"),
+        (JOB_SCREENING_MODEL_ENV, "screening", payload.job_screening_model, "pre-screening"),
+        (
+            DOCUMENT_GENERATION_MODEL_ENV,
+            "documents",
+            payload.document_generation_model,
+            "document",
+        ),
+    ):
+        if submitted is not None and submitted.strip():
+            if model_family(updates[env_name]) not in {next_family, None}:
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                    detail=f"The {label} model does not belong to the selected AI provider",
+                )
+        elif next_family != backend_family(current.ai_backend_mode):
+            updates[env_name] = (
+                "" if workload == "documents" else default_workload_model(next_backend, workload)
+            )
 
     if not updates:
         return build_settings_response()

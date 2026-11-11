@@ -1,10 +1,10 @@
 from datetime import datetime
-from typing import Literal
 
 from pydantic import BaseModel, Field
 from sqlalchemy import DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.ai_models import AIBackendMode
 from app.core.database import Base, OwnerScoped
 
 
@@ -33,7 +33,7 @@ class AiRetentionUpdateRequest(BaseModel):
 
 class AiPrivacySettingsPayload(BaseModel):
     provider_name: str = Field(alias="providerName")
-    current_backend: Literal["openclaw_codex", "openai_api"] = Field(
+    current_backend: AIBackendMode = Field(
         alias="currentBackend"
     )
     retention_days: int = Field(alias="retentionDays")

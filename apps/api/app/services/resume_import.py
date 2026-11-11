@@ -12,6 +12,7 @@ from xml.etree import ElementTree
 
 from pydantic import BaseModel, ConfigDict
 
+from app.core.ai_models import is_openclaw_backend
 from app.core.settings import Settings
 from app.models.profile import ImportedEducationEntry, ImportedExperienceEntry
 from app.services.ai_backend import (
@@ -210,11 +211,7 @@ def create_resume_import_ai_facade(settings: Settings) -> ResumeImportAIFacade:
         timeout_seconds=settings.ai_timeout_for(
             settings.openclaw_resume_import_timeout_seconds
         ),
-        model=(
-            settings.openai_api_model
-            if settings.ai_backend_mode == "openai_api"
-            else ""
-        ),
+        model=settings.profile_import_model_value(),
         max_attempts=settings.ai_max_attempts_for(1),
         retry_backoff_seconds=settings.ai_retry_backoff_for(0),
     )
@@ -611,20 +608,20 @@ def run_resume_ai_backend(
         if exc.code == "runtime_missing":
             message = (
                 f"OpenClaw command was not found: {command}"
-                if selected_backend.name == "openclaw_codex"
+                if is_openclaw_backend(selected_backend.name)
                 else "The configured AI runtime is unavailable"
             )
             raise ResumeImportError(message) from exc
         if exc.code == "timeout":
             message = (
                 "OpenClaw resume import timed out"
-                if selected_backend.name == "openclaw_codex"
+                if is_openclaw_backend(selected_backend.name)
                 else "AI resume import timed out"
             )
             raise ResumeImportError(message) from exc
         message = (
             summarize_openclaw_error(str(exc))
-            if selected_backend.name == "openclaw_codex"
+            if is_openclaw_backend(selected_backend.name)
             else "AI resume import failed"
         )
         raise ResumeImportError(message) from exc

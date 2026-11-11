@@ -9,6 +9,7 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
+from app.core.ai_models import is_openclaw_backend
 from app.core.settings import Settings
 from app.models.profile import CandidateMatchSnapshotRecord, ProfilePayload
 from app.services.ai_backend import (
@@ -267,8 +268,8 @@ class CandidateSnapshotAIFacade:
 
 def candidate_snapshot_model(settings: Settings) -> str:
     return (
-        settings.openai_api_model
-        if settings.ai_backend_mode == "openai_api"
+        settings.direct_api_model_value()
+        if settings.uses_direct_api
         else settings.openclaw_ai_match_model
     )
 
@@ -327,7 +328,7 @@ def build_snapshot_with_ai(
             raise CandidateSnapshotError("AI candidate snapshot timed out") from exc
         message = (
             summarize_openclaw_error(str(exc))
-            if backend.name == "openclaw_codex"
+            if is_openclaw_backend(backend.name)
             else "AI candidate snapshot failed"
         )
         raise CandidateSnapshotError(message) from exc

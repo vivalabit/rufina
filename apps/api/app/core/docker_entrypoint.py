@@ -24,7 +24,7 @@ def load_runtime_settings(settings_file: str | None) -> None:
 def main() -> None:
     load_runtime_settings(os.environ.get("TASKO_SETTINGS_FILE"))
 
-    if os.environ.get("AI_BACKEND") == "openclaw_codex":
+    if os.environ.get("AI_BACKEND") in {"openclaw_codex", "openclaw_claude"}:
         subprocess.run(
             [sys.executable, "-m", "app.core.openclaw_state"],
             check=True,

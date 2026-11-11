@@ -1,15 +1,16 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
 from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.ai_models import AISource
 from app.core.database import Base, OwnerScoped
 
 
 def utc_now() -> datetime:
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 class ConversationRecord(OwnerScoped, Base):
@@ -68,7 +69,7 @@ class MessageRecord(Base):
 
 ContextKind = Literal["profile", "job", "application"]
 MessageRole = Literal["user", "assistant"]
-MessageSource = Literal["openclaw_codex", "openai_api", "local"]
+MessageSource = AISource
 MessageStatus = Literal["generating", "complete", "stopped", "error"]
 
 

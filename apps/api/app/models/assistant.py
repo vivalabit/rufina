@@ -1,10 +1,11 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field
 from sqlalchemy import JSON, DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
 
+from app.core.ai_models import AISource
 from app.core.database import Base, OwnerScoped
 
 
@@ -68,7 +69,7 @@ class AssistantStreamRequest(AssistantChatRequest):
 
 class AssistantChatResponse(BaseModel):
     message: str
-    source: Literal["openclaw_codex", "openai_api", "local"] = "openclaw_codex"
+    source: AISource = "openclaw_codex"
     metadata: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -186,5 +187,5 @@ class AppliedAssistantActionRecord(OwnerScoped, Base):
     applied_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
     )

@@ -19,6 +19,7 @@ from pydantic import (
     ValidationError,
 )
 
+from app.core.ai_models import is_openclaw_backend
 from app.core.settings import Settings
 from app.models.ai_match import AiMatchMetadata, AiMatchScore
 from app.models.profile import ProfilePayload
@@ -558,7 +559,7 @@ def score_with_openclaw(
         )
     except AIBackendError as exc:
         if exc.code == "runtime_missing":
-            if selected_backend.name == "openclaw_codex":
+            if is_openclaw_backend(selected_backend.name):
                 message = (
                     f"OpenClaw command was not found: {command}. Install OpenClaw or set "
                     "OPENCLAW_COMMAND to the executable path."
@@ -570,7 +571,7 @@ def score_with_openclaw(
             raise AiMatchError("AI vacancy matching timed out") from exc
         message = (
             summarize_openclaw_error(str(exc))
-            if selected_backend.name == "openclaw_codex"
+            if is_openclaw_backend(selected_backend.name)
             else "AI vacancy matching failed"
         )
         raise AiMatchError(message) from exc

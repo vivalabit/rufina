@@ -25,20 +25,21 @@ from openai import (
     PermissionDeniedError,
     RateLimitError,
 )
+import anthropic
 from pydantic import BaseModel
 
-AIBackendMode = Literal["openclaw_codex", "openai_api"]
-
-AI_BACKEND_PROVIDER_NAMES: dict[AIBackendMode, str] = {
-    "openclaw_codex": "OpenAI via OpenClaw/Codex",
-    "openai_api": "OpenAI Responses API",
-}
+from app.core.ai_models import (
+    AI_BACKEND_PROVIDER_NAMES,  # noqa: F401 - re-exported for existing importers
+    AIBackendMode,
+    ai_backend_provider_name,  # noqa: F401 - re-exported for existing importers
+    is_openclaw_backend,
+    openclaw_model_id,
+    provider_model_id,
+)
 
 OPENCLAW_MULTIMODAL_RUNNER = Path(__file__).with_name("openclaw_multimodal_runner.mjs")
-
-
-def ai_backend_provider_name(backend: str) -> str:
-    return AI_BACKEND_PROVIDER_NAMES.get(backend, "Local processing")
+ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS = 16_000
+ANTHROPIC_WEB_SEARCH_TOOL = {"type": "web_search_20250305", "name": "web_search", "max_uses": 6}
 
 
 PromptTransport = Literal["argument", "file"]
@@ -121,11 +122,14 @@ AsyncProcessFactory = Callable[..., Any]
 
 
 class OpenClawCodexBackend:
+    """Runs a configured OpenClaw agent; the model family follows the backend name."""
+
     name: AIBackendMode = "openclaw_codex"
 
     def __init__(
         self,
         *,
+        name: AIBackendMode = "openclaw_codex",
         command: str = "openclaw",
         sync_runner: SyncRunner = subprocess.run,
         async_process_factory: AsyncProcessFactory = asyncio.create_subprocess_exec,
@@ -133,6 +137,7 @@ class OpenClawCodexBackend:
         include_cli_timeout: bool = False,
         model_after_timeout: bool = False,
     ) -> None:
+        self.name = name
         self.command = command
         self.executable = shutil.which(command) or command
         self.sync_runner = sync_runner
@@ -310,14 +315,15 @@ class OpenClawCodexBackend:
             arguments.extend(["--message-file", str(prompt_file)])
         else:
             arguments.extend(["--message", request.prompt])
-        if request.model and not self.model_after_timeout:
-            arguments.extend(["--model", request.model])
+        model = openclaw_model_id(self.name, request.model)
+        if model and not self.model_after_timeout:
+            arguments.extend(["--model", model])
         if request.thinking:
             arguments.extend(["--thinking", request.thinking])
         if self.include_cli_timeout:
             arguments.extend(["--timeout", str(request.timeout_seconds)])
-        if request.model and self.model_after_timeout:
-            arguments.extend(["--model", request.model])
+        if model and self.model_after_timeout:
+            arguments.extend(["--model", model])
         arguments.append("--json")
         return arguments
 
@@ -483,6 +489,251 @@ class OpenAIAPIBackend:
             session_id=str(getattr(response, "id", "") or ""),
             raw_response=raw_response,
         )
+
+
+class AnthropicAPIBackend:
+    """Anthropic Messages API with structured output, vision input and web search."""
+
+    name: AIBackendMode = "anthropic_api"
+
+    def __init__(
+        self,
+        *,
+        api_key: str,
+        base_url: str = "https://api.anthropic.com",
+        default_model: str = "",
+        max_output_tokens: int = ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS,
+        client: Any | None = None,
+        async_client: Any | None = None,
+    ) -> None:
+        self.api_key = api_key
+        self.base_url = base_url.rstrip("/")
+        self.default_model = default_model
+        self.max_output_tokens = max_output_tokens
+        self.client = client
+        self.async_client = async_client
+
+    def generate(self, request: AIRequest) -> AIResult:
+        started_at = time.perf_counter()
+        client = self._sync_client()
+        options = self._request_options(request)
+        try:
+            if _anthropic_uses_schema(request):
+                try:
+                    response = client.messages.parse(
+                        **options, output_format=request.response_model
+                    )
+                except anthropic.BadRequestError as exc:
+                    if not _anthropic_schema_rejected(exc):
+                        raise
+                    response = client.messages.create(**self._schema_fallback_options(request))
+            else:
+                response = client.messages.create(**options)
+        except anthropic.AnthropicError as exc:
+            raise anthropic_sdk_error(exc) from exc
+        return self._result(response, request, started_at)
+
+    async def agenerate(self, request: AIRequest) -> AIResult:
+        started_at = time.perf_counter()
+        client = self._async_client()
+        options = self._request_options(request)
+        try:
+            if _anthropic_uses_schema(request):
+                try:
+                    response = await client.messages.parse(
+                        **options, output_format=request.response_model
+                    )
+                except anthropic.BadRequestError as exc:
+                    if not _anthropic_schema_rejected(exc):
+                        raise
+                    response = await client.messages.create(
+                        **self._schema_fallback_options(request)
+                    )
+            else:
+                response = await client.messages.create(**options)
+        except anthropic.AnthropicError as exc:
+            raise anthropic_sdk_error(exc) from exc
+        return self._result(response, request, started_at)
+
+    def _require_api_key(self) -> str:
+        if not self.api_key.strip():
+            raise AIBackendError(
+                "ANTHROPIC_API_KEY is required for anthropic_api mode",
+                code="authentication",
+            )
+        return self.api_key
+
+    def _sync_client(self) -> Any:
+        if self.client is None:
+            self.client = anthropic.Anthropic(
+                api_key=self._require_api_key(),
+                base_url=self.base_url,
+                max_retries=0,
+            )
+        return self.client
+
+    def _async_client(self) -> Any:
+        if self.async_client is None:
+            self.async_client = anthropic.AsyncAnthropic(
+                api_key=self._require_api_key(),
+                base_url=self.base_url,
+                max_retries=0,
+            )
+        return self.async_client
+
+    def _model(self, request: AIRequest) -> str:
+        return provider_model_id(request.model or self.default_model)
+
+    def _request_options(self, request: AIRequest, *, prompt: str | None = None) -> dict[str, Any]:
+        content: list[dict[str, Any]] = [
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": image.media_type,
+                    "data": base64.b64encode(image.content).decode("ascii"),
+                },
+            }
+            for image in request.image_inputs
+        ]
+        content.append({"type": "text", "text": prompt if prompt is not None else request.prompt})
+        model = self._model(request)
+        options: dict[str, Any] = {
+            "model": model,
+            "max_tokens": self.max_output_tokens,
+            "messages": [{"role": "user", "content": content}],
+            "output_config": {"effort": anthropic_effort(request.thinking, model=model)},
+            "timeout": request.timeout_seconds,
+        }
+        if request.enable_web_search:
+            options["tools"] = [dict(ANTHROPIC_WEB_SEARCH_TOOL)]
+        return options
+
+    def _schema_fallback_options(self, request: AIRequest) -> dict[str, Any]:
+        """Ask for the schema in the prompt when the provider rejects it as a format."""
+        assert request.response_model is not None
+        schema = json.dumps(request.response_model.model_json_schema(), ensure_ascii=False)
+        prompt = (
+            f"{request.prompt}\n\nReturn only one JSON object that validates against this "
+            f"JSON Schema, with no surrounding text:\n{schema}"
+        )
+        return self._request_options(request, prompt=prompt)
+
+    def _result(self, response: Any, request: AIRequest, started_at: float) -> AIResult:
+        stop_reason = str(getattr(response, "stop_reason", "") or "")
+        if stop_reason == "refusal":
+            raise AIBackendError("The model declined this request", code="refusal")
+        if stop_reason == "max_tokens":
+            raise AIBackendError(
+                "Anthropic response reached the output token limit",
+                code="incomplete_response",
+            )
+        text = "\n".join(
+            block_text
+            for block in getattr(response, "content", []) or []
+            if getattr(block, "type", "") == "text"
+            and (block_text := str(getattr(block, "text", "") or "").strip())
+        ).strip()
+        parsed = getattr(response, "parsed_output", None)
+        structured_data = (
+            parsed.model_dump(mode="json", by_alias=True)
+            if isinstance(parsed, BaseModel)
+            else parsed
+        )
+        if not text and structured_data is not None:
+            text = json.dumps(structured_data, ensure_ascii=False)
+        raw_response = serialize_openai_response(response)
+        if structured_data is None and (request.structured or request.response_model is not None):
+            structured_data = extract_structured_data(text, [])
+        usage = getattr(response, "usage", None)
+        input_tokens = sum(
+            nonnegative_int(getattr(usage, name, 0))
+            for name in (
+                "input_tokens",
+                "cache_creation_input_tokens",
+                "cache_read_input_tokens",
+            )
+        )
+        output_tokens = nonnegative_int(getattr(usage, "output_tokens", 0))
+        return AIResult(
+            text=text,
+            structured_data=structured_data,
+            model=str(getattr(response, "model", "") or self._model(request)),
+            backend=self.name,
+            usage=AIUsage(
+                input_tokens=input_tokens,
+                output_tokens=output_tokens,
+                total_tokens=input_tokens + output_tokens,
+                source="provider",
+            ),
+            latency_ms=round((time.perf_counter() - started_at) * 1000),
+            session_id=str(getattr(response, "id", "") or ""),
+            raw_response=raw_response,
+        )
+
+
+def _anthropic_uses_schema(request: AIRequest) -> bool:
+    # Web search results carry citations, which the provider does not combine
+    # with a JSON schema format; those requests are parsed from the reply text.
+    return request.response_model is not None and not request.enable_web_search
+
+
+def _anthropic_schema_rejected(exc: Exception) -> bool:
+    message = str(exc).lower()
+    return "schema" in message or "output_config" in message or "output_format" in message
+
+
+def anthropic_effort(thinking: str, *, model: str = "") -> str:
+    """Map the application's reasoning setting to an Anthropic effort level."""
+    effort = {"": "low", "off": "low", "none": "low", "minimal": "low"}.get(
+        thinking.strip().lower(), thinking.strip().lower()
+    )
+    if effort not in {"low", "medium", "high", "xhigh", "max"}:
+        return "medium"
+    if effort in {"xhigh", "max"} and "opus" not in model:
+        return "high"
+    return effort
+
+
+def anthropic_sdk_error(exc: Exception) -> AIBackendError:
+    status_code = getattr(exc, "status_code", None)
+    message = str(exc).strip()
+    if isinstance(exc, anthropic.APITimeoutError):
+        return AIBackendError("AI backend request timed out", code="timeout", retryable=True)
+    if isinstance(exc, anthropic.RateLimitError):
+        return AIBackendError(
+            message or "AI backend is rate-limited",
+            code="rate_limited",
+            retryable=True,
+            status_code=status_code or 429,
+        )
+    if isinstance(exc, anthropic.AuthenticationError):
+        return AIBackendError(
+            message or "AI backend authentication failed",
+            code="authentication",
+            status_code=status_code or 401,
+        )
+    if isinstance(exc, anthropic.PermissionDeniedError):
+        return AIBackendError(
+            message or "AI backend permission was denied",
+            code="permission_denied",
+            status_code=status_code or 403,
+        )
+    if isinstance(exc, anthropic.APIConnectionError):
+        return AIBackendError(
+            "AI backend could not reach the provider",
+            code="provider_unreachable",
+            retryable=True,
+        )
+    if isinstance(exc, anthropic.APIStatusError):
+        retryable = bool(status_code in {408, 409, 429, 529} or (status_code or 0) >= 500)
+        return AIBackendError(
+            message or "AI request was rejected",
+            code="provider_error" if retryable else "invalid_request",
+            retryable=retryable,
+            status_code=status_code,
+        )
+    return AIBackendError(message or "Anthropic SDK request failed", code="backend_error")
 
 
 def build_ai_result(
@@ -685,7 +936,7 @@ def extract_response_id(payloads: list[Any]) -> str:
 
 
 def normalize_openai_model(model: str) -> str:
-    return model.removeprefix("openai/")
+    return provider_model_id(model)
 
 
 def serialize_openai_response(response: Any) -> str:
@@ -776,14 +1027,19 @@ def create_ai_backend(
     openai_api_key: str = "",
     openai_api_base_url: str = "https://api.openai.com/v1",
     openai_api_model: str = "",
+    anthropic_api_key: str = "",
+    anthropic_api_base_url: str = "https://api.anthropic.com",
+    anthropic_api_model: str = "",
+    anthropic_api_max_output_tokens: int = ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS,
     sync_runner: SyncRunner = subprocess.run,
     async_process_factory: AsyncProcessFactory = asyncio.create_subprocess_exec,
     openclaw_prompt_transport: PromptTransport = "argument",
     openclaw_include_cli_timeout: bool = False,
     openclaw_model_after_timeout: bool = False,
 ) -> AIBackend:
-    if mode == "openclaw_codex":
+    if is_openclaw_backend(mode):
         return OpenClawCodexBackend(
+            name=mode,
             command=openclaw_command,
             sync_runner=sync_runner,
             async_process_factory=async_process_factory,
@@ -797,24 +1053,42 @@ def create_ai_backend(
             base_url=openai_api_base_url,
             default_model=openai_api_model,
         )
+    if mode == "anthropic_api":
+        return AnthropicAPIBackend(
+            api_key=anthropic_api_key,
+            base_url=anthropic_api_base_url,
+            default_model=anthropic_api_model,
+            max_output_tokens=anthropic_api_max_output_tokens,
+        )
     raise AIBackendError(f"Unsupported AI backend mode: {mode}", code="unsupported_backend")
 
 
 def create_configured_ai_backend(
     settings: Any,
     *,
+    mode: AIBackendMode | None = None,
+    model: str | None = None,
     sync_runner: SyncRunner = subprocess.run,
     async_process_factory: AsyncProcessFactory = asyncio.create_subprocess_exec,
     openclaw_prompt_transport: PromptTransport = "argument",
     openclaw_include_cli_timeout: bool = False,
     openclaw_model_after_timeout: bool = False,
 ) -> AIBackend:
+    """Build the backend from settings; `mode` and `model` pin a persisted run's choice."""
     return create_ai_backend(
-        mode=settings.ai_backend_mode,
+        mode=mode or settings.ai_backend_mode,
         openclaw_command=settings.openclaw_command,
         openai_api_key=settings.openai_api_key,
         openai_api_base_url=settings.openai_api_base_url,
-        openai_api_model=settings.openai_api_model,
+        openai_api_model=model or settings.openai_api_model,
+        anthropic_api_key=getattr(settings, "anthropic_api_key", ""),
+        anthropic_api_base_url=getattr(
+            settings, "anthropic_api_base_url", "https://api.anthropic.com"
+        ),
+        anthropic_api_model=model or getattr(settings, "anthropic_api_model", ""),
+        anthropic_api_max_output_tokens=getattr(
+            settings, "anthropic_api_max_output_tokens", ANTHROPIC_DEFAULT_MAX_OUTPUT_TOKENS
+        ),
         sync_runner=sync_runner,
         async_process_factory=async_process_factory,
         openclaw_prompt_transport=openclaw_prompt_transport,

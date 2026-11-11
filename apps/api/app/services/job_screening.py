@@ -20,6 +20,7 @@ from pydantic import (
     model_validator,
 )
 
+from app.core.ai_models import is_openclaw_backend
 from app.core.settings import Settings
 from app.models.job_search import ScreeningConfig, ScreeningSeniority
 from app.services.ai_backend import (
@@ -997,7 +998,7 @@ def has_control_characters(value: str) -> bool:
 
 
 def backend_error_feedback(exc: AIBackendError, *, backend: AIBackend) -> str:
-    if backend.name == "openclaw_codex":
+    if is_openclaw_backend(backend.name):
         return summarize_openclaw_error(str(exc))
     return f"AI backend error: {exc.code}"
 

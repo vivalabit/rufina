@@ -25,7 +25,7 @@ from app.services.ai_backend import (
     AIImageInput,
     AIRequest,
     AIResult,
-    create_ai_backend,
+    create_configured_ai_backend,
     generate_with_retries,
 )
 from app.services.candidate_profile import canonical_hash, profile_resume
@@ -674,12 +674,10 @@ class GenerationWorkflow:
     def _backend(self, run: ApplicationGenerationRunRecord) -> AIBackend:
         if self.backend_override is not None:
             return self.backend_override
-        return create_ai_backend(
+        return create_configured_ai_backend(
+            self.settings,
             mode=run.backend,
-            openclaw_command=self.settings.openclaw_command,
-            openai_api_key=self.settings.openai_api_key,
-            openai_api_base_url=self.settings.openai_api_base_url,
-            openai_api_model=run.model,
+            model=run.model,
             openclaw_prompt_transport="file",
         )
 

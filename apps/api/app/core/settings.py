@@ -5,6 +5,13 @@ from typing import Literal
 from pydantic import AliasChoices, Field, field_validator, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
+from app.core.ai_models import (
+    AIBackendMode,
+    is_direct_api_backend,
+    is_openclaw_backend,
+    resolve_workload_model,
+)
+
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_AI_MATCH_MODEL = "openai/gpt-6.1-sol"
 DEFAULT_JOB_SCREENING_MODEL = "openai/gpt-6-luna"
@@ -40,10 +47,18 @@ class Settings(BaseSettings):
     app_env: str = "local"
     database_url: str = "postgresql+psycopg://tasko:tasko@localhost:5432/tasko"
     redis_url: str = "redis://localhost:6379/0"
-    ai_backend_mode: Literal["openclaw_codex", "openai_api"] = Field(
+    ai_backend_mode: AIBackendMode = Field(
         default="openclaw_codex",
         validation_alias=AliasChoices("AI_BACKEND", "AI_BACKEND_MODE"),
     )
+    anthropic_api_key: str = ""
+    anthropic_api_base_url: str = "https://api.anthropic.com"
+    anthropic_api_model: str = "claude-sonnet-5-5"
+    anthropic_api_effort: Literal["low", "medium", "high", "xhigh", "max"] = "medium"
+    anthropic_api_max_output_tokens: int = Field(default=16_000, ge=1_024, le=64_000)
+    # Optional override for resume wording and cover letters. Empty means the
+    # backend's main model.
+    document_generation_model: str | None = Field(default=None, max_length=256)
     openai_api_key: str = ""
     openai_api_base_url: str = "https://api.openai.com/v1"
     openai_api_model: str = "gpt-6.1-sol"
@@ -2439,31 +2454,60 @@ class Settings(BaseSettings):
         r"172\.(1[6-9]|2\d|3[0-1])\.\d{1,3}\.\d{1,3}|192\.168\.\d{1,3}\.\d{1,3}):300[01]$"
     )
 
-    def ai_reasoning_for(self, openclaw_reasoning: str) -> str:
+    @property
+    def uses_direct_api(self) -> bool:
+        return is_direct_api_backend(self.ai_backend_mode)
+
+    def direct_api_model_value(self) -> str:
+        """Default model of the configured direct provider API."""
         return (
-            self.openai_api_reasoning_effort
-            if self.ai_backend_mode == "openai_api"
-            else openclaw_reasoning
+            self.anthropic_api_model
+            if self.ai_backend_mode == "anthropic_api"
+            else self.openai_api_model
         )
+
+    def direct_api_reasoning_value(self) -> str:
+        return (
+            self.anthropic_api_effort
+            if self.ai_backend_mode == "anthropic_api"
+            else self.openai_api_reasoning_effort
+        )
+
+    def main_model_value(self) -> str:
+        """Model for assistant chat and profile import on the active backend."""
+        return (
+            self.direct_api_model_value()
+            if self.uses_direct_api
+            else self.openclaw_assistant_model
+        )
+
+    def profile_import_model_value(self) -> str:
+        """Model for profile import; empty lets the Codex agent use its own default."""
+        if self.uses_direct_api:
+            return self.direct_api_model_value()
+        return self.openclaw_assistant_model if self.ai_backend_mode == "openclaw_claude" else ""
+
+    def document_model_value(self) -> str:
+        """Model for resume wording and cover letters on the active backend."""
+        return resolve_workload_model(
+            self.ai_backend_mode,
+            "documents",
+            self.document_generation_model or self.main_model_value(),
+        )
+
+    def ai_reasoning_for(self, openclaw_reasoning: str) -> str:
+        return self.direct_api_reasoning_value() if self.uses_direct_api else openclaw_reasoning
 
     def ai_timeout_for(self, openclaw_timeout_seconds: int) -> int:
-        return (
-            self.openai_api_timeout_seconds
-            if self.ai_backend_mode == "openai_api"
-            else openclaw_timeout_seconds
-        )
+        return self.openai_api_timeout_seconds if self.uses_direct_api else openclaw_timeout_seconds
 
     def ai_max_attempts_for(self, openclaw_max_attempts: int) -> int:
-        return (
-            self.openai_api_max_attempts
-            if self.ai_backend_mode == "openai_api"
-            else openclaw_max_attempts
-        )
+        return self.openai_api_max_attempts if self.uses_direct_api else openclaw_max_attempts
 
     def ai_retry_backoff_for(self, openclaw_retry_backoff_seconds: float) -> float:
         return (
             self.openai_api_retry_backoff_seconds
-            if self.ai_backend_mode == "openai_api"
+            if self.uses_direct_api
             else openclaw_retry_backoff_seconds
         )
 
@@ -2476,13 +2520,13 @@ class Settings(BaseSettings):
         if self.ai_match_model:
             return self.ai_match_model
         return (
-            self.openai_api_model
-            if self.ai_backend_mode == "openai_api"
+            self.direct_api_model_value()
+            if self.uses_direct_api
             else self.openclaw_ai_match_model
         )
 
     def ai_match_reasoning_value(self) -> str:
-        if self.ai_backend_mode == "openclaw_codex":
+        if is_openclaw_backend(self.ai_backend_mode):
             return "off"
         reasoning = self.ai_match_reasoning or self.ai_reasoning_for(
             self.openclaw_ai_match_thinking
@@ -2490,7 +2534,7 @@ class Settings(BaseSettings):
         return self.normalize_reasoning_for_backend(reasoning)
 
     def job_screening_reasoning_value(self) -> str:
-        if self.ai_backend_mode == "openclaw_codex":
+        if is_openclaw_backend(self.ai_backend_mode):
             return "off"
         return self.normalize_reasoning_for_backend(self.job_screening_reasoning)
 
@@ -2511,6 +2555,33 @@ class Settings(BaseSettings):
     def require_openai_key_for_direct_backend(self) -> "Settings":
         if self.ai_backend_mode == "openai_api" and not self.openai_api_key.strip():
             raise ValueError("OPENAI_API_KEY is required when AI_BACKEND=openai_api")
+        if self.ai_backend_mode == "anthropic_api" and not self.anthropic_api_key.strip():
+            raise ValueError("ANTHROPIC_API_KEY is required when AI_BACKEND=anthropic_api")
+        return self
+
+    @model_validator(mode="after")
+    def align_models_with_backend_family(self) -> "Settings":
+        """Keep every workload on the active provider after a backend switch.
+
+        A saved model from another provider would be rejected by the backend, so
+        it falls back to that workload's default for the active provider.
+        """
+        backend = self.ai_backend_mode
+        self.job_screening_model = resolve_workload_model(
+            backend, "screening", self.job_screening_model
+        )
+        self.openclaw_ai_match_model = resolve_workload_model(
+            backend, "match", self.openclaw_ai_match_model
+        )
+        self.openclaw_assistant_model = resolve_workload_model(
+            backend, "main", self.openclaw_assistant_model
+        )
+        if self.ai_match_model:
+            self.ai_match_model = resolve_workload_model(backend, "match", self.ai_match_model)
+        if self.document_generation_model:
+            self.document_generation_model = resolve_workload_model(
+                backend, "documents", self.document_generation_model
+            )
         return self
 
     model_config = SettingsConfigDict(

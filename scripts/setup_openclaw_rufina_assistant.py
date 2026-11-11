@@ -18,6 +18,17 @@ LEGACY_AGENT_ID = "tasko-assistant"
 DEFAULT_MODEL = "openai/gpt-6.1-sol"
 DEFAULT_SCREENING_MODEL = "openai/gpt-6-luna"
 DEFAULT_ALLOWED_MODELS = ("openai/gpt-6-astra",)
+# Claude models run through OpenClaw's Anthropic provider. "claude-cli" reuses a
+# Claude Code login on the same host; "openclaw" calls the API with a key that
+# OpenClaw holds.
+CLAUDE_MODEL = "anthropic/claude-sonnet-5-5"
+CLAUDE_SCREENING_MODEL = "anthropic/claude-haiku-5-5"
+CLAUDE_ALLOWED_MODELS = ("anthropic/claude-opus-5-5",)
+CLAUDE_RUNTIMES = ("claude-cli", "openclaw")
+PROVIDER_DEFAULTS = {
+    "openai": (DEFAULT_MODEL, DEFAULT_SCREENING_MODEL, DEFAULT_ALLOWED_MODELS),
+    "anthropic": (CLAUDE_MODEL, CLAUDE_SCREENING_MODEL, CLAUDE_ALLOWED_MODELS),
+}
 LEGACY_SCREENING_MODELS = {
     "openai/gpt-5-mini",
     "openai/gpt-5.4-nano",
@@ -113,10 +124,12 @@ def configure_agent(
     model: str,
     screening_model: str,
     allowed_models: Sequence[str] = DEFAULT_ALLOWED_MODELS,
+    claude_runtime: str = CLAUDE_RUNTIMES[0],
 ) -> None:
     agents = load_agents(command)
     allowed_plugins = load_allowed_plugins(command)
     model_keys = {model, screening_model, *allowed_models}
+    uses_codex = any(not key.startswith("anthropic/") for key in model_keys)
     provider_models = registered_provider_models(
         command,
         model_keys,
@@ -145,7 +158,10 @@ def configure_agent(
 
     prefix = f"agents.list[{index}]"
     operations = [
-        {"path": "plugins.allow", "value": sorted({*allowed_plugins, "codex"})},
+        {
+            "path": "plugins.allow",
+            "value": sorted({*allowed_plugins, *(("codex",) if uses_codex else ())}),
+        },
         *(
             {"path": f'agents.defaults.models["{model_key}"]', "value": {}}
             for model_key in sorted(model_keys)
@@ -167,7 +183,7 @@ def configure_agent(
         {
             "path": f"{prefix}.models",
             "value": {
-                model_key: {"agentRuntime": {"id": "codex"}}
+                model_key: {"agentRuntime": {"id": model_runtime(model_key, claude_runtime)}}
                 for model_key in sorted(model_keys)
             },
         },
@@ -215,8 +231,34 @@ def configure_agent(
     run_openclaw(command, "config", "validate")
 
 
+def model_runtime(model_key: str, claude_runtime: str) -> str:
+    return claude_runtime if model_key.startswith("anthropic/") else "codex"
+
+
+def provider_from_environment() -> str:
+    return "anthropic" if os.environ.get("AI_BACKEND") == "openclaw_claude" else "openai"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument(
+        "--provider",
+        choices=("openai", "anthropic", "both"),
+        default=provider_from_environment(),
+        help=(
+            "Model provider for the agent: openai (Codex), anthropic (Claude), or both. "
+            "Default follows AI_BACKEND (openclaw_claude selects anthropic)."
+        ),
+    )
+    parser.add_argument(
+        "--claude-runtime",
+        choices=CLAUDE_RUNTIMES,
+        default=CLAUDE_RUNTIMES[0],
+        help=(
+            "How Claude models run: claude-cli reuses the Claude Code login on this "
+            "host, openclaw uses the Anthropic API key configured in OpenClaw."
+        ),
+    )
     parser.add_argument(
         "--command",
         default=os.environ.get("OPENCLAW_COMMAND", "openclaw"),
@@ -224,30 +266,51 @@ def main() -> int:
     )
     parser.add_argument(
         "--model",
-        default=os.environ.get(
-            "RUFINA_ASSISTANT_MODEL",
-            os.environ.get("TASKO_ASSISTANT_MODEL", DEFAULT_MODEL),
+        default=None,
+        help=(
+            "Model for the isolated agent (default: RUFINA_ASSISTANT_MODEL, or "
+            f"{DEFAULT_MODEL} for openai and {CLAUDE_MODEL} for anthropic)"
         ),
-        help=f"Model for the isolated agent (default: {DEFAULT_MODEL})",
     )
     parser.add_argument(
         "--screening-model",
-        default=os.environ.get("JOB_SCREENING_MODEL", DEFAULT_SCREENING_MODEL),
+        default=None,
         help=(
-            "Cheap model allowed for vacancy screening "
-            f"(default: {DEFAULT_SCREENING_MODEL})"
+            "Cheap model allowed for vacancy screening (default: JOB_SCREENING_MODEL, or "
+            f"{DEFAULT_SCREENING_MODEL} for openai and {CLAUDE_SCREENING_MODEL} for anthropic)"
         ),
     )
     parser.add_argument(
         "--allow-model",
         action="append",
-        default=list(DEFAULT_ALLOWED_MODELS),
-        help=(
-            "Additional model allowed for this agent (repeatable; "
-            f"always includes {', '.join(DEFAULT_ALLOWED_MODELS)})"
-        ),
+        default=[],
+        help="Additional model allowed for this agent (repeatable)",
     )
     args = parser.parse_args()
+
+    primary = "openai" if args.provider == "both" else args.provider
+    default_model, default_screening_model, default_allowed = PROVIDER_DEFAULTS[primary]
+
+    def configured(value: str | None, *env_names: str, fallback: str) -> str:
+        # An explicit flag wins. An environment value only applies when it names
+        # a model of the selected provider.
+        if value:
+            return value
+        for name in env_names:
+            candidate = os.environ.get(name, "")
+            if candidate.startswith(f"{primary}/"):
+                return candidate
+        return fallback
+
+    args.model = configured(
+        args.model, "RUFINA_ASSISTANT_MODEL", "TASKO_ASSISTANT_MODEL", fallback=default_model
+    )
+    args.screening_model = configured(
+        args.screening_model, "JOB_SCREENING_MODEL", fallback=default_screening_model
+    )
+    args.allow_model = [*default_allowed, *args.allow_model]
+    if args.provider == "both":
+        args.allow_model += [CLAUDE_MODEL, CLAUDE_SCREENING_MODEL, *CLAUDE_ALLOWED_MODELS]
 
     command = shutil.which(args.command)
     if not command:
@@ -256,7 +319,12 @@ def main() -> int:
     workspace = install_workspace(Path.home())
     try:
         configure_agent(
-            command, workspace, args.model, args.screening_model, args.allow_model
+            command,
+            workspace,
+            args.model,
+            args.screening_model,
+            args.allow_model,
+            claude_runtime=args.claude_runtime,
         )
     except (subprocess.CalledProcessError, json.JSONDecodeError, RuntimeError) as exc:
         if isinstance(exc, subprocess.CalledProcessError) and exc.stderr:

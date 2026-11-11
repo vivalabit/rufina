@@ -13,6 +13,11 @@ services:
       TASKO_SETTINGS_FILE: /var/lib/tasko/settings.env
       CORS_ORIGINS: '["http://localhost:3000","http://127.0.0.1:3000"]'
       AI_BACKEND: ${AI_BACKEND:-openclaw_codex}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      ANTHROPIC_API_BASE_URL: ${ANTHROPIC_API_BASE_URL:-https://api.anthropic.com}
+      ANTHROPIC_API_MODEL: ${ANTHROPIC_API_MODEL:-claude-sonnet-5-5}
+      ANTHROPIC_API_EFFORT: ${ANTHROPIC_API_EFFORT:-medium}
+      DOCUMENT_GENERATION_MODEL: ${DOCUMENT_GENERATION_MODEL:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_API_BASE_URL: ${OPENAI_API_BASE_URL:-https://api.openai.com/v1}
       OPENAI_API_MODEL: ${OPENAI_API_MODEL:-gpt-6.1-sol}
@@ -56,6 +61,7 @@ services:
       - ${HOME}/.openclaw/npm:${HOME}/.openclaw/npm
       - ${HOME}/.openclaw/workspace-rufina-assistant:${HOME}/.openclaw/workspace-rufina-assistant
       - ${HOME}/.openclaw/agents/rufina-assistant:${HOME}/.openclaw/agents/rufina-assistant
+      - claude-cli-state:/root/.claude
     depends_on:
       postgres:
         condition: service_healthy
@@ -132,6 +138,7 @@ services:
       start_period: 5s
 
 volumes:
+  claude-cli-state:
   postgres-data:
   redis-data:
   tasko-config:

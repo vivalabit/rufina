@@ -528,3 +528,72 @@ def test_brightdata_only_update_keeps_active_ai_configuration(
     env_text = (tmp_path / ".env").read_text(encoding="utf-8")
     assert "BRIGHTDATA_API_KEY=new-bright-key" in env_text
     assert "OPENAI_API_KEY" not in env_text
+
+
+def test_anthropic_api_cannot_be_enabled_without_a_key(monkeypatch, tmp_path: Path) -> None:
+    monkeypatch.setenv("TASKO_SETTINGS_FILE", str(tmp_path / ".env"))
+    monkeypatch.setenv("AI_BACKEND", "openclaw_codex")
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "")
+    get_settings.cache_clear()
+
+    try:
+        response = TestClient(app).put("/settings", json={"ai_backend": "anthropic_api"})
+    finally:
+        get_settings.cache_clear()
+
+    assert response.status_code == 422
+    assert response.json()["detail"] == (
+        "Configure an Anthropic API key before enabling anthropic_api"
+    )
+    assert not (tmp_path / ".env").exists()
+
+
+def test_switching_to_claude_moves_workloads_and_never_returns_the_key(
+    monkeypatch,
+    tmp_path: Path,
+) -> None:
+    secret = "sk-ant-api03-secret-value-1234"
+    monkeypatch.setenv("TASKO_SETTINGS_FILE", str(tmp_path / ".env"))
+    for name, value in {
+        "AI_BACKEND": "openclaw_codex",
+        "ANTHROPIC_API_KEY": "",
+        "AI_MATCH_MODEL": "openai/gpt-6.1-sol",
+        "AI_MATCH_REASONING": "off",
+        "JOB_SCREENING_MODEL": "openai/gpt-6-luna",
+        "JOB_SCREENING_REASONING": "off",
+        "DOCUMENT_GENERATION_MODEL": "",
+    }.items():
+        monkeypatch.setenv(name, value)
+    get_settings.cache_clear()
+
+    try:
+        client = TestClient(app)
+        response = client.put(
+            "/settings",
+            json={"ai_backend": "anthropic_api", "anthropic_api_key": secret},
+        )
+        rejected = client.put("/settings", json={"job_screening_model": "openai/gpt-6-luna"})
+        upgraded = client.put(
+            "/settings", json={"document_generation_model": "anthropic/claude-opus-5-5"}
+        )
+    finally:
+        get_settings.cache_clear()
+
+    assert response.status_code == 200
+    body = response.json()
+    assert secret not in response.text
+    assert body["ai_backend"] == "anthropic_api"
+    assert body["ai_model_family"] == "anthropic"
+    assert body["anthropic_api_key_configured"] is True
+    assert body["anthropic_api_key_preview"] == "sk-a****1234"
+    assert body["ai_match_model"] == "anthropic/claude-sonnet-5-5"
+    assert body["job_screening_model"] == "anthropic/claude-haiku-5-5"
+    assert body["document_generation_model"] == "claude-sonnet-5-5"
+    assert [option["value"] for option in body["ai_model_options"]] == [
+        "anthropic/claude-sonnet-5-5",
+        "anthropic/claude-haiku-5-5",
+        "anthropic/claude-opus-5-5",
+    ]
+    assert rejected.status_code == 422
+    assert "does not belong to the selected AI provider" in rejected.json()["detail"]
+    assert upgraded.json()["document_generation_model"] == "anthropic/claude-opus-5-5"

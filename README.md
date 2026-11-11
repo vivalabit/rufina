@@ -174,10 +174,23 @@ Rufina reads configuration from the `.env` file in the repository root.
 
 ### AI Providers
 
-Rufina supports two AI backends:
+Rufina supports four AI backends:
 
 - `openai_api` — OpenAI Responses API using your API key.
+- `anthropic_api` — Anthropic Claude Messages API using your API key.
 - `openclaw_codex` — Codex through a configured OpenClaw agent.
+- `openclaw_claude` — Claude through a configured OpenClaw agent.
+
+Each workload uses its own model, selectable in Settings. Defaults:
+
+| Workload | OpenAI | Claude |
+| --- | --- | --- |
+| Vacancy pre-screening and vacancy parsing | GPT-6 Luna | Claude Haiku 5.5 |
+| Full AI Match, assistant, profile import | GPT-6.1 Sol | Claude Sonnet 5.5 |
+| Resume wording and cover letters | GPT-6.1 Sol | Claude Sonnet 5.5 (Claude Opus 5.5 optional) |
+
+A saved model from another provider than the active backend is ignored and the
+workload falls back to that provider's default.
 
 ```env
 AI_BACKEND=openai_api
@@ -205,6 +218,32 @@ screening, and select the same model in the application's AI settings. Additiona
 models can be registered with repeatable `--allow-model` arguments. Docker uses
 Codex CLI 0.165.0 explicitly; the older CLI bundled with OpenClaw 2026.7.1 cannot
 run these models.
+
+For Claude directly:
+
+```env
+AI_BACKEND=anthropic_api
+ANTHROPIC_API_KEY=your_anthropic_api_key
+ANTHROPIC_API_MODEL=claude-sonnet-5-5
+```
+
+For Claude through OpenClaw:
+
+```env
+AI_BACKEND=openclaw_claude
+OPENCLAW_ASSISTANT_MODEL=anthropic/claude-sonnet-5-5
+```
+
+```bash
+pnpm openclaw:setup --provider anthropic
+```
+
+By default the agent runs Claude through the Claude Code CLI login on the same
+host (`--claude-runtime claude-cli`). In Docker, log in once inside the API
+container with `docker compose exec api claude`; the login is kept in the
+`claude-cli-state` volume. Use `--claude-runtime openclaw` to call the Anthropic
+API with the key configured in OpenClaw instead, and `--provider both` to allow
+OpenAI and Claude models on the same agent.
 
 ### Application Document Pipeline
 
