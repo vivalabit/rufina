@@ -315,7 +315,9 @@ def normalize_workload(value: Any) -> str | None:
     text = optional_text(value)
     if not text:
         return None
-    return re.sub(r"\s*([–-])\s*", r"\1", text)
+    normalized = re.sub(r"\s*([–-])\s*", r"\1", text)
+    # Ignore broken responsive duplicates such as '80 – %'.
+    return normalized if re.fullmatch(r"\d{1,3}(?:[–-]\d{1,3})?%", normalized) else None
 
 
 def extract_job_id(value: Any) -> str | None:

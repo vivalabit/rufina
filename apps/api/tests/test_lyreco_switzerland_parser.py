@@ -1,482 +1,200 @@
 from __future__ import annotations
 
 import json
-from datetime import UTC, datetime
 
 import httpx
 import pytest
 
 from app.core.settings import Settings
-from app.models.job_search import JobSearchManualRunRequest
 from app.models.parsers import LinkedInSearchRequest
-from app.services.job_search_execution import parsed_job_to_stored_job
+from app.services.parser_validation import validate_parser_result
 from app.services.parsers.companies.base import DirectCompanyRequestError
 from app.services.parsers.companies.lyreco_switzerland import (
+    LYRECO_SWITZERLAND_JOBS_URL,
+    SWISS_COUNTRY_ID,
+    WORKDAY_ORIGIN,
+    WORKDAY_SITE,
     LyrecoSwitzerlandJobsParser,
-    normalize_job,
 )
 from app.services.vacancy_search import create_vacancy_search_runner
 
 
-def vacancy_record(index: int) -> dict[str, str]:
-    external_id = f"JR-{1_000_030_699 + index}"
-    if index == 2:
-        external_id += "-1"
+def posting(index: int, *, suffix: str = "", location: str = "Dietikon ZH") -> dict:
     return {
-        "internal_id": str(639 + index),
-        "external_id": external_id,
-        "slug": f"sales-manager-{index}-dietikon-zh",
-        "title": f"Sales Manager {index} (m/w/d) 100%",
-        "location": "Dietikon ZH",
-        "family": "SA - Corporate",
-        "employment_type": "Full time",
+        "title": f"Engineer {index}",
+        "externalPath": f"/job/Dietikon-ZH/Engineer-{index}_JR-{1000 + index}{suffix}",
+        "locationsText": location,
+        "timeType": "Full time",
+        "bulletFields": ["Switzerland"],
     }
 
 
-def job_url(record: dict[str, str]) -> str:
-    return f"https://www.lyreco.com/group/switzerland/de/jobs/{record['slug']}"
-
-
-def vacancy_card(
-    record: dict[str, str],
-    *,
-    location: str | None = None,
-    host: str = "www.lyreco.com",
-) -> str:
-    return f"""
-    <div class="job teaser views-row">
-      <h2><a href="https://{host}/group/switzerland/de/jobs/{record["slug"]}">
-        <div class="field field--name-title">{record["title"]}</div>
-      </a></h2>
-      <div class="job__info">
-        <div class="job__info__location">{location or record["location"]}</div>
-        <div class="job__info__family">{record["family"]}</div>
-        <div class="job__info__time">{record["employment_type"]}</div>
-      </div>
-    </div>
-    """
-
-
-def facet(*, value: str, filter_value: str, count: int, active: bool = False) -> str:
-    active_class = " is-active" if active else ""
-    return f"""
-    <a class="facet-item{active_class}"
-       data-drupal-facet-item-value="{value}"
-       data-drupal-facet-filter-value="{filter_value}"
-       data-drupal-facet-item-count="{count}">
-      <span class="facet-item__value">{value}</span>
-      <span class="facet-item__count">({count})</span>
-    </a>
-    """
-
-
-def listing_html(
-    records: list[dict[str, str]],
-    *,
-    total: int,
-    facet_total: int | None = None,
-    title: str = "Stelle finden | Lyreco Schweiz",
-    language: str = "de",
-    location: str | None = None,
-) -> str:
-    facet_total = total if facet_total is None else facet_total
-    cards = "".join(vacancy_card(record, location=location) for record in records)
-    return f"""
-    <html lang="{language}"><head><title>{title}</title>
-      <link rel="canonical" href="https://www.lyreco.com/group/switzerland/en/jobs">
-    </head><body><h1>Stelle finden</h1>
-      <div class="jobs-total-results">{total} Resultate</div>
-      {facet(value="dietikon zh", filter_value="job_location:dietikon zh", count=facet_total, active=True)}
-      {facet(value="switzerland", filter_value="country:switzerland", count=facet_total)}
-      {cards}
-    </body></html>
-    """
-
-
-def detail_html(
-    record: dict[str, str],
-    *,
-    title: str | None = None,
-    country: str = "Switzerland",
-    apply_host: str = "lyreco.wd3.myworkdayjobs.com",
-) -> str:
-    detail_title = title or record["title"]
-    description = (
-        "Du betreust internationale Firmenkunden und entwickelst nachhaltige Lösungen. "
-        "Dabei koordinierst du interne Fachbereiche, erstellst Angebote und führst "
-        "Verhandlungen. Gemeinsam mit dem Team sicherst du eine ausgezeichnete "
-        "Customer Experience für unsere Kundinnen und Kunden in der Schweiz."
-    )
-    posting = {
-        "@type": "JobPosting",
-        "title": detail_title,
-        "identifier": record["internal_id"],
-        "employmentType": "Contractor",
-        "datePosted": "2026-08-17",
-        "hiringOrganization": {
-            "@type": "Organization",
-            "@id": "Lyreco",
-            "name": "Lyreco",
-            "url": "https://www.lyreco.com/group/switzerland/de",
-        },
-        "jobLocation": {
-            "@type": "Place",
-            "address": {
-                "@type": "PostalAddress",
-                "addressLocality": record["location"],
-                "addressCountry": country,
-            },
-        },
-        "description": description,
-        "industry": record["family"],
+def listing(items: list[dict], *, total: int | None = None) -> dict:
+    total = len(items) if total is None else total
+    return {
+        "total": total,
+        "jobPostings": items,
+        "facets": [
+            {
+                "facetParameter": "locationMainGroup",
+                "values": [
+                    {
+                        "facetParameter": "locationCountry",
+                        "values": [
+                            {"id": SWISS_COUNTRY_ID, "descriptor": "Switzerland", "count": total}
+                        ],
+                    }
+                ],
+            }
+        ],
     }
-    apply_url = (
-        f"https://{apply_host}/Lyreco_Careers/job/Dietikon-ZH/"
-        f"Sales-Manager-{record['internal_id']}_{record['external_id']}/apply"
+
+
+def detail(item: dict) -> dict:
+    job_id = item["externalPath"].split("_JR-")[1].split("-")[0]
+    return {
+        "jobPostingInfo": {
+            "jobReqId": f"JR-{job_id}",
+            "title": item["title"],
+            "externalUrl": f"{WORKDAY_ORIGIN}/{WORKDAY_SITE}{item['externalPath']}",
+            "jobPostingSiteId": WORKDAY_SITE,
+            "country": {"id": SWISS_COUNTRY_ID, "descriptor": "Switzerland"},
+            "jobRequisitionLocation": {"country": {"id": SWISS_COUNTRY_ID, "alpha2Code": "CH"}},
+            "location": item["locationsText"],
+            "startDate": "2026-10-29",
+            "timeType": "Full time",
+            "jobDescription": "<h2>Your role</h2><p>Build useful software.</p>",
+        }
+    }
+
+
+@pytest.mark.parametrize("omit_later_metadata", [True, False])
+def test_lyreco_scans_every_country_page_and_enriches_all_locations(omit_later_metadata):
+    items = [
+        posting(i, location="Field Based - Perly" if i == 0 else "Dietikon ZH") for i in range(23)
+    ]
+    items[-1] = posting(22, suffix="-1")
+    offsets = []
+
+    def handler(request):
+        if request.method == "POST":
+            payload = json.loads(request.content)
+            assert payload["appliedFacets"] == {"locationCountry": [SWISS_COUNTRY_ID]}
+            assert payload["searchText"] == ""
+            offset = payload["offset"]
+            offsets.append(offset)
+            page = listing(items[offset : offset + 20], total=23)
+            if offset and omit_later_metadata:
+                page.update(total=0, facets=[])
+            return httpx.Response(200, json=page)
+        item = next(item for item in items if request.url.path.endswith(item["externalPath"]))
+        return httpx.Response(200, json=detail(item))
+
+    result = LyrecoSwitzerlandJobsParser(transport=httpx.MockTransport(handler)).search(
+        LinkedInSearchRequest(results_limit=1, keywords="ignored")
     )
-    return f"""
-    <html lang="de"><head><title>{detail_title} | Lyreco Schweiz</title>
-      <link rel="canonical" href="https://www.lyreco.com/jobs/{record["slug"]}">
-      <meta property="og:url" content="{job_url(record)}">
-      <script type="application/ld+json">{json.dumps({"@context": "https://schema.org", "@graph": [posting]})}</script>
-    </head><body><h1>{detail_title}</h1>
-      <div class="job__field-primary-location">{record["location"]}</div>
-      <div class="field--name-field-family">{record["family"]}</div>
-      <div class="field--name-field-time-type">{record["employment_type"]}</div>
-      <div class="field--name-field-description"><p>{description}</p></div>
-      <div class="job__footer__content">
-        <a class="btn btn-primary" href="{apply_url}">Bewerben</a>
-        <a class="btn btn-primary" href="{apply_url}">Bewerben</a>
-      </div>
-    </body></html>
-    """
-
-
-def test_lyreco_scans_every_page_and_enriches_all_jobs() -> None:
-    records = [vacancy_record(index) for index in range(12)]
-    calls: list[str] = []
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        calls.append(str(request.url))
-        if request.url.path == "/group/switzerland/de/jobs":
-            page = int(request.url.params.get("page", "0"))
-            page_records = records[:10] if page == 0 else records[10:]
-            return httpx.Response(200, text=listing_html(page_records, total=12))
-        record = next(item for item in records if request.url.path == httpx.URL(job_url(item)).path)
-        return httpx.Response(200, text=detail_html(record))
-
-    result = LyrecoSwitzerlandJobsParser(
-        detail_workers=4,
-        transport=httpx.MockTransport(handler),
-    ).search(LinkedInSearchRequest(results_limit=1))
-
-    assert len([url for url in calls if "/group/switzerland/de/jobs?" in url]) == 2
-    assert len([url for url in calls if "/group/switzerland/de/jobs/" in url]) == 12
-    assert result.message == (
-        "Scanned 12 Lyreco Switzerland vacancies from the complete Swiss careers catalog"
-    )
-    assert len(result.jobs) == 12
-    first = result.jobs[0]
-    assert first.source == "lyreco_switzerland"
-    assert first.company == "Lyreco Switzerland AG"
-    assert first.location == "Dietikon ZH, Switzerland"
-    assert first.url == job_url(records[0])
-    assert first.apply_url and first.apply_url.endswith("_JR-1000030699/apply")
-    assert first.posted_at == "2026-08-17"
-    assert first.employment_type == "Full time"
-    assert first.seniority is None
-    assert first.description and first.description.startswith("Du betreust")
-    assert first.raw["id"] == "JR-1000030699"
-    assert first.raw["detail"]["internal_id"] == "639"
-    assert first.raw["catalog_total"] == 12
-
-
-def test_lyreco_preserves_verified_listing_when_detail_fails() -> None:
-    record = vacancy_record(0)
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/group/switzerland/de/jobs":
-            return httpx.Response(200, text=listing_html([record], total=1))
-        return httpx.Response(503, text="unavailable")
-
-    job = (
-        LyrecoSwitzerlandJobsParser(transport=httpx.MockTransport(handler))
-        .search(LinkedInSearchRequest())
-        .jobs[0]
-    )
-
-    assert job.title == record["title"]
-    assert job.location == "Dietikon ZH, Switzerland"
-    assert job.apply_url == job_url(record)
-    assert job.description is None
-    assert "503" in str(job.raw["detail_error"])
+    assert offsets == [0, 20]
+    assert len(result.jobs) == 23
+    assert result.jobs[0].location == "Field Based - Perly, Switzerland"
+    assert result.jobs[-1].raw["id"] == "JR-1022"
+    assert all(job.description and job.apply_url.endswith("/apply") for job in result.jobs)
+    assert validate_parser_result(result)[1] is None
 
 
 @pytest.mark.parametrize(
-    ("page_html", "message"),
+    "mutation",
     [
-        (listing_html([], total=0, title="Generic careers"), "unexpected identity"),
-        (listing_html([vacancy_record(0)], total=1, facet_total=2), "filter"),
-        (
-            listing_html([vacancy_record(0)], total=1, location="Dintikon AG"),
-            "out-of-scope",
-        ),
+        lambda p: p.update(total=True),
+        lambda p: p["facets"].clear(),
+        lambda p: p["jobPostings"][0].update(externalPath="https://attacker.test/job"),
+        lambda p: p["jobPostings"][0].update(bulletFields=["Germany"]),
+        lambda p: p["jobPostings"][0].update(title=""),
+        lambda p: p.update(total=2),
     ],
 )
-def test_lyreco_rejects_untrusted_catalogs(page_html: str, message: str) -> None:
-    parser = LyrecoSwitzerlandJobsParser(
-        transport=httpx.MockTransport(lambda _: httpx.Response(200, text=page_html))
-    )
-    with pytest.raises(DirectCompanyRequestError, match=message):
-        parser.search(LinkedInSearchRequest())
-
-
-def test_lyreco_rejects_duplicate_and_oversized_catalogs() -> None:
-    record = vacancy_record(0)
-    duplicate = LyrecoSwitzerlandJobsParser(
-        transport=httpx.MockTransport(
-            lambda _: httpx.Response(200, text=listing_html([record, record], total=2))
-        )
-    )
-    oversized = LyrecoSwitzerlandJobsParser(
-        max_jobs=1,
-        transport=httpx.MockTransport(
-            lambda _: httpx.Response(
-                200,
-                text=listing_html([record, vacancy_record(1)], total=2),
-            )
-        ),
-    )
-
-    with pytest.raises(DirectCompanyRequestError, match="does not reconcile"):
-        duplicate.search(LinkedInSearchRequest())
-    with pytest.raises(DirectCompanyRequestError, match="configured limit of 1"):
-        oversized.search(LinkedInSearchRequest())
-
-
-def test_lyreco_enforces_page_limit() -> None:
-    records = [vacancy_record(index) for index in range(11)]
-    parser = LyrecoSwitzerlandJobsParser(
-        max_pages=1,
-        transport=httpx.MockTransport(
-            lambda _: httpx.Response(200, text=listing_html(records[:10], total=11))
-        ),
-    )
-    with pytest.raises(DirectCompanyRequestError, match="requires 2 pages"):
-        parser.search(LinkedInSearchRequest())
-
-
-def test_lyreco_keeps_listing_when_detail_is_invalid() -> None:
-    record = vacancy_record(0)
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/group/switzerland/de/jobs":
-            return httpx.Response(200, text=listing_html([record], total=1))
-        return httpx.Response(200, text=detail_html(record, country="Germany"))
-
-    job = (
-        LyrecoSwitzerlandJobsParser(transport=httpx.MockTransport(handler))
-        .search(LinkedInSearchRequest())
-        .jobs[0]
-    )
-    assert job.title == record["title"]
-    assert "invalid JobPosting metadata" in str(job.raw["detail_error"])
-
-
-def test_lyreco_accepts_explicit_empty_catalog() -> None:
-    result = LyrecoSwitzerlandJobsParser(
-        transport=httpx.MockTransport(lambda _: httpx.Response(200, text=listing_html([], total=0)))
-    ).search(LinkedInSearchRequest())
-
-    assert result.jobs == []
-    assert result.message.startswith("Scanned 0 Lyreco Switzerland vacancies")
-
-
-def test_lyreco_wraps_listing_request_failures() -> None:
-    parser = LyrecoSwitzerlandJobsParser(
-        transport=httpx.MockTransport(lambda _: httpx.Response(503, text="temporarily unavailable"))
-    )
-    with pytest.raises(DirectCompanyRequestError, match="vacancy request failed"):
-        parser.search(LinkedInSearchRequest())
-
-
-def test_lyreco_is_registered_and_renders_as_direct_company() -> None:
-    settings = Settings(_env_file=None)
-    runner = create_vacancy_search_runner(settings)
-    parser = runner.parsers["lyreco_switzerland"]
-
-    assert isinstance(parser, LyrecoSwitzerlandJobsParser)
-    assert parser.base_url == settings.lyreco_switzerland_jobs_base_url
-    assert parser.max_pages == settings.lyreco_switzerland_jobs_max_pages
-    assert parser.max_jobs == settings.lyreco_switzerland_jobs_max_jobs
-    assert parser.detail_workers == settings.lyreco_switzerland_jobs_detail_workers
-    request = JobSearchManualRunRequest.model_validate(
-        {
-            "config": {"name": "Lyreco Switzerland", "filters": {}},
-            "sources": ["lyreco_switzerland", "lyreco_switzerland"],
-        }
-    )
-    assert request.sources == ["lyreco_switzerland"]
-
-    record = vacancy_record(0)
-    stored = parsed_job_to_stored_job(
-        normalize_job(
-            {
-                "id": record["external_id"],
-                "title": record["title"],
-                "location": "Dietikon ZH, Switzerland",
-                "employment_type": record["employment_type"],
-                "url": job_url(record),
-            }
-        ),
-        job_id=f"lyreco_switzerland-{record['external_id']}",
-        added_at=datetime(2026, 8, 18, 12, 0, tzinfo=UTC),
-    )
-    assert stored["logo"] == "company"
-    assert stored["department"] == "Lyreco Switzerland import"
-    assert stored["company"] == "Lyreco Switzerland AG"
-
-
-def test_lyreco_reconciles_global_catalog_before_selecting_dietikon() -> None:
-    import re
-
-    swiss = vacancy_record(1)
-    foreign = {**vacancy_record(2), "location": "London"}
-    page = listing_html([foreign, swiss], total=2)
-    page = re.sub(r'<a class="facet-item.*?</a>', "", page, flags=re.DOTALL)
-    page = page.replace("/switzerland/en/jobs", "/switzerland/de/jobs")
-    parser = LyrecoSwitzerlandJobsParser()
-    with httpx.Client(
-        transport=httpx.MockTransport(lambda request: httpx.Response(200, text=page))
-    ) as client:
-        records = parser.collect_listing(client)
-    assert len(records) == 1
-    assert records[0]["title"] == swiss["title"]
-    assert records[0]["location"] == "Dietikon ZH, Switzerland"
-
-
-@pytest.mark.parametrize(
-    "city, expected_location",
-    [("Dietikon", "Dietikon ZH, Switzerland"), ("Dintikon", "Dintikon AG, Switzerland")],
-)
-def test_lyreco_resolves_missing_address_only_from_explicit_workplace(
-    city: str, expected_location: str
-) -> None:
-    import re
-
-    from scrapling import Selector
-
-    from app.services.parsers.companies.lyreco_switzerland import parse_detail_html
-
-    record = vacancy_record(1)
-    html = detail_html(record)
-    raw = Selector(html).css('script[type="application/ld+json"]::text').get()
-    payload = json.loads(raw)
-    del payload["@graph"][0]["jobLocation"]
-    html = html.replace(raw, json.dumps(payload))
-    html = re.sub(r'<div class="job__field-primary-location">.*?</div>', "", html)
-    html = html.replace(
-        '<div class="field--name-field-description">',
-        f'<div class="field--name-field-description"><p>Arbeitsort: {city}</p>',
-    )
-    html = html.replace("/job/Dietikon-ZH/", "/job/")
-    expected = {
-        "url": job_url(record),
-        "title": record["title"],
-        "family": record["family"],
-        "employment_type": record["employment_type"],
-        "location_raw": None,
-    }
-    detail = parse_detail_html(html, page_url=job_url(record), expected_record=expected)
-    assert detail["location"] == expected_location
-    from app.services.parsers.companies.lyreco_switzerland import LyrecoForeignLocationError
-
-    with pytest.raises(LyrecoForeignLocationError):
-        parse_detail_html(
-            html.replace(
-                f"Arbeitsort: {city}", "Lokalizacja - Centrum Dystrybucyjne Lyreco Polska, Komorów"
-            ),
-            page_url=job_url(record),
-            expected_record=expected,
-        )
+def test_lyreco_rejects_unverified_or_incomplete_catalog(mutation):
+    payload = listing([posting(0)])
+    mutation(payload)
     with pytest.raises(DirectCompanyRequestError):
-        parse_detail_html(
-            html.replace(f"Arbeitsort: {city}", "Arbeitsort: London"),
-            page_url=job_url(record),
-            expected_record=expected,
-        )
+        LyrecoSwitzerlandJobsParser(
+            transport=httpx.MockTransport(
+                lambda _, payload=payload: httpx.Response(200, json=payload)
+            )
+        ).search(LinkedInSearchRequest())
 
 
-def test_lyreco_reports_unclassifiable_location_without_discarding_swiss_jobs() -> None:
-    import re
-
-    from scrapling import Selector
-
-    swiss = vacancy_record(1)
-    unknown = vacancy_record(2)
-    listing = listing_html([swiss, unknown], total=2)
-    listing = re.sub(r'<a class="facet-item.*?</a>', "", listing, flags=re.DOTALL)
-    listing = listing.replace(
-        vacancy_card(unknown),
-        vacancy_card(unknown).replace('<div class="job__info__location">Dietikon ZH</div>', ""),
-    )
-    detail = detail_html(unknown)
-    raw = Selector(detail).css('script[type="application/ld+json"]::text').get()
-    payload = json.loads(raw)
-    del payload["@graph"][0]["jobLocation"]
-    detail = detail.replace(raw, json.dumps(payload))
-    detail = re.sub(r'<div class="job__field-primary-location">.*?</div>', "", detail)
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200, text=detail if request.url.path.endswith(unknown["slug"]) else listing
-        )
-
-    warnings = []
-    with httpx.Client(transport=httpx.MockTransport(handler)) as client:
-        records = LyrecoSwitzerlandJobsParser().collect_listing(client, warnings=warnings)
-    assert len(records) == 1
-    assert records[0]["title"] == swiss["title"]
-    assert len(warnings) == 1 and job_url(unknown) in warnings[0]
+def test_lyreco_rejects_duplicates_and_catalog_limits():
+    for payload, kwargs in [
+        (listing([posting(0), posting(0)]), {}),
+        (listing([posting(0)], total=21), {"max_pages": 1}),
+        (listing([posting(0)], total=2), {"max_jobs": 1}),
+    ]:
+        with pytest.raises(DirectCompanyRequestError):
+            LyrecoSwitzerlandJobsParser(
+                **kwargs,
+                transport=httpx.MockTransport(
+                    lambda _, payload=payload: httpx.Response(200, json=payload)
+                ),
+            ).search(LinkedInSearchRequest())
 
 
-def test_lyreco_global_redirect_reconciles_catalog_and_keeps_all_swiss_offices() -> None:
-    import re
+@pytest.mark.parametrize("change", ["identity", "country", "url", "description", "http"])
+def test_lyreco_preserves_verified_listing_if_detail_fails(change, monkeypatch):
+    monkeypatch.setattr("app.services.parsers.companies.http.time.sleep", lambda _: None)
+    item = posting(1)
+    payload = detail(item)
+    if change == "identity":
+        payload["jobPostingInfo"]["jobReqId"] = "JR-9999"
+    if change == "country":
+        payload["jobPostingInfo"]["country"]["id"] = "foreign"
+    if change == "url":
+        payload["jobPostingInfo"]["externalUrl"] = "https://attacker.test/job"
+    if change == "description":
+        payload["jobPostingInfo"]["jobDescription"] = ""
 
-    records = [vacancy_record(i) for i in range(4)]
-    for record, location in zip(
-        records, ["Dietikon ZH", "Dintikon AG", "Field Based - Dietikon", "Berlin"]
-    ):
-        record["location"] = location
-    global_page = re.sub(
-        r'<a class="facet-item.*?</a>', "", listing_html(records, total=4), flags=re.DOTALL
-    )
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        if request.url.path == "/group/switzerland/de/jobs":
-            if request.url.query:
-                return httpx.Response(
-                    302,
-                    headers={"Location": "https://www.lyreco.com/group/switzerland/de/jobs"},
-                    request=request,
-                )
-            return httpx.Response(200, text=global_page, request=request)
-        record = next(record for record in records if request.url.path.endswith(record["slug"]))
-        return httpx.Response(
-            200,
-            text=detail_html(record).replace(
-                "/Dietikon-ZH/", "/" + record["location"].replace(" ", "-") + "/"
-            ),
-            request=request,
-        )
+    def handler(request):
+        if request.method == "POST":
+            return httpx.Response(200, json=listing([item]))
+        return httpx.Response(503) if change == "http" else httpx.Response(200, json=payload)
 
     result = LyrecoSwitzerlandJobsParser(transport=httpx.MockTransport(handler)).search(
         LinkedInSearchRequest()
     )
-    assert len(result.jobs) == 3
-    assert {job.location for job in result.jobs} == {
-        "Dietikon ZH, Switzerland",
-        "Dintikon AG, Switzerland",
-        "Field Based - Dietikon, Switzerland",
-    }
-    assert all(not job.raw.get("detail_error") for job in result.jobs)
+    assert len(result.jobs) == 1
+    assert result.jobs[0].raw["detail_error"]
+    assert validate_parser_result(result)[1]
+
+
+def test_lyreco_rejects_total_change_between_pages():
+    items = [posting(i) for i in range(21)]
+
+    def handler(request):
+        offset = json.loads(request.content)["offset"]
+        return httpx.Response(
+            200, json=listing(items[:20] if not offset else [], total=21 if not offset else 20)
+        )
+
+    with pytest.raises(DirectCompanyRequestError, match="changed"):
+        LyrecoSwitzerlandJobsParser(transport=httpx.MockTransport(handler)).search(
+            LinkedInSearchRequest()
+        )
+
+
+def test_lyreco_accepts_explicit_empty_country_catalog():
+    result = LyrecoSwitzerlandJobsParser(
+        transport=httpx.MockTransport(lambda _: httpx.Response(200, json=listing([])))
+    ).search(LinkedInSearchRequest())
+    assert result.jobs == []
+    assert validate_parser_result(result)[1] is None
+
+
+def test_lyreco_migrates_saved_drupal_url_and_remains_registered():
+    parser = LyrecoSwitzerlandJobsParser(
+        base_url="https://www.lyreco.com/group/switzerland/de/jobs?f[0]=job_location:dietikon%20zh"
+    )
+    assert parser.base_url == LYRECO_SWITZERLAND_JOBS_URL
+    registered = create_vacancy_search_runner(Settings(_env_file=None)).parsers[
+        "lyreco_switzerland"
+    ]
+    assert isinstance(registered, LyrecoSwitzerlandJobsParser)
+    assert registered.base_url == LYRECO_SWITZERLAND_JOBS_URL

@@ -401,7 +401,7 @@ def parse_detail_html(
         or document_titles != {f"{expected_title} Stellendetails | {EXPECTED_COMPANY}"}
         or len(description_parts) < 2
         or not description
-        or expected_title not in first_part
+        or re.sub(r"\s+", "", expected_title) not in re.sub(r"\s+", "", first_part)
         or (expected_employment_type.casefold() != "lehrstelle" and not workload)
         or any(city not in first_part for city in expected_cities)
         or expected_employment_type not in first_part

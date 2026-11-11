@@ -13,6 +13,7 @@ from scrapling import Selector
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
+from app.services.parsers.companies.http import CareerHttpClient
 
 M_S_CAREERS_URL = "https://www.m-s.ch/karriere/offene-stellen/"
 M_S_API_URL = (
@@ -45,6 +46,7 @@ class MSSoftwareEngineeringJobsParser:
     """Collect M&S Software Engineering AG's complete official vacancy catalog."""
 
     parser_id = "m_s_software_engineering"
+    handles_request_retries = True
 
     def __init__(
         self,
@@ -61,7 +63,7 @@ class MSSoftwareEngineeringJobsParser:
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
         try:
-            with httpx.Client(
+            with CareerHttpClient(
                 headers={**M_S_HEADERS, "Referer": self.base_url},
                 timeout=self.timeout_seconds,
                 follow_redirects=True,
@@ -190,8 +192,8 @@ def parse_onlyfy_payload(
 
     baked_by_handle = index_page_records(page_catalog.get("baked_jobs"), "handle")
     schemas_by_handle = index_schemas(page_catalog.get("job_schemas"))
-    if set(baked_by_handle) != set(schemas_by_handle) or len(baked_by_handle) != total:
-        raise MSParseError("M&S career page and Onlyfy catalog do not match")
+    if set(baked_by_handle) != set(schemas_by_handle):
+        raise MSParseError("M&S career page snapshots do not match")
 
     records: list[dict[str, Any]] = []
     seen_public_handles: set[str] = set()
@@ -231,8 +233,14 @@ def parse_onlyfy_payload(
             or not isinstance(applications, dict)
             or applications.get("applications_allowed") is not True
             or public_handle in seen_public_handles
-            or not page_record_matches(record, baked_by_handle.get(handle))
-            or not schema_matches(record, schemas_by_handle.get(handle))
+            or (
+                handle in baked_by_handle
+                and not page_record_matches(record, baked_by_handle[handle])
+            )
+            or (
+                handle in schemas_by_handle
+                and not schema_matches(record, schemas_by_handle[handle])
+            )
         ):
             raise MSParseError("M&S Onlyfy catalog contains an incomplete or mismatched vacancy")
         seen_public_handles.add(public_handle)
@@ -252,8 +260,8 @@ def parse_onlyfy_payload(
             }
         )
         records.append(record)
-    if set(baked_by_handle) != {optional_text(record.get("handle")) for record in records}:
-        raise MSParseError("M&S career page and Onlyfy feed expose different vacancies")
+    # The official live feed is authoritative. The baked website snapshot can
+    # lag behind new postings or still contain jobs removed from the ATS.
     return records
 
 

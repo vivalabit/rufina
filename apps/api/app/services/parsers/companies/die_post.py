@@ -14,6 +14,7 @@ from scrapling import Selector
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
+from app.services.parsers.companies.http import CareerHttpClient
 
 DIE_POST_JOBS_BASE_URL = "https://job.post.ch/search?locale=en_US"
 DIE_POST_LOCALES = ("en_US", "de_DE", "fr_FR", "it_IT")
@@ -38,6 +39,7 @@ class DiePostJobsParser:
     """Collect the complete multilingual catalog from Swiss Post's public API."""
 
     parser_id = "die_post"
+    handles_request_retries = True
 
     def __init__(
         self,
@@ -70,7 +72,7 @@ class DiePostJobsParser:
         listing_pages = 0
 
         try:
-            with httpx.Client(
+            with CareerHttpClient(
                 headers={
                     **DIE_POST_HEADERS,
                     "Origin": self.origin,
@@ -110,7 +112,7 @@ class DiePostJobsParser:
 
     def collect_locale_records(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
         *,
         locale: str,
     ) -> tuple[list[dict[str, Any]], int]:
@@ -126,7 +128,7 @@ class DiePostJobsParser:
             page_number = 0
 
             while True:
-                response = client.post(
+                response = client.post_catalog(
                     self.listing_api_url,
                     json={
                         "locale": locale,
@@ -197,7 +199,7 @@ class DiePostJobsParser:
 
     def enrich_records(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
         records: list[dict[str, Any]],
     ) -> None:
         if not records:

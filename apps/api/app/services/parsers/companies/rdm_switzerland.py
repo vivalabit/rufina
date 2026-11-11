@@ -15,6 +15,7 @@ from app.services.parsers.companies.base import (
     DirectCompanyRequestError,
     ScraplingResponse,
 )
+from app.services.parsers.companies.http import CareerHttpClient
 
 RDM_SWITZERLAND_JOBS_URL = "https://www.rdm.com/career/jobs/?mf-job_country%5B0%5D=ch"
 RDM_CAREERS_CANONICAL_URL = "https://www.rdm.com/career/jobs/"
@@ -34,6 +35,7 @@ class RdmSwitzerlandJobsParser:
     """Collect R&M's complete Cloudflare-protected Swiss vacancy catalog."""
 
     parser_id = "rdm_switzerland"
+    handles_request_retries = True
 
     def __init__(
         self,
@@ -123,7 +125,7 @@ class RdmSwitzerlandJobsParser:
     def _collect_public_catalog(self) -> list[dict[str, Any]]:
         # The unfiltered public catalog is accessible without the protected query string.
         # Reconcile every card with the global counter before selecting Swiss locations.
-        with httpx.Client(
+        with CareerHttpClient(
             timeout=self.timeout_seconds,
             follow_redirects=True,
             transport=self.transport,
@@ -132,11 +134,12 @@ class RdmSwitzerlandJobsParser:
                 "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/127.0 Safari/537.36"
             },
         ) as client:
-            # A challenge can be transient; retry only access/service failures, not parsing.
-            for attempt in range(3):
-                response = client.get(RDM_CAREERS_CANONICAL_URL)
-                if response.status_code not in {403, 429, 502, 503, 504} or attempt == 2:
-                    break
+            response = client.get(RDM_CAREERS_CANONICAL_URL)
+            if response.status_code == 403 and "cloudflare" in response.text.casefold():
+                raise RdmSwitzerlandParseError(
+                    "R&M access blocked by Cloudflare (HTTP 403); the catalog cannot be "
+                    "verified from this network"
+                )
             response.raise_for_status()
             records = parse_listing_page(
                 Selector(response.text),

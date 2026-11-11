@@ -1438,7 +1438,7 @@ class Settings(BaseSettings):
     tx_group_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     tx_group_jobs_max_jobs: int = Field(default=500, ge=1, le=2000)
     tx_group_jobs_max_catalog_passes: int = Field(default=3, ge=1, le=20)
-    artificialy_jobs_base_url: str = "https://www.artificialy.com/career"
+    artificialy_jobs_base_url: str = "https://www.artificialy.com/company"
     artificialy_jobs_timeout_seconds: float = Field(default=30.0, ge=1, le=120)
     artificialy_jobs_max_jobs: int = Field(default=100, ge=1, le=1000)
     cyon_jobs_base_url: str = "https://www.cyon.ch/ueber-cyon/jobs"
@@ -1713,7 +1713,7 @@ class Settings(BaseSettings):
         le=10,
     )
     lonza_switzerland_jobs_detail_workers: int = Field(
-        default=8,
+        default=2,
         ge=1,
         le=20,
     )
@@ -1993,8 +1993,7 @@ class Settings(BaseSettings):
         le=20,
     )
     lyreco_switzerland_jobs_base_url: str = (
-        "https://www.lyreco.com/group/switzerland/de/jobs?"
-        "f%5B0%5D=job_location%3Adietikon%20zh"
+        "https://lyreco.wd3.myworkdayjobs.com/Lyreco_Careers?locationCountry=187134fccb084a0ea9b4b95f23890dbe"
     )
     lyreco_switzerland_jobs_timeout_seconds: float = Field(
         default=30.0,

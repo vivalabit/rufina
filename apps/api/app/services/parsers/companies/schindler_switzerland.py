@@ -14,6 +14,7 @@ from scrapling import Selector
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
+from app.services.parsers.companies.http import CareerHttpClient
 
 SCHINDLER_SWITZERLAND_JOBS_BASE_URL = (
     "https://job.schindler.com/search/?createNewAlert=false&q="
@@ -47,6 +48,7 @@ class SchindlerSwitzerlandJobsParser:
     """Collect Schindler's complete country-filtered Swiss catalog."""
 
     parser_id = "schindler_switzerland"
+    handles_request_retries = True
 
     def __init__(
         self,
@@ -67,7 +69,7 @@ class SchindlerSwitzerlandJobsParser:
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
         try:
-            with httpx.Client(
+            with CareerHttpClient(
                 headers={**SCHINDLER_HEADERS, "Referer": self.base_url},
                 timeout=self.timeout_seconds,
                 follow_redirects=True,
@@ -146,9 +148,7 @@ class SchindlerSwitzerlandJobsParser:
                     "Schindler catalog changed its result count during pagination"
                 )
             if page_size <= 0:
-                raise SchindlerSwitzerlandParseError(
-                    "Schindler listing is missing its page size"
-                )
+                raise SchindlerSwitzerlandParseError("Schindler listing is missing its page size")
 
             required_pages = max(1, ceil(total / page_size))
             if required_pages > self.max_pages:
@@ -200,6 +200,17 @@ class SchindlerSwitzerlandJobsParser:
             try:
                 response = client.get(record["url"], headers={"Referer": self.base_url})
                 response.raise_for_status()
+                page = Selector(response.text)
+                if (
+                    same_job_url(str(response.url), record["url"])
+                    and optional_text(page.css('meta[property="og:title"]::attr(content)').get())
+                    == optional_text(record["title"])
+                    and not page.css('[itemtype="http://schema.org/JobPosting"]')
+                    and "Diese Stelle wurde leider bereits besetzt."
+                    in {optional_text(value) for value in page.css("p::text, p strong::text").getall()}
+                ):
+                    record["closed"] = True
+                    return record, None
                 return record, parse_detail_html(
                     response.text,
                     page_url=str(response.url),
@@ -218,6 +229,7 @@ class SchindlerSwitzerlandJobsParser:
                 record, detail = future.result()
                 if detail is not None:
                     record["detail"] = detail
+        records[:] = [record for record in records if not record.get("closed")]
 
     def normalize_job(self, record: dict[str, Any]) -> ParsedJob:
         detail = record.get("detail")
@@ -235,8 +247,7 @@ class SchindlerSwitzerlandJobsParser:
                 or build_apply_url(self.base_url, optional_text(record.get("id")))
             ),
             posted_at=(
-                optional_text(detail.get("posted_at"))
-                or optional_text(record.get("posted_at"))
+                optional_text(detail.get("posted_at")) or optional_text(record.get("posted_at"))
             ),
             employment_type=extract_workload(record.get("title")),
             seniority=None,
@@ -253,9 +264,7 @@ def parse_listing_html(
     page = Selector(page_html)
     table = page.css("table#searchresults")
     if not table.get():
-        raise SchindlerSwitzerlandParseError(
-            "Schindler listing page is missing its search results"
-        )
+        raise SchindlerSwitzerlandParseError("Schindler listing page is missing its search results")
 
     range_sources = (
         page.css(".paginationLabel").get(),
@@ -270,9 +279,7 @@ def parse_listing_html(
         None,
     )
     if not match:
-        raise SchindlerSwitzerlandParseError(
-            "Schindler listing page is missing its result range"
-        )
+        raise SchindlerSwitzerlandParseError("Schindler listing page is missing its result range")
     start, end, total = (int(value.replace(",", "")) for value in match.groups())
 
     page_host = urlsplit(page_url).netloc.casefold()
@@ -299,9 +306,7 @@ def parse_listing_html(
                 "Schindler listing contains an incomplete or non-Swiss vacancy"
             )
         if job_id in seen_ids:
-            raise SchindlerSwitzerlandParseError(
-                "Schindler listing contains duplicate vacancy IDs"
-            )
+            raise SchindlerSwitzerlandParseError("Schindler listing contains duplicate vacancy IDs")
         seen_ids.add(job_id)
         records.append(
             {
@@ -318,8 +323,7 @@ def parse_listing_html(
     expected_count = end - start + 1
     if len(records) != expected_count:
         raise SchindlerSwitzerlandParseError(
-            f"Schindler listed {len(records)} vacancies for a range of "
-            f"{expected_count} records"
+            f"Schindler listed {len(records)} vacancies for a range of {expected_count} records"
         )
     return records, {"start": start, "end": end, "total": total}
 
@@ -334,15 +338,11 @@ def parse_detail_html(
     expected_location: str,
 ) -> dict[str, Any]:
     if not same_job_url(page_url, expected_url):
-        raise SchindlerSwitzerlandParseError(
-            "Schindler detail page returned a different vacancy"
-        )
+        raise SchindlerSwitzerlandParseError("Schindler detail page returned a different vacancy")
 
     page = Selector(page_html)
     if not page.css('[itemtype="http://schema.org/JobPosting"]').get():
-        raise SchindlerSwitzerlandParseError(
-            "Schindler detail page is missing its JobPosting data"
-        )
+        raise SchindlerSwitzerlandParseError("Schindler detail page is missing its JobPosting data")
 
     description_html = page.css('[itemprop="description"]').get()
     description = html_to_text(description_html) if description_html else None
@@ -351,7 +351,9 @@ def parse_detail_html(
     country = property_attribute(page, "addressCountry", "content")
     locality = property_attribute(page, "addressLocality", "content")
     listing_location = optional_text(expected_location)
-    listing_locality = optional_text(listing_location.split(",", maxsplit=1)[0]) if listing_location else None
+    listing_locality = (
+        optional_text(listing_location.split(",", maxsplit=1)[0]) if listing_location else None
+    )
     apply_urls = {
         urljoin(page_url, str(value))
         for value in page.css("a.dialogApplyBtn::attr(href)").getall()

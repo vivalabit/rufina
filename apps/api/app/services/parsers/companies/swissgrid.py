@@ -13,6 +13,7 @@ from scrapling import Selector
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
+from app.services.parsers.companies.http import CareerHttpClient
 
 SWISSGRID_JOBS_BASE_URL = "https://www.swissgrid.ch/en/home/career/jobs.html"
 SWISSGRID_JOBS_API_URL = (
@@ -45,6 +46,7 @@ class SwissgridJobsParser:
     """Collect Swissgrid's full catalog and enrich its SuccessFactors jobs."""
 
     parser_id = "swissgrid"
+    handles_request_retries = True
 
     def __init__(
         self,
@@ -63,7 +65,7 @@ class SwissgridJobsParser:
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
         try:
-            with httpx.Client(
+            with CareerHttpClient(
                 headers={**SWISSGRID_HEADERS, "Referer": self.base_url},
                 timeout=self.timeout_seconds,
                 follow_redirects=True,

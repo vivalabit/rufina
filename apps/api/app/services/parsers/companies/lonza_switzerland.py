@@ -2,18 +2,26 @@ from __future__ import annotations
 
 import html
 import re
+import time
 from collections.abc import Callable, Iterable
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from math import ceil
+from threading import Lock
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urljoin, urlsplit, urlunsplit
 
+import httpx
 from scrapling.fetchers import Fetcher
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import (
     DirectCompanyRequestError,
     ScraplingResponse,
+)
+from app.services.parsers.companies.http import (
+    RETRYABLE_STATUSES,
+    CareerHttpClient,
+    fetch_with_retry,
 )
 
 LONZA_SWITZERLAND_JOBS_BASE_URL = "https://www.lonza.com/careers/job-search"
@@ -55,17 +63,24 @@ class LonzaSwitzerlandJobsParser:
         timeout_seconds: float = 30.0,
         max_pages: int = 50,
         max_catalog_passes: int = 3,
-        detail_workers: int = 8,
+        detail_workers: int = 2,
         fetch_get: GetPageFetcher | None = None,
         fetch_post: PostPageFetcher | None = None,
+        workday_transport: httpx.BaseTransport | None = None,
     ) -> None:
         self.base_url = base_url
         self.timeout_seconds = timeout_seconds
         self.max_pages = max(1, max_pages)
         self.max_catalog_passes = max(1, max_catalog_passes)
-        self.detail_workers = min(12, max(1, detail_workers))
+        self.detail_workers = min(2, max(1, detail_workers))
+        self._request_lock = Lock()
+        self._next_request_at = 0.0
         self.fetch_get = fetch_get or self._get_with_scrapling
         self.fetch_post = fetch_post or self._post_with_scrapling
+        self.workday_transport = workday_transport
+        self._use_workday_reconciliation = workday_transport is not None or (
+            fetch_get is None and fetch_post is None
+        )
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
         try:
@@ -76,6 +91,10 @@ class LonzaSwitzerlandJobsParser:
                 swiss_locations=swiss_locations,
             )
             self.enrich_records(records)
+            if self._use_workday_reconciliation and any(
+                record.get("detail_error") == "Lonza returned HTTP 404" for record in records
+            ):
+                self.reconcile_workday_catalog(records)
         except LonzaSwitzerlandParseError:
             raise
         except Exception as exc:
@@ -97,11 +116,21 @@ class LonzaSwitzerlandJobsParser:
         )
 
     def _get_with_scrapling(self, url: str) -> ScraplingResponse:
-        response = Fetcher.get(
-            url,
-            headers={**LONZA_HEADERS, "Referer": self.base_url},
-            impersonate="chrome",
-            timeout=self.timeout_seconds,
+        def fetch() -> ScraplingResponse:
+            # Bound request rate as well as concurrency for the public detail host.
+            with self._request_lock:
+                time.sleep(max(0.0, self._next_request_at - time.monotonic()))
+                self._next_request_at = time.monotonic() + 0.5
+            return Fetcher.get(
+                url,
+                headers={**LONZA_HEADERS, "Referer": self.base_url},
+                impersonate="chrome",
+                timeout=self.timeout_seconds,
+            )
+
+        response = fetch_with_retry(
+            fetch,
+            retryable_statuses=RETRYABLE_STATUSES | {403},
         )
         validate_response_status(response)
         return response
@@ -184,9 +213,7 @@ class LonzaSwitzerlandJobsParser:
                 return [], pages_fetched, 0
             page_size = first_metadata["end"] - first_metadata["start"] + 1
             if first_metadata["start"] != 1 or page_size <= 0:
-                raise LonzaSwitzerlandParseError(
-                    "Lonza pagination returned an invalid first page"
-                )
+                raise LonzaSwitzerlandParseError("Lonza pagination returned an invalid first page")
             if expected_total is None:
                 expected_total = total
             elif total != expected_total:
@@ -231,9 +258,7 @@ class LonzaSwitzerlandJobsParser:
             if len(records_by_id) == expected_total:
                 return list(records_by_id.values()), pages_fetched, expected_total
             if len(records_by_id) > expected_total:
-                raise LonzaSwitzerlandParseError(
-                    "Lonza catalog changed while pages were collected"
-                )
+                raise LonzaSwitzerlandParseError("Lonza catalog changed while pages were collected")
 
         raise LonzaSwitzerlandParseError(
             f"Lonza returned {len(records_by_id)} unique vacancies but declared "
@@ -260,14 +285,150 @@ class LonzaSwitzerlandJobsParser:
                 record["detail_error"] = str(exc)
                 return record, None
 
-        with ThreadPoolExecutor(
-            max_workers=min(self.detail_workers, len(records))
-        ) as executor:
+        with ThreadPoolExecutor(max_workers=min(self.detail_workers, len(records))) as executor:
             futures = [executor.submit(fetch_detail, record) for record in records]
             for future in as_completed(futures):
                 record, detail = future.result()
                 if detail is not None:
                     record["detail"] = detail
+
+    def reconcile_workday_catalog(self, records: list[dict[str, Any]]) -> None:
+        """Resolve stale CMS links against a complete, country-verified ATS scan.
+
+        A 404 alone never removes a vacancy. Only a reconciled full Workday
+        catalog can confirm it absent; new ATS postings are also retained.
+        """
+        country_id = "187134fccb084a0ea9b4b95f23890dbe"
+        origin = "https://lonza.wd3.myworkdayjobs.com"
+        api = origin + "/wday/cxs/lonza/Lonza_Careers"
+        paths: dict[str, dict[str, Any]] = {}
+        total: int | None = None
+        offset = 0
+        try:
+            with CareerHttpClient(
+                timeout=self.timeout_seconds, transport=self.workday_transport
+            ) as client:
+                while total is None or offset < total:
+                    response = client.post_catalog(
+                        api + "/jobs",
+                        json={
+                            "appliedFacets": {"locationCountry": [country_id]},
+                            "limit": 20,
+                            "offset": offset,
+                            "searchText": "",
+                        },
+                    )
+                    response.raise_for_status()
+                    payload = response.json()
+                    if not isinstance(payload, dict) or type(payload.get("total")) is not int:
+                        raise LonzaSwitzerlandParseError("Lonza Workday catalog has no valid total")
+                    page_total = payload["total"]
+                    postings = payload.get("jobPostings")
+                    # Workday returns aggregate metadata only at offset zero;
+                    # later pages use total=0 and facets=[] alongside postings.
+                    metadata_omitted = (
+                        offset > 0 and page_total == 0 and payload.get("facets") == []
+                    )
+                    if metadata_omitted:
+                        page_total = total
+                    if total is None:
+                        total = page_total
+                    if (
+                        total < 0
+                        or page_total != total
+                        or total > self.max_pages * 20
+                        or not isinstance(postings, list)
+                        or len(postings) != min(20, total - offset)
+                    ):
+                        raise LonzaSwitzerlandParseError(
+                            "Lonza Workday catalog is incomplete or changed"
+                        )
+                    facets = list(workday_country_facets(payload.get("facets")))
+                    if not metadata_omitted and (
+                        (total and facets != [(country_id, total)])
+                        or (not total and facets not in ([], [(country_id, 0)]))
+                    ):
+                        raise LonzaSwitzerlandParseError(
+                            "Lonza Workday Switzerland facet is unverified"
+                        )
+                    for posting in postings:
+                        path = posting.get("externalPath") if isinstance(posting, dict) else None
+                        match = re.fullmatch(r"/job/[^/?#]+/[^/?#]+_(R\d+)(?:-\d+)?", path or "")
+                        if (
+                            not match
+                            or not optional_text(posting.get("title"))
+                            or match[1] in paths
+                        ):
+                            raise LonzaSwitzerlandParseError(
+                                "Lonza Workday vacancy identity is invalid or duplicated"
+                            )
+                        paths[match[1]] = posting
+                    offset += 20
+                existing_ids = {record["id"] for record in records}
+                # Delay removals until every page and country facet was validated.
+                reconciled = [
+                    record
+                    for record in records
+                    if not (
+                        record.get("detail_error") == "Lonza returned HTTP 404"
+                        and record["id"] not in paths
+                    )
+                ]
+                for job_id, posting in paths.items():
+                    if job_id not in existing_ids:
+                        reconciled.append(
+                            {
+                                "id": job_id,
+                                "title": posting["title"],
+                                "company": LONZA_COMPANY,
+                                "location": "Switzerland",
+                                "url": origin + "/Lonza_Careers" + posting["externalPath"],
+                                "listing_source": "official_workday_catalog",
+                                "total_available": total,
+                            }
+                        )
+                for record in reconciled:
+                    if record.get("detail") or record["id"] not in paths:
+                        continue
+                    posting = paths[record["id"]]
+                    try:
+                        response = client.get(api + posting["externalPath"])
+                        response.raise_for_status()
+                        payload = response.json()
+                        detail = (
+                            payload.get("jobPostingInfo") if isinstance(payload, dict) else None
+                        )
+                        country = detail.get("country") if isinstance(detail, dict) else None
+                        expected_url = origin + "/Lonza_Careers" + posting["externalPath"]
+                        if (
+                            not isinstance(detail, dict)
+                            or detail.get("jobReqId") != record["id"]
+                            or comparable_text(detail.get("title"))
+                            != comparable_text(posting["title"])
+                            or detail.get("externalUrl") != expected_url
+                            or not isinstance(country, dict)
+                            or country.get("id") != country_id
+                            or not html_to_text(detail.get("jobDescription"))
+                        ):
+                            raise LonzaSwitzerlandParseError(
+                                "Lonza Workday detail has an invalid identity or country"
+                            )
+                        record["title"] = detail["title"]
+                        record["detail"] = {
+                            "title": detail["title"],
+                            "location": f"{detail.get('location') or ''}, Switzerland".lstrip(", "),
+                            "description": html_to_text(detail["jobDescription"]),
+                            "apply_url": expected_url + "/apply",
+                            "workday": detail,
+                        }
+                        record.pop("detail_error", None)
+                    except (httpx.HTTPError, ValueError, LonzaSwitzerlandParseError) as exc:
+                        record["detail_error"] = str(exc)
+                records[:] = reconciled
+        except (httpx.HTTPError, ValueError, LonzaSwitzerlandParseError) as exc:
+            for record in records:
+                if record.get("detail_error") == "Lonza returned HTTP 404":
+                    record["detail_error"] += f"; Workday reconciliation unavailable: {exc}"
 
     def normalize_job(self, record: dict[str, Any]) -> ParsedJob:
         detail = record.get("detail")
@@ -279,16 +440,13 @@ class LonzaSwitzerlandJobsParser:
             title=title,
             company=LONZA_COMPANY,
             location=(
-                optional_text(detail.get("location"))
-                or optional_text(record.get("location"))
+                optional_text(detail.get("location")) or optional_text(record.get("location"))
             ),
             url=public_url,
             apply_url=optional_text(detail.get("apply_url")) or public_url,
             employment_type=extract_workload(title),
             seniority=(
-                "Senior"
-                if title and re.search(r"\bsenior\b", title, re.IGNORECASE)
-                else None
+                "Senior" if title and re.search(r"\bsenior\b", title, re.IGNORECASE) else None
             ),
             description=optional_multiline_text(detail.get("description")),
             raw=dict(record),
@@ -304,12 +462,9 @@ def validate_response_status(response: ScraplingResponse) -> None:
 def parse_listing_context(page: ScraplingResponse) -> tuple[str, tuple[str, ...]]:
     forms = page.css("form#link-form")
     if len(forms) != 1 or comparable_text(forms[0].css("::attr(method)").get()) != "post":
-        raise LonzaSwitzerlandParseError(
-            "Lonza careers page is missing its official search form"
-        )
+        raise LonzaSwitzerlandParseError("Lonza careers page is missing its official search form")
     listing_ids = {
-        optional_text(value)
-        for value in forms[0].css('input[name="lid"]::attr(value)').getall()
+        optional_text(value) for value in forms[0].css('input[name="lid"]::attr(value)').getall()
     }
     listing_ids.discard(None)
     listing_id = next(iter(listing_ids)) if len(listing_ids) == 1 else None
@@ -321,17 +476,13 @@ def parse_listing_context(page: ScraplingResponse) -> tuple[str, tuple[str, ...]
             value
             for value in (
                 optional_text(item)
-                for item in page.css(
-                    'input[name="job_location_facet_sm"]::attr(value)'
-                ).getall()
+                for item in page.css('input[name="job_location_facet_sm"]::attr(value)').getall()
             )
             if value and is_swiss_location(value)
         }
     )
     if not swiss_locations:
-        raise LonzaSwitzerlandParseError(
-            "Lonza careers page is missing its Swiss location facets"
-        )
+        raise LonzaSwitzerlandParseError("Lonza careers page is missing its Swiss location facets")
     return listing_id, tuple(swiss_locations)
 
 
@@ -352,9 +503,7 @@ def parse_listing_page(
     query = optional_text(form.css('input[name="q"]::attr(value)').get())
     checked_locations = {
         optional_text(value)
-        for value in page.css(
-            'input[name="job_location_facet_sm"][checked]::attr(value)'
-        ).getall()
+        for value in page.css('input[name="job_location_facet_sm"][checked]::attr(value)').getall()
     }
     checked_locations.discard(None)
     if (
@@ -370,9 +519,7 @@ def parse_listing_page(
     range_text = selector_text(page, ".page-count")
     range_match = RESULT_RANGE_PATTERN.fullmatch(range_text or "")
     if not range_match:
-        raise LonzaSwitzerlandParseError(
-            "Lonza listing page is missing its result range"
-        )
+        raise LonzaSwitzerlandParseError("Lonza listing page is missing its result range")
     metadata = {
         "start": parse_count(range_match.group(1)),
         "end": parse_count(range_match.group(2)),
@@ -391,18 +538,14 @@ def parse_listing_page(
         or metadata["total"] < metadata["end"]
         or len(cards) != metadata["end"] - metadata["start"] + 1
     ):
-        raise LonzaSwitzerlandParseError(
-            "Lonza listing returned inconsistent result metadata"
-        )
+        raise LonzaSwitzerlandParseError("Lonza listing returned inconsistent result metadata")
 
     records: list[dict[str, Any]] = []
     seen_ids: set[str] = set()
     for card in cards:
         path = optional_text(card.css("::attr(href)").get())
         detail_url = (
-            canonical_job_url(urljoin(LONZA_SWITZERLAND_JOBS_BASE_URL, path))
-            if path
-            else None
+            canonical_job_url(urljoin(LONZA_SWITZERLAND_JOBS_BASE_URL, path)) if path else None
         )
         job_id = extract_job_id(detail_url)
         title = selector_text(card, ".search-result-title")
@@ -418,9 +561,7 @@ def parse_listing_page(
                 "Lonza listing contains an incomplete or non-Swiss vacancy"
             )
         if job_id in seen_ids:
-            raise LonzaSwitzerlandParseError(
-                "Lonza listing page contains duplicate vacancy IDs"
-            )
+            raise LonzaSwitzerlandParseError("Lonza listing page contains duplicate vacancy IDs")
         seen_ids.add(job_id)
         records.append(
             {
@@ -444,13 +585,11 @@ def parse_detail_page(
     expected_title: str,
 ) -> dict[str, Any]:
     canonical_values = {
-        canonical_job_url(value)
-        for value in page.css('link[rel="canonical"]::attr(href)').getall()
+        canonical_job_url(value) for value in page.css('link[rel="canonical"]::attr(href)').getall()
     }
     canonical_values.discard(None)
     title_values = {
-        selector_text(node)
-        for node in page.css(".cmp-job-posting .detail-page-hero .h1")
+        selector_text(node) for node in page.css(".cmp-job-posting .detail-page-hero .h1")
     }
     title_values.discard(None)
     location_values = [
@@ -470,9 +609,11 @@ def parse_detail_page(
     apply_values.discard(None)
     # Workday descriptions may wrap whole sections in divs rather than expose
     # paragraphs directly. Select the outer blocks once to avoid duplicate text.
-    description_parts = page.css(
-        ".cmp-job-posting .job-posting > .row > .col-md-8"
-    ).xpath("./p | ./ul | ./ol | ./h2 | ./h3 | ./div[.//p or .//ul or .//ol]").getall()
+    description_parts = (
+        page.css(".cmp-job-posting .job-posting > .row > .col-md-8")
+        .xpath("./p | ./ul | ./ol | ./h2 | ./h3 | ./div[.//p or .//ul or .//ol]")
+        .getall()
+    )
     description = html_to_text("".join(str(value) for value in description_parts))
     location = "; ".join(location_values)
     expected_url = canonical_job_url(page_url)
@@ -492,9 +633,7 @@ def parse_detail_page(
         or not description
         or len(description) < 100
     ):
-        raise LonzaSwitzerlandParseError(
-            "Lonza detail page is missing required Swiss vacancy data"
-        )
+        raise LonzaSwitzerlandParseError("Lonza detail page is missing required Swiss vacancy data")
     return {
         "id": expected_job_id.upper(),
         "title": expected_title,
@@ -644,3 +783,19 @@ def optional_text(value: Any) -> str | None:
     if value is None:
         return None
     return re.sub(r"[\s\u200b]+", " ", html.unescape(str(value))).strip() or None
+
+
+def workday_country_facets(nodes: Any) -> Iterable[tuple[str, int]]:
+    if not isinstance(nodes, list):
+        return
+    for node in nodes:
+        if not isinstance(node, dict):
+            continue
+        if node.get("facetParameter") == "locationCountry":
+            for value in node.get("values", []):
+                if (
+                    isinstance(value, dict)
+                    and value.get("id") == "187134fccb084a0ea9b4b95f23890dbe"
+                ):
+                    yield value["id"], value.get("count")
+        yield from workday_country_facets(node.get("values"))

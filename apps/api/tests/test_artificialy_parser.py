@@ -98,7 +98,7 @@ def test_artificialy_scans_complete_server_rendered_catalog() -> None:
         LinkedInSearchRequest(results_limit=1)
     )
 
-    assert calls == ["https://www.artificialy.com/career"]
+    assert calls == ["https://www.artificialy.com/company"]
     assert result.message == (
         "Scanned 3 Artificialy vacancies from the complete server-rendered careers catalog"
     )

@@ -364,4 +364,4 @@ def test_rdm_reads_complete_public_catalog_without_browser() -> None:
     assert len(result.jobs) == 1
     assert result.jobs[0].title == "Swiss Role"
     assert result.jobs[0].raw["detail_error"]
-    assert len(requests) == 2
+    assert len(requests) == 4

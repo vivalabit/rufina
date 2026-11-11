@@ -225,6 +225,17 @@ class SonovaSwitzerlandJobsParser:
             try:
                 response = client.get(record["url"], headers={"Accept": "text/html"})
                 response.raise_for_status()
+                page = Selector(response.text)
+                # A stale catalog link can lead to an explicit ATS closure page.
+                # Do not infer closure from a generic 404 or absent schema alone.
+                if (
+                    urlsplit(str(response.url)).hostname == PUBLIC_JOBS_HOST
+                    and comparable_title(optional_text(page.css("title::text").get()))
+                    == comparable_title(f"{record['title']} Job Details | Sonova AG")
+                    and "Sorry, this position has been filled." in (html_to_text(response.text) or "")
+                ):
+                    record["closed"] = True
+                    return record, None
                 return record, parse_detail_html(
                     response.text,
                     page_url=str(response.url),
@@ -242,6 +253,7 @@ class SonovaSwitzerlandJobsParser:
                 record, detail = future.result()
                 if detail is not None:
                     record["detail"] = detail
+        records[:] = [record for record in records if not record.get("closed")]
 
     def normalize_job(self, record: dict[str, Any]) -> ParsedJob:
         detail = record.get("detail")

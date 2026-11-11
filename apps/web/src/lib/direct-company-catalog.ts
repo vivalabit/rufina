@@ -1204,7 +1204,7 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
   {
     id: "artificialy",
     name: "Artificialy SA",
-    careersUrl: "https://www.artificialy.com/career",
+    careersUrl: "https://www.artificialy.com/company",
     logoSrc: "/company-logos/artificialy.svg",
     logoAlt: "Artificialy SA logo",
     logoWidth: 38,
@@ -1464,7 +1464,7 @@ export const directCompanyCatalog: readonly DirectCompanyDefinition[] = [
     id: "lyreco_switzerland",
     name: "Lyreco Switzerland",
     careersUrl:
-      "https://www.lyreco.com/group/switzerland/de/jobs?f%5B0%5D=job_location%3Adietikon%20zh",
+      "https://lyreco.wd3.myworkdayjobs.com/Lyreco_Careers?locationCountry=187134fccb084a0ea9b4b95f23890dbe",
     logoSrc: "/company-logos/lyreco.svg",
     logoAlt: "Lyreco Switzerland logo",
     logoWidth: 88,

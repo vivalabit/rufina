@@ -1,0 +1,237 @@
+{
+  "verification_date": "2026-11-03",
+  "scope": "18 direct-company parsers from the failed run; full official catalogs and detail descriptions",
+  "method": "Fresh parsers from create_direct_company_parsers(get_settings()) in the local Docker API runtime; search(LinkedInSearchRequest()) followed by validate_parser_result. No search-result fixtures, AI screening, or database writes in live verification.",
+  "summary": {
+    "sources": 18,
+    "passed": 17,
+    "blocked": 1,
+    "jobs": 1235,
+    "jobs_with_descriptions": 1235
+  },
+  "automated_checks": {
+    "backend_tests_passed": 366,
+    "frontend_catalog_tests_passed": 118,
+    "ruff": "passed (27 affected Python files)",
+    "git_diff_check": "passed"
+  },
+  "runtime_health": {
+    "api_http_status": 200,
+    "reload_enabled": true
+  },
+  "sources": [
+    {
+      "source": "artificialy",
+      "jobs": 5,
+      "descriptions": 5,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 3.0,
+      "checked_at": "2026-11-03T08:39:15.136814+00:00",
+      "status": "passed",
+      "cause": "Старая страница /career возвращала 404; вакансии перенесены в /company.",
+      "change": "Обновлены адрес, разбор нового раздела Careers и миграция старой настройки."
+    },
+    {
+      "source": "cudos",
+      "jobs": 5,
+      "descriptions": 5,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 2.7,
+      "checked_at": "2026-11-03T08:39:14.792322+00:00",
+      "status": "passed",
+      "cause": "После публикации CMS изменился ID компонента каталога.",
+      "change": "Компонент определяется по структуре и адресу фильтра, без фиксированного plugin_id."
+    },
+    {
+      "source": "tx_group",
+      "jobs": 9,
+      "descriptions": 9,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 1.1,
+      "checked_at": "2026-11-03T08:39:13.200232+00:00",
+      "status": "passed",
+      "cause": "Новая ссылка Tamedia использовала префикс /en/jobs.",
+      "change": "Добавлены официальные языковые варианты URL вакансий."
+    },
+    {
+      "source": "bayer_switzerland",
+      "jobs": 1,
+      "descriptions": 1,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 0.5,
+      "checked_at": "2026-11-03T08:39:13.697725+00:00",
+      "status": "passed",
+      "cause": "В API отсутствовали необязательные поля locale/department/business_unit.",
+      "change": "Убрана обязательность этих полей; проверки страны и идентичности вакансии сохранены."
+    },
+    {
+      "source": "novartis_switzerland",
+      "jobs": 36,
+      "descriptions": 36,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 5.6,
+      "checked_at": "2026-11-03T08:39:19.253316+00:00",
+      "status": "passed",
+      "cause": "Кешированные страницы каталога содержали разные версии общего количества и дубли.",
+      "change": "Каждая страница запрашивается с уникальным параметром обновления кеша; проверка полноты сохранена."
+    },
+    {
+      "source": "lyreco_switzerland",
+      "jobs": 14,
+      "descriptions": 14,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 2.0,
+      "checked_at": "2026-11-03T08:42:10.037345+00:00",
+      "status": "passed",
+      "cause": "Старый Drupal-фильтр перенаправлял в глобальный каталог, часть карточек была повреждена.",
+      "change": "Переход на официальный Workday с фильтром Switzerland, проверкой пагинации и идентичности деталей, включая суффиксы URL -1."
+    },
+    {
+      "source": "smino",
+      "jobs": 0,
+      "descriptions": 0,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 0.3,
+      "checked_at": "2026-11-03T08:39:15.449341+00:00",
+      "status": "passed",
+      "cause": "Personio возвращает новый вариант страницы без открытых вакансий.",
+      "change": "Нулевой результат принимается только при подтверждённой идентичности страницы и явном сообщении об отсутствии вакансий."
+    },
+    {
+      "source": "flughafen_zuerich",
+      "jobs": 16,
+      "descriptions": 16,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 3.7,
+      "checked_at": "2026-11-03T08:39:19.130573+00:00",
+      "status": "passed",
+      "cause": "Случайные таймауты TLS при получении описаний.",
+      "change": "Добавлены ограниченные повторы временных сетевых ошибок отдельных запросов."
+    },
+    {
+      "source": "lonza_switzerland",
+      "jobs": 184,
+      "descriptions": 184,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 105.1,
+      "checked_at": "2026-11-03T08:53:44.663831+00:00",
+      "status": "passed",
+      "cause": "Высокая параллельность вызывала 403; в CMS остались пять ссылок 404 на отсутствующие в ATS вакансии.",
+      "change": "Снижена параллельность, добавлены паузы и ограниченные повторы. Полный Workday-каталог подтвердил отсутствие пяти старых вакансий и наличие одной новой. Снятие записи возможно только после успешной полной сверки."
+    },
+    {
+      "source": "bedag",
+      "jobs": 4,
+      "descriptions": 4,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 4.0,
+      "checked_at": "2026-11-03T08:39:23.143231+00:00",
+      "status": "passed",
+      "cause": "В адаптивной разметке дублировалась некорректная нагрузка 80–%.",
+      "change": "Учитываются только корректные числовые значения нагрузки."
+    },
+    {
+      "source": "snb",
+      "jobs": 9,
+      "descriptions": 9,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 1.3,
+      "checked_at": "2026-11-03T08:39:20.535255+00:00",
+      "status": "passed",
+      "cause": "Видимое название и исходное название различались пробелами около процентов.",
+      "change": "Сравнение названий нормализует пробельные символы."
+    },
+    {
+      "source": "iwf",
+      "jobs": 1,
+      "descriptions": 1,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 1.3,
+      "checked_at": "2026-11-03T08:39:21.882785+00:00",
+      "status": "passed",
+      "cause": "Карточка Agile Software Tester / Test Manager не содержит ссылки или описания вакансии.",
+      "change": "Парсер возвращает единственный опубликованный профиль. Карточка без ссылки остаётся в диагностическом сообщении и не считается сбоем HTTP; её отдельный профиль не подтверждён."
+    },
+    {
+      "source": "sonova_switzerland",
+      "jobs": 19,
+      "descriptions": 19,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 4.0,
+      "checked_at": "2026-11-03T08:39:25.872446+00:00",
+      "status": "passed",
+      "cause": "Каталог ссылался на уже закрытую вакансию.",
+      "change": "Обрабатывается явное сообщение ATS о закрытии с проверкой названия и официального домена; обычная недоступность не считается закрытием."
+    },
+    {
+      "source": "amag_group",
+      "jobs": 233,
+      "descriptions": 233,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 93.3,
+      "checked_at": "2026-11-03T08:40:56.490074+00:00",
+      "status": "passed",
+      "cause": "В корректном JobPosting отсутствовала необязательная локация.",
+      "change": "Сохраняется описание без выдуманной локации; присутствующие некорректные или иностранные локации по-прежнему отклоняются."
+    },
+    {
+      "source": "sharp_switzerland",
+      "jobs": 11,
+      "descriptions": 11,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 0.6,
+      "checked_at": "2026-11-03T08:42:10.627790+00:00",
+      "status": "passed",
+      "cause": "Официальный редирект изменил slug и канонический адрес вакансии.",
+      "change": "Разрешён редирект в пределах официального домена при совпадении роли и подтверждённых метаданных."
+    },
+    {
+      "source": "rdm_switzerland",
+      "error": "R&M access blocked by Cloudflare (HTTP 403); the catalog cannot be verified from this network",
+      "seconds": 0.2,
+      "checked_at": "2026-11-03T08:54:10.559496+00:00",
+      "status": "blocked",
+      "cause": "Cloudflare блокирует официальный каталог ответом HTTP 403 из среды проверки.",
+      "change": "Добавлена явная диагностика внешней блокировки и ограниченные сетевые повторы. Блокировка не выдаётся за пустой успешный каталог. Получение реальных вакансий остаётся недоступным."
+    },
+    {
+      "source": "manor",
+      "jobs": 343,
+      "descriptions": 343,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 57.0,
+      "checked_at": "2026-11-03T08:40:24.586450+00:00",
+      "status": "passed",
+      "cause": "Каталог содержал ссылку 404 с явным сообщением This job does not exist anymore.",
+      "change": "Явно закрытое объявление исключается; общий ответ 404 сохраняется как ошибка детали."
+    },
+    {
+      "source": "bkw_switzerland",
+      "jobs": 345,
+      "descriptions": 345,
+      "issue_count": 0,
+      "error": null,
+      "seconds": 169.1,
+      "checked_at": "2026-11-03T08:53:17.328894+00:00",
+      "status": "passed",
+      "cause": "В трёх JobPosting неверно указана страна либо только основной иностранный офис; дополнительно обнаружено закрытое объявление 410.",
+      "change": "Швейцарская локация подтверждается точной парой индекс/населённый пункт из swisstopo или проверенным офисом каталога. Исходная схема сохраняется. Явное сообщение о закрытии при 410 обрабатывается отдельно."
+    }
+  ]
+}

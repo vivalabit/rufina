@@ -32,7 +32,7 @@ TX_GROUP_HEADERS = {
         "Chrome/123.0 Safari/537.36"
     ),
 }
-JOB_PATH_PATTERN = re.compile(r"^(?:/fr)?/jobs/(\d+)-[a-z0-9][a-z0-9-]*$", re.IGNORECASE)
+JOB_PATH_PATTERN = re.compile(r"^(?:/(?:de|fr|en|it))?/jobs/(\d+)-[a-z0-9][a-z0-9-]*$", re.IGNORECASE)
 FEED_JOB_PATH_PATTERN = re.compile(r"^/jobs/(\d+)-[a-z0-9][a-z0-9-]*$", re.IGNORECASE)
 CATALOG_COUNT_PATTERN = re.compile(
     r"<(?:h2|span)[^>]*>\s*(\d+)\s+(?:Jobs|Stellen|Postes)\b",

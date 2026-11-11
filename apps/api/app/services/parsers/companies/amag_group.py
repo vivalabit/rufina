@@ -389,7 +389,7 @@ def parse_detail_html(
         or not valid_through
         or not employment_type
         or not description
-        or not locations
+        or (schema.get("jobLocation") and not locations)
         or schema.get("directApply") is not True
         or apply_urls != {expected_apply_url}
     ):

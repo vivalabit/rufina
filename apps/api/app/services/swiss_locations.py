@@ -75,6 +75,15 @@ def _locality_rows() -> list[list[str]]:
     return json.loads(path.read_text(encoding="utf-8"))["rows"]
 
 
+def is_swiss_postal_locality(locality: str, postcode: str) -> bool:
+    """Verify the exact postal code/name pair against the swisstopo directory."""
+    key = _normalize(locality)
+    return bool(key and re.fullmatch(r"\d{4}", postcode)) and any(
+        row[1] == postcode and key in (_name_keys(row[0]) | _name_keys(row[2]))
+        for row in _locality_rows()
+    )
+
+
 @lru_cache(maxsize=1)
 def _bilingual_names() -> re.Pattern[str]:
     names = {name for row in _locality_rows() for name in (row[0], row[2]) if "/" in name}

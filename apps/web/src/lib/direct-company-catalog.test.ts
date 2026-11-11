@@ -1718,7 +1718,7 @@ describe("Artificialy SA Direct Company catalog entry", () => {
     expect(company).toEqual({
       id: "artificialy",
       name: "Artificialy SA",
-      careersUrl: "https://www.artificialy.com/career",
+      careersUrl: "https://www.artificialy.com/company",
       logoSrc: "/company-logos/artificialy.svg",
       logoAlt: "Artificialy SA logo",
       logoWidth: 38,
@@ -2108,7 +2108,7 @@ describe("AbbVie Switzerland Direct Company catalog entry", () => {
 });
 
 describe("Lyreco Switzerland Direct Company catalog entry", () => {
-  it("uses the official Dietikon filter and local logo", () => {
+  it("uses the official Swiss Workday catalog and local logo", () => {
     const company = directCompanyCatalog.find(
       (item) => item.id === "lyreco_switzerland",
     );
@@ -2117,7 +2117,7 @@ describe("Lyreco Switzerland Direct Company catalog entry", () => {
       id: "lyreco_switzerland",
       name: "Lyreco Switzerland",
       careersUrl:
-        "https://www.lyreco.com/group/switzerland/de/jobs?f%5B0%5D=job_location%3Adietikon%20zh",
+        "https://lyreco.wd3.myworkdayjobs.com/Lyreco_Careers?locationCountry=187134fccb084a0ea9b4b95f23890dbe",
       logoSrc: "/company-logos/lyreco.svg",
       logoAlt: "Lyreco Switzerland logo",
       logoWidth: 88,

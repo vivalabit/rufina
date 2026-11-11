@@ -13,6 +13,7 @@ from scrapling import Selector
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
+from app.services.parsers.companies.http import CareerHttpClient
 
 FLUGHAFEN_ZUERICH_JOBS_BASE_URL = (
     "https://www.flughafen-zuerich.ch/de/unternehmen/jobs/karriere/stellenangebote"
@@ -71,7 +72,7 @@ class FlughafenZuerichJobsParser:
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
         try:
-            with httpx.Client(
+            with CareerHttpClient(
                 headers=FLUGHAFEN_ZUERICH_HEADERS,
                 timeout=self.timeout_seconds,
                 follow_redirects=True,

@@ -2044,7 +2044,7 @@ DIRECT_COMPANY_PARSERS = (
     DirectCompanyParserDefinition(
         id="artificialy",
         name="Artificialy SA",
-        careers_url="https://www.artificialy.com/career",
+        careers_url="https://www.artificialy.com/company",
         parser_path="app.services.parsers.companies.artificialy:ArtificialyJobsParser",
         settings_map=(
             ("base_url", "artificialy_jobs_base_url"),
@@ -2605,8 +2605,7 @@ DIRECT_COMPANY_PARSERS = (
         id="lyreco_switzerland",
         name="Lyreco Switzerland",
         careers_url=(
-            "https://www.lyreco.com/group/switzerland/de/jobs?"
-            "f%5B0%5D=job_location%3Adietikon%20zh"
+            "https://lyreco.wd3.myworkdayjobs.com/Lyreco_Careers?locationCountry=187134fccb084a0ea9b4b95f23890dbe"
         ),
         parser_path=(
             "app.services.parsers.companies.lyreco_switzerland:"

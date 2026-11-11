@@ -13,6 +13,7 @@ import httpx
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
+from app.services.parsers.companies.http import CareerHttpClient
 
 ROCHE_SWITZERLAND_JOBS_BASE_URL = "https://careers.roche.com/global/en/search-results"
 ROCHE_RESULTS_PER_PAGE = 10
@@ -54,6 +55,7 @@ class RocheSwitzerlandJobsParser:
     """Collect Roche vacancies whose primary or additional location is Swiss."""
 
     parser_id = "roche_switzerland"
+    handles_request_retries = True
 
     def __init__(
         self,
@@ -87,7 +89,7 @@ class RocheSwitzerlandJobsParser:
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
         try:
-            with httpx.Client(
+            with CareerHttpClient(
                 headers={**ROCHE_HEADERS, "Referer": self.base_url},
                 timeout=self.timeout_seconds,
                 follow_redirects=True,
@@ -126,7 +128,7 @@ class RocheSwitzerlandJobsParser:
             ),
         )
 
-    def initialize_session(self, client: httpx.Client) -> str:
+    def initialize_session(self, client: CareerHttpClient) -> str:
         response = client.get(self.base_url)
         response.raise_for_status()
         match = CSRF_PATTERN.search(response.text)
@@ -159,12 +161,12 @@ class RocheSwitzerlandJobsParser:
 
     def fetch_listing_page(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
         *,
         offset: int,
         csrf_token: str,
     ) -> tuple[int, int, list[dict[str, Any]]]:
-        response = client.post(
+        response = client.post_catalog(
             self.listing_endpoint,
             json=self.listing_payload(offset=offset),
             headers={
@@ -179,7 +181,7 @@ class RocheSwitzerlandJobsParser:
 
     def collect_listing_records(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
         *,
         csrf_token: str,
     ) -> tuple[list[dict[str, Any]], int, int]:
@@ -258,7 +260,7 @@ class RocheSwitzerlandJobsParser:
 
     def enrich_records(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
         records: list[dict[str, Any]],
     ) -> None:
         if not records:

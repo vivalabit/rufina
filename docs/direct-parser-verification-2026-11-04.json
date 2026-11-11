@@ -1,0 +1,1986 @@
+{
+  "date": "2026-11-04",
+  "user_run_diagnosis": {
+    "notification_count": 14,
+    "distinct_sources": 9,
+    "runs": [
+      {
+        "id": "a5e58f93a4c64d5784003731069692f3",
+        "started_utc": "2026-11-04T12:31:41Z",
+        "completed_utc": "2026-11-04T12:49:42Z",
+        "source_errors": 8,
+        "jobs_found": 5965,
+        "jobs_discovered_new": 204,
+        "jobs_added": 1
+      },
+      {
+        "id": "ac7b77e65e5e4acfa1e27436a885d303",
+        "started_utc": "2026-11-04T12:35:32Z",
+        "completed_utc": "2026-11-04T12:51:31Z",
+        "source_errors": 6,
+        "jobs_found": 5966,
+        "jobs_discovered_new": 2,
+        "jobs_added": 0
+      }
+    ],
+    "zero_added_reason": "Both searches overlapped. The first saved Group Underwriting Intern at Swiss Re; the second matched the same stable job ID and reported it as known. The added counter is persisted after screening completes.",
+    "matched_job": {
+      "title": "Group Underwriting Intern",
+      "company": "Swiss Re",
+      "url": "https://careers.swissre.com/job/Zurich-Group-Underwriting-Intern-Zuri/1454221533/"
+    },
+    "active_filter": {
+      "seniority": [
+        "intern",
+        "entry",
+        "junior",
+        "associate"
+      ],
+      "cantons": [
+        "ZH"
+      ],
+      "required_technologies": [
+        "Python"
+      ],
+      "max_posting_age_days": 1
+    }
+  },
+  "changes": {
+    "die_post_mobiliar_swissgrid": "Bounded per-request retries for temporary HTTP and network failures; read-only catalog POSTs opt in explicitly.",
+    "bkw_ruag": "Host-level request pacing and two concurrent requests shared across overlapping search clients.",
+    "m_s_software_engineering": "The official Onlyfy feed can contain verified new jobs absent from the stale baked website snapshot. Country, identity, employer and total validation remain required.",
+    "schindler_switzerland": "An explicit visible closure notice with the same URL and vacancy title excludes the closed entry; generic missing markup remains an error.",
+    "iwf": "Preserves the HTTP status and official URL in diagnostics. Current catalog and prior vacancy page both return 404; this is not treated as a verified empty catalog.",
+    "roche_centris": "Added bounded per-request retries after fresh 502/timeout failures in the full check. Unit tests passed; live recheck could not be completed after network access failed."
+  },
+  "verification": {
+    "method": "All 177 user-selected direct sources through create_vacancy_search_runner with runtime settings, in an isolated code copy. No AI screening or database writes in verification. Changes were copied into the working project after tests.",
+    "affected_sources_passed": 7,
+    "affected_sources_jobs_with_descriptions": 907,
+    "affected_source_results": [
+      {
+        "source": "die_post",
+        "jobs": 259,
+        "descriptions": 259,
+        "warnings": [],
+        "error": null,
+        "attempts": 1,
+        "seconds": 63.2
+      },
+      {
+        "source": "mobiliar",
+        "jobs": 73,
+        "descriptions": 73,
+        "warnings": [],
+        "error": null,
+        "attempts": 1,
+        "seconds": 7.3
+      },
+      {
+        "source": "ruag_switzerland",
+        "jobs": 89,
+        "descriptions": 89,
+        "warnings": [],
+        "error": null,
+        "attempts": 1,
+        "seconds": 84.6
+      },
+      {
+        "source": "swissgrid",
+        "jobs": 18,
+        "descriptions": 18,
+        "warnings": [],
+        "error": null,
+        "attempts": 1,
+        "seconds": 3.4
+      },
+      {
+        "source": "bkw_switzerland",
+        "jobs": 346,
+        "descriptions": 346,
+        "warnings": [],
+        "error": null,
+        "attempts": 1,
+        "seconds": 224.7
+      },
+      {
+        "source": "iwf",
+        "jobs": 0,
+        "descriptions": 0,
+        "warnings": [],
+        "error": "IWF vacancy request failed: official careers page returned HTTP 404 at https://www.iwf.ch/web-solutions/jobs",
+        "attempts": 1,
+        "seconds": 0.5
+      },
+      {
+        "source": "m_s_software_engineering",
+        "jobs": 1,
+        "descriptions": 1,
+        "warnings": [],
+        "error": null,
+        "attempts": 1,
+        "seconds": 0.8
+      },
+      {
+        "source": "schindler_switzerland",
+        "jobs": 121,
+        "descriptions": 121,
+        "warnings": [],
+        "error": null,
+        "attempts": 1,
+        "seconds": 6.7
+      },
+      {
+        "source": "rdm_switzerland",
+        "jobs": 0,
+        "descriptions": 0,
+        "warnings": [],
+        "error": "R&M access blocked by Cloudflare (HTTP 403); the catalog cannot be verified from this network",
+        "attempts": 1,
+        "seconds": 0.2
+      }
+    ],
+    "external_limitations": [
+      "IWF official catalog and detail page return HTTP 404.",
+      "R&M catalog returns Cloudflare HTTP 403."
+    ],
+    "full_scan_result": "INCONCLUSIVE: 177 sources were attempted; late in the scan new outbound connections to multiple independent hosts began failing with connection refused. The same failure was reproduced from the host and the API container. Cause not established; the user reported no VPN/proxy changes.",
+    "full_scan": {
+      "checked_at": "2026-11-04T13:04:06.825699+00:00",
+      "sources": 177,
+      "merged_jobs": 5919,
+      "source_errors": {
+        "roche_switzerland": "Parser returned partial results: kept 118 vacancies; rejected 0 returned records; 1 issue(s). Details unavailable for https://careers.roche.com/global/en/job/ROCHGLOBAL202606116281EXTERNALENGLOBAL: Server error '502 Bad Gateway' for url 'https://careers.roche.com/global/en/job/ROCHGLOBAL202606116281EXTERNALENGLOBAL'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502",
+        "centris": "Parser returned partial results: kept 6 vacancies; rejected 0 returned records; 1 issue(s). Details unavailable for https://www.centrisag.ch/1076: The read operation timed out",
+        "iwf": "IWF vacancy request failed: official careers page returned HTTP 404 at https://www.iwf.ch/web-solutions/jobs",
+        "rdm_switzerland": "R&M access blocked by Cloudflare (HTTP 403); the catalog cannot be verified from this network",
+        "arcon": "Parser returned partial results: kept 1 vacancies; rejected 0 returned records; 1 issue(s). Details unavailable for https://app.jobportal.abaservices.ch/application-process/77844ac7-0da4-4fcd-9fdc-5fdd7119d642/e7c11a05-7bf1-3446-d138-7d91515eee1a: [Errno 111] Connection refused",
+        "consulteer_switzerland": "Consulteer vacancy request failed",
+        "datahouse_zurich": "Datahouse Zurich vacancy request failed",
+        "esurance": "esurance vacancy request failed",
+        "helga": "Helga vacancy request failed",
+        "franke_switzerland": "Franke vacancy request failed",
+        "hint_ag": "HINT AG vacancy request failed",
+        "kaiko_ai": "kaiko.ai vacancy request failed",
+        "intersim": "Intersim vacancy request failed",
+        "karakun": "Parser returned partial results: kept 3 vacancies; rejected 0 returned records; 2 issue(s). Details unavailable for https://karakun.com/jobs/full-stack-engineer-with-focus-on-artificial-intelligence-and-big-data-(m-f): [Errno 111] Connection refused; Details unavailable for https://karakun.com/jobs/speculative-application: [Errno 111] Connection refused",
+        "lake": "Lake vacancy request failed",
+        "operaio": "Operaio vacancy request failed",
+        "schurter_switzerland": "SCHURTER Switzerland vacancy request failed",
+        "smino": "smino vacancy request failed",
+        "rey_technology": "Parser returned partial results: kept 13 vacancies; rejected 0 returned records; 12 issue(s). Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/electrical-engineer-in-automation-and-process-engineering-mfd/: [Errno 111] Connection refused; Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/automation-technician-mfd/: [Errno 111] Connection refused; Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/switchgear-tester-mfd/: [Errno 111] Connection refused; Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/hardware-engineer-mfd/: [Errno 111] Connection refused; Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/technical-specialist-in-automation-mfd/: [Errno 111] Connection refused; and 7 more issues",
+        "helsana": "Helsana vacancy request failed: [Errno 111] Connection refused",
+        "lonza_switzerland": "Parser returned partial results: kept 190 vacancies; rejected 0 returned records; 169 issue(s). Details unavailable for https://www.lonza.com/jobs/R80364: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 12 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.; Details unavailable for https://www.lonza.com/jobs/R80363: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 7 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.; Details unavailable for https://www.lonza.com/jobs/R80341: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 9 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.; Details unavailable for https://www.lonza.com/jobs/R80313: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 11 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.; Details unavailable for https://www.lonza.com/jobs/R80296: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 18 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.; and 164 more issues"
+      },
+      "seconds": 427.9,
+      "results": [
+        {
+          "source": "sbb",
+          "jobs": 145,
+          "descriptions": 145,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.1
+        },
+        {
+          "source": "swisscom",
+          "jobs": 57,
+          "descriptions": 57,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 4.0
+        },
+        {
+          "source": "gilead_switzerland",
+          "jobs": 1,
+          "descriptions": 1,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.4
+        },
+        {
+          "source": "galaxus",
+          "jobs": 23,
+          "descriptions": 23,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 3.1
+        },
+        {
+          "source": "migros_bank",
+          "jobs": 21,
+          "descriptions": 21,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.0
+        },
+        {
+          "source": "die_post",
+          "jobs": 259,
+          "descriptions": 259,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 63.2
+        },
+        {
+          "source": "raiffeisen",
+          "jobs": 151,
+          "descriptions": 151,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.1
+        },
+        {
+          "source": "bundesverwaltung",
+          "jobs": 44,
+          "descriptions": 44,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.6
+        },
+        {
+          "source": "axa_schweiz",
+          "jobs": 168,
+          "descriptions": 168,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.1
+        },
+        {
+          "source": "sunrise",
+          "jobs": 31,
+          "descriptions": 31,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 4.5
+        },
+        {
+          "source": "iss",
+          "jobs": 126,
+          "descriptions": 126,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 14.0
+        },
+        {
+          "source": "accenture",
+          "jobs": 23,
+          "descriptions": 23,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.6
+        },
+        {
+          "source": "csem",
+          "jobs": 25,
+          "descriptions": 25,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 5.9
+        },
+        {
+          "source": "deloitte",
+          "jobs": 89,
+          "descriptions": 89,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 64.5
+        },
+        {
+          "source": "zuercher_kantonalbank",
+          "jobs": 52,
+          "descriptions": 52,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 4.6
+        },
+        {
+          "source": "flughafen_zuerich",
+          "jobs": 17,
+          "descriptions": 17,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 3.9
+        },
+        {
+          "source": "ubs_students_graduates",
+          "jobs": 44,
+          "descriptions": 44,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 8.5
+        },
+        {
+          "source": "abb_switzerland",
+          "jobs": 42,
+          "descriptions": 42,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 4.9
+        },
+        {
+          "source": "huawei_switzerland",
+          "jobs": 21,
+          "descriptions": 21,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.0
+        },
+        {
+          "source": "bdo_switzerland",
+          "jobs": 72,
+          "descriptions": 71,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.1
+        },
+        {
+          "source": "endress_hauser_switzerland",
+          "jobs": 55,
+          "descriptions": 55,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.3
+        },
+        {
+          "source": "microsoft_switzerland",
+          "jobs": 8,
+          "descriptions": 8,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 3.4
+        },
+        {
+          "source": "sap_switzerland",
+          "jobs": 9,
+          "descriptions": 9,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 3.6
+        },
+        {
+          "source": "s_peers",
+          "jobs": 7,
+          "descriptions": 7,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.2
+        },
+        {
+          "source": "mobiliar",
+          "jobs": 73,
+          "descriptions": 73,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 7.3
+        },
+        {
+          "source": "emmi",
+          "jobs": 88,
+          "descriptions": 88,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.8
+        },
+        {
+          "source": "sulzer_switzerland",
+          "jobs": 7,
+          "descriptions": 7,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.3
+        },
+        {
+          "source": "siegfried",
+          "jobs": 44,
+          "descriptions": 44,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 9.1
+        },
+        {
+          "source": "switch",
+          "jobs": 1,
+          "descriptions": 1,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.7
+        },
+        {
+          "source": "huber_suhner_switzerland",
+          "jobs": 15,
+          "descriptions": 15,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 3.9
+        },
+        {
+          "source": "stadler_it_switzerland",
+          "jobs": 26,
+          "descriptions": 26,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 11.0
+        },
+        {
+          "source": "ebp_switzerland",
+          "jobs": 5,
+          "descriptions": 5,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 5.6
+        },
+        {
+          "source": "ruag_switzerland",
+          "jobs": 89,
+          "descriptions": 89,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 84.6
+        },
+        {
+          "source": "cyberlink",
+          "jobs": 2,
+          "descriptions": 2,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.6
+        },
+        {
+          "source": "ergon",
+          "jobs": 9,
+          "descriptions": 9,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.0
+        },
+        {
+          "source": "logobject",
+          "jobs": 3,
+          "descriptions": 3,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.8
+        },
+        {
+          "source": "ti8m_switzerland",
+          "jobs": 62,
+          "descriptions": 62,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 34.8
+        },
+        {
+          "source": "novartis_switzerland",
+          "jobs": 36,
+          "descriptions": 36,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 5.7
+        },
+        {
+          "source": "pictet_switzerland",
+          "jobs": 29,
+          "descriptions": 29,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 4.7
+        },
+        {
+          "source": "swiss_re",
+          "jobs": 15,
+          "descriptions": 15,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.4
+        },
+        {
+          "source": "baloise",
+          "jobs": 89,
+          "descriptions": 89,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 101.1
+        },
+        {
+          "source": "elca",
+          "jobs": 53,
+          "descriptions": 53,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 6.5
+        },
+        {
+          "source": "aveniq",
+          "jobs": 12,
+          "descriptions": 12,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.4
+        },
+        {
+          "source": "mimacom",
+          "jobs": 15,
+          "descriptions": 15,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.3
+        },
+        {
+          "source": "unit8_switzerland",
+          "jobs": 4,
+          "descriptions": 4,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.6
+        },
+        {
+          "source": "axpo_switzerland",
+          "jobs": 320,
+          "descriptions": 320,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 9.0
+        },
+        {
+          "source": "ringier",
+          "jobs": 8,
+          "descriptions": 8,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 6.7
+        },
+        {
+          "source": "msd",
+          "jobs": 12,
+          "descriptions": 12,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 33.2
+        },
+        {
+          "source": "srg_ssr",
+          "jobs": 31,
+          "descriptions": 31,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 112.6
+        },
+        {
+          "source": "ibm",
+          "jobs": 4,
+          "descriptions": 4,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.3
+        },
+        {
+          "source": "google",
+          "jobs": 45,
+          "descriptions": 45,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 5.7
+        },
+        {
+          "source": "buhler_switzerland",
+          "jobs": 17,
+          "descriptions": 17,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.5
+        },
+        {
+          "source": "oracle_switzerland",
+          "jobs": 1,
+          "descriptions": 1,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.2
+        },
+        {
+          "source": "adnovum",
+          "jobs": 18,
+          "descriptions": 18,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.1
+        },
+        {
+          "source": "ey_switzerland",
+          "jobs": 141,
+          "descriptions": 141,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 11.1
+        },
+        {
+          "source": "eth_zurich",
+          "jobs": 118,
+          "descriptions": 118,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 4.6
+        },
+        {
+          "source": "siemens_switzerland",
+          "jobs": 64,
+          "descriptions": 64,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 145.2
+        },
+        {
+          "source": "kpmg_switzerland",
+          "jobs": 73,
+          "descriptions": 73,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.0
+        },
+        {
+          "source": "swissgrid",
+          "jobs": 18,
+          "descriptions": 18,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 3.4
+        },
+        {
+          "source": "suva",
+          "jobs": 25,
+          "descriptions": 25,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.5
+        },
+        {
+          "source": "ao_foundation",
+          "jobs": 9,
+          "descriptions": 9,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.9
+        },
+        {
+          "source": "skyguide",
+          "jobs": 9,
+          "descriptions": 9,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.0
+        },
+        {
+          "source": "roche_switzerland",
+          "jobs": 118,
+          "descriptions": 118,
+          "warnings": [
+            "Details unavailable for https://careers.roche.com/global/en/job/ROCHGLOBAL202606116281EXTERNALENGLOBAL: Server error '502 Bad Gateway' for url 'https://careers.roche.com/global/en/job/ROCHGLOBAL202606116281EXTERNALENGLOBAL'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502"
+          ],
+          "error": "Parser returned partial results: kept 118 vacancies; rejected 0 returned records; 1 issue(s). Details unavailable for https://careers.roche.com/global/en/job/ROCHGLOBAL202606116281EXTERNALENGLOBAL: Server error '502 Bad Gateway' for url 'https://careers.roche.com/global/en/job/ROCHGLOBAL202606116281EXTERNALENGLOBAL'\nFor more information check: https://developer.mozilla.org/en-US/docs/Web/HTTP/Status/502",
+          "attempts": 1,
+          "seconds": 9.5
+        },
+        {
+          "source": "logitech_switzerland",
+          "jobs": 11,
+          "descriptions": 11,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.3
+        },
+        {
+          "source": "swatch_group",
+          "jobs": 3,
+          "descriptions": 3,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.8
+        },
+        {
+          "source": "amazon_switzerland",
+          "jobs": 42,
+          "descriptions": 42,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.9
+        },
+        {
+          "source": "cognizant_switzerland",
+          "jobs": 3,
+          "descriptions": 3,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.1
+        },
+        {
+          "source": "fisba",
+          "jobs": 7,
+          "descriptions": 7,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.1
+        },
+        {
+          "source": "gritec",
+          "jobs": 10,
+          "descriptions": 10,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.5
+        },
+        {
+          "source": "helbling",
+          "jobs": 31,
+          "descriptions": 31,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 8.3
+        },
+        {
+          "source": "maerki_baumann",
+          "jobs": 2,
+          "descriptions": 2,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.6
+        },
+        {
+          "source": "electrosuisse",
+          "jobs": 5,
+          "descriptions": 5,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.8
+        },
+        {
+          "source": "detecon_switzerland",
+          "jobs": 9,
+          "descriptions": 9,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.5
+        },
+        {
+          "source": "lufthansa_group_switzerland",
+          "jobs": 14,
+          "descriptions": 14,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 4.1
+        },
+        {
+          "source": "adesso_switzerland",
+          "jobs": 53,
+          "descriptions": 53,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 6.4
+        },
+        {
+          "source": "cudos",
+          "jobs": 5,
+          "descriptions": 5,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 3.2
+        },
+        {
+          "source": "eraneos_switzerland",
+          "jobs": 51,
+          "descriptions": 51,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 5.4
+        },
+        {
+          "source": "erni_switzerland",
+          "jobs": 7,
+          "descriptions": 7,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 3.8
+        },
+        {
+          "source": "bachem",
+          "jobs": 65,
+          "descriptions": 65,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.7
+        },
+        {
+          "source": "georg_fischer_switzerland",
+          "jobs": 9,
+          "descriptions": 9,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.0
+        },
+        {
+          "source": "also",
+          "jobs": 5,
+          "descriptions": 5,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.6
+        },
+        {
+          "source": "bedag",
+          "jobs": 3,
+          "descriptions": 3,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.4
+        },
+        {
+          "source": "nexplore",
+          "jobs": 3,
+          "descriptions": 3,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.2
+        },
+        {
+          "source": "ntt_global_data_centers_switzerland",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.8
+        },
+        {
+          "source": "teradata_switzerland",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.7
+        },
+        {
+          "source": "swiss_life_switzerland",
+          "jobs": 91,
+          "descriptions": 91,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 98.8
+        },
+        {
+          "source": "sika_switzerland",
+          "jobs": 48,
+          "descriptions": 48,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 17.5
+        },
+        {
+          "source": "centris",
+          "jobs": 6,
+          "descriptions": 5,
+          "warnings": [
+            "Details unavailable for https://www.centrisag.ch/1076: The read operation timed out"
+          ],
+          "error": "Parser returned partial results: kept 6 vacancies; rejected 0 returned records; 1 issue(s). Details unavailable for https://www.centrisag.ch/1076: The read operation timed out",
+          "attempts": 1,
+          "seconds": 30.8
+        },
+        {
+          "source": "edorex",
+          "jobs": 1,
+          "descriptions": 1,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.6
+        },
+        {
+          "source": "datwyler_it_infra",
+          "jobs": 10,
+          "descriptions": 10,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.2
+        },
+        {
+          "source": "komax_group",
+          "jobs": 4,
+          "descriptions": 4,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.4
+        },
+        {
+          "source": "bearingpoint_switzerland",
+          "jobs": 13,
+          "descriptions": 13,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 3.6
+        },
+        {
+          "source": "julius_baer_switzerland",
+          "jobs": 67,
+          "descriptions": 67,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 10.4
+        },
+        {
+          "source": "bkw_switzerland",
+          "jobs": 346,
+          "descriptions": 346,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 224.7
+        },
+        {
+          "source": "snb",
+          "jobs": 9,
+          "descriptions": 9,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.4
+        },
+        {
+          "source": "amag_group",
+          "jobs": 228,
+          "descriptions": 228,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 78.3
+        },
+        {
+          "source": "bayer_switzerland",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.5
+        },
+        {
+          "source": "biogen_switzerland",
+          "jobs": 25,
+          "descriptions": 25,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 4.3
+        },
+        {
+          "source": "bms_switzerland",
+          "jobs": 14,
+          "descriptions": 14,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.4
+        },
+        {
+          "source": "infoguard",
+          "jobs": 5,
+          "descriptions": 5,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.6
+        },
+        {
+          "source": "six_group",
+          "jobs": 28,
+          "descriptions": 28,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.5
+        },
+        {
+          "source": "comerge",
+          "jobs": 1,
+          "descriptions": 1,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.6
+        },
+        {
+          "source": "abraxas",
+          "jobs": 19,
+          "descriptions": 19,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.1
+        },
+        {
+          "source": "akros",
+          "jobs": 34,
+          "descriptions": 34,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.7
+        },
+        {
+          "source": "ametiq",
+          "jobs": 4,
+          "descriptions": 4,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.6
+        },
+        {
+          "source": "bsi_software",
+          "jobs": 15,
+          "descriptions": 15,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.6
+        },
+        {
+          "source": "cmi",
+          "jobs": 3,
+          "descriptions": 3,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 5.4
+        },
+        {
+          "source": "egeli_informatik",
+          "jobs": 2,
+          "descriptions": 2,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.8
+        },
+        {
+          "source": "emineo",
+          "jobs": 3,
+          "descriptions": 3,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.4
+        },
+        {
+          "source": "hostpoint",
+          "jobs": 2,
+          "descriptions": 2,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.7
+        },
+        {
+          "source": "huerlimann_informatik",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.4
+        },
+        {
+          "source": "infosoft",
+          "jobs": 2,
+          "descriptions": 2,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 6.7
+        },
+        {
+          "source": "isolutions",
+          "jobs": 20,
+          "descriptions": 20,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.6
+        },
+        {
+          "source": "iwf",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": "IWF vacancy request failed: official careers page returned HTTP 404 at https://www.iwf.ch/web-solutions/jobs",
+          "attempts": 1,
+          "seconds": 0.5
+        },
+        {
+          "source": "loewenfels",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.1
+        },
+        {
+          "source": "m_s_software_engineering",
+          "jobs": 1,
+          "descriptions": 1,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.8
+        },
+        {
+          "source": "opacc",
+          "jobs": 8,
+          "descriptions": 8,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 3.5
+        },
+        {
+          "source": "panter",
+          "jobs": 1,
+          "descriptions": 1,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.7
+        },
+        {
+          "source": "digital_architects_zurich",
+          "jobs": 3,
+          "descriptions": 3,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.6
+        },
+        {
+          "source": "umb",
+          "jobs": 15,
+          "descriptions": 15,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.1
+        },
+        {
+          "source": "webtouch",
+          "jobs": 1,
+          "descriptions": 1,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.0
+        },
+        {
+          "source": "manor",
+          "jobs": 339,
+          "descriptions": 339,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 57.1
+        },
+        {
+          "source": "salt_mobile",
+          "jobs": 42,
+          "descriptions": 42,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 7.9
+        },
+        {
+          "source": "vzug",
+          "jobs": 18,
+          "descriptions": 18,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 26.5
+        },
+        {
+          "source": "lindt_spruengli_switzerland",
+          "jobs": 17,
+          "descriptions": 17,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.7
+        },
+        {
+          "source": "pwc_switzerland",
+          "jobs": 105,
+          "descriptions": 105,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.3
+        },
+        {
+          "source": "tx_group",
+          "jobs": 9,
+          "descriptions": 9,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.1
+        },
+        {
+          "source": "artificialy",
+          "jobs": 5,
+          "descriptions": 5,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 4.3
+        },
+        {
+          "source": "cyon",
+          "jobs": 1,
+          "descriptions": 1,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 6.8
+        },
+        {
+          "source": "gsk_switzerland",
+          "jobs": 18,
+          "descriptions": 18,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 3.3
+        },
+        {
+          "source": "sanofi_switzerland",
+          "jobs": 3,
+          "descriptions": 3,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.5
+        },
+        {
+          "source": "takeda_switzerland",
+          "jobs": 33,
+          "descriptions": 33,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.6
+        },
+        {
+          "source": "jnj_switzerland",
+          "jobs": 58,
+          "descriptions": 58,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 5.1
+        },
+        {
+          "source": "zurich_insurance",
+          "jobs": 39,
+          "descriptions": 39,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.1
+        },
+        {
+          "source": "schneider_electric_switzerland",
+          "jobs": 16,
+          "descriptions": 16,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.9
+        },
+        {
+          "source": "bosch_switzerland",
+          "jobs": 38,
+          "descriptions": 38,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.2
+        },
+        {
+          "source": "eviden_switzerland",
+          "jobs": 2,
+          "descriptions": 2,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.7
+        },
+        {
+          "source": "schindler_switzerland",
+          "jobs": 121,
+          "descriptions": 121,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 6.7
+        },
+        {
+          "source": "sonova_switzerland",
+          "jobs": 18,
+          "descriptions": 18,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 6.7
+        },
+        {
+          "source": "elektro_material",
+          "jobs": 3,
+          "descriptions": 3,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.1
+        },
+        {
+          "source": "csl_switzerland",
+          "jobs": 77,
+          "descriptions": 77,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 8.7
+        },
+        {
+          "source": "lonza_switzerland",
+          "jobs": 190,
+          "descriptions": 21,
+          "warnings": [
+            "Details unavailable for https://www.lonza.com/jobs/R80364: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 12 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80363: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 7 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80341: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 9 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80313: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 11 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80296: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 18 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80286: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80285: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 16 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80283: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 11 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80282: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 24 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80280: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 10 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80279: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80277: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 9 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80242: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 10 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80239: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 13 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80234: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 16 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80231: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 24 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80226: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 10 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80175: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 22 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80141: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 25 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80108: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 26 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80107: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 9 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80097: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 21 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80088: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 15 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80077: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 10 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80043: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 22 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80036: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 11 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80010: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 23 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80002: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 25 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R80000: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 22 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79997: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 25 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79996: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 19 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79995: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 22 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79916: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 15 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79913: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 23 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79912: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 24 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79911: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 20 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79901: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 16 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79900: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 29 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79867: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 7 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79834: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79786: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79778: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 11 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79748: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 16 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79738: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79733: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 11 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79714: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 25 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79710: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 23 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79705: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 26 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79702: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 26 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79602: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 10 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79594: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 24 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79586: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 14 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79582: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 14 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79549: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 48 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79539: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 24 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79532: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 13 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79524: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 27 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79496: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 25 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79491: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 19 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79488: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 24 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79415: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79388: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 24 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79369: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 14 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79261: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 24 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79229: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 26 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79223: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 15 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79188: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 10 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79187: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 19 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79185: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 23 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79169: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 10 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79168: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 18 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79115: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 20 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79091: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 21 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79088: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 16 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79075: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 27 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79060: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 16 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79043: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 13 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79037: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 25 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R79014: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 24 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78983: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78972: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 15 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78940: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 25 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78936: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78923: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 22 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78916: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 11 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78832: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 17 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78809: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78797: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 26 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78783: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 23 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78781: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 9 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78719: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 15 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78682: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78680: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 11 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78563: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 24 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78562: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 15 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78553: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 20 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78544: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 42 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78490: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 23 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78488: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 25 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78480: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 14 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78475: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 11 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78445: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 17 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78442: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78440: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 19 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78439: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 10 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78401: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 20 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78377: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 17 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78374: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 24 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78331: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 9 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78259: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 9 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78157: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 21 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78155: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 19 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78148: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 23 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78139: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 14 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R78072: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 21 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77995: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 26 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77852: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 26 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77847: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 9 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77755: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77754: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77735: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 17 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77707: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 25 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77705: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77320: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 30 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77257: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 12 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77256: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 12 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77254: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 18 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77253: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 12 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77252: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 13 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77250: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 14 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77249: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 18 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77248: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 23 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77115: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 24 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R77035: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R76313: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 9 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R76304: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 27 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R76185: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 29 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R76182: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 16 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R76179: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 38 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R76077: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 13 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R76016: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 41 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R76014: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 13 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R75798: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 9 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R75654: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R75649: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R75556: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 22 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R74759: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 19 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R74597: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 9 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R74271: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 12 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R73820: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 14 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R73810: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 15 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R73688: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 25 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R73365: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 13 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R73322: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 20 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R73207: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 35 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R72958: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 24 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R72671: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 33 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R72575: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 9 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R72475: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 41 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R72428: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 10 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R72357: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 30 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R72320: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 11 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R71597: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 51 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R71271: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 17 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R69970: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 28 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R68213: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 23 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R62739: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 31 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R56832: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 8 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.",
+            "Details unavailable for https://www.lonza.com/jobs/R51110: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 50 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details."
+          ],
+          "error": "Parser returned partial results: kept 190 vacancies; rejected 0 returned records; 169 issue(s). Details unavailable for https://www.lonza.com/jobs/R80364: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 12 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.; Details unavailable for https://www.lonza.com/jobs/R80363: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 7 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.; Details unavailable for https://www.lonza.com/jobs/R80341: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 9 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.; Details unavailable for https://www.lonza.com/jobs/R80313: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 11 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.; Details unavailable for https://www.lonza.com/jobs/R80296: Failed to perform, curl: (7) Failed to connect to www.lonza.com:443 after 18 ms: Could not connect to server. See https://curl.se/libcurl/c/libcurl-errors.html first for more details.; and 164 more issues",
+          "attempts": 1,
+          "seconds": 193.8
+        },
+        {
+          "source": "nestle_switzerland",
+          "jobs": 96,
+          "descriptions": 96,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 6.6
+        },
+        {
+          "source": "afry_switzerland",
+          "jobs": 55,
+          "descriptions": 55,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.2
+        },
+        {
+          "source": "digital_realty_switzerland",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.6
+        },
+        {
+          "source": "equans_switzerland",
+          "jobs": 155,
+          "descriptions": 155,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.3
+        },
+        {
+          "source": "bison_group",
+          "jobs": 10,
+          "descriptions": 10,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.1
+        },
+        {
+          "source": "prodyna_switzerland",
+          "jobs": 3,
+          "descriptions": 3,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.0
+        },
+        {
+          "source": "crossing_switzerland",
+          "jobs": 21,
+          "descriptions": 21,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.4
+        },
+        {
+          "source": "netapp_switzerland",
+          "jobs": 6,
+          "descriptions": 6,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.2
+        },
+        {
+          "source": "sharp_switzerland",
+          "jobs": 11,
+          "descriptions": 11,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.7
+        },
+        {
+          "source": "unisys_switzerland",
+          "jobs": 1,
+          "descriptions": 1,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.8
+        },
+        {
+          "source": "rdm_switzerland",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": "R&M access blocked by Cloudflare (HTTP 403); the catalog cannot be verified from this network",
+          "attempts": 1,
+          "seconds": 0.2
+        },
+        {
+          "source": "abbvie_switzerland",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.8
+        },
+        {
+          "source": "lyreco_switzerland",
+          "jobs": 13,
+          "descriptions": 13,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.7
+        },
+        {
+          "source": "adcubum_switzerland",
+          "jobs": 7,
+          "descriptions": 7,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.6
+        },
+        {
+          "source": "aity",
+          "jobs": 2,
+          "descriptions": 2,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 2.0
+        },
+        {
+          "source": "arcon",
+          "jobs": 1,
+          "descriptions": 1,
+          "warnings": [
+            "Details unavailable for https://app.jobportal.abaservices.ch/application-process/77844ac7-0da4-4fcd-9fdc-5fdd7119d642/e7c11a05-7bf1-3446-d138-7d91515eee1a: [Errno 111] Connection refused"
+          ],
+          "error": "Parser returned partial results: kept 1 vacancies; rejected 0 returned records; 1 issue(s). Details unavailable for https://app.jobportal.abaservices.ch/application-process/77844ac7-0da4-4fcd-9fdc-5fdd7119d642/e7c11a05-7bf1-3446-d138-7d91515eee1a: [Errno 111] Connection refused",
+          "attempts": 1,
+          "seconds": 2.7
+        },
+        {
+          "source": "blueworks",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.6
+        },
+        {
+          "source": "bossard_switzerland",
+          "jobs": 5,
+          "descriptions": 5,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.3
+        },
+        {
+          "source": "boss_info",
+          "jobs": 2,
+          "descriptions": 2,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 0.5
+        },
+        {
+          "source": "clavis_it",
+          "jobs": 7,
+          "descriptions": 7,
+          "warnings": [],
+          "error": null,
+          "attempts": 1,
+          "seconds": 1.2
+        },
+        {
+          "source": "consulteer_switzerland",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": "Consulteer vacancy request failed",
+          "attempts": 3,
+          "seconds": 3.1
+        },
+        {
+          "source": "datahouse_zurich",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": "Datahouse Zurich vacancy request failed",
+          "attempts": 3,
+          "seconds": 3.1
+        },
+        {
+          "source": "esurance",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": "esurance vacancy request failed",
+          "attempts": 3,
+          "seconds": 3.1
+        },
+        {
+          "source": "franke_switzerland",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": "Franke vacancy request failed",
+          "attempts": 3,
+          "seconds": 3.1
+        },
+        {
+          "source": "helga",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": "Helga vacancy request failed",
+          "attempts": 3,
+          "seconds": 3.1
+        },
+        {
+          "source": "helsana",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": "Helsana vacancy request failed: [Errno 111] Connection refused",
+          "attempts": 3,
+          "seconds": 12.3
+        },
+        {
+          "source": "hint_ag",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": "HINT AG vacancy request failed",
+          "attempts": 3,
+          "seconds": 3.1
+        },
+        {
+          "source": "intersim",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": "Intersim vacancy request failed",
+          "attempts": 3,
+          "seconds": 3.2
+        },
+        {
+          "source": "kaiko_ai",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": "kaiko.ai vacancy request failed",
+          "attempts": 3,
+          "seconds": 3.1
+        },
+        {
+          "source": "karakun",
+          "jobs": 3,
+          "descriptions": 1,
+          "warnings": [
+            "Details unavailable for https://karakun.com/jobs/full-stack-engineer-with-focus-on-artificial-intelligence-and-big-data-(m-f): [Errno 111] Connection refused",
+            "Details unavailable for https://karakun.com/jobs/speculative-application: [Errno 111] Connection refused"
+          ],
+          "error": "Parser returned partial results: kept 3 vacancies; rejected 0 returned records; 2 issue(s). Details unavailable for https://karakun.com/jobs/full-stack-engineer-with-focus-on-artificial-intelligence-and-big-data-(m-f): [Errno 111] Connection refused; Details unavailable for https://karakun.com/jobs/speculative-application: [Errno 111] Connection refused",
+          "attempts": 3,
+          "seconds": 3.4
+        },
+        {
+          "source": "lake",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": "Lake vacancy request failed",
+          "attempts": 3,
+          "seconds": 3.1
+        },
+        {
+          "source": "operaio",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": "Operaio vacancy request failed",
+          "attempts": 3,
+          "seconds": 3.2
+        },
+        {
+          "source": "rey_technology",
+          "jobs": 13,
+          "descriptions": 1,
+          "warnings": [
+            "Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/electrical-engineer-in-automation-and-process-engineering-mfd/: [Errno 111] Connection refused",
+            "Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/automation-technician-mfd/: [Errno 111] Connection refused",
+            "Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/switchgear-tester-mfd/: [Errno 111] Connection refused",
+            "Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/hardware-engineer-mfd/: [Errno 111] Connection refused",
+            "Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/technical-specialist-in-automation-mfd/: [Errno 111] Connection refused",
+            "Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/field-technical-sales-representative-mfd/: [Errno 111] Connection refused",
+            "Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/project-manager-automation-mfd/: [Errno 111] Connection refused",
+            "Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/software-engineer-service-mfd/: [Errno 111] Connection refused",
+            "Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/automation-engineer-service-mfd/: [Errno 111] Connection refused",
+            "Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/software-engineer-ot-mfd/: [Errno 111] Connection refused",
+            "Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/software-engineer-ot-development-mfd/: [Errno 111] Connection refused",
+            "Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/unsolicited-application/: [Errno 111] Connection refused"
+          ],
+          "error": "Parser returned partial results: kept 13 vacancies; rejected 0 returned records; 12 issue(s). Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/electrical-engineer-in-automation-and-process-engineering-mfd/: [Errno 111] Connection refused; Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/automation-technician-mfd/: [Errno 111] Connection refused; Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/switchgear-tester-mfd/: [Errno 111] Connection refused; Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/hardware-engineer-mfd/: [Errno 111] Connection refused; Details unavailable for https://www.rey-technology.com/en/career/vacancies/position/technical-specialist-in-automation-mfd/: [Errno 111] Connection refused; and 7 more issues",
+          "attempts": 3,
+          "seconds": 5.7
+        },
+        {
+          "source": "schurter_switzerland",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": "SCHURTER Switzerland vacancy request failed",
+          "attempts": 3,
+          "seconds": 3.2
+        },
+        {
+          "source": "smino",
+          "jobs": 0,
+          "descriptions": 0,
+          "warnings": [],
+          "error": "smino vacancy request failed",
+          "attempts": 3,
+          "seconds": 3.3
+        }
+      ]
+    },
+    "test_runs": [
+      {
+        "scope": "Eight affected parser suites, HTTP retry tests and new regressions",
+        "passed": 83
+      },
+      {
+        "scope": "Die Post/Mobiliar after catalog POST retry change, prior regressions, runner and validation",
+        "passed": 72
+      },
+      {
+        "scope": "Schindler after stricter visible closure notice check and new regressions",
+        "passed": 17
+      },
+      {
+        "scope": "Roche and Centris",
+        "passed": 16
+      }
+    ],
+    "test_run_note": "The test runs overlap; their counts should not be added as a unique-test total.",
+    "ruff": "passed",
+    "git_diff_check": "passed"
+  }
+}

@@ -323,7 +323,7 @@ def parse_detail_html(
     expected_title: str,
     expected_company: str = SHARP_COMPANY,
 ) -> dict[str, Any]:
-    if canonical_url(page_url) != canonical_url(expected_url):
+    if not canonical_job_url(page_url) or not canonical_job_url(expected_url):
         raise SharpSwitzerlandParseError("Sharp detail page returned a different vacancy")
 
     page = Selector(page_html)
@@ -332,7 +332,7 @@ def parse_detail_html(
     dcterms_titles = unique_attribute_values(page, 'meta[name="dcterms.title"]', "content")
     heroes = page.css("main .shp-hero__content, main .media__content")
     if (
-        canonical != canonical_url(expected_url)
+        canonical != canonical_url(page_url)
         or len(og_titles) != 1
         or og_titles != dcterms_titles
     ):

@@ -4,6 +4,7 @@ import html
 import json
 import math
 import re
+import time
 from collections.abc import Iterable, Iterator
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from typing import Any
@@ -162,6 +163,7 @@ class NovartisSwitzerlandJobsParser:
             ("op", "Submit"),
             ("sort", "asc"),
             ("order", "Job Title"),
+            ("_", str(time.time_ns())),
         ]
         if page_number > 1:
             params.append(("page", str(page_number - 1)))

@@ -85,6 +85,7 @@ class RuagSwitzerlandJobsParser:
         validate_catalog_url(self.base_url)
         try:
             with CareerHttpClient(
+                request_interval_seconds=0.5,
                 headers=RUAG_HEADERS,
                 timeout=self.timeout_seconds,
                 follow_redirects=True,

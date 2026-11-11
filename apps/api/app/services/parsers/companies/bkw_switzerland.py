@@ -14,6 +14,7 @@ import httpx
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
 from app.services.parsers.companies.http import CareerHttpClient
+from app.services.swiss_locations import is_swiss_postal_locality, resolve_swiss_cantons
 
 BKW_SWITZERLAND_JOBS_URL = "https://jobs.bkw.com/en/vacancies"
 BKW_SWITZERLAND_API_URL = (
@@ -75,6 +76,7 @@ class BkwSwitzerlandJobsParser:
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
         try:
             with CareerHttpClient(
+                request_interval_seconds=0.5,
                 headers={**BKW_HEADERS, "Referer": self.base_url},
                 timeout=self.timeout_seconds,
                 follow_redirects=True,
@@ -134,6 +136,14 @@ class BkwSwitzerlandJobsParser:
                         "Referer": self.base_url,
                     },
                 )
+                if (
+                    response.status_code == 410
+                    and same_url(str(response.url), str(record["url"]))
+                    and "Wir bedauern, diese Ausschreibung ist nicht mehr online."
+                    in (html_to_text(response.text) or "")
+                ):
+                    record["closed"] = True
+                    return record, None
                 response.raise_for_status()
                 return record, parse_detail_html(
                     response.text,
@@ -141,6 +151,7 @@ class BkwSwitzerlandJobsParser:
                     expected_url=str(record["url"]),
                     expected_id=str(record["id"]),
                     expected_title=str(record["title"]),
+                    listing_locations=record.get("parsed_locations"),
                 )
             except (httpx.HTTPError, BkwSwitzerlandParseError, ValueError) as exc:
                 record["detail_error"] = str(exc)
@@ -170,7 +181,10 @@ class BkwSwitzerlandJobsParser:
             for record in records
             if record.get("exclude_unverified")
         ]
-        records[:] = [record for record in records if not record.get("exclude_unverified")]
+        records[:] = [
+            record for record in records
+            if not record.get("exclude_unverified") and not record.get("closed")
+        ]
         return warnings
 
 
@@ -322,6 +336,7 @@ def parse_detail_html(
     expected_url: str,
     expected_id: str,
     expected_title: str,
+    listing_locations: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     if not same_url(page_url, expected_url) or extract_job_id(page_url) != expected_id:
         raise BkwSwitzerlandParseError("BKW vacancy returned unexpected content")
@@ -334,6 +349,34 @@ def parse_detail_html(
     description = html_to_text(optional_text(schema.get("description")))
     company = extract_hiring_organization(schema)
     location = extract_swiss_schema_location(schema)
+    location_evidence = "JobPosting address"
+    if not location:
+        # Some Prospective pages incorrectly label a Swiss postal address as
+        # Germany, or expose only the German office of a multi-location role.
+        # Require independent Swiss evidence instead of trusting the category.
+        addresses = schema.get("jobLocation")
+        addresses = addresses if isinstance(addresses, list) else [addresses]
+        verified = []
+        for place in addresses:
+            address = place.get("address") if isinstance(place, dict) else None
+            if not isinstance(address, dict):
+                continue
+            city = optional_text(address.get("addressLocality")) or ""
+            postcode = optional_text(address.get("postalCode")) or ""
+            if is_swiss_postal_locality(city, postcode):
+                verified.append(f"{city}, Switzerland")
+        if verified:
+            location = "; ".join(dict.fromkeys(verified))
+            location_evidence = "Verified Swiss postal locality; inconsistent schema country"
+        else:
+            verified = [
+                f"{item['city']}, Switzerland" for item in listing_locations or []
+                if str(item.get("country") or "").casefold() in SWISS_COUNTRIES
+                and resolve_swiss_cantons(str(item.get("city") or ""))
+            ]
+            if verified:
+                location = "; ".join(dict.fromkeys(verified))
+                location_evidence = "Verified Swiss catalog office; foreign primary detail office"
     apply_urls = {
         normalized
         for href in HREF_PATTERN.findall(page_html)
@@ -356,6 +399,7 @@ def parse_detail_html(
         "title": normalized_expected_title,
         "company": company,
         "location": location,
+        "location_evidence": location_evidence,
         "apply_url": next(iter(apply_urls)),
         "posted_at": optional_text(schema.get("datePosted")),
         "valid_through": optional_text(schema.get("validThrough")),

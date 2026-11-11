@@ -328,7 +328,7 @@ def test_iwf_is_registered_and_renders_as_direct_company_source() -> None:
     assert stored["id"] == "iwf-agile-tester"
 
 
-def test_iwf_retains_valid_jobs_but_marks_unlinked_card_partial() -> None:
+def test_iwf_reports_unpublished_teaser_without_failing_the_catalog() -> None:
     import re
 
     stale = re.sub(r"<a .*?</a>", "", listing_card("stale", title="Agile Tester"), flags=re.DOTALL)
@@ -345,11 +345,11 @@ def test_iwf_retains_valid_jobs_but_marks_unlinked_card_partial() -> None:
     result = IwfJobsParser(base_url=BASE_URL, transport=httpx.MockTransport(handler)).search(
         LinkedInSearchRequest()
     )
-    assert result.warnings
+    assert result.warnings == []
     assert len(result.jobs) == 1
-    assert "no detail link: Agile Tester" in result.warnings[0]
-    from app.services.parser_validation import PARTIAL_PARSER_RESULT_PREFIX, validate_parser_result
+    assert "no detail link: Agile Tester" in result.message
+    from app.services.parser_validation import validate_parser_result
 
     validated, error = validate_parser_result(result)
     assert len(validated.jobs) == 1
-    assert error and error.startswith(PARTIAL_PARSER_RESULT_PREFIX)
+    assert error is None

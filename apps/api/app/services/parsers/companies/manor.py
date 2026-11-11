@@ -216,6 +216,13 @@ class ManorJobsParser:
         ) -> tuple[dict[str, Any], dict[str, Any] | None]:
             try:
                 response = client.get(record["url"], headers={"Referer": self.base_url})
+                if (
+                    response.status_code in {404, 410}
+                    and same_url(str(response.url), record["url"])
+                    and response.text.lstrip("\ufeff").strip() == "This job does not exist anymore"
+                ):
+                    record["closed"] = True
+                    return record, None
                 response.raise_for_status()
                 return record, parse_detail_html(
                     response.text,
@@ -234,6 +241,7 @@ class ManorJobsParser:
                 record, detail = future.result()
                 if detail is not None:
                     record["detail"] = detail
+        records[:] = [record for record in records if not record.get("closed")]
 
 
 def parse_careers_html(page_html: str, *, page_url: str, expected_url: str) -> None:

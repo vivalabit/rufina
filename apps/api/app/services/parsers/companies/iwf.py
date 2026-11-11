@@ -13,6 +13,7 @@ from scrapling import Selector
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
+from app.services.parsers.companies.http import CareerHttpClient
 
 IWF_JOBS_URL = "https://www.iwf.ch/web-solutions/jobs"
 IWF_HEADERS = {
@@ -51,6 +52,7 @@ class IwfJobsParser:
     """Collect IWF AG's complete server-rendered Web Solutions job catalog."""
 
     parser_id = "iwf"
+    handles_request_retries = True
 
     def __init__(
         self,
@@ -68,7 +70,7 @@ class IwfJobsParser:
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
         warnings: list[str] = []
         try:
-            with httpx.Client(
+            with CareerHttpClient(
                 headers={**IWF_HEADERS, "Referer": self.base_url},
                 timeout=self.timeout_seconds,
                 follow_redirects=True,
@@ -85,8 +87,13 @@ class IwfJobsParser:
                 self.enrich_records(client, records)
         except IwfParseError:
             raise
+        except httpx.HTTPStatusError as exc:
+            raise DirectCompanyRequestError(
+                f"IWF vacancy request failed: official careers page returned HTTP {exc.response.status_code} "
+                f"at {exc.request.url}"
+            ) from exc
         except httpx.HTTPError as exc:
-            raise DirectCompanyRequestError("IWF vacancy request failed") from exc
+            raise DirectCompanyRequestError(f"IWF vacancy request failed: {exc}") from exc
         except (TypeError, ValueError) as exc:
             raise DirectCompanyRequestError("IWF vacancy parsing failed") from exc
 
@@ -96,10 +103,14 @@ class IwfJobsParser:
         return ParserSearchResponse(
             parser=self.parser_id,
             status="completed",
-            warnings=warnings,
+            # An unlinked teaser has no published vacancy page. Keep it visible
+            # in diagnostics without reporting a failed detail request.
             search_url=self.base_url,
             jobs=jobs,
-            message=(f"Scanned {len(jobs)} IWF Switzerland vacancies from the official catalog"),
+            message=(
+                f"Scanned {len(jobs)} IWF Switzerland vacancies from the official catalog"
+                + (". Unpublished teasers: " + "; ".join(warnings) if warnings else "")
+            ),
         )
 
     def enrich_records(

@@ -179,6 +179,14 @@ def parse_listing_html(
         raise SminoParseError("smino careers page has an unexpected identity")
 
     catalogs = page.css('[aria-label="Offene Positionen"]')
+    if (
+        not catalogs
+        and unique_selector_texts(page, "h1") == {"Offene Stellen"}
+        and unique_selector_texts(page, "main .no-jobs-title")
+        == {"Derzeit keine offenen Positionen"}
+        and not page.css('a[href*="/job/"]')
+    ):
+        return []
     if len(catalogs) != 1 or unique_selector_texts(page, "h1") != {"Offene Stellen"}:
         raise SminoParseError("smino careers page is missing open positions")
 

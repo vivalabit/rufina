@@ -14,7 +14,7 @@ from app.services.parsers.companies.base import (
     ScraplingResponse,
 )
 
-ARTIFICIALY_JOBS_BASE_URL = "https://www.artificialy.com/career"
+ARTIFICIALY_JOBS_BASE_URL = "https://www.artificialy.com/company"
 ARTIFICIALY_COMPANY = "Artificialy SA"
 ARTIFICIALY_ALLOWED_LOCATIONS = {
     "lugano",
@@ -48,7 +48,11 @@ class ArtificialyJobsParser:
         max_jobs: int = 100,
         fetch_page: Callable[[str], ScraplingResponse] | None = None,
     ) -> None:
-        self.base_url = base_url
+        self.base_url = (
+            ARTIFICIALY_JOBS_BASE_URL
+            if base_url.rstrip("/") == "https://www.artificialy.com/career"
+            else base_url
+        )
         self.timeout_seconds = timeout_seconds
         self.max_jobs = max(1, max_jobs)
         self.fetch_page = fetch_page or self._fetch_with_scrapling
@@ -101,6 +105,8 @@ def parse_careers_page(
 ) -> list[dict[str, Any]]:
     if canonical_careers_url(page_url) is None:
         raise ArtificialyParseError("Artificialy careers URL is outside the expected scope")
+    if not page.css("#section-careers_openings"):
+        return parse_company_careers(page, max_jobs=max_jobs)
     if selector_text(page, "main h1") != "Shape the Future of AI with Us":
         raise ArtificialyParseError("Artificialy careers page has an unexpected identity")
     sections = page.css("#section-careers_openings")
@@ -203,12 +209,52 @@ def canonical_careers_url(value: Any) -> str | None:
     if (
         parts.scheme != "https"
         or parts.hostname != "www.artificialy.com"
-        or parts.path.rstrip("/") != "/career"
+        or parts.path.rstrip("/") not in {"/career", "/company"}
         or parts.query
         or parts.fragment
     ):
         return None
     return ARTIFICIALY_JOBS_BASE_URL
+
+
+def parse_company_careers(page: ScraplingResponse, *, max_jobs: int) -> list[dict[str, Any]]:
+    sections = [
+        section for section in page.css(".container-base")
+        if selector_text(section, "h2") == "Careers"
+    ]
+    if len(sections) != 1:
+        raise ArtificialyParseError("Artificialy company page is missing its official catalog")
+    section = sections[0]
+    cards = section.css("div:has(> h3)")
+    if not cards:
+        if re.search(r"\bno\s+(?:current\s+)?open\s+positions\b", selector_text(section) or "", re.IGNORECASE):
+            return []
+        raise ArtificialyParseError("Artificialy careers section has no recognizable jobs state")
+    if len(cards) > max_jobs:
+        raise ArtificialyParseError("Artificialy catalog exceeds its configured vacancy limit")
+    records: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for card in cards:
+        title = selector_text(card, ":scope > h3")
+        metadata = selector_text(card, ".rich-text p > strong") or ""
+        location, separator, employment = metadata.partition("·")
+        links = card.css('a[href*="linkedin.com/jobs/view/"]::attr(href)').getall()
+        url = canonical_linkedin_job_url(links[0]) if len(links) == 1 else None
+        job_id = extract_linkedin_job_id(url)
+        description = selector_text(card, ".rich-text")
+        if (
+            not title or not job_id or job_id in seen or not description
+            or not separator or not employment.strip()
+            or any(part.strip().casefold() not in ARTIFICIALY_ALLOWED_LOCATIONS for part in location.split("/"))
+        ):
+            raise ArtificialyParseError("Artificialy careers section contains an invalid vacancy")
+        seen.add(job_id)
+        records.append({
+            "id": job_id, "title": title, "company": ARTIFICIALY_COMPANY,
+            "location": location.strip(), "employment_type": employment.strip(),
+            "description": description, "url": url, "apply_url": url,
+        })
+    return records
 
 
 def canonical_linkedin_job_url(value: Any) -> str | None:

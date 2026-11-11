@@ -14,6 +14,7 @@ from scrapling import Selector
 
 from app.models.parsers import LinkedInSearchRequest, ParsedJob, ParserSearchResponse
 from app.services.parsers.companies.base import DirectCompanyRequestError
+from app.services.parsers.companies.http import CareerHttpClient
 
 MOBILIAR_JOBS_BASE_URL = "https://jobs.mobiliar.ch/go/Jobs/506974/"
 MOBILIAR_JOBS_API_URL = "https://jobs.mobiliar.ch/services/recruiting/v1/jobs"
@@ -41,6 +42,7 @@ class MobiliarJobsParser:
     """Collect Mobiliar's complete SuccessFactors catalog."""
 
     parser_id = "mobiliar"
+    handles_request_retries = True
 
     def __init__(
         self,
@@ -63,7 +65,7 @@ class MobiliarJobsParser:
 
     def search(self, request: LinkedInSearchRequest) -> ParserSearchResponse:
         try:
-            with httpx.Client(
+            with CareerHttpClient(
                 headers={**MOBILIAR_HEADERS, "Referer": self.base_url},
                 timeout=self.timeout_seconds,
                 follow_redirects=True,
@@ -101,12 +103,12 @@ class MobiliarJobsParser:
 
     def fetch_listing_page(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
         *,
         csrf_token: str,
         page_number: int,
     ) -> tuple[list[dict[str, Any]], int]:
-        response = client.post(
+        response = client.post_catalog(
             self.api_url,
             headers={
                 "Content-Type": "application/json",
@@ -129,7 +131,7 @@ class MobiliarJobsParser:
 
     def collect_listing_records(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
         *,
         csrf_token: str,
     ) -> tuple[list[dict[str, Any]], int, int]:
@@ -195,7 +197,7 @@ class MobiliarJobsParser:
 
     def enrich_records(
         self,
-        client: httpx.Client,
+        client: CareerHttpClient,
         records: list[dict[str, Any]],
     ) -> None:
         if not records:

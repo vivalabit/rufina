@@ -165,7 +165,11 @@ def parse_listing_html(
         raise CudosParseError("Cudos catalog has an unexpected canonical URL")
     validate_organization_schema(page)
 
-    catalogs = page.css(".app-content-plugin-32118")
+    # CMS plugin IDs change when an editor republishes the jobs component.
+    catalogs = [
+        node for node in page.css('[class*="app-content-plugin-"]')
+        if node.css('.filter-container[data-ajax-filter-base-url^="/de/jobs/1/"]')
+    ]
     if len(catalogs) != 1:
         raise CudosParseError("Cudos listing is missing its official vacancy catalog")
     catalog = catalogs[0]
@@ -177,7 +181,7 @@ def parse_listing_html(
         for option in catalog.css("select#category option")
         if optional_text(option.css("::attr(value)").get())
     }
-    if ajax_base != "/de/jobs/1/?plugin_id=32118" or filters != {
+    if not re.fullmatch(r"/de/jobs/1/\?plugin_id=\d+", ajax_base or "") or filters != {
         ("76", "Standort Zürich"),
         ("77", "Standort Chur"),
     }:

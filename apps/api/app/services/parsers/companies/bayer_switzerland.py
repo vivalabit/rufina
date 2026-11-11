@@ -306,9 +306,6 @@ def is_valid_listing_record(record: dict[str, Any], *, base_url: str) -> bool:
         and optional_text(record.get("display_job_id"))
         and record.get("ats_job_id") == record.get("display_job_id")
         and optional_text(record.get("id_locale"))
-        and optional_text(record.get("locale"))
-        and optional_text(record.get("department"))
-        and optional_text(record.get("business_unit"))
         and locations
         and any(is_swiss_location(location) for location in locations)
     )
