@@ -25,11 +25,10 @@ it("keeps detailed experience after a failed save, persists it and reloads it wi
   } });
   const page = render(<HomePage />);
   fireEvent.click((await screen.findAllByRole("button", { name: "Edit experience" }))[0]);
-  fireEvent.click(screen.getByRole("button", { name: "Add technology" }));
-  fireEvent.change(screen.getByLabelText("Technology"), { target: { value: "Python" } });
-  fireEvent.change(screen.getByLabelText("Where it was used"), { target: { value: "Billing workers" } });
-  fireEvent.click(screen.getByRole("button", { name: "Add technology" }));
-  fireEvent.click(screen.getByRole("button", { name: "Remove technology 2" }));
+  expect(screen.queryByLabelText("Where it was used")).not.toBeInTheDocument();
+  fireEvent.change(screen.getByRole("textbox", { name: "Stack" }), { target: { value: "Python, SQL" } });
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "Stack" }), { key: "Enter" });
+  fireEvent.click(screen.getByRole("button", { name: "Remove SQL" }));
   fireEvent.click(screen.getByRole("button", { name: "Add responsibility" }));
   fireEvent.change(screen.getByLabelText("Area of responsibility"), { target: { value: "Payments" } });
   fireEvent.change(screen.getByLabelText("Decisions"), { target: { value: "Selected queues" } });
@@ -40,14 +39,14 @@ it("keeps detailed experience after a failed save, persists it and reloads it wi
   }
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await screen.findByText("Save unavailable");
-  expect(screen.getByLabelText("Where it was used")).toHaveValue("Billing workers");
+  expect(screen.getByRole("button", { name: "Remove Python" })).toBeInTheDocument();
   expect(screen.getByLabelText("Load / scale")).toHaveValue("100k invoices/day");
   failSave = false;
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(screen.queryByRole("heading", { name: "Edit Experience" })).not.toBeInTheDocument());
   const saved = JSON.parse(stored.experience) as ExperienceEntry[];
   expect(saved[0].description).toBe("Existing achievement");
-  expect(saved[0].stack).toEqual([expect.objectContaining({ id: expect.any(String), technology: "Python", context: "Billing workers" })]);
+  expect(saved[0].stack).toEqual([expect.objectContaining({ id: expect.any(String), technology: "Python", context: "" })]);
   expect(saved[0].responsibilities?.[0].decisions).toBe("Selected queues");
   expect(saved[0].projects?.[0].team).toBe("4 engineers");
   expect(saved[1]).toMatchObject(neighbor);
@@ -56,13 +55,18 @@ it("keeps detailed experience after a failed save, persists it and reloads it wi
   fireEvent.click((await screen.findAllByRole("button", { name: "Edit experience" }))[0]);
   expect(screen.getByLabelText("Project name")).toHaveValue("Ledger");
   expect(screen.getByLabelText("Decisions")).toHaveValue("Selected queues");
-  fireEvent.change(screen.getByLabelText("Where it was used"), { target: { value: "Updated context" } });
+  expect(screen.getByRole("button", { name: "Remove Python" })).toBeInTheDocument();
+  fireEvent.change(screen.getByRole("textbox", { name: "Stack" }), { target: { value: "Go" } });
+  fireEvent.keyDown(screen.getByRole("textbox", { name: "Stack" }), { key: "," });
   fireEvent.click(screen.getByRole("button", { name: "Remove responsibility 1" }));
   fireEvent.click(screen.getByRole("button", { name: "Remove project 1" }));
   fireEvent.click(screen.getByRole("button", { name: "Save" }));
   await waitFor(() => expect(screen.queryByRole("heading", { name: "Edit Experience" })).not.toBeInTheDocument());
   const edited = JSON.parse(stored.experience) as ExperienceEntry[];
-  expect(edited[0].stack?.[0]).toMatchObject({ id: saved[0].stack?.[0].id, context: "Updated context" });
+  expect(edited[0].stack).toEqual([
+    saved[0].stack?.[0],
+    expect.objectContaining({ id: expect.any(String), technology: "Go", context: "" }),
+  ]);
   expect(edited[0].projects).toEqual([]);
   expect(edited[0].responsibilities).toEqual([]);
   expect(edited[1]).toEqual(saved[1]);

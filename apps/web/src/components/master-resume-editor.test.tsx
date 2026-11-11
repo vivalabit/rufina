@@ -138,7 +138,10 @@ it("optionally imports a source, reviews details and saves to the profile withou
   for (const section of MASTER_RESUME_REVIEW_SECTIONS) {
     if (section === "experience") {
       expect(screen.getByLabelText("Load / scale")).toHaveValue("100k invoices/day");
-      fireEvent.change(screen.getByLabelText("Where it was used"), { target: { value: "Corrected billing context" } });
+      expect(screen.queryByLabelText("Where it was used")).not.toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Remove Python" })).toBeInTheDocument();
+      fireEvent.change(screen.getByRole("textbox", { name: "Stack" }), { target: { value: "PostgreSQL" } });
+      fireEvent.blur(screen.getByRole("textbox", { name: "Stack" }));
     }
     fireEvent.click(screen.getByRole("button", { name: "Mark reviewed" }));
   }
@@ -149,7 +152,10 @@ it("optionally imports a source, reviews details and saves to the profile withou
   expect(requests[1].path).toBe("/profile/imports/source-file-1/preview");
   expect(JSON.parse(String(requests[2].body))).toMatchObject({ sourceFileId: source.id, expectedProfileRevision: 1,
     confirmedSections: MASTER_RESUME_REVIEW_SECTIONS, masterResume: { basics: { fullName: "Augusta Ada Lovelace" },
-      experiences: [expect.objectContaining({ stack: [expect.objectContaining({ context: "Corrected billing context" })] })] } });
+      experiences: [expect.objectContaining({ stack: [
+        expect.objectContaining({ id: "technology:python", technology: "Python", context: "Billing API", evidence_ids: ["source:experience"] }),
+        expect.objectContaining({ id: expect.any(String), technology: "PostgreSQL", context: "" }),
+      ] })] } });
   view.unmount();
   render(<ProfileResumeImport />);
   fireEvent.click(screen.getByRole("button", { name: "Import history" }));
