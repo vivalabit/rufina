@@ -30,7 +30,7 @@ const config: Config = {
         glow: "0 10px 30px rgba(250,93,0,0.2)",
       },
       fontFamily: {
-        sans: ["Inter", "Sohne", "ui-sans-serif", "system-ui", "sans-serif"],
+        sans: ["var(--font-muotoweb)"],
         display: ["Georgia", "Times New Roman", "ui-serif", "serif"],
       },
     },

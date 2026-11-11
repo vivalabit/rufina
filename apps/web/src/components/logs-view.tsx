@@ -199,9 +199,6 @@ export function LogsView({ logs, onClear }: { logs: AppLogEntry[]; onClear: () =
           <h1 className="page-title text-[24px] leading-tight text-foreground sm:text-[27px] 2xl:text-[31px]">
             Activity &amp; logs
           </h1>
-          <p className="mt-1 text-[13px] text-muted 2xl:mt-1.5 2xl:text-base">
-            Search, filter, and inspect local application and parser activity
-          </p>
         </div>
         <Button
           type="button"

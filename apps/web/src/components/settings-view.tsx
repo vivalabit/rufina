@@ -217,7 +217,6 @@ export function SettingsView({
           <h1 className="page-title text-[24px] leading-tight text-foreground sm:text-[27px] 2xl:text-[31px]">
             Settings
           </h1>
-          <p className="mt-1 text-[13px] text-muted 2xl:mt-1.5 2xl:text-base">Application credentials and integrations</p>
         </div>
       </header>
 

@@ -219,9 +219,6 @@ export function DashboardView({
           <header className="flex flex-col gap-5 md:flex-row md:items-end md:justify-between">
             <div className="max-w-3xl">
               <DashboardGreeting name={profile.name} currentTime={currentTime} />
-              <p className="mt-4 max-w-2xl text-[13px] leading-5 text-muted 2xl:text-[15px] 2xl:leading-6">
-                Keep your search, applications, documents, and next move in one calm place.
-              </p>
             </div>
             <Button onClick={onStartSearch} className="h-11 shrink-0 px-5 text-[13px] active:scale-[0.98] 2xl:h-12 2xl:px-6 2xl:text-sm">
               <Search className="h-4 w-4" />

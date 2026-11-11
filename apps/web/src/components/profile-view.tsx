@@ -22,7 +22,6 @@ import {
 
 import { Button } from "@/components/ui/button";
 import { ProfileResumeImport } from "@/components/master-resume-editor";
-import { ResumeTemplateManager } from "@/components/resume-template-manager";
 import { assistantPrompts } from "@/features/app-shell/model/assistant-prompts";
 import { defaultCandidateProfile } from "@/features/profile/model/defaults";
 import {
@@ -132,9 +131,6 @@ export function ProfileView({
           <h1 className="page-title text-[24px] leading-tight text-foreground sm:text-[27px] 2xl:text-[31px]">
             My Profile
           </h1>
-          <p className="mt-1 text-[13px] text-muted 2xl:mt-1.5 2xl:text-base">
-            Your profile is the source for application documents. Fill it in manually or import a resume.
-          </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <ProfileResumeImport onProfileSaved={onProfileSaved} />
@@ -195,7 +191,6 @@ export function ProfileView({
           onEditAdditionalNotes={onEditAdditionalNotes}
         />
         <ProfileCompletenessPanel profile={profile} />
-        <ResumeTemplateManager />
       </div>
     </section>
   );

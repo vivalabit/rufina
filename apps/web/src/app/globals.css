@@ -2,6 +2,24 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Inter 4.1 is the documented MuotoWeb substitute in DESIGN.md.
+   Keep font files local so rendering does not depend on installed fonts or a CDN. */
+@font-face {
+  font-family: "Inter";
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/inter/InterVariable.woff2") format("woff2");
+}
+
+@font-face {
+  font-family: "Inter";
+  font-style: italic;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url("/fonts/inter/InterVariable-Italic.woff2") format("woff2");
+}
+
 :root {
   color-scheme: light;
 
@@ -21,7 +39,7 @@
   --color-smoke: #a5a19c;
   --color-graphite: #999999;
 
-  --font-muotoweb: Inter, Sohne, ui-sans-serif, system-ui, -apple-system,
+  --font-muotoweb: "MuotoWeb", "Inter", "Sohne", ui-sans-serif, system-ui, -apple-system,
     BlinkMacSystemFont, "Segoe UI", sans-serif;
   --font-monarch: Georgia, "Times New Roman", ui-serif, serif;
 
@@ -96,6 +114,8 @@ body {
   background: var(--color-cream-canvas);
   color: var(--color-ink-black);
   font-family: var(--font-muotoweb);
+  font-feature-settings: "ss01" on, "cv11" on;
+  font-optical-sizing: auto;
   letter-spacing: 0.015em;
   text-rendering: optimizeLegibility;
 }
@@ -221,6 +241,16 @@ select option {
   border-radius: var(--radius-cards);
   background: var(--color-paper-white);
   box-shadow: var(--shadow-lg);
+}
+
+/* Document workspaces use quieter surfaces than dashboard previews. */
+.application-workspace {
+  background: var(--color-cream-canvas);
+}
+
+.application-workspace .workspace-card {
+  border-color: rgba(227, 214, 197, 0.6);
+  box-shadow: 0 4px 18px rgba(227, 214, 197, 0.16);
 }
 
 .resume-color-input::-webkit-color-swatch-wrapper {

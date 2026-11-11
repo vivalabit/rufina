@@ -14,10 +14,6 @@ vi.mock("@/components/master-resume-editor", () => ({
   ProfileResumeImport: () => <button>Import from resume</button>,
 }));
 
-vi.mock("@/components/resume-template-manager", () => ({
-  ResumeTemplateManager: () => <div data-testid="resume-template-manager" />,
-}));
-
 function createProfileViewProps(
   overrides: Partial<ComponentProps<typeof ProfileView>> = {},
 ): ComponentProps<typeof ProfileView> {
@@ -57,8 +53,6 @@ it("composes the profile page and delegates its top-level actions", () => {
   ).toBeInTheDocument();
   expect(screen.getByRole("button", { name: "Import from resume" })).toBeEnabled();
   expect(screen.queryByRole("heading", { name: "Profile resume" })).not.toBeInTheDocument();
-  expect(screen.getByTestId("resume-template-manager")).toBeInTheDocument();
-
   fireEvent.click(screen.getByRole("button", { name: "Improve profile" }));
   expect(onOpenAssistant).toHaveBeenCalledWith(assistantPrompts.improveProfile);
 
