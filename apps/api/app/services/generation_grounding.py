@@ -281,7 +281,11 @@ _MONTH_NUMBERS = {
     )
     for name in names
 }
-_CURRENT_MARKERS = {"present", "current", "now", "ongoing", "today", "heute", "aktuell"}
+_CURRENT_MARKERS = {
+    "present", "current", "now", "ongoing", "today", "heute", "aktuell", "présent", "aujourd'hui",
+}
+# Shown for a role whose profile entry has no dates at all.
+_UNDATED_PERIOD = "–"
 _RANGE_SEPARATOR = re.compile(r"[-‐‑‒–—―−]|\b(?:to|bis)\b")
 
 
@@ -325,6 +329,8 @@ def _same_date(actual: str, expected: str) -> bool:
 
 def _period_matches_source(period: str, experience: MasterExperience) -> bool:
     """Allow presentation changes, never different dates or reduced precision."""
+    if not experience.start_date and not experience.end_date and not experience.is_current:
+        return period.strip() == _UNDATED_PERIOD
     period = _date_text(period)
 
     def matches_end(value: str) -> bool:

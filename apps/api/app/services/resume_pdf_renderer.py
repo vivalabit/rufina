@@ -760,6 +760,18 @@ def resume_section_titles(resume: FinalResume) -> dict[str, str]:
             "additional": "Weitere Angaben",
             "expires": "Gültig bis",
         }
+    if resume.language.lower().startswith(("fr", "french", "français", "francais")):
+        return {
+            "summary": "Profil",
+            "experience": "Expérience professionnelle",
+            "skills": "Compétences",
+            "education": "Formation",
+            "projects": "Projets",
+            "certifications": "Certifications",
+            "languages": "Langues",
+            "additional": "Informations complémentaires",
+            "expires": "Valable jusqu'au",
+        }
     return {
         "summary": "Profile",
         "experience": "Experience",

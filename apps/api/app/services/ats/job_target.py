@@ -488,13 +488,18 @@ _WORKLOAD = re.compile(
 )
 
 
-def normalize_title(title: str) -> str:
+def clean_title(title: str) -> str:
+    """The posting title without gender markers and workload, in its original case."""
     text = normalize_text(title)
     text = _GENDER_MARKERS.sub(" ", text)
     text = _WORKLOAD.sub(" ", text)
+    text = re.sub(r"(?<=[^\W\d_])[:*]in(?:nen)?\b", "", text)
     text = re.sub(r"\(\s*\)", " ", text)
-    text = re.sub(r"\s+", " ", text).strip(" -|,/·:")
-    return text.casefold()
+    return re.sub(r"\s+", " ", text).strip(" -|,/·:")
+
+
+def normalize_title(title: str) -> str:
+    return clean_title(title).casefold()
 
 
 _SENIORITY_TITLE_WORDS: tuple[tuple[Seniority, frozenset[str]], ...] = (
