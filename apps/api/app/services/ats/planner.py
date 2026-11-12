@@ -183,7 +183,9 @@ def match_skills(target: JobTarget, index: ProfileIndex) -> tuple[SkillMatch, ..
         used_in_role = bool(depth and depth.experience_ids)
         if statement_ids or used_in_role:
             support: SkillSupport = "experience"
-        elif index.knows(skill.canonical_id, skill.surface_form):
+        elif index.knows(skill.canonical_id, skill.surface_form) or mentions_term(
+            index.free_text, skill.surface_form
+        ):
             support = "profile"
         else:
             support = "gap"
@@ -208,7 +210,7 @@ def _statement_score(
     responsibility_keywords: frozenset[str],
     role_position: int,
 ) -> tuple[float, bool]:
-    """Value of a statement for this vacancy, and whether it is relevant at all."""
+    """Value of a statement for this vacancy, and whether it relates to it at all."""
     skill_score = 0.0
     for skill in target.skills:
         if _statement_supports(statement, skill):
@@ -220,6 +222,9 @@ def _statement_score(
     score = skill_score + topic_score
     if statement.has_metric:
         score += 0.8
+    if not relevant:
+        # Unrelated statements are the first to go under page pressure.
+        score -= 1.0
     score += {0: 0.4, 1: 0.2}.get(role_position, 0.0)
     return round(score, 3), relevant
 
@@ -354,15 +359,11 @@ def build_tailoring_plan(
             )
             ranked.append((PlannedStatement(statement=statement, score=score), relevant))
         ranked.sort(key=lambda item: (-item[0].score, item[0].statement.order))
-        selected: list[PlannedStatement] = []
-        for rank, (planned, relevant) in enumerate(ranked):
-            # The two best statements of a role always stay. Beyond them, a
-            # statement needs a link to the vacancy or a measurable result.
-            keep = rank < 2 or relevant or planned.statement.has_metric
-            if keep and len(selected) < MAX_STATEMENTS_PER_ROLE:
-                selected.append(planned)
-            else:
-                excluded.append(planned.statement.id)
+        # Nothing is left out for relevance alone: an achievement the candidate
+        # wrote down is worth more than white space. Page fitting removes the
+        # lowest-value statements when the page limit requires it.
+        selected = [planned for planned, _ in ranked[:MAX_STATEMENTS_PER_ROLE]]
+        excluded.extend(planned.statement.id for planned, _ in ranked[MAX_STATEMENTS_PER_ROLE:])
         if selected:
             protected.add(selected[0].statement.id)
         scored.extend(selected)

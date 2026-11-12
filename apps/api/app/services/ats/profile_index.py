@@ -77,10 +77,14 @@ class ProfileIndex:
     # Technologies each role may truthfully name: its statements plus its stack.
     experience_skill_ids: dict[str, frozenset[str]]
     experience_technology_names: dict[str, tuple[str, ...]]
+    # Detailed work history per role; wording may draw on it for the same role.
+    experience_facts: dict[str, tuple[str, ...]]
     skills: dict[str, SkillDepth]
     # Normalized names of every listed skill and stack item, for vacancy skills
     # that are not in the dictionary.
     named_skills: dict[str, str]
+    # Summary, projects, education and role details: everything outside the statements.
+    free_text: str
     total_months: int
     dictionary_version: str
     _by_experience: dict[str, tuple[ProfileStatement, ...]] = field(default_factory=dict)
@@ -146,10 +150,77 @@ def experience_months(experience: MasterExperience, *, today: date) -> set[int]:
     return set(range(_month_index(start), _month_index(end) + 1))
 
 
+_SENTENCE_END = re.compile(r"(?<=[.!?])\s+(?=[A-ZÄÖÜÉÈÀ0-9])")
+LONG_PARAGRAPH_CHARS = 400
+
+
 def split_statement_texts(text: str) -> list[str]:
-    """Split a bullet that holds several list items into its items."""
-    parts = [part.strip() for part in _LIST_MARKER.split(text) if part.strip()]
+    """Split a role description into its achievements.
+
+    List items and separate lines are statements of their own. A long paragraph
+    of prose is split into sentences so that each can be selected on its own.
+    """
+    parts: list[str] = []
+    for chunk in _LIST_MARKER.split(text):
+        for line in chunk.splitlines():
+            cleaned = " ".join(line.split())
+            if not cleaned:
+                continue
+            sentences = _SENTENCE_END.split(cleaned)
+            if len(cleaned) > LONG_PARAGRAPH_CHARS and len(sentences) >= 3:
+                parts.extend(sentence.strip() for sentence in sentences if sentence.strip())
+            else:
+                parts.append(cleaned)
     return parts or [text.strip()]
+
+
+def experience_fact_texts(experience: MasterExperience) -> tuple[str, ...]:
+    """Detailed work history of a role as short facts: stack, responsibilities, projects."""
+    facts: list[str] = []
+    for item in experience.stack:
+        if item.technology.strip():
+            facts.append(": ".join(part.strip() for part in (item.technology, item.context) if part.strip()))
+    for item in experience.responsibilities:
+        text = " ".join(part.strip() for part in (item.responsibility, item.decisions) if part.strip())
+        if text:
+            facts.append(text)
+    for item in experience.projects:
+        details = "; ".join(
+            f"{label}: {value.strip()}"
+            for label, value in (
+                ("type", item.project_type),
+                ("team", item.team),
+                ("systems", item.systems),
+                ("users", item.users),
+                ("load", item.load),
+            )
+            if value.strip()
+        )
+        text = ". ".join(
+            part for part in (
+                ": ".join(part.strip() for part in (item.name, item.description) if part.strip()),
+                details,
+            )
+            if part
+        )
+        if text:
+            facts.append(text)
+    return tuple(facts)
+
+
+def _detail_statements(experience: MasterExperience) -> list[tuple[str, str, tuple[str, ...]]]:
+    """Statements for a role that has detailed work history but no description."""
+    fallback = tuple(experience.bullets[0].evidence_ids)
+    statements: list[tuple[str, str, tuple[str, ...]]] = []
+    for item in experience.responsibilities:
+        text = " ".join(part.strip() for part in (item.responsibility, item.decisions) if part.strip())
+        if text:
+            statements.append((item.id, text, tuple(item.evidence_ids) or fallback))
+    for item in experience.projects:
+        text = ": ".join(part.strip() for part in (item.name, item.description) if part.strip())
+        if text:
+            statements.append((item.id, text, tuple(item.evidence_ids) or fallback))
+    return statements
 
 
 def build_profile_index(
@@ -164,6 +235,7 @@ def build_profile_index(
     by_experience: dict[str, tuple[ProfileStatement, ...]] = {}
     experience_skills: dict[str, frozenset[str]] = {}
     experience_technologies: dict[str, tuple[str, ...]] = {}
+    experience_facts: dict[str, tuple[str, ...]] = {}
     months_by_skill: dict[str, set[int]] = {}
     last_used: dict[str, date] = {}
     experiences_by_skill: dict[str, list[str]] = {}
@@ -177,24 +249,39 @@ def build_profile_index(
     order = 0
     for experience in master.experiences:
         role_statements: list[ProfileStatement] = []
-        for bullet in experience.bullets:
+        sources: list[tuple[str, str, str, tuple[str, ...]]] = []
+        placeholder = f"{experience.title} at {experience.company}"
+        described = [bullet for bullet in experience.bullets if bullet.text.strip() != placeholder]
+        for bullet in described:
             texts = split_statement_texts(bullet.text)
             for index, text in enumerate(texts, start=1):
                 statement_id = bullet.id if len(texts) == 1 else f"{bullet.id}-p{index}"
-                skill_ids = frozenset(mention.skill_id for mention in dictionary.scan(text))
-                role_statements.append(
-                    ProfileStatement(
-                        id=statement_id,
-                        experience_id=experience.id,
-                        source_bullet_id=bullet.id,
-                        text=text,
-                        evidence_ids=tuple(bullet.evidence_ids),
-                        skill_ids=skill_ids,
-                        has_metric=bool(_NUMBER.search(text)),
-                        order=order,
-                    )
+                sources.append((statement_id, bullet.id, text, tuple(bullet.evidence_ids)))
+        if not described:
+            # The profile describes this role only through its detailed work history.
+            sources = [
+                (f"{experience.id}-detail-{index}", detail_id, text, evidence_ids)
+                for index, (detail_id, text, evidence_ids) in enumerate(
+                    _detail_statements(experience), start=1
                 )
-                order += 1
+            ] or [
+                (bullet.id, bullet.id, bullet.text, tuple(bullet.evidence_ids))
+                for bullet in experience.bullets
+            ]
+        for statement_id, source_id, text, evidence_ids in sources:
+            role_statements.append(
+                ProfileStatement(
+                    id=statement_id,
+                    experience_id=experience.id,
+                    source_bullet_id=source_id,
+                    text=text,
+                    evidence_ids=evidence_ids,
+                    skill_ids=frozenset(mention.skill_id for mention in dictionary.scan(text)),
+                    has_metric=bool(_NUMBER.search(text)),
+                    order=order,
+                )
+            )
+            order += 1
         technologies = [item.technology for item in experience.stack if item.technology.strip()]
         detail_text = "\n".join(
             [
@@ -236,14 +323,22 @@ def build_profile_index(
         by_experience[experience.id] = tuple(role_statements)
         experience_skills[experience.id] = frozenset(role_skill_ids)
         experience_technologies[experience.id] = tuple(dict.fromkeys(technologies))
+        experience_facts[experience.id] = experience_fact_texts(experience)
 
     listed_skill_ids = {
         resolved for skill in master.skills if (resolved := dictionary.lookup(skill.name))
     }
-    project_text = "\n".join(
-        bullet.text for project in master.projects for bullet in project.bullets
+    free_text = "\n".join(
+        [
+            master.summary.text if master.summary else "",
+            master.basics.headline,
+            *(bullet.text for project in master.projects for bullet in project.bullets),
+            *(detail.text for item in master.education for detail in item.details),
+            *(item.text for section in master.additional_sections for item in section.items),
+            *(fact for facts in experience_facts.values() for fact in facts),
+        ]
     )
-    project_skill_ids = {mention.skill_id for mention in dictionary.scan(project_text)}
+    project_skill_ids = {mention.skill_id for mention in dictionary.scan(free_text)}
     skills = {
         skill_id: SkillDepth(
             skill_id=skill_id,
@@ -260,8 +355,10 @@ def build_profile_index(
         statements=tuple(statements),
         experience_skill_ids=experience_skills,
         experience_technology_names=experience_technologies,
+        experience_facts=experience_facts,
         skills=skills,
         named_skills=named,
+        free_text=free_text,
         total_months=len(all_months),
         dictionary_version=dictionary.version,
         _by_experience=by_experience,
@@ -273,6 +370,7 @@ __all__ = [
     "ProfileStatement",
     "SkillDepth",
     "build_profile_index",
+    "experience_fact_texts",
     "experience_months",
     "parse_profile_date",
     "split_statement_texts",

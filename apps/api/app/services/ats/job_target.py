@@ -210,6 +210,7 @@ class JobTargetExtractor:
         dictionary: SkillDictionary | None = None,
         cache: JobTargetCache | None = None,
         model: str = "",
+        agent_id: str = "",
         thinking: str = "off",
         timeout_seconds: int = 90,
         max_attempts: int = 2,
@@ -220,6 +221,7 @@ class JobTargetExtractor:
         self.dictionary = dictionary or default_skill_dictionary()
         self.cache = cache
         self.model = model
+        self.agent_id = agent_id
         self.thinking = thinking
         self.timeout_seconds = timeout_seconds
         self.max_attempts = max_attempts
@@ -261,6 +263,7 @@ class JobTargetExtractor:
         request = AIRequest(
             prompt=build_job_target_prompt(vacancy),
             model=self.model,
+            agent_id=self.agent_id,
             thinking=self.thinking,
             timeout_seconds=self.timeout_seconds,
             structured=True,

@@ -19,6 +19,7 @@ from pydantic import BaseModel
 from app.models.generation_workflow import CoverLetterDraft
 from app.models.resume import (
     FinalResume,
+    MasterEducation,
     MasterExperience,
     MasterResume,
     MasterSkill,
@@ -39,7 +40,11 @@ from app.services.ats.planner import (
     build_tailoring_plan,
     coverage_score,
 )
-from app.services.ats.profile_index import ProfileIndex, build_profile_index
+from app.services.ats.profile_index import (
+    ProfileIndex,
+    build_profile_index,
+    split_statement_texts,
+)
 from app.services.ats.skill_dictionary import SkillDictionary, default_skill_dictionary
 from app.services.ats.wording import (
     WordedStatement,
@@ -53,10 +58,11 @@ from app.services.ats.wording import (
 )
 from app.services.resume_skills import order_skill_categories, source_skill_category
 
-TAILORING_ENGINE_VERSION = "2.0.0"
 WORDING_BATCH_SIZE = 14
 PRESENT_LABELS: dict[DocumentLanguage, str] = {"en": "Present", "de": "heute", "fr": "présent"}
 UNDATED_PERIOD = "–"
+# Free-form profile notes are context for the candidate, not resume sections.
+PRIVATE_SECTION_IDS = frozenset({"profile-additional_notes", "profile-personal_site"})
 _SECTION_PRIORITY = {
     section: index
     for index, section in enumerate(("summary", "experience", "education", "languages", "skills"))
@@ -129,6 +135,24 @@ def tailored_skills(master: MasterResume, skill_order: Sequence[str]) -> list[Ma
     )
 
 
+def _education_payload(item: MasterEducation) -> dict[str, Any]:
+    """Education as in the profile, with a multi-line description shown line by line."""
+    payload = item.model_dump(mode="json", by_alias=True)
+    details: list[dict[str, Any]] = []
+    for detail in item.details:
+        lines = split_statement_texts(detail.text)
+        for number, line in enumerate(lines, start=1):
+            details.append(
+                {
+                    "id": detail.id if len(lines) == 1 else f"{detail.id}-p{number}",
+                    "text": line,
+                    "evidenceIds": list(detail.evidence_ids),
+                }
+            )
+    payload["details"] = details
+    return payload
+
+
 def assemble_resume(
     master: MasterResume,
     plan: TailoringPlan,
@@ -185,6 +209,8 @@ def assemble_resume(
             summary_block = {"text": summary, "evidenceIds": evidence_ids}
 
     section_order = [section for section in master.section_order if section != "summary"]
+    if all(item.id in PRIVATE_SECTION_IDS for item in master.additional_sections):
+        section_order = [section for section in section_order if section != "additional"]
     if summary_block is not None:
         section_order.insert(0, "summary")
     if experiences and "experience" not in section_order:
@@ -207,14 +233,16 @@ def assemble_resume(
             skill.model_dump(mode="json", by_alias=True)
             for skill in tailored_skills(master, plan.skill_order)
         ],
-        "education": [item.model_dump(mode="json", by_alias=True) for item in master.education],
+        "education": [_education_payload(item) for item in master.education],
         "projects": [item.model_dump(mode="json", by_alias=True) for item in master.projects],
         "certifications": [
             item.model_dump(mode="json", by_alias=True) for item in master.certifications
         ],
         "languages": [item.model_dump(mode="json", by_alias=True) for item in master.languages],
         "additionalSections": [
-            item.model_dump(mode="json", by_alias=True) for item in master.additional_sections
+            item.model_dump(mode="json", by_alias=True)
+            for item in master.additional_sections
+            if item.id not in PRIVATE_SECTION_IDS
         ],
         "sectionOrder": section_order,
         "evidence": [item.model_dump(mode="json", by_alias=True) for item in master.evidence],
@@ -480,6 +508,7 @@ class TailoringSession:
             statements=planned,
             dictionary=self.dictionary,
             vacancy_text=self.vacancy.text,
+            index=self.index,
         )
         self.wording.update(accepted)
         for statement_id in accepted:
@@ -613,7 +642,6 @@ class TailoringSession:
         ]
         adopted_terms = [term for planned in self.plan.statements for term in planned.terms]
         return {
-            "engineVersion": TAILORING_ENGINE_VERSION,
             "language": self.plan.language,
             "headline": self.plan.headline,
             "vacancy": {
@@ -693,7 +721,6 @@ class TailoringSession:
 
 __all__ = [
     "PRESENT_LABELS",
-    "TAILORING_ENGINE_VERSION",
     "UNDATED_PERIOD",
     "ModelRequest",
     "ModelResponse",

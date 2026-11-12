@@ -102,18 +102,37 @@ def test_skill_depth_counts_role_months_and_ignores_skills_only_listed() -> None
 # --- Planner ------------------------------------------------------------------
 
 
-def test_plan_keeps_every_role_and_leaves_out_unrelated_statements() -> None:
+def test_plan_keeps_every_statement_and_drops_unrelated_ones_first() -> None:
     master = master_resume()
     plan = build_tailoring_plan(master, build_profile_index(master, today=TODAY), _target())
 
     assert [item.experience_id for item in plan.experiences] == ["role-atlas", "role-borealis"]
-    selected = {item.statement.id for item in plan.statements}
-    assert "role-atlas-bullet-1" in selected
-    # The lunch rota has no link to the vacancy and no measurable result worth keeping.
-    assert "role-borealis-bullet-3" in plan.excluded_statement_ids
+    # Statements are ordered by their value for the vacancy inside each role.
+    assert [item.statement.id for item in plan.experiences[0].statements] == [
+        "role-atlas-bullet-1",
+        "role-atlas-bullet-2",
+        "role-atlas-bullet-3",
+        "role-atlas-bullet-4",
+    ]
+    assert plan.excluded_statement_ids == ()
+    # Under page pressure the statements without a link to the vacancy go first.
+    assert set(plan.drop_order[:3]) == {
+        "role-borealis-bullet-3",
+        "role-borealis-bullet-2",
+        "role-atlas-bullet-4",
+    }
     # The best statement of each role is never dropped for page fitting.
     assert "role-atlas-bullet-1" not in plan.drop_order
-    assert set(plan.drop_order) <= selected
+    assert "role-borealis-bullet-1" not in plan.drop_order
+
+
+def test_a_role_with_many_statements_keeps_its_most_valuable_ones() -> None:
+    master = master_resume(extra_bullets_per_role=8)
+    plan = build_tailoring_plan(master, build_profile_index(master, today=TODAY), _target())
+
+    assert [len(item.statements) for item in plan.experiences] == [8, 8]
+    assert len(plan.excluded_statement_ids) == 4 + 3
+    assert "role-atlas-bullet-1" in {item.statement.id for item in plan.statements}
 
 
 def test_plan_reports_gaps_only_for_skills_the_profile_lacks() -> None:
