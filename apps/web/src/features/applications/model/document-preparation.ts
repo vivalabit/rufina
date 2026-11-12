@@ -21,34 +21,78 @@ export type {
   SubmissionDocumentSelection,
 } from "@/shared/types/application";
 
+/** Gallery templates, in the order the server lists them. The first is the default. */
 export const generationResumeTemplates = [
   {
-    id: "moderncv_banking",
-    name: "ModernCV · Banking",
-    description: "Clean sans serif with a centered header and blue accents.",
+    id: "swiss_classic",
+    name: "Swiss Classic",
+    description: "Classic serif on one column. Reads well for people and for applicant tracking systems.",
   },
   {
-    id: "roman",
-    name: "Roman",
-    description: "Times New Roman with restrained black-and-white styling.",
+    id: "classic_single",
+    name: "Classic",
+    description: "Traditional single-column layout.",
+  },
+  {
+    id: "modern_single",
+    name: "Modern",
+    description: "Contemporary single-column layout with a restrained accent.",
+  },
+  {
+    id: "swiss_local_german",
+    name: "Swiss Local German",
+    description: "Compact German-language Swiss CV with a one-line header.",
+  },
+  {
+    id: "modern_two_column",
+    name: "Modern two-column",
+    description: "Design layout with a skills rail. Some applicant tracking systems misread two columns.",
   },
 ] as const;
 
+/** Identifiers saved by the earlier LaTeX generator. */
+const renamedTemplateIds: Record<string, string> = {
+  roman: "swiss_classic",
+  ishchenko_classic: "swiss_classic",
+  moderncv_banking: "modern_single",
+};
+
 export function generationResumeTemplate(templateId: unknown) {
   const requestedId = typeof templateId === "string" ? templateId.trim() : "";
-  const id = requestedId === "ishchenko_classic" ? "roman" : requestedId;
-  // Previously saved HTML template ids all used the Banking renderer.
+  const id = renamedTemplateIds[requestedId] ?? requestedId;
   return generationResumeTemplates.find((template) => template.id === id)
     ?? generationResumeTemplates[0];
+}
+
+const lastTemplateStorageKey = "rufina.document-template";
+
+/** The template the person picked last, used for the next application. */
+export function rememberedDocumentTemplateId() {
+  try {
+    return generationResumeTemplate(
+      globalThis.localStorage?.getItem(lastTemplateStorageKey),
+    ).id;
+  } catch {
+    return generationResumeTemplates[0].id;
+  }
+}
+
+export function rememberDocumentTemplateId(templateId: string) {
+  try {
+    globalThis.localStorage?.setItem(lastTemplateStorageKey, templateId);
+  } catch {
+    // Storage can be unavailable; the choice still applies to this application.
+  }
 }
 
 export const defaultDocumentPreparationSettings: DocumentPreparationSettings = {
   documentTypes: ["tailored_resume", "cover_letter"],
   language: "Auto",
+  languageChoice: "Auto",
   formatting: {
     pageSize: "A4",
     resumeTemplateId: generationResumeTemplates[0].id,
-    resumeMaxPages: 2,
+    resumeMaxPages: 1,
     coverLetterTemplateId: generationResumeTemplates[0].id,
   },
   submission: {
@@ -213,6 +257,9 @@ export function normalizeDocumentPreparationSettings(
     language: languages.includes(candidate.language as PreparationLanguage)
       ? (candidate.language as PreparationLanguage)
       : defaultDocumentPreparationSettings.language,
+    languageChoice: languages.includes(candidate.languageChoice as PreparationLanguage)
+      ? (candidate.languageChoice as PreparationLanguage)
+      : "Auto",
     formatting: {
       pageSize: pageSizes.includes(formatting.pageSize as PreparationPageSize)
         ? (formatting.pageSize as PreparationPageSize)
@@ -264,8 +311,9 @@ export function generationRequestFromSettings(
 
   return {
     documentTypes: settings.documentTypes,
-    // Older saved choices must not override the vacancy-based generation policy.
-    language: "Auto",
+    // "Auto" writes in the language of the vacancy. The older `language` field
+    // is ignored so that a choice saved long ago cannot override the vacancy.
+    language: settings.languageChoice ?? "Auto",
     formattingParameters,
     userPreferences: settings.userPreferences.trim(),
   };

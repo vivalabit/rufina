@@ -39,11 +39,12 @@ describe("document preparation settings", () => {
     ).toEqual({
       documentTypes: ["cover_letter"],
       language: "Auto",
+      languageChoice: "Auto",
       formatting: {
         pageSize: "A4",
-        resumeTemplateId: "moderncv_banking",
-        resumeMaxPages: 2,
-        coverLetterTemplateId: "moderncv_banking",
+        resumeTemplateId: "modern_single",
+        resumeMaxPages: 1,
+        coverLetterTemplateId: "modern_single",
       },
       submission: {
         tailored_resume: { documentId: "stored-resume", version: 3 },
@@ -54,38 +55,64 @@ describe("document preparation settings", () => {
     });
   });
 
-  it.each(["classic_single", "modern_single", "modern_two_column", "unknown", "", null])(
-    "keeps the existing Banking layout for legacy or unsupported template %s",
+  it.each([
+    "swiss_classic",
+    "classic_single",
+    "modern_single",
+    "swiss_local_german",
+    "modern_two_column",
+  ])("restores the gallery template %s", (resumeTemplateId) => {
+    expect(normalizeDocumentPreparationSettings({
+      formatting: { resumeTemplateId: ` ${resumeTemplateId} ` },
+    }).formatting.resumeTemplateId).toBe(resumeTemplateId);
+  });
+
+  it.each(["unknown", "", null])(
+    "falls back to the default template for unsupported value %s",
     (resumeTemplateId) => {
       expect(normalizeDocumentPreparationSettings({
         formatting: { resumeTemplateId },
-      }).formatting.resumeTemplateId).toBe("moderncv_banking");
+      }).formatting.resumeTemplateId).toBe("swiss_classic");
     },
   );
 
-  it("restores the selected generation template", () => {
+  it.each([
+    ["roman", "swiss_classic"],
+    ["ishchenko_classic", "swiss_classic"],
+    ["moderncv_banking", "modern_single"],
+  ])("maps the earlier generator template %s to %s", (saved, expected) => {
     expect(normalizeDocumentPreparationSettings({
-      formatting: { resumeTemplateId: " roman " },
-    }).formatting.resumeTemplateId).toBe("roman");
+      formatting: { resumeTemplateId: saved },
+    }).formatting.resumeTemplateId).toBe(expected);
   });
 
   it("normalizes old mismatched settings and cannot send different document styles", () => {
     const settings = {
       ...defaultDocumentPreparationSettings,
-      formatting: { ...defaultDocumentPreparationSettings.formatting, resumeTemplateId: "roman", coverLetterTemplateId: "moderncv_banking" },
+      formatting: {
+        ...defaultDocumentPreparationSettings.formatting,
+        resumeTemplateId: "classic_single",
+        coverLetterTemplateId: "modern_single",
+      },
     };
     expect(normalizeDocumentPreparationSettings(settings).formatting).toMatchObject({
-      resumeTemplateId: "roman", coverLetterTemplateId: "roman",
+      resumeTemplateId: "classic_single", coverLetterTemplateId: "classic_single",
     });
     const request = generationRequestFromSettings(settings);
-    expect(request.formattingParameters.tailored_resume.templateId).toBe("roman");
-    expect(request.formattingParameters.cover_letter.templateId).toBe("roman");
+    expect(request.formattingParameters.tailored_resume.templateId).toBe("classic_single");
+    expect(request.formattingParameters.cover_letter.templateId).toBe("classic_single");
   });
 
-  it("migrates the previous Roman template id", () => {
-    expect(normalizeDocumentPreparationSettings({
-      formatting: { resumeTemplateId: "ishchenko_classic" },
-    }).formatting.resumeTemplateId).toBe("roman");
+  it("ignores a language saved by earlier versions and follows the explicit choice", () => {
+    expect(normalizeDocumentPreparationSettings({ language: "German" }).languageChoice).toBe("Auto");
+    expect(generationRequestFromSettings({
+      ...defaultDocumentPreparationSettings,
+      language: "German",
+    }).language).toBe("Auto");
+    expect(generationRequestFromSettings({
+      ...defaultDocumentPreparationSettings,
+      languageChoice: "German",
+    }).language).toBe("German");
   });
 
   it("restores a valid per-document generation result", () => {
@@ -141,7 +168,7 @@ describe("document preparation settings", () => {
       language: "German",
       formatting: {
         pageSize: "Letter",
-        resumeTemplateId: "roman",
+        resumeTemplateId: "swiss_classic",
         resumeMaxPages: 1,
         coverLetterTemplateId: "unused-template",
       },
@@ -154,7 +181,7 @@ describe("document preparation settings", () => {
       formattingParameters: {
         tailored_resume: {
           pageSize: "Letter",
-          templateId: "roman",
+          templateId: "swiss_classic",
           maxPages: 1,
         },
       },

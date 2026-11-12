@@ -52,7 +52,10 @@ export type SubmissionDocumentSelection = {
 
 export type DocumentPreparationSettings = {
   documentTypes: PreparationDocumentType[];
+  /** Saved by earlier versions; documents follow `languageChoice`. */
   language: PreparationLanguage;
+  /** "Auto" writes in the language of the vacancy. */
+  languageChoice?: PreparationLanguage;
   formatting: {
     pageSize: PreparationPageSize;
     resumeTemplateId: string;

@@ -23,6 +23,7 @@ type WorkspaceApiOptions = {
   generationAvailability?: unknown;
   resumeTemplates?: unknown[];
   templates?: unknown[];
+  renderedGenerationRun?: unknown;
   requestHandler?: (
     url: URL,
     method: string,
@@ -153,6 +154,7 @@ export function installApplicationWorkspaceApiMock({
       updatedAt: "2026-07-28T10:00:00.000Z",
     },
   ],
+  renderedGenerationRun,
   requestHandler,
 }: WorkspaceApiOptions = {}) {
   const fetchMock = vi.fn<typeof fetch>(async (input, init) => {
@@ -196,6 +198,40 @@ export function installApplicationWorkspaceApiMock({
       && startedGenerationRun
     ) {
       return Response.json(startedGenerationRun, { status: 202 });
+    }
+    if (/\/generation\/runs\/[^/]+\/templates$/.test(url.pathname) && method === "GET") {
+      const base = url.pathname;
+      return Response.json(
+        [
+          ["swiss_classic", "Swiss Classic", true],
+          ["classic_single", "Classic", true],
+          ["modern_single", "Modern", true],
+          ["swiss_local_german", "Swiss Local German", true],
+          ["modern_two_column", "Modern two-column", false],
+        ].map(([id, name, atsSafe], index) => ({
+          id,
+          name,
+          description: `${name} layout`,
+          columns: atsSafe ? 1 : 2,
+          atsSafe,
+          isDefault: index === 0,
+          selected: index === 0,
+          thumbnailUrl: `${base}/${id}/thumbnail`,
+        })),
+      );
+    }
+    if (/\/templates\/[^/]+\/thumbnail$/.test(url.pathname) && method === "GET") {
+      return new Response(new Blob(["png"], { type: "image/png" }));
+    }
+    if (
+      /\/generation\/runs\/[^/]+\/render$/.test(url.pathname)
+      && method === "POST"
+      && renderedGenerationRun
+    ) {
+      return Response.json(renderedGenerationRun);
+    }
+    if (/^\/documents\/[^/]+\/pdf$/.test(url.pathname) && method === "GET") {
+      return new Response(new Blob(["%PDF-1.4"], { type: "application/pdf" }));
     }
     if (url.pathname === "/documents" && method === "GET") {
       return Response.json(documents);

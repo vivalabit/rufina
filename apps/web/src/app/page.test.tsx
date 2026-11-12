@@ -5190,10 +5190,10 @@ it("keeps document preparation separate from marking a draft as applied", async 
   render(<HomePage />);
 
   fireEvent.click(
-    await screen.findByRole("button", { name: "Create application" }),
+    await screen.findByRole("button", { name: "Tailor resume" }),
   );
   expect(
-    await screen.findByRole("heading", { name: "Prepare your application pack" }),
+    await screen.findByRole("heading", { name: "Tailor your resume to this vacancy" }),
   ).toBeInTheDocument();
   await waitFor(() =>
     expect(savedApplicationPayloads).toContainEqual(

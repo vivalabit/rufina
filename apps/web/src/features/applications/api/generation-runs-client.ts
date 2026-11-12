@@ -50,39 +50,56 @@ export type GenerationRunCheck = {
   createdAt: string;
 };
 
-export type FitKeyword = {
-  term: string;
-  importance?: string;
-  support?: string;
+export type CoverageStatus = "experience" | "skills" | "missing";
+
+export type TailoringCoverageItem = {
+  label: string;
+  importance: "required" | "preferred";
+  before: CoverageStatus;
+  after: CoverageStatus;
 };
 
-export type FitEvaluation = {
-  eligible?: boolean;
-  overallScore?: number;
-  recommendation?: string;
-  summary?: string;
-  strengths?: string[];
-  gaps?: string[];
-  keywords?: FitKeyword[];
-  clarificationQuestions?: string[];
+export type TailoringKnockout = {
+  kind: string;
+  requirement: string;
+  met: boolean | null;
+  detail?: string;
 };
 
-export type ReviewerFeedback = {
-  approved?: boolean;
-  summary?: string;
-  findings?: Array<{
-    severity?: string;
-    message?: string;
-    documentType?: string;
-  }>;
-  meaningfulChanges?: string[];
-  companySources?: Array<{ title?: string; url?: string }>;
+/** What a run reports next to its documents: score, coverage, changes and gaps. */
+export type TailoringReport = {
+  language?: string;
+  headline?: string;
+  vacancy?: {
+    title?: string;
+    seniority?: string;
+    language?: string;
+    parsedBy?: string;
+  };
+  score?: { before?: number | null; after?: number | null };
+  coverage?: TailoringCoverageItem[];
+  gaps?: Array<{ label: string; importance: string }>;
+  knockouts?: TailoringKnockout[];
+  statements?: {
+    inProfile?: number;
+    selected?: number;
+    reworded?: number;
+    keptOriginal?: number;
+    omitted?: number;
+  };
+  keptOriginal?: Array<{ id: string; reasons: string[] }>;
+  changes?: string[];
+  summaryIssues?: string[];
+  coverLetterIssues?: string[];
 };
 
-export type VisualReview = {
-  approved?: boolean;
-  summary?: string;
-  findings?: Array<{ severity?: string; message?: string }>;
+export type RenderInfo = {
+  templateId?: string;
+  templateVersion?: string;
+  pages?: Partial<Record<"tailored_resume" | "cover_letter", number>>;
+  droppedStatementIds?: string[];
+  fitScale?: number;
+  atsReadable?: boolean;
 };
 
 export type GeneratedDocument = {
@@ -94,11 +111,30 @@ export type GeneratedDocument = {
 };
 
 export type GenerationRunResult = {
-  fit?: FitEvaluation;
-  review?: ReviewerFeedback;
-  visualReview?: VisualReview;
+  tailoring?: TailoringReport;
+  render?: RenderInfo;
   documents?: GeneratedDocument[];
   draft?: Record<string, unknown>;
+  warnings?: string[];
+  usage?: {
+    requests?: number;
+    inputTokens?: number;
+    outputTokens?: number;
+    seconds?: number;
+  };
+  /** Runs of the earlier pipeline list their changes here. */
+  review?: { meaningfulChanges?: string[] };
+};
+
+export type GenerationRunTemplate = {
+  id: string;
+  name: string;
+  description: string;
+  columns: number;
+  atsSafe: boolean;
+  isDefault: boolean;
+  selected: boolean;
+  thumbnailUrl: string;
 };
 
 export type GenerationRun = {
@@ -112,11 +148,7 @@ export type GenerationRun = {
   reasoningEffort: string;
   inputFingerprint: string;
   documentTypes: Array<"tailored_resume" | "cover_letter">;
-  pendingQuestion: {
-    id?: string;
-    prompt?: string;
-    choices?: string[];
-  } | null;
+  pendingQuestion: Record<string, unknown> | null;
   result: GenerationRunResult;
   error: { code?: string; message?: string; retryable?: boolean } | null;
   cancelRequested: boolean;
@@ -227,23 +259,51 @@ export async function startGenerationRun(
   ).data;
 }
 
-export async function answerGenerationRun(
+/** Render a finished run in another template. No model is called. */
+export async function renderGenerationRun(
   applicationId: string,
   run: Pick<GenerationRun, "id" | "revision">,
-  response: "continue" | "stop",
+  templateId: string,
   signal?: AbortSignal,
 ) {
   return (
     await apiClient.json<GenerationRun>({
-      path: `${applicationPath(applicationId)}/${encodeURIComponent(run.id)}/responses`,
+      path: `${applicationPath(applicationId)}/${encodeURIComponent(run.id)}/render`,
       method: "POST",
-      json: {
-        questionId: "continue_after_fit",
-        response,
-        revision: run.revision,
-      },
+      json: { templateId, revision: run.revision },
       signal,
-      errorMessage: "The fit decision could not be saved",
+      retry: false,
+      errorMessage: "The template could not be applied",
+    })
+  ).data;
+}
+
+export async function fetchGenerationRunTemplates(
+  applicationId: string,
+  runId: string,
+  signal?: AbortSignal,
+) {
+  return (
+    await apiClient.json<GenerationRunTemplate[]>({
+      path: `${applicationPath(applicationId)}/${encodeURIComponent(runId)}/templates`,
+      cache: "no-store",
+      signal,
+      errorMessage: "Templates could not be loaded",
+    })
+  ).data;
+}
+
+/** First page of the run's own resume in a template, as a PNG. */
+export async function fetchGenerationRunTemplateThumbnail(
+  thumbnailUrl: string,
+  signal?: AbortSignal,
+) {
+  return (
+    await apiClient.blob({
+      path: thumbnailUrl,
+      signal,
+      retry: false,
+      errorMessage: "The template preview could not be loaded",
     })
   ).data;
 }
@@ -269,5 +329,7 @@ export function generationArtifactUrl(
   runId: string,
   artifactId: string,
 ) {
-  return `${applicationPath(applicationId)}/${encodeURIComponent(runId)}/artifacts/${encodeURIComponent(artifactId)}`;
+  return apiClient.url(
+    `${applicationPath(applicationId)}/${encodeURIComponent(runId)}/artifacts/${encodeURIComponent(artifactId)}`,
+  ).toString();
 }

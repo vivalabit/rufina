@@ -583,6 +583,7 @@ export function AppWorkspaceRoot({
   const selectedApplicationId = route.applicationId ?? "";
   const workspaceApplicationId = route.applicationId ?? null;
   const areApplicationsLoaded = !applicationState.isLoading;
+  const [autoTailorApplicationId, setAutoTailorApplicationId] = useState<string | null>(null);
   const [matchingApplicationIds, setMatchingApplicationIds] = useState<string[]>([]);
   const [failedApplicationIds, setFailedApplicationIds] = useState<string[]>([]);
   const applicationEvents = applicationEventState.events;
@@ -874,12 +875,16 @@ export function AppWorkspaceRoot({
       updateApplicationJob(existingApplication.id, job);
       changeView("ApplicationWorkspace", existingApplication.id);
     } else {
+      // First click on a vacancy: create the application and start tailoring
+      // as soon as it is saved, so the run can find it.
       const application = createApplicationFromJob(job, "draft");
-      void applicationState.upsert(application).catch((error) => appendAppLog({
-        level: "error",
-        area: "Applications",
-        message: error instanceof Error ? error.message : "Application could not be prepared",
-      }));
+      void applicationState.upsert(application)
+        .then(() => setAutoTailorApplicationId(application.id))
+        .catch((error) => appendAppLog({
+          level: "error",
+          area: "Applications",
+          message: error instanceof Error ? error.message : "Application could not be prepared",
+        }));
       changeView("ApplicationWorkspace", application.id);
     }
   }
@@ -2855,6 +2860,8 @@ export function AppWorkspaceRoot({
             onBack={() => changeView(workspaceApplication?.status === "draft" ? "Jobs" : "Applications")}
             onPreparationSettingsChange={updateDocumentPreparationSettings}
             onStatusChange={updateApplicationStatus}
+            autoStart={Boolean(workspaceApplication && autoTailorApplicationId === workspaceApplication.id)}
+            onAutoStartHandled={() => setAutoTailorApplicationId(null)}
           />
         ) : activeView === "Applications" ? (
           <ApplicationsView
@@ -3360,7 +3367,7 @@ export function AppWorkspaceRoot({
                                 <FileText className="h-4 w-4 2xl:h-5 2xl:w-5" />
                                 {selectedJobRecord
                                   ? "Open application"
-                                  : "Create application"}
+                                  : "Tailor resume"}
                               </Button>
                             </div>
                           </div>
