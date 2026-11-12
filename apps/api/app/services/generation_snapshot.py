@@ -6,21 +6,25 @@ import hashlib
 import json
 from datetime import UTC, datetime
 from typing import Any
-from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy.orm import Session
 
 from app.models.generation import GenerationRequest, GenerationStartRequest
-from app.services.generation_input import GenerationInputError, build_generation_input
-from app.services.generation_resume_templates import (
-    LEGACY_GENERATION_RESUME_TEMPLATE_IDS,
-    resolve_generation_resume_template,
+from app.services.document_rendering import (
+    COVER_LETTER_TEMPLATE_VERSION,
+    DocumentRenderError,
+    cover_letter_design_sha256,
+    resolve_document_template,
 )
+from app.services.generation_input import GenerationInputError, build_generation_input
 from app.services.generation_runtime import (
     GenerationExecutionSnapshot,
     snapshot_generation_execution,
 )
+from app.services.resume_pdf_renderer import ResolvedResumeTemplate
+
+DOCUMENT_RENDERER = "chromium"
 
 
 class GenerationTemplateSnapshot(BaseModel):
@@ -78,156 +82,92 @@ def build_generation_run_snapshot(
     )
 
 
+def requested_template_id(request: GenerationRequest) -> str | None:
+    """The single design family requested for all documents of a run."""
+    selected: list[str] = []
+    for document_type in request.document_types:
+        parameters = request.formatting_parameters.get(document_type)
+        value = parameters.get("templateId") if isinstance(parameters, dict) else None
+        if value is not None and not isinstance(value, str):
+            raise GenerationInputError(
+                "Document template ID must be a string",
+                code="document_template_unsupported",
+            )
+        if value and value.strip():
+            selected.append(value.strip())
+    if len(set(selected)) > 1:
+        raise GenerationInputError(
+            "CV and cover letter must use the same document template",
+            code="document_template_mismatch",
+        )
+    return selected[0] if selected else None
+
+
+def template_snapshots(
+    template: ResolvedResumeTemplate,
+    document_types: tuple[str, ...] | list[str],
+) -> tuple[GenerationTemplateSnapshot, ...]:
+    return tuple(
+        GenerationTemplateSnapshot(
+            document_type=document_type,
+            template_id=template.id,
+            template_version=(
+                template.version
+                if document_type == "tailored_resume"
+                else COVER_LETTER_TEMPLATE_VERSION
+            ),
+            content_sha256=(
+                template.design_sha256
+                if document_type == "tailored_resume"
+                else cover_letter_design_sha256(template)
+            ),
+            renderer=DOCUMENT_RENDERER,
+        )
+        for document_type in document_types
+    )
+
+
 def resolve_template_snapshots(
     db: Session,
     request: GenerationRequest,
 ) -> tuple[GenerationTemplateSnapshot, ...]:
-    # One design family applies to every document in a run. Missing selections
-    # inherit the explicitly selected family, including cover-letter-only runs.
-    selected: dict[str, GenerationTemplateSnapshot] = {}
-    for document_type in request.document_types:
-        parameters = request.formatting_parameters.get(document_type)
-        values = parameters if isinstance(parameters, dict) else {}
-        template_id = values.get("templateId")
-        if template_id is not None and not isinstance(template_id, str):
-            raise GenerationInputError(
-                "Document template ID must be a string",
-                code=("resume_template_unsupported" if document_type == "tailored_resume"
-                      else "cover_letter_template_unsupported"),
-            )
-        if template_id and template_id.strip():
-            selected[document_type] = (
-                _resume_template_snapshot(template_id)
-                if document_type == "tailored_resume"
-                else _cover_letter_template_snapshot(template_id)
-            )
-    if len({item.template_id for item in selected.values()}) > 1:
-        raise GenerationInputError(
-            "CV and cover letter must use the same document template",
-            code="document_template_mismatch",
-        )
-    family = next(iter(selected.values())).template_id if selected else None
-    return tuple(
-        _resume_template_snapshot(family) if document_type == "tailored_resume"
-        else _cover_letter_template_snapshot(family)
-        for document_type in request.document_types
-    )
+    """Pin the gallery template every document of the run starts with.
 
-
-def resolve_run_document_template_id(snapshot: GenerationRunSnapshot) -> str:
-    templates = [
-        resolve_run_resume_template(snapshot) if document_type == "tailored_resume"
-        else resolve_run_cover_letter_template(snapshot)
-        for document_type in snapshot.request.document_types
-    ]
-    if len({item.template_id for item in templates}) != 1:
-        raise GenerationInputError(
-            "CV and cover letter must use the same document template",
-            code="document_template_mismatch",
-        )
-    return templates[0].template_id
-
-
-def resolve_run_cover_letter_template(snapshot: GenerationRunSnapshot) -> GenerationTemplateSnapshot:
-    pinned = next(
-        (item for item in snapshot.templates if item.document_type == "cover_letter"), None,
-    )
-    if pinned is None:
-        raise GenerationInputError(
-            "The generation snapshot has no cover-letter template",
-            code="cover_letter_template_missing",
-        )
+    The template only decides the first rendering. A finished run can be
+    rendered again in any other template without a new run.
+    """
     try:
-        actual = _cover_letter_template_snapshot(pinned.template_id)
-    except GenerationInputError:
-        actual = None
-    # Historical UUID templates described a DOCX that the LaTeX renderer did
-    # not use. Never silently label new output with that unrelated design hash.
-    if actual != pinned:
-        raise GenerationInputError(
-            "The selected cover-letter template changed after this run started. "
-            "Start a new generation run to use the current template.",
-            code="cover_letter_template_changed",
-        )
-    return pinned
+        template = resolve_document_template(requested_template_id(request), db=db)
+    except DocumentRenderError as exc:
+        raise GenerationInputError(str(exc), code=exc.code) from exc
+    return template_snapshots(template, request.document_types)
 
 
-def resolve_run_resume_template(snapshot: GenerationRunSnapshot) -> GenerationTemplateSnapshot:
-    """Resolve the pinned renderer, without modifying the immutable run input."""
-    pinned = next(
-        (item for item in snapshot.templates if item.document_type == "tailored_resume"),
-        None,
-    )
-    if pinned is None:
-        raise GenerationInputError(
-            "The generation snapshot has no resume template",
-            code="resume_template_missing",
-        )
-    if _is_legacy_resume_template_snapshot(pinned):
-        # Old snapshots pinned unrelated HTML designs. Keep their historical
-        # data unchanged, but new output metadata must identify the Banking
-        # renderer actually used when recovering the run.
-        return _resume_template_snapshot(None)
-    actual = _resume_template_snapshot(pinned.template_id)
-    if pinned != actual:
-        raise GenerationInputError(
-            "The selected resume template changed after this run started. "
-            "Start a new generation run to use the current template.",
-            code="resume_template_changed",
-        )
-    return pinned
-
-
-def _is_legacy_resume_template_snapshot(template: GenerationTemplateSnapshot) -> bool:
-    if template.renderer != "lualatex":
-        return False
-    if template.template_id in LEGACY_GENERATION_RESUME_TEMPLATE_IDS:
-        return True
-    # Before template selection, saved custom HTML designs had UUID IDs and
-    # positive integer revisions. Only accept that historical persisted shape;
-    # new run creation still rejects custom and unknown template IDs.
+def run_request(input_snapshot: dict[str, Any]) -> GenerationRequest:
+    """Read the frozen request of a run, including runs of earlier pipeline versions."""
     try:
-        identifier = UUID(template.template_id)
+        return GenerationRequest.model_validate(input_snapshot.get("request"))
+    except ValidationError as exc:
+        raise GenerationInputError(
+            "Persisted generation input snapshot is invalid",
+            code="invalid_snapshot",
+        ) from exc
+
+
+def run_created_at(input_snapshot: dict[str, Any]) -> datetime:
+    value = input_snapshot.get("createdAt") or input_snapshot.get("created_at")
+    try:
+        return datetime.fromisoformat(str(value))
     except ValueError:
-        return False
-    return (
-        str(identifier) == template.template_id
-        and template.template_version.isascii()
-        and template.template_version.isdecimal()
-        and int(template.template_version) > 0
-    )
+        return datetime.now(UTC)
 
 
-def _resume_template_snapshot(template_id: str | None) -> GenerationTemplateSnapshot:
-    try:
-        template = resolve_generation_resume_template(template_id)
-    except ValueError as exc:
-        raise GenerationInputError(str(exc), code="resume_template_unsupported") from exc
-    return GenerationTemplateSnapshot(
-        document_type="tailored_resume",
-        template_id=template.id,
-        template_version=template.version,
-        content_sha256=template.content_sha256,
-        renderer=template.renderer,
-    )
-
-
-def _cover_letter_template_snapshot(template_id: str | None) -> GenerationTemplateSnapshot:
-    try:
-        template = resolve_generation_resume_template(template_id)
-    except ValueError as exc:
-        raise GenerationInputError(str(exc), code="cover_letter_template_unsupported") from exc
-    version = "1.0.0"
-    digest = hashlib.sha256(
-        f"cover_letter\0{version}\0{template.content_sha256}".encode()
-    ).hexdigest()
-    return GenerationTemplateSnapshot(
-        document_type="cover_letter",
-        template_id=template.id,
-        template_version=version,
-        content_sha256=digest,
-        renderer="xelatex",
-    )
+def run_template_id(input_snapshot: dict[str, Any]) -> str | None:
+    templates = input_snapshot.get("templates")
+    if isinstance(templates, list) and templates and isinstance(templates[0], dict):
+        value = templates[0].get("templateId") or templates[0].get("template_id")
+        return value if isinstance(value, str) else None
+    return None
 
 
 def _snapshot_fingerprint(
@@ -251,11 +191,14 @@ def _snapshot_fingerprint(
 
 
 __all__ = [
+    "DOCUMENT_RENDERER",
     "GenerationRunSnapshot",
     "GenerationTemplateSnapshot",
     "build_generation_run_snapshot",
-    "resolve_run_resume_template",
-    "resolve_run_cover_letter_template",
-    "resolve_run_document_template_id",
+    "requested_template_id",
     "resolve_template_snapshots",
+    "run_created_at",
+    "run_request",
+    "run_template_id",
+    "template_snapshots",
 ]

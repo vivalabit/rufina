@@ -9,6 +9,7 @@ from test_generation_input import seed_complete_sources
 from app.core.database import Base
 from app.models.applications import StoredApplicationRecord
 from app.models.generation_runs import (
+    ApplicationGenerationRunRecord,
     GenerationRunArtifactRecord,
     GenerationRunCheckRecord,
     GenerationRunEventRecord,
@@ -82,7 +83,7 @@ def test_run_persists_snapshot_events_artifacts_checks_and_transition(
             file_name="resume.pdf",
             content_type="application/pdf",
             content=b"%PDF-test",
-            metadata={"renderer": "lualatex"},
+            metadata={"engine": "chromium"},
         )
         persist_run_check(
             db,
@@ -105,7 +106,8 @@ def test_run_persists_snapshot_events_artifacts_checks_and_transition(
     assert run.settings_snapshot["backend"] == "openclaw_codex"
     assert payload.status == "completed"
     assert [event.sequence for event in payload.events] == [1, 2, 3]
-    assert payload.events[0].data["resumeTemplateId"] == "moderncv_banking"
+    # The run starts in the gallery template the user picked.
+    assert payload.events[0].data["resumeTemplateId"] == "classic_single"
     assert payload.artifacts[0].content_sha256 == artifact.content_sha256
     assert payload.checks[0].artifact_sha256 == artifact.content_sha256
 
@@ -256,3 +258,29 @@ def test_parallel_applications_are_isolated_and_backend_changes_only_affect_new_
         replacement_artifact.content_sha256
     )
     assert replacement_payload.artifacts[0].content_sha256 != old_sha256
+
+
+def test_a_run_left_waiting_by_the_earlier_pipeline_no_longer_blocks_new_runs(
+    sessions: sessionmaker[Session],
+) -> None:
+    seed_complete_sources(sessions)
+    with sessions() as db:
+        legacy = create_generation_run(
+            db, application_id="application-1", request=_request("legacy"), settings=_settings()
+        )
+        transition_generation_run(
+            db,
+            run=legacy,
+            status="awaiting_approval",
+            stage="fit",
+            event_kind="fit.completed",
+            pending_question={"id": "continue_after_fit"},
+        )
+        legacy_id = legacy.id
+
+        run = create_generation_run(
+            db, application_id="application-1", request=_request("new"), settings=_settings()
+        )
+
+        assert run.id != legacy_id and run.status == "queued"
+        assert db.get(ApplicationGenerationRunRecord, legacy_id).status == "cancelled"

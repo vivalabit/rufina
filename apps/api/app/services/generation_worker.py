@@ -92,12 +92,7 @@ def run_generation_cycle(
                 else GenerationWorkflow(settings=settings)
             )
             try:
-                if run.stage in {"sources", "fit"}:
-                    workflow.evaluate_fit(db, run)
-                elif run.stage == "draft":
-                    workflow.continue_approved_run(db, run)
-                elif run.stage == "pdf_checks":
-                    workflow.resume_pdf_checks(db, run)
+                workflow.run(db, run)
             except Exception as exc:
                 logger.exception("Application generation run failed: run_id=%s", run_id)
                 # Also cover failures outside the workflow's own error handler.
@@ -180,11 +175,9 @@ def recover_expired_generation_runs(
             .execution_options(skip_owner_scope=True)
         ).all()
         for run in runs:
+            # A run is cheap enough to redo from the start after a worker crash.
             run.status = "queued"
-            if run.stage == "review":
-                run.stage = "draft"
-            if run.stage == "pdf_checks" and not run.result.get("draft"):
-                run.stage = "draft"
+            run.stage = "sources"
             run.lease_token = None
             run.lease_until = None
             append_run_event(

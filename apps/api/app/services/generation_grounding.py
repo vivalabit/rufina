@@ -1,161 +1,31 @@
+"""Final check that a tailored document only presents facts of its frozen profile."""
+
 from __future__ import annotations
 
 import re
 import unicodedata
 from datetime import date
 
-from app.models.generation_workflow import CoverLetterDraft, DraftBundle, GeneratedDraftBundle
+from app.models.generation_workflow import CoverLetterDraft, DraftBundle
 from app.models.resume import (
     FinalResume,
     MasterExperience,
     MasterResume,
-    MasterSkill,
-    ResumeDraft,
     ResumeEvidence,
-    resume_evidence_ids,
 )
 from app.services.resume_skills import (
     CORE_SKILL_CATEGORIES,
-    normalize_skill_category,
     order_skill_categories,
     source_skill_category,
 )
-
-_GENERATED_SECTION_PRIORITY = {
-    section: index
-    for index, section in enumerate(("summary", "experience", "education", "languages", "skills"))
-}
 
 
 class GenerationGroundingError(ValueError):
     pass
 
 
-def ground_generated_bundle(
-    generated: GeneratedDraftBundle,
-    *,
-    master_resume: MasterResume,
-    target_job_id: str,
-) -> DraftBundle:
-    """Preserve profile essentials and resolve references against the frozen source.
-
-    Evidence is server-owned: model responses cannot supply or rewrite it.
-    Keep source ordering for deterministic artifacts and copy entries so the
-    materialized document cannot mutate the snapshot's catalog.
-    """
-    resume = None
-    if generated.resume is not None:
-        referenced = set(resume_evidence_ids(generated.resume))
-        canonical_ids = {item.id for item in master_resume.evidence}
-        unknown = sorted(referenced - canonical_ids)
-        if unknown:
-            raise GenerationGroundingError(
-                f"Tailored resume references unknown evidence IDs: {unknown}"
-            )
-        preserved = _preserve_profile_sections(generated.resume, master_resume)
-        referenced = set(resume_evidence_ids(preserved))
-        resume = FinalResume.model_validate(
-            {
-                **preserved.model_dump(mode="json", by_alias=True),
-                "evidence": [
-                    item.model_dump(mode="json", by_alias=True)
-                    for item in master_resume.evidence
-                    if item.id in referenced
-                ],
-            }
-        )
-    # Keep structured content, PDF verification and the sender block tied to
-    # the same frozen identity, including when no CV is requested.
-    letter = (
-        generated.cover_letter.model_copy(update={"signature": master_resume.basics.full_name})
-        if generated.cover_letter is not None else None
-    )
-    bundle = DraftBundle(resume=resume, cover_letter=letter)
-    validate_grounded_bundle(
-        bundle,
-        master_resume=master_resume,
-        target_job_id=target_job_id,
-    )
-    return bundle
-
-
 def _skill_key(name: str) -> str:
     return " ".join(unicodedata.normalize("NFKC", name).casefold().split())
-
-
-def _preserve_profile_sections(draft: ResumeDraft, master: MasterResume) -> ResumeDraft:
-    """Apply the same lossless rules to authors, reviewer revisions and PDF repairs.
-
-    Let the model choose vacancy-specific extra skills and priority within each
-    category. Preserve the source's four core technical categories regardless
-    of keyword matches, along with all spoken languages.
-    Missing roles are rejected by validation rather than inventing replacement
-    bullets. The source order is authoritative, even when it is not chronological.
-    """
-    order = {item.id: index for index, item in enumerate(master.experiences)}
-    skills_by_id = {item.id: item for item in master.skills}
-    skills_by_name = {_skill_key(item.name): item for item in reversed(master.skills)}
-    skills: list[MasterSkill] = []
-    seen: set[str] = set()
-    for item in draft.skills:
-        original = skills_by_id.get(item.id) or skills_by_name.get(_skill_key(item.name))
-        if original is not None:
-            # Core categories, names and evidence are canonical. Extra categories
-            # can be tailored to the vacancy, without restoring unselected extras.
-            source_category = source_skill_category(original)
-            category = (
-                source_category if source_category in CORE_SKILL_CATEGORIES
-                else normalize_skill_category(item.category or original.category)
-            )
-            item = original.model_copy(deep=True, update={"category": category})
-        else:
-            # A skill may also be supported by a detailed role/project source.
-            item = item.model_copy(
-                deep=True, update={"category": normalize_skill_category(item.category)}
-            )
-        key = _skill_key(item.name)
-        if key not in seen:
-            skills.append(item)
-            seen.add(key)
-    for item in master.skills:
-        key = _skill_key(item.name)
-        category = source_skill_category(item)
-        if category in CORE_SKILL_CATEGORIES and key not in seen:
-            skills.append(item.model_copy(deep=True, update={"category": category}))
-            seen.add(key)
-    skills = order_skill_categories(skills)
-
-    section_order = list(draft.section_order)
-    for section, items in (("skills", skills), ("languages", master.languages)):
-        if items and section not in section_order:
-            following = (
-                master.section_order[master.section_order.index(section) + 1 :]
-                if section in master.section_order else []
-            )
-            next_section = next((name for name in following if name in section_order), None)
-            index = section_order.index(next_section) if next_section else len(section_order)
-            section_order.insert(index, section)
-        elif not items and section in section_order:
-            section_order.remove(section)
-
-    # Keep the introduction first and the main sections in the product's order.
-    # Stable sorting preserves the relative order of any remaining sections.
-    section_order.sort(
-        key=lambda section: _GENERATED_SECTION_PRIORITY.get(section, len(_GENERATED_SECTION_PRIORITY))
-    )
-
-    return draft.model_copy(
-        deep=True,
-        update={
-            "experiences": sorted(
-                draft.experiences,
-                key=lambda item: order.get(item.master_experience_id, len(order)),
-            ),
-            "languages": [item.model_copy(deep=True) for item in master.languages],
-            "skills": skills,
-            "section_order": section_order,
-        },
-    )
 
 
 def validate_grounded_bundle(
@@ -353,6 +223,5 @@ def _period_matches_source(period: str, experience: MasterExperience) -> bool:
 
 __all__ = [
     "GenerationGroundingError",
-    "ground_generated_bundle",
     "validate_grounded_bundle",
 ]

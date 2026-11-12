@@ -296,18 +296,29 @@ class GenerationRunCancelRequest(BaseModel):
     revision: int = Field(ge=1)
 
 
-class GenerationRunAnswerRequest(BaseModel):
+class GenerationRunRenderRequest(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
-    question_id: str = Field(min_length=1, max_length=160, alias="questionId")
-    response: Literal["continue", "stop"]
+    template_id: str = Field(min_length=1, max_length=80, alias="templateId")
     revision: int = Field(ge=1)
+
+
+class GenerationRunTemplatePayload(BaseModel):
+    model_config = ConfigDict(populate_by_name=True)
+
+    id: str
+    name: str
+    description: str
+    columns: int
+    ats_safe: bool = Field(alias="atsSafe")
+    is_default: bool = Field(alias="isDefault")
+    selected: bool
+    thumbnail_url: str = Field(alias="thumbnailUrl")
 
 
 __all__ = [
     "ApplicationGenerationRunRecord",
     "GenerationActor",
-    "GenerationRunAnswerRequest",
     "GenerationRunArtifactPayload",
     "GenerationRunArtifactRecord",
     "GenerationRunCancelRequest",
@@ -317,7 +328,9 @@ __all__ = [
     "GenerationRunEventRecord",
     "GenerationRunMessageRecord",
     "GenerationRunPayload",
+    "GenerationRunRenderRequest",
     "GenerationRunStage",
     "GenerationRunStartRequest",
+    "GenerationRunTemplatePayload",
     "GenerationRunStatus",
 ]

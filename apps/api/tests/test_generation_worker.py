@@ -17,7 +17,6 @@ from app.models.generation_runs import (
 )
 from app.services.generation_store import (
     create_generation_run,
-    queue_fit_decision,
     transition_generation_run,
 )
 from app.services.generation_worker import (
@@ -67,18 +66,7 @@ class FakeWorkflow:
     def __init__(self) -> None:
         self.owner_ids: list[str] = []
 
-    def evaluate_fit(self, db: Session, run: ApplicationGenerationRunRecord) -> None:
-        self.owner_ids.append(get_bound_owner_id())
-        transition_generation_run(
-            db,
-            run=run,
-            status="awaiting_approval",
-            stage="fit",
-            event_kind="fit.completed",
-            pending_question={"id": "continue_after_fit"},
-        )
-
-    def continue_approved_run(self, db: Session, run: ApplicationGenerationRunRecord) -> None:
+    def run(self, db: Session, run: ApplicationGenerationRunRecord) -> None:
         self.owner_ids.append(get_bound_owner_id())
         transition_generation_run(
             db,
@@ -89,7 +77,9 @@ class FakeWorkflow:
         )
 
 
-def test_worker_reserves_pauses_and_resumes_a_run(sessions: sessionmaker[Session]) -> None:
+def test_worker_reserves_a_run_and_finishes_it_in_one_cycle(
+    sessions: sessionmaker[Session],
+) -> None:
     seed_complete_sources(sessions)
     workflow = FakeWorkflow()
     with sessions() as db:
@@ -111,28 +101,18 @@ def test_worker_reserves_pauses_and_resumes_a_run(sessions: sessionmaker[Session
     )
     with sessions() as db:
         run = db.get(ApplicationGenerationRunRecord, run_id)
-        assert run is not None and run.status == "awaiting_approval"
-        queue_fit_decision(
-            db,
-            run=run,
-            question_id="continue_after_fit",
-            response="continue",
-            expected_revision=run.revision,
-        )
-
+        assert run is not None and run.status == "completed"
+        assert run.lease_token is None and run.lease_until is None
+    assert workflow.owner_ids == ["local-owner"]
+    # Nothing is left to do: a finished run is never picked up again.
     assert (
         run_generation_cycle(
             settings=_settings(),
             session_factory=sessions,
             workflow_factory=lambda _settings: workflow,
         )
-        == run_id
+        is None
     )
-    with sessions() as db:
-        run = db.get(ApplicationGenerationRunRecord, run_id)
-        assert run is not None and run.status == "completed"
-        assert run.lease_token is None and run.lease_until is None
-    assert workflow.owner_ids == ["local-owner", "local-owner"]
 
 
 @pytest.mark.parametrize("database_failure", [False, True])
@@ -147,9 +127,9 @@ def test_unhandled_worker_failure_is_terminal_and_releases_lease(
         run_id = run.id
 
     class BrokenWorkflow(FakeWorkflow):
-        def evaluate_fit(self, db, run):
+        def run(self, db, run):
             transition_generation_run(
-                db, run=run, status="running", stage="fit", event_kind="fit.started",
+                db, run=run, status="running", stage="fit", event_kind="plan.completed",
             )
             if database_failure:
                 db.add(GenerationRunCheckRecord(
@@ -208,4 +188,6 @@ def test_expired_running_lease_is_requeued_with_an_audit_event(
             .order_by(GenerationRunEventRecord.sequence.desc())
         )
         assert run is not None and run.status == "queued"
+        # A recovered run starts again from the first stage.
+        assert run.stage == "sources"
         assert event is not None and event.kind == "run.recovered"

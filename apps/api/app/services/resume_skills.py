@@ -1,6 +1,6 @@
-"""Shared CV skill categories; relevance within them is selected by the author."""
+"""Shared CV skill categories; the tailoring plan orders skills inside them."""
 
-from app.models.resume import MasterResume, MasterSkill
+from app.models.resume import MasterSkill
 
 CORE_SKILL_CATEGORIES = ("Languages", "Frameworks", "Databases", "Tools / DevOps")
 
@@ -68,23 +68,6 @@ def source_skill_category(skill: MasterSkill) -> str:
     return _CORE_TECHNOLOGY_CATEGORIES.get(skill.name.casefold()) or normalize_skill_category(
         skill.category
     )
-
-
-def source_skill_policy(master: MasterResume) -> dict[str, object]:
-    """Expose the grounding rules using only the run's frozen source skills.
-
-    Source labels can be blank or legacy labels. Authors and reviewers must see
-    the same canonical membership that grounding restores after every revision.
-    """
-    return {
-        "categoryOrder": list(CORE_SKILL_CATEGORIES),
-        "requiredSkills": [
-            {"id": skill.id, "name": skill.name, "category": category}
-            for skill in master.skills
-            if (category := source_skill_category(skill)) in CORE_SKILL_CATEGORIES
-        ],
-        "exactDuplicatesMayBeConsolidated": True,
-    }
 
 
 def order_skill_categories(skills: list[MasterSkill]) -> list[MasterSkill]:

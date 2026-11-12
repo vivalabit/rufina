@@ -18,10 +18,6 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends \
         libreoffice-writer \
         poppler-utils \
-        texlive-fonts-extra \
-        texlive-latex-extra \
-        texlive-luatex \
-        texlive-xetex \
         tesseract-ocr \
         tesseract-ocr-deu \
         tesseract-ocr-eng \
@@ -51,14 +47,6 @@ COPY scripts/retry_failed_job_screening.py /workspace/scripts/retry_failed_job_s
 RUN python -m pip install --upgrade pip \
     && python -m pip install --constraint constraints.txt . \
     && python -m playwright install --with-deps chromium
-
-# hyperref uses the Zapf Dingbats metric (pzdr.tfm) when compiling links with
-# XeLaTeX. Keep this in a separate late layer so the large TeX image layer can
-# remain cached when the font dependency changes.
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends texlive-fonts-recommended \
-    && kpsewhich pzdr.tfm >/dev/null \
-    && rm -rf /var/lib/apt/lists/*
 
 EXPOSE 8000
 

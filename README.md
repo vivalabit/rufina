@@ -247,31 +247,56 @@ OpenAI and Claude models on the same agent.
 
 ### Application Document Pipeline
 
-The application workspace runs document preparation as a recoverable server
-workflow: source snapshot, fit approval, author draft, independent review, PDF
-checks, and final review. The selected backend and all source/template versions
-are frozen when a run starts. Changing `AI_BACKEND` affects only new runs.
+Tailoring a resume takes two clicks: **Tailor** starts a run, and the template
+picker re-renders the result in any gallery template. No resume file is needed;
+the master profile is the only source of facts.
 
-- `AI_BACKEND=openai_api` uses the OpenAI Responses API with structured output,
-  web search for the independent company review, and rendered-page image input
-  for visual checks. Set `OPENAI_API_KEY`; the API key remains server-side.
-- `AI_BACKEND=openclaw_codex` runs the same contracts through the configured
-  OpenClaw agent. Run `pnpm openclaw:setup` and keep the OpenClaw volumes from
-  `compose.yaml` mounted so the agent and its state are available to the API.
-- The Docker API image includes LuaLaTeX, XeLaTeX, Poppler, the versioned fonts,
-  and the original ModernCV/cover-letter assets. For local development install
-  `lualatex`, `xelatex`, `pdftotext`, and `pdftoppm` on `PATH` before generating.
+A run never pauses for input and has five steps:
+
+1. **Vacancy analysis.** A fast model and the built-in skill dictionary extract
+   the required and preferred skills in the posting's own spelling, the main
+   tasks, the language and hard requirements. The result is cached per posting.
+2. **Plan.** Code ranks every profile statement against the vacancy, orders
+   statements and skills, builds the headline and lists the gaps. Nothing is
+   left out for relevance alone; statements are only dropped, lowest value
+   first, when the page limit requires it.
+3. **Wording.** One structured request asks the model to rephrase the selected
+   statements, keyed by statement ID. The cover letter is requested in parallel.
+4. **Fact check.** Code compares each rewritten statement with its profile
+   source. New numbers, technologies, product names or employers reject the
+   statement; it is retried once and otherwise keeps the profile wording, so one
+   bad sentence never fails a run. Roles, dates, education, languages and
+   skills are copied from the profile and never written by a model.
+5. **Rendering.** Chromium renders the PDF in the selected template and fits it
+   to the page limit. The text of the finished PDF is extracted again to confirm
+   that applicant tracking systems can read it. An editable Word version is
+   built from the same content.
+
+The result screen shows how much of the vacancy's skills the resume covers
+before and after tailoring, what changed, and the skills the profile lacks.
+Switching the template creates a new document version in seconds without
+calling a model.
+
+- All AI backends run the same contracts. The model for wording and cover
+  letters is the document model from the AI settings; vacancy analysis uses the
+  pre-screening model. Provider APIs receive the requests of a step in parallel;
+  OpenClaw agents run them one after another.
+- The selected backend, models and all source versions are frozen when a run
+  starts. Changing `AI_BACKEND` affects only new runs.
+- PDF rendering needs Playwright Chromium. Poppler (`pdftotext`, `pdftoppm`) is
+  used for the text check and template previews. Both are part of the Docker
+  image; set `RESUME_PDF_CHROMIUM_EXECUTABLE` to use a system browser instead.
 - `GENERATION_WORKER_POLL_INTERVAL_SECONDS` controls queue polling. Runs, events,
   raw provider responses, checks, source hashes, and final files are stored in
-  PostgreSQL. Generated PDF checks are bound to the artifact SHA they validated.
-- On API restart, an expired running lease is requeued and an audit event is
-  recorded. Refreshing the browser restores the current run; a fit response and
-  cancellation both use optimistic revisions to reject stale actions.
+  PostgreSQL.
+- On API restart, an expired running lease is requeued from the first step and
+  an audit event is recorded. Refreshing the browser restores the current run;
+  cancellation uses optimistic revisions to reject stale actions.
 
-Only a successful final review publishes PDFs into the existing Documents
-library. A requested correction starts a new immutable run and creates the next
-version of the attached document. Opening an employer form and marking an
-application submitted remain separate user actions.
+A finished run publishes its PDFs into the Documents library. A change request
+starts a new run and creates the next version of the attached document. Opening
+an employer form and marking an application submitted remain separate user
+actions.
 
 ### Vacancy Sources
 

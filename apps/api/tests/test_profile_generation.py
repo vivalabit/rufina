@@ -49,7 +49,7 @@ def test_generation_freezes_full_profile_and_next_run_sees_edit_without_master()
         assert second.master_profile_version.data['experience'] == data['experience']
         assert first.model_dump(mode='json', by_alias=True) == frozen
         assert canonical_hash(first.request.master_profile_version.data) == first_hash
-        assert _snapshot_resume(first).experiences[0].title == 'Engineer'
+        assert _snapshot_resume(first.request).experiences[0].title == 'Engineer'
 
 
 def test_old_master_snapshot_keeps_its_original_hash_and_data():
@@ -69,6 +69,6 @@ def test_old_master_snapshot_keeps_its_original_hash_and_data():
         })
         snapshot = snapshot.model_copy(update={'request': snapshot.request.model_copy(update={'master_profile_version': source})})
         before = snapshot.model_dump(mode='json', by_alias=True)
-        assert _snapshot_resume(snapshot).basics.headline == 'Engineer'
+        assert _snapshot_resume(snapshot.request).basics.headline == 'Engineer'
         assert snapshot.model_dump(mode='json', by_alias=True) == before
         assert source.content_sha256 == canonical_hash(legacy.data)

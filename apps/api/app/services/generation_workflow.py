@@ -1,50 +1,89 @@
+"""One-click tailoring run: vacancy target, plan, checked wording, rendered documents.
+
+A run never waits for the user. Code selects and orders profile facts, the
+model rephrases the selected statements, code checks every sentence against
+its source and renders the documents. Rendering a finished run in another
+template reuses its content and calls no model.
+"""
+
 from __future__ import annotations
 
-import inspect
 import json
-from collections.abc import Callable
+import time
+from collections.abc import Sequence
+from concurrent.futures import ThreadPoolExecutor
+from datetime import date
 from typing import Any
 
 from pydantic import BaseModel, ValidationError
+from sqlalchemy import select
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from app.models.generation_runs import ApplicationGenerationRunRecord
-from app.models.generation_workflow import (
-    DraftBundle,
-    FitEvaluation,
-    GeneratedDraftBundle,
-    ReviewedDraftBundle,
-    ReviewerFeedback,
-    VisualReview,
+from app.core.ai_models import is_openclaw_backend
+from app.models.generation import GenerationRequest
+from app.models.generation_runs import (
+    ApplicationGenerationRunRecord,
+    GenerationRunArtifactRecord,
 )
+from app.models.generation_workflow import CoverLetterDraft, DraftBundle
 from app.models.profile import ProfilePayload
-from app.models.resume import MasterResume
+from app.models.resume import FinalResume, MasterResume
 from app.services.ai_backend import (
     AIBackend,
-    AIImageInput,
+    AIBackendError,
     AIRequest,
     AIResult,
     create_configured_ai_backend,
     generate_with_retries,
 )
+from app.services.ats.job_target import (
+    JobTargetExtractor,
+    VacancyInput,
+    job_target_cache_key,
+)
+from app.services.ats.models import JobTarget
+from app.services.ats.profile_index import build_profile_index
+from app.services.ats.tailoring import (
+    ModelRequest,
+    ModelResponse,
+    TailoringSession,
+    VacancyContext,
+)
 from app.services.candidate_profile import canonical_hash, profile_resume
-from app.services.generation_artifact_import import import_compiled_generation_documents
-from app.services.generation_experience import experience_content_policy
-from app.services.generation_grounding import ground_generated_bundle
-from app.services.generation_latex import CompiledDocument, render_generation_bundle
-from app.services.generation_resources import load_instruction
-from app.services.generation_resume_templates import DEFAULT_GENERATION_RESUME_TEMPLATE_ID
-from app.services.generation_snapshot import GenerationRunSnapshot, resolve_run_document_template_id
+from app.services.document_docx import build_cover_letter_docx, build_resume_docx
+from app.services.document_rendering import (
+    DocumentRenderError,
+    RenderedDocument,
+    render_cover_letter,
+    render_resume_to_fit,
+    resolve_document_template,
+)
+from app.services.generation_artifact_import import (
+    DocumentImport,
+    document_file_stem,
+    import_rendered_documents,
+)
+from app.services.generation_grounding import GenerationGroundingError, validate_grounded_bundle
+from app.services.generation_input import GenerationInputError
+from app.services.generation_snapshot import (
+    GenerationRunSnapshot,
+    run_created_at,
+    run_request,
+)
 from app.services.generation_store import (
     GenerationStoreError,
+    append_run_event,
     append_run_message,
     persist_run_artifact,
     persist_run_check,
     transition_generation_run,
 )
-from app.services.generation_verification import VerifiedPdf, verify_compiled_document
-from app.services.resume_skills import source_skill_policy
+from app.services.resume_pdf_renderer import ChromiumPdfSession, ResumePdfRenderError
+
+MAX_PARALLEL_MODEL_REQUESTS = 4
+JOB_TARGET_ARTIFACT = "job_target_json"
+CONTENT_ARTIFACT = "tailored_content_json"
 
 
 class GenerationWorkflowError(RuntimeError):
@@ -54,622 +93,531 @@ class GenerationWorkflowError(RuntimeError):
         self.retryable = retryable
 
 
+class _RunCancelled(Exception):
+    pass
+
+
 class GenerationWorkflow:
     def __init__(
         self,
         *,
         settings: Any,
         backend: AIBackend | None = None,
-        renderer: Callable[..., tuple[CompiledDocument, ...]] | None = None,
-        verifier: Callable[..., VerifiedPdf] | None = None,
+        today: date | None = None,
     ) -> None:
         self.settings = settings
         self.backend_override = backend
-        self.renderer = renderer or render_generation_bundle
-        self._renderer_accepts_template = _accepts_renderer_keyword(self.renderer, "resume_template_id")
-        self.verifier = verifier or verify_compiled_document
+        self.today = today
 
-    def evaluate_fit(
-        self,
-        db: Session,
-        run: ApplicationGenerationRunRecord,
-    ) -> FitEvaluation:
+    # --- One-click run ----------------------------------------------------------
+
+    def run(self, db: Session, run: ApplicationGenerationRunRecord) -> None:
+        """Execute a queued run to its end. Any earlier partial progress is redone."""
         self._require_state(run, "queued")
-        snapshot = _run_snapshot(run)
-        transition_generation_run(
-            db,
-            run=run,
-            status="running",
-            stage="fit",
-            event_kind="fit.started",
-        )
+        started = time.perf_counter()
+        usage = {"requests": 0, "inputTokens": 0, "outputTokens": 0}
         try:
-            evaluation = self._request_model(
-                db,
-                run,
-                actor="reviewer",
-                session_suffix="fit",
-                instruction_name="evaluate",
-                context={
-                    "vacancy": snapshot.request.vacancy.model_dump(mode="json", by_alias=True),
-                    "masterResume": snapshot.request.master_profile_version.data,
-                },
-                response_model=FitEvaluation,
+            snapshot = _run_snapshot(run)
+            master = _snapshot_resume(snapshot.request)
+            request = snapshot.request
+            vacancy = _vacancy_context(request)
+
+            transition_generation_run(
+                db, run=run, status="running", stage="sources", event_kind="vacancy.started"
             )
-            persist_run_artifact(
-                db,
-                run=run,
-                artifact_type="fit_evaluation_json",
-                file_name="fit-evaluation.json",
-                content_type="application/json",
-                content=_json_bytes(evaluation),
-                metadata={"stage": "fit"},
+            target, cached = self._job_target(db, run, snapshot, vacancy)
+            self._stop_if_cancelled(db, run)
+
+            session = TailoringSession(
+                master=master,
+                target=target,
+                vacancy=vacancy,
+                document_types=tuple(request.document_types),
+                language=request.language,
+                user_preferences=request.user_preferences,
+                resume_id=f"tailored-{run.id}",
+                letter_id=f"letter-{run.id}",
+                today=self.today or snapshot.created_at.date(),
             )
+            plan = session.plan
             transition_generation_run(
                 db,
                 run=run,
-                status="awaiting_approval",
+                status="running",
                 stage="fit",
-                event_kind="fit.completed",
+                event_kind="plan.completed",
                 event_data={
-                    "overallScore": evaluation.overall_score,
-                    "recommendation": evaluation.recommendation,
-                },
-                pending_question={
-                    "id": "continue_after_fit",
-                    "kind": "approval",
-                    "prompt": "Continue with the CV and cover letter?",
-                    "choices": ["continue", "stop"],
-                },
-                result={
-                    **run.result,
-                    "fit": evaluation.model_dump(mode="json", by_alias=True),
+                    "language": plan.language,
+                    "vacancySkills": len(target.skills),
+                    "vacancyCached": cached,
+                    "statementsSelected": len(plan.statements),
+                    "statementsOmitted": len(plan.excluded_statement_ids),
+                    "gaps": [match.label for match in plan.gaps],
                 },
             )
-            return evaluation
-        except Exception as exc:
-            self._fail(db, run, exc)
-            raise
 
-    def respond_to_fit(
-        self,
-        db: Session,
-        run: ApplicationGenerationRunRecord,
-        *,
-        continue_generation: bool,
-    ) -> ReviewedDraftBundle | None:
-        self._require_state(run, "awaiting_approval")
-        if run.pending_question is None or run.pending_question.get("id") != "continue_after_fit":
-            raise GenerationWorkflowError(
-                "Generation run is not waiting for the fit decision",
-                code="question_mismatch",
-            )
-        append_run_message(
-            db,
-            run=run,
-            actor="user",
-            role="user",
-            content="continue" if continue_generation else "stop",
-        )
-        if not continue_generation:
+            first_round = session.first_round()
             transition_generation_run(
                 db,
                 run=run,
-                status="cancelled",
-                stage="fit",
-                event_kind="fit.declined",
+                status="running",
+                stage="draft",
+                event_kind="wording.started",
+                event_data={"requests": len(first_round)},
             )
-            return None
-        return self._draft_and_review(db, run)
+            responses = self._run_requests(db, run, first_round, usage, fail_if_all_fail=True)
+            session.apply(first_round, responses)
+            self._stop_if_cancelled(db, run)
 
-    def continue_approved_run(
-        self,
-        db: Session,
-        run: ApplicationGenerationRunRecord,
-    ) -> ReviewedDraftBundle:
-        self._require_state(run, "queued")
-        if run.stage != "draft":
-            raise GenerationWorkflowError(
-                "Generation run is not queued for drafting",
-                code="invalid_run_stage",
-            )
-        return self._draft_and_review(db, run)
-
-    def resume_pdf_checks(
-        self,
-        db: Session,
-        run: ApplicationGenerationRunRecord,
-    ) -> DraftBundle:
-        self._require_state(run, "queued")
-        if run.stage != "pdf_checks":
-            raise GenerationWorkflowError(
-                "Generation run is not queued for PDF checks",
-                code="invalid_run_stage",
-            )
-        snapshot = _run_snapshot(run)
-        try:
-            draft = DraftBundle.model_validate(run.result.get("draft"))
-            review = ReviewerFeedback.model_validate(run.result.get("review"))
-            master_resume = _snapshot_resume(snapshot)
-        except ValidationError as exc:
-            raise GenerationWorkflowError(
-                "Persisted reviewed draft is not recoverable",
-                code="invalid_recovery_state",
-            ) from exc
-        try:
-            return self._render_verify_finalize(
-                db,
-                run,
-                draft=draft,
-                review=review,
-                master_resume=master_resume,
-                target_job_id=snapshot.request.vacancy.id,
-            )
-        except Exception as exc:
-            self._fail(db, run, exc)
-            raise
-
-    def _draft_and_review(
-        self,
-        db: Session,
-        run: ApplicationGenerationRunRecord,
-    ) -> ReviewedDraftBundle:
-        snapshot = _run_snapshot(run)
-        master_resume = _snapshot_resume(snapshot)
-        target_job_id = snapshot.request.vacancy.id
-        transition_generation_run(
-            db,
-            run=run,
-            status="running",
-            stage="draft",
-            event_kind="draft.started",
-        )
-        try:
-            base_context = {
-                "vacancy": snapshot.request.vacancy.model_dump(mode="json", by_alias=True),
-                "masterResume": snapshot.request.master_profile_version.data,
-                "documentTypes": list(snapshot.request.document_types),
-                "formattingParameters": snapshot.request.formatting_parameters,
-                "userPreferences": snapshot.request.user_preferences,
-            }
-            draft = self._request_draft(
-                db,
-                run,
-                context=base_context,
-                master_resume=master_resume,
-                target_job_id=target_job_id,
-            )
-            persist_run_artifact(
-                db,
-                run=run,
-                artifact_type="draft_bundle_json",
-                file_name="draft-bundle.json",
-                content_type="application/json",
-                content=_json_bytes(draft),
-                metadata={"stage": "draft"},
-            )
+            retry_round = session.retry_round()
             transition_generation_run(
                 db,
                 run=run,
                 status="running",
                 stage="review",
-                event_kind="review.started",
-            )
-
-            review = self._request_model(
-                db,
-                run,
-                actor="reviewer",
-                session_suffix="reviewer",
-                instruction_name="review",
-                context={
-                    **base_context,
-                    "draft": _draft_context(draft),
+                event_kind="fact_check.completed",
+                event_data={
+                    "accepted": len(session.wording),
+                    "rejected": len(session.rejected),
+                    "retrying": bool(retry_round),
                 },
-                response_model=ReviewerFeedback,
-                enable_web_search=True,
             )
+            if retry_round:
+                session.apply(retry_round, self._run_requests(db, run, retry_round, usage))
+            result = session.finish()
+            bundle = DraftBundle(resume=result.resume, cover_letter=result.cover_letter)
+            validate_grounded_bundle(bundle, master_resume=master, target_job_id=vacancy.job_id)
+            content = {
+                "resume": _dump(result.resume),
+                "coverLetter": _dump(result.cover_letter),
+                "dropOrder": list(result.drop_order),
+            }
             persist_run_artifact(
                 db,
                 run=run,
-                artifact_type="review_feedback_json",
-                file_name="review-feedback.json",
+                artifact_type=CONTENT_ARTIFACT,
+                file_name="tailored-content.json",
                 content_type="application/json",
-                content=_json_bytes(review),
+                content=json.dumps(content, ensure_ascii=False).encode(),
                 metadata={"stage": "review"},
             )
-            final_draft = draft
-            if review.findings:
-                final_draft = self._request_draft(
-                    db,
-                    run,
-                    context={
-                        **base_context,
-                        "previousDraft": _draft_context(draft),
-                        "reviewFeedback": review.model_dump(mode="json", by_alias=True),
-                        "task": (
-                            "Revise the prior draft. Return the complete GeneratedDraftBundle "
-                            "with evidenceIds only."
-                        ),
-                    },
-                    master_resume=master_resume,
-                    target_job_id=target_job_id,
-                )
-            persist_run_artifact(
+            persist_run_check(
                 db,
                 run=run,
-                artifact_type="reviewed_draft_bundle_json",
-                file_name="reviewed-draft-bundle.json",
-                content_type="application/json",
-                content=_json_bytes(final_draft),
-                metadata={"stage": "review"},
-            )
-            final_draft = self._render_verify_finalize(
-                db,
-                run,
-                draft=final_draft,
-                review=review,
-                master_resume=master_resume,
-                target_job_id=target_job_id,
-            )
-            return ReviewedDraftBundle(draft=final_draft, review=review)
-        except Exception as exc:
-            self._fail(db, run, exc)
-            raise
-
-    def _render_verify_finalize(
-        self,
-        db: Session,
-        run: ApplicationGenerationRunRecord,
-        *,
-        draft: DraftBundle,
-        review: ReviewerFeedback,
-        master_resume: MasterResume,
-        target_job_id: str,
-    ) -> DraftBundle:
-        snapshot = _run_snapshot(run)
-        # Recovery can load drafts persisted before the current retention policy.
-        # Resolve them against the same frozen source before any PDF is rendered.
-        generated = GeneratedDraftBundle.model_validate(_draft_context(draft))
-        _require_requested_documents(generated, run.document_types)
-        _require_resolved_document_languages(generated)
-        draft = ground_generated_bundle(
-            generated, master_resume=master_resume, target_job_id=target_job_id
-        )
-        fit = FitEvaluation.model_validate(run.result.get("fit"))
-        resume_template_id = resolve_run_document_template_id(snapshot)
-        letter_context = {
-            key: value for key, value in {
-                "sender_basics": master_resume.basics,
-                "letter_date": snapshot.created_at.date(),
-            }.items() if _accepts_renderer_keyword(self.renderer, key)
-        }
-        transition_generation_run(
-            db,
-            run=run,
-            status="running",
-            stage="pdf_checks",
-            event_kind="review.completed",
-            event_data={
-                "approved": review.approved,
-                "findingCount": len(review.findings),
-            },
-            result={
-                **run.result,
-                "review": review.model_dump(mode="json", by_alias=True),
-                "draft": draft.model_dump(mode="json", by_alias=True),
-            },
-        )
-        current_draft = draft
-        for attempt in range(1, 4):
-            if self._renderer_accepts_template:
-                compiled = self.renderer(
-                    current_draft, resume_template_id=resume_template_id, **letter_context,
-                )
-            elif resume_template_id == DEFAULT_GENERATION_RESUME_TEMPLATE_ID:
-                # Existing integrations may inject a single-argument renderer
-                # for the original Banking template.
-                compiled = self.renderer(current_draft)
-            else:
-                raise GenerationWorkflowError(
-                    "The configured renderer does not support resume template selection",
-                    code="resume_template_unsupported",
-                )
-            verified_documents: list[tuple[CompiledDocument, VerifiedPdf]] = []
-            image_inputs: list[AIImageInput] = []
-            image_index: list[dict[str, Any]] = []
-            for document in compiled:
-                prefix = "resume" if document.document_type == "tailored_resume" else "cover_letter"
-                persist_run_artifact(
-                    db,
-                    run=run,
-                    document_type=document.document_type,
-                    artifact_type=f"{prefix}_tex_attempt",
-                    file_name=f"{prefix}-attempt-{attempt}.tex",
-                    content_type="application/x-tex",
-                    content=document.tex_source.encode(),
-                    metadata={"attempt": attempt, "engine": document.engine},
-                )
-                pdf_artifact = persist_run_artifact(
-                    db,
-                    run=run,
-                    document_type=document.document_type,
-                    artifact_type=f"{prefix}_pdf_attempt",
-                    file_name=f"{prefix}-attempt-{attempt}.pdf",
-                    content_type="application/pdf",
-                    content=document.pdf,
-                    metadata={"attempt": attempt, "engine": document.engine},
-                )
-                verified = self.verifier(
-                    document,
-                    bundle=current_draft,
-                    keywords=fit.keywords,
-                    max_pages=_max_pages(snapshot, document.document_type),
-                )
-                verified_documents.append((document, verified))
-                persist_run_artifact(
-                    db,
-                    run=run,
-                    document_type=document.document_type,
-                    artifact_type=f"{prefix}_verification_report",
-                    file_name=f"{prefix}-verification-{attempt}.json",
-                    content_type="application/json",
-                    content=_json_bytes(verified.report),
-                    metadata={"attempt": attempt, "pdfArtifactId": pdf_artifact.id},
-                )
-                for check in verified.report.checks:
-                    persist_run_check(
-                        db,
-                        run=run,
-                        artifact=pdf_artifact,
-                        check_type=check.name,
-                        status=check.status,
-                        data={"message": check.message, **check.details},
-                    )
-                for page_number, image in enumerate(verified.page_images, start=1):
-                    page_artifact = persist_run_artifact(
-                        db,
-                        run=run,
-                        document_type=document.document_type,
-                        artifact_type=f"{prefix}_page_{page_number}_png",
-                        file_name=f"{prefix}-attempt-{attempt}-page-{page_number}.png",
-                        content_type="image/png",
-                        content=image,
-                        metadata={"attempt": attempt, "page": page_number},
-                    )
-                    image_inputs.append(AIImageInput(content=image))
-                    image_index.append(
-                        {
-                            "image": len(image_inputs),
-                            "artifactId": page_artifact.id,
-                            "documentType": document.document_type,
-                            "page": page_number,
-                        }
-                    )
-
-            if any(
-                check.status == "failed" and check.name in {"layout_unavailable", "page_images"}
-                for _, verified in verified_documents
-                for check in verified.report.checks
-            ):
-                raise GenerationWorkflowError(
-                    "PDF verification is temporarily unavailable. Please retry the run.",
-                    code="pdf_verification_unavailable",
-                    retryable=True,
-                )
-
-            visual = (
-                self._request_model(
-                    db,
-                    run,
-                    actor="reviewer",
-                    session_suffix="reviewer",
-                    instruction_name="verify",
-                    context={
-                        "attempt": attempt,
-                        "pageImages": image_index,
-                        "verificationReports": [
-                            verified.report.model_dump(mode="json", by_alias=True)
-                            for _, verified in verified_documents
-                        ],
-                        "draft": _draft_context(current_draft),
-                    },
-                    response_model=VisualReview,
-                    image_inputs=tuple(image_inputs),
-                )
-                if image_inputs
-                else VisualReview(
-                    approved=False,
-                    summary="No rendered page images were available for visual review.",
-                    findings=(),
-                )
-            )
-            if visual.approved and any(
-                finding.severity == "blocking" for finding in visual.findings
-            ):
-                visual = visual.model_copy(update={"approved": False})
-            persist_run_artifact(
-                db,
-                run=run,
-                artifact_type="visual_review_json",
-                file_name=f"visual-review-{attempt}.json",
-                content_type="application/json",
-                content=_json_bytes(visual),
-                metadata={"attempt": attempt},
-            )
-            deterministic_passed = all(verified.report.passed for _, verified in verified_documents)
-            if deterministic_passed and visual.approved:
-                documents = import_compiled_generation_documents(
-                    db,
-                    run=run,
-                    bundle=current_draft,
-                    compiled=compiled,
-                )
-                transition_generation_run(
-                    db,
-                    run=run,
-                    status="completed",
-                    stage="final_review",
-                    event_kind="run.completed",
-                    event_data={"attempts": attempt, "documentCount": len(documents)},
-                    result={
-                        **run.result,
-                        "review": review.model_dump(mode="json", by_alias=True),
-                        "draft": current_draft.model_dump(mode="json", by_alias=True),
-                        "visualReview": visual.model_dump(mode="json", by_alias=True),
-                        "documents": [
-                            {
-                                "id": document.id,
-                                "type": document.type,
-                                "version": document.current_version,
-                                "downloadUrl": f"/documents/{document.id}/download",
-                                "pdfUrl": f"/documents/{document.id}/pdf",
-                            }
-                            for document in documents
-                        ],
-                    },
-                )
-                return current_draft
-            if attempt == 3:
-                raise GenerationWorkflowError(
-                    _verification_failure_message(verified_documents, visual),
-                    code="pdf_verification_failed",
-                    retryable=True,
-                )
-            current_draft = self._request_draft(
-                db,
-                run,
-                context={
-                    "task": (
-                        "Repair the complete GeneratedDraftBundle using the PDF and visual "
-                        "findings. Return evidenceIds only."
+                check_type="fact_check",
+                status="warning" if result.report["keptOriginal"] else "passed",
+                data={
+                    "message": (
+                        "Every rewritten statement was compared with its profile source."
+                        if not result.report["keptOriginal"]
+                        else "Some statements keep the profile wording after the fact check."
                     ),
-                    "previousDraft": _draft_context(current_draft),
-                    "verificationReports": [
-                        verified.report.model_dump(mode="json", by_alias=True)
-                        for _, verified in verified_documents
-                    ],
-                    "visualReview": visual.model_dump(mode="json", by_alias=True),
+                    "keptOriginal": result.report["keptOriginal"],
                 },
-                master_resume=master_resume,
-                target_job_id=target_job_id,
             )
-            persist_run_artifact(
-                db,
-                run=run,
-                artifact_type="repair_bundle_json",
-                file_name=f"repair-bundle-{attempt}.json",
-                content_type="application/json",
-                content=_json_bytes(current_draft),
-                metadata={"attempt": attempt},
-            )
+            self._stop_if_cancelled(db, run)
+
             transition_generation_run(
                 db,
                 run=run,
                 status="running",
                 stage="pdf_checks",
-                event_kind="repair.completed",
-                event_data={"attempt": attempt},
+                event_kind="render.started",
+                result={**run.result, "tailoring": result.report, "content": content},
             )
-        raise AssertionError("unreachable")
+            rendered = self._render_and_import(
+                db,
+                run,
+                request=request,
+                master=master,
+                content=content,
+                template_id=snapshot.templates[0].template_id,
+                letter_date=snapshot.created_at.date(),
+                new_version=False,
+            )
+            transition_generation_run(
+                db,
+                run=run,
+                status="completed",
+                stage="final_review",
+                event_kind="run.completed",
+                event_data={
+                    "documentCount": len(rendered["documents"]),
+                    "seconds": round(time.perf_counter() - started, 1),
+                },
+                result={
+                    **run.result,
+                    **rendered,
+                    "warnings": list(result.warnings),
+                    "usage": {**usage, "seconds": round(time.perf_counter() - started, 1)},
+                },
+            )
+        except _RunCancelled:
+            return
+        except Exception as exc:
+            self._fail(db, run, exc)
+            raise
 
-    def _request_draft(
+    # --- Template switch ----------------------------------------------------------
+
+    def render_in_template(
         self,
         db: Session,
         run: ApplicationGenerationRunRecord,
         *,
-        context: dict[str, Any],
-        master_resume: MasterResume,
-        target_job_id: str,
-    ) -> DraftBundle:
-        generated = self._request_model(
-            db,
-            run,
-            actor="author",
-            session_suffix="author",
-            instruction_name="draft",
-            context=context,
-            response_model=GeneratedDraftBundle,
-        )
-        _require_requested_documents(generated, run.document_types)
-        _require_resolved_document_languages(generated)
-        try:
-            return ground_generated_bundle(
-                generated,
-                master_resume=master_resume,
-                target_job_id=target_job_id,
-            )
-        except ValidationError as exc:
+        template_id: str,
+    ) -> None:
+        """Render a finished run's content in another template, without a model."""
+        if run.status != "completed":
             raise GenerationWorkflowError(
-                "AI backend returned an invalid structured response",
-                code="invalid_ai_response",
-            ) from exc
+                "Only a completed run can be rendered in another template",
+                code="run_not_completed",
+            )
+        content = stored_content(run)
+        try:
+            request = run_request(run.input_snapshot)
+        except GenerationInputError as exc:
+            raise GenerationWorkflowError(str(exc), code=exc.code) from exc
+        master = _snapshot_resume(request)
+        try:
+            rendered = self._render_and_import(
+                db,
+                run,
+                request=request,
+                master=master,
+                content=content,
+                template_id=template_id,
+                letter_date=run_created_at(run.input_snapshot).date(),
+                new_version=True,
+            )
+            run.result = {**run.result, **rendered}
+            append_run_event(
+                db,
+                run=run,
+                kind="render.completed",
+                data={"documentTemplateId": rendered["render"]["templateId"]},
+            )
+            db.commit()
+            db.refresh(run)
+        except Exception:
+            db.rollback()
+            raise
 
-    def _request_model[T: BaseModel](
+    def _render_and_import(
         self,
         db: Session,
         run: ApplicationGenerationRunRecord,
         *,
-        actor: str,
-        session_suffix: str,
-        instruction_name: str,
-        context: dict[str, Any],
-        response_model: type[T],
-        enable_web_search: bool = False,
-        image_inputs: tuple[AIImageInput, ...] = (),
-    ) -> T:
-        snapshot = _run_snapshot(run)
-        master_resume = _snapshot_resume(snapshot)
-        source_context = {
-            "candidateProfileVersion": snapshot.request.master_profile_version.model_dump(mode="json", by_alias=True),
-            "masterResume": master_resume.model_dump(mode="json", by_alias=True),
-            "skillPolicy": source_skill_policy(master_resume),
-            "experienceContentPolicy": experience_content_policy(
-                db, run, master_resume, max_pages=_max_pages(snapshot, "tailored_resume")
+        request: GenerationRequest,
+        master: MasterResume,
+        content: dict[str, Any],
+        template_id: str,
+        letter_date: date,
+        new_version: bool,
+    ) -> dict[str, Any]:
+        """Render the stored content and return the result keys that describe the files."""
+        resume = FinalResume.model_validate(content["resume"]) if content.get("resume") else None
+        letter = (
+            CoverLetterDraft.model_validate(content["coverLetter"])
+            if content.get("coverLetter")
+            else None
+        )
+        vacancy = _vacancy_context(request)
+        imports: list[DocumentImport] = []
+        fitted = resume
+        try:
+            template = resolve_document_template(template_id, db=db)
+            with ChromiumPdfSession() as chromium:
+                if resume is not None:
+                    resume_render = render_resume_to_fit(
+                        resume,
+                        template=template,
+                        max_pages=max_pages(request, "tailored_resume", master),
+                        drop_order=content.get("dropOrder") or (),
+                        session=chromium,
+                    )
+                    fitted = resume_render.resume
+                    imports.append(
+                        DocumentImport(
+                            rendered=resume_render.document,
+                            content=_json(fitted),
+                            title=f"{vacancy.title or 'Application'} — Tailored CV",
+                            file_stem=document_file_stem(
+                                master.basics.full_name, "tailored_resume", vacancy.company
+                            ),
+                            docx=build_resume_docx(fitted, template=template),
+                        )
+                    )
+                if letter is not None:
+                    imports.append(
+                        DocumentImport(
+                            rendered=render_cover_letter(
+                                letter,
+                                sender=master.basics,
+                                letter_date=letter_date,
+                                template=template,
+                                max_pages=max_pages(request, "cover_letter", master),
+                                session=chromium,
+                            ),
+                            content=_json(letter),
+                            title=f"{vacancy.title or 'Application'} — Cover letter",
+                            file_stem=document_file_stem(
+                                master.basics.full_name, "cover_letter", vacancy.company
+                            ),
+                            docx=build_cover_letter_docx(
+                                letter,
+                                sender=master.basics,
+                                letter_date=letter_date,
+                                template=template,
+                            ),
+                        )
+                    )
+        except (DocumentRenderError, ResumePdfRenderError) as exc:
+            raise GenerationWorkflowError(
+                f"Document rendering failed: {exc}",
+                code=getattr(exc, "code", "document_render_failed"),
+                retryable=True,
+            ) from exc
+        if not imports:
+            raise GenerationWorkflowError(
+                "The run has no document content to render", code="content_missing"
+            )
+
+        documents = import_rendered_documents(
+            db, run=run, job_id=vacancy.job_id, items=imports, new_version=new_version
+        )
+        for item in imports:
+            self._persist_render_checks(
+                db, run, item.rendered, max_pages(request, item.rendered.document_type, master)
+            )
+        resume_document = next(
+            (item.rendered for item in imports if item.rendered.document_type == "tailored_resume"),
+            None,
+        )
+        return {
+            "draft": DraftBundle(resume=fitted, cover_letter=letter).model_dump(
+                mode="json", by_alias=True
             ),
-            "vacancy": snapshot.request.vacancy.model_dump(mode="json", by_alias=True),
-            "documentTypes": list(snapshot.request.document_types),
-            "formattingParameters": snapshot.request.formatting_parameters,
-            "userPreferences": snapshot.request.user_preferences,
-            "requestedLanguage": snapshot.request.language,
-            "documentLanguages": _document_languages(context),
+            "render": {
+                "templateId": template.id,
+                "templateVersion": template.version,
+                "pages": {item.rendered.document_type: item.rendered.page_count for item in imports},
+                "droppedStatementIds": (
+                    list(resume_document.dropped_statement_ids) if resume_document else []
+                ),
+                "fitScale": resume_document.fit_scale if resume_document else 1.0,
+                "atsReadable": all(item.rendered.ats_readable for item in imports),
+            },
+            "documents": [
+                {
+                    "id": document.id,
+                    "type": document.type,
+                    "version": document.current_version,
+                    "downloadUrl": f"/documents/{document.id}/download",
+                    "pdfUrl": f"/documents/{document.id}/pdf",
+                }
+                for document in documents
+            ],
         }
-        prompt = _build_prompt(instruction_name, {**context, **source_context}, response_model)
-        append_run_message(
+
+    @staticmethod
+    def _persist_render_checks(
+        db: Session,
+        run: ApplicationGenerationRunRecord,
+        rendered: RenderedDocument,
+        limit: int,
+    ) -> None:
+        label = "CV" if rendered.document_type == "tailored_resume" else "Cover letter"
+        fits = rendered.page_count <= limit
+        persist_run_check(
             db,
             run=run,
-            actor=actor,
-            role="user",
-            content=prompt,
+            check_type="page_limit",
+            status="passed" if fits else "warning",
+            data={
+                "document": rendered.document_type,
+                "templateId": rendered.template_id,
+                "pages": rendered.page_count,
+                "maxPages": limit,
+                "message": (
+                    f"{label} fits on {rendered.page_count} of {limit} allowed page(s)."
+                    if fits
+                    else f"{label} needs {rendered.page_count} pages; the limit is {limit}."
+                ),
+            },
         )
-        result = generate_with_retries(
+        if rendered.dropped_statement_ids:
+            persist_run_check(
+                db,
+                run=run,
+                check_type="page_fit",
+                status="warning",
+                data={
+                    "document": rendered.document_type,
+                    "templateId": rendered.template_id,
+                    "droppedStatementIds": list(rendered.dropped_statement_ids),
+                    "message": (
+                        f"{len(rendered.dropped_statement_ids)} lower-priority statement(s) were "
+                        "left out to keep the page limit."
+                    ),
+                },
+            )
+        persist_run_check(
+            db,
+            run=run,
+            check_type="ats_text",
+            status="passed" if rendered.ats_readable else "warning",
+            data={
+                "document": rendered.document_type,
+                "templateId": rendered.template_id,
+                "message": (
+                    f"{label}: applicant tracking systems can read the complete text."
+                    if rendered.ats_readable
+                    else f"{label}: {rendered.text_check_error}"
+                ),
+            },
+        )
+
+    # --- Vacancy target -------------------------------------------------------------
+
+    def _job_target(
+        self,
+        db: Session,
+        run: ApplicationGenerationRunRecord,
+        snapshot: GenerationRunSnapshot,
+        vacancy: VacancyContext,
+    ) -> tuple[JobTarget, bool]:
+        """Parse the vacancy once per posting text, model and dictionary version."""
+        parsing_model = snapshot.execution.parsing_model or run.model
+        extractor = JobTargetExtractor(
             self._backend(run),
-            AIRequest(
-                prompt=prompt,
-                model=run.model,
-                agent_id=getattr(self.settings, "openclaw_assistant_agent_id", ""),
-                thinking=run.reasoning_effort,
-                timeout_seconds=int(run.settings_snapshot["timeout_seconds"]),
-                session_id=f"application-generation:{run.id}:{session_suffix}",
-                structured=True,
-                response_model=response_model,
-                enable_web_search=enable_web_search,
-                image_inputs=image_inputs,
-            ),
+            model=parsing_model,
+            agent_id=getattr(self.settings, "openclaw_assistant_agent_id", ""),
+            thinking="off" if is_openclaw_backend(run.backend) else "low",
+            timeout_seconds=min(int(run.settings_snapshot["timeout_seconds"]), 120),
             max_attempts=int(run.settings_snapshot["max_attempts"]),
             retry_backoff_seconds=float(run.settings_snapshot["retry_backoff_seconds"]),
+            fallback_to_dictionary=True,
         )
-        append_run_message(
+        vacancy_input = VacancyInput(title=vacancy.title, description=vacancy.text)
+        key = job_target_cache_key(
+            vacancy_input, dictionary_version=extractor.dictionary.version, mode=extractor.mode
+        )
+        target = _cached_job_target(db, run, key)
+        cached = target is not None
+        if target is None:
+            target = extractor.extract(vacancy_input)
+        persist_run_artifact(
             db,
             run=run,
-            actor=actor,
-            role="assistant",
-            content=result.text,
-            raw_response=result.raw_response,
-            response_id=result.session_id or None,
-            usage=result.usage.as_dict(),
+            artifact_type=JOB_TARGET_ARTIFACT,
+            file_name="job-target.json",
+            content_type="application/json",
+            content=target.model_dump_json(by_alias=True).encode(),
+            # A dictionary-only fallback is not reused: the next run asks the model again.
+            metadata={"cacheKey": key if target.model else "", "cached": cached},
         )
-        return _validated_result(result, response_model)
+        if not target.model:
+            persist_run_check(
+                db,
+                run=run,
+                check_type="vacancy_analysis",
+                status="warning",
+                data={
+                    "message": (
+                        "The vacancy was analyzed with the built-in skill dictionary only "
+                        "because the model request failed."
+                    )
+                },
+            )
+        return target, cached
+
+    # --- Model requests -------------------------------------------------------------
+
+    def _run_requests(
+        self,
+        db: Session,
+        run: ApplicationGenerationRunRecord,
+        requests: Sequence[ModelRequest],
+        usage: dict[str, int],
+        *,
+        fail_if_all_fail: bool = False,
+    ) -> list[ModelResponse]:
+        """Send the requests of one round, in parallel where the backend allows it."""
+        if not requests:
+            return []
+        backend = self._backend(run)
+        agent_id = getattr(self.settings, "openclaw_assistant_agent_id", "")
+        timeout = int(run.settings_snapshot["timeout_seconds"])
+        attempts = int(run.settings_snapshot["max_attempts"])
+        backoff = float(run.settings_snapshot["retry_backoff_seconds"])
+
+        def call(request: ModelRequest) -> AIResult | AIBackendError:
+            try:
+                return generate_with_retries(
+                    backend,
+                    AIRequest(
+                        prompt=request.prompt,
+                        model=run.model,
+                        agent_id=agent_id,
+                        thinking=run.reasoning_effort,
+                        timeout_seconds=timeout,
+                        session_id=f"application-generation:{run.id}:{request.label}",
+                        structured=True,
+                        response_model=request.response_model,
+                    ),
+                    max_attempts=attempts,
+                    retry_backoff_seconds=backoff,
+                )
+            except AIBackendError as exc:
+                return exc
+
+        # One OpenClaw agent process at a time: its local state is not built for
+        # concurrent sessions. Provider APIs take the requests in parallel.
+        workers = 1 if is_openclaw_backend(run.backend) else MAX_PARALLEL_MODEL_REQUESTS
+        with ThreadPoolExecutor(max_workers=min(workers, len(requests))) as pool:
+            outcomes = list(pool.map(call, requests))
+
+        responses: list[ModelResponse] = []
+        for request, outcome in zip(requests, outcomes, strict=True):
+            append_run_message(db, run=run, actor="author", role="user", content=request.prompt)
+            if isinstance(outcome, AIBackendError):
+                append_run_event(
+                    db,
+                    run=run,
+                    kind="model.failed",
+                    data={"request": request.label, "code": outcome.code},
+                )
+                responses.append(ModelResponse(error=f"{outcome.code}: {outcome}"))
+                continue
+            append_run_message(
+                db,
+                run=run,
+                actor="author",
+                role="assistant",
+                content=outcome.text,
+                raw_response=outcome.raw_response,
+                response_id=outcome.session_id or None,
+                usage=outcome.usage.as_dict(),
+            )
+            usage["requests"] += 1
+            usage["inputTokens"] += outcome.usage.input_tokens
+            usage["outputTokens"] += outcome.usage.output_tokens
+            responses.append(
+                ModelResponse(data=outcome.structured_data)
+                if outcome.structured_data is not None
+                else ModelResponse(error="the response was not valid JSON")
+            )
+        db.commit()
+        failures = [outcome for outcome in outcomes if isinstance(outcome, AIBackendError)]
+        if fail_if_all_fail and len(failures) == len(outcomes):
+            first = failures[0]
+            raise GenerationWorkflowError(
+                f"The AI backend request failed: {first}",
+                code=first.code,
+                retryable=first.retryable,
+            )
+        return responses
 
     def _backend(self, run: ApplicationGenerationRunRecord) -> AIBackend:
         if self.backend_override is not None:
@@ -681,6 +629,8 @@ class GenerationWorkflow:
             openclaw_prompt_transport="file",
         )
 
+    # --- State ----------------------------------------------------------------------
+
     @staticmethod
     def _require_state(run: ApplicationGenerationRunRecord, expected: str) -> None:
         if run.status != expected:
@@ -688,6 +638,16 @@ class GenerationWorkflow:
                 f"Generation run is {run.status}, expected {expected}",
                 code="invalid_run_state",
             )
+
+    @staticmethod
+    def _stop_if_cancelled(db: Session, run: ApplicationGenerationRunRecord) -> None:
+        db.refresh(run)
+        if not run.cancel_requested:
+            return
+        transition_generation_run(
+            db, run=run, status="cancelled", stage=run.stage, event_kind="run.cancelled"
+        )
+        raise _RunCancelled
 
     @staticmethod
     def _fail(
@@ -704,9 +664,12 @@ class GenerationWorkflow:
         retryable = bool(getattr(exc, "retryable", False))
         database_failure = isinstance(exc, SQLAlchemyError)
         code = "database_error" if database_failure else getattr(exc, "code", "workflow_failed")
+        if isinstance(exc, GenerationGroundingError):
+            code = "grounding_failed"
         message = (
             "Could not save generation results to the database."
-            if database_failure else str(exc)
+            if database_failure
+            else str(exc)
         )
         try:
             transition_generation_run(
@@ -722,88 +685,107 @@ class GenerationWorkflow:
             db.rollback()
 
 
-def _accepts_renderer_keyword(renderer: Callable[..., object], keyword: str) -> bool:
-    try:
-        parameters = inspect.signature(renderer).parameters.values()
-    except (TypeError, ValueError):
-        return False
-    return any(
-        parameter.kind == inspect.Parameter.VAR_KEYWORD
-        or (
-            parameter.name == keyword
-            and parameter.kind != inspect.Parameter.POSITIONAL_ONLY
-        )
-        for parameter in parameters
+def stored_content(run: ApplicationGenerationRunRecord) -> dict[str, Any]:
+    """Structured documents of a finished run, complete and before page fitting.
+
+    Runs of the earlier pipeline stored only the final draft; that draft is
+    rendered as it is.
+    """
+    content = run.result.get("content")
+    if isinstance(content, dict) and (content.get("resume") or content.get("coverLetter")):
+        return content
+    draft = run.result.get("draft")
+    if isinstance(draft, dict) and (draft.get("resume") or draft.get("coverLetter")):
+        return {
+            "resume": draft.get("resume"),
+            "coverLetter": draft.get("coverLetter"),
+            "dropOrder": [],
+        }
+    raise GenerationWorkflowError(
+        "This run has no stored document content", code="content_missing"
     )
 
 
-def _document_languages(context: dict[str, Any]) -> dict[str, str]:
-    """Separate current document metadata from the unchanged request preference."""
-    draft = context.get("draft") or context.get("previousDraft") or {}
-    return {
-        document_type: document["language"]
-        for key, document_type in (("resume", "tailored_resume"), ("coverLetter", "cover_letter"))
-        if isinstance(document := draft.get(key), dict)
-        and isinstance(document.get("language"), str)
-    }
+# A profile with less experience than this gets a one-page resume by default.
+TWO_PAGE_RESUME_MONTHS = 96
 
 
-def _require_resolved_document_languages(bundle: GeneratedDraftBundle) -> None:
-    for document in (bundle.resume, bundle.cover_letter):
-        if document is not None and document.language.strip().casefold() == "auto":
-            raise GenerationWorkflowError(
-                "Generated documents must specify their actual language; Auto is a request preference.",
-                code="invalid_ai_response",
-            )
+def max_pages(
+    request: GenerationRequest,
+    document_type: str,
+    master: MasterResume | None = None,
+) -> int:
+    """The requested page limit, or one page (two for a long career) when not set."""
+    raw = request.formatting_parameters.get(document_type)
+    configured = raw.get("maxPages") if isinstance(raw, dict) else None
+    if isinstance(configured, int) and not isinstance(configured, bool) and 1 <= configured <= 10:
+        return configured
+    if document_type == "tailored_resume" and master is not None:
+        return 2 if build_profile_index(master).total_months >= TWO_PAGE_RESUME_MONTHS else 1
+    return 1
 
 
-def _brief_diagnostic(value: str, limit: int = 300) -> str:
-    compact = " ".join(value.split())
-    return compact if len(compact) <= limit else f"{compact[: limit - 1]}…"
+def _vacancy_context(request: GenerationRequest) -> VacancyContext:
+    data = request.vacancy.data
+
+    def text(key: str) -> str:
+        value = data.get(key)
+        return " ".join(value.split()) if isinstance(value, str) else ""
+
+    return VacancyContext(
+        job_id=request.vacancy.id,
+        title=text("title"),
+        company=text("company"),
+        location=text("location"),
+        text=request.vacancy.full_description,
+    )
 
 
-def _verification_failure_message(
-    verified_documents: list[tuple[CompiledDocument, VerifiedPdf]],
-    visual: VisualReview,
-) -> str:
-    deterministic_reasons = [
-        (
-            f"{'CV' if document.document_type == 'tailored_resume' else 'cover letter'}: "
-            f"{_brief_diagnostic(check.message)}"
+def _cached_job_target(
+    db: Session,
+    run: ApplicationGenerationRunRecord,
+    key: str,
+) -> JobTarget | None:
+    """Reuse the parsed vacancy of an earlier run of the same application."""
+    artifacts = db.scalars(
+        select(GenerationRunArtifactRecord)
+        .join(
+            ApplicationGenerationRunRecord,
+            ApplicationGenerationRunRecord.id == GenerationRunArtifactRecord.run_id,
         )
-        for document, verified in verified_documents
-        for check in verified.report.checks
-        if check.status == "failed"
-    ][:3]
-    visual_reasons: list[str] = []
-    if not visual.approved:
-        visual_reasons.append(f"visual review: {_brief_diagnostic(visual.summary)}")
-        visual_reasons.extend(
-            f"visual review: {_brief_diagnostic(finding.message)}"
-            for finding in visual.findings
-            if finding.severity == "blocking"
+        .where(
+            ApplicationGenerationRunRecord.application_id == run.application_id,
+            GenerationRunArtifactRecord.artifact_type == JOB_TARGET_ARTIFACT,
         )
-        visual_reasons = visual_reasons[:3]
+        .order_by(GenerationRunArtifactRecord.created_at.desc())
+        .limit(20)
+    ).all()
+    for artifact in artifacts:
+        if artifact.artifact_metadata.get("cacheKey") != key:
+            continue
+        try:
+            return JobTarget.model_validate_json(artifact.content)
+        except ValidationError:
+            continue
+    return None
 
-    reasons = [*deterministic_reasons, *visual_reasons]
-    concise_reasons: list[str] = []
-    for reason in reasons:
-        if reason and reason not in concise_reasons:
-            concise_reasons.append(reason)
-    detail = "; ".join(concise_reasons)
-    base = "PDF verification did not pass after three attempts"
-    return f"{base}: {detail}" if detail else base
 
-
-def _snapshot_resume(snapshot: GenerationRunSnapshot) -> MasterResume:
-    source = snapshot.request.master_profile_version
+def _snapshot_resume(request: GenerationRequest) -> MasterResume:
+    source = request.master_profile_version
     if canonical_hash(source.data) != source.content_sha256:
-        raise GenerationWorkflowError("Profile snapshot failed its integrity check", code="invalid_snapshot")
-    # Historical runs contain the original MasterResume payload and hash. Never
-    # reload or rewrite them using today's candidate profile.
-    if source.data.get("schemaVersion") == "1.0" and "basics" in source.data:
-        return MasterResume.model_validate(source.data)
-    return profile_resume(ProfilePayload.model_validate(source.data), source.id)
+        raise GenerationWorkflowError(
+            "Profile snapshot failed its integrity check", code="invalid_snapshot"
+        )
+    try:
+        # Historical runs contain the original MasterResume payload and hash. Never
+        # reload or rewrite them using today's candidate profile.
+        if source.data.get("schemaVersion") == "1.0" and "basics" in source.data:
+            return MasterResume.model_validate(source.data)
+        return profile_resume(ProfilePayload.model_validate(source.data), source.id)
+    except ValidationError as exc:
+        raise GenerationWorkflowError(
+            "The master profile snapshot cannot be read", code="invalid_snapshot"
+        ) from exc
 
 
 def _run_snapshot(run: ApplicationGenerationRunRecord) -> GenerationRunSnapshot:
@@ -811,87 +793,29 @@ def _run_snapshot(run: ApplicationGenerationRunRecord) -> GenerationRunSnapshot:
         return GenerationRunSnapshot.model_validate(run.input_snapshot)
     except ValidationError as exc:
         raise GenerationWorkflowError(
-            "Persisted generation input snapshot is invalid",
+            "This run was created by an earlier version. Start a new run.",
             code="invalid_snapshot",
         ) from exc
 
 
-def _build_prompt(
-    instruction_name: str,
-    context: dict[str, Any],
-    response_model: type[BaseModel],
-) -> str:
-    return (
-        f"{load_instruction('trust_and_facts')}\n\n"
-        f"{load_instruction(instruction_name)}\n\n"
-        "candidateProfileVersion contains the complete frozen candidate source. "
-        "masterResume is its document projection. Current profile fields take precedence over "
-        "archived sources, audit entries and migration conflicts; those are provenance, not new claims. "
-        "Use this same candidate version for drafting, reviewing and every repair.\n"
-        "Each experience owns its stack (technology + context), responsibilities (responsibility + decisions), "
-        "and projects (name, description, project_type, team, systems, users, load). "
-        "Use technologies with their actual application context, ownership, decisions and supported project scale. "
-        "Keep these details under their original employer and cite their evidence_ids; never transfer them to another role. "
-        "Connect relevant experience to vacancy tasks. In the cover letter explain plausible future contributions "
-        "grounded in that experience, clearly distinguishing proposed contributions from past achievements. "
-        "Review these connections and employer attribution. Preserve key source achievements, "
-        "technologies, metrics, responsibilities, decisions and project scale throughout drafting and repairs. "
-        "Use experienceContentPolicy.sourceAchievements to compare source points with visible CV content; "
-        "citations alone do not prove that an achievement survived. Adapt emphasis and wording to the vacancy, "
-        "without a default bullet-count target. Shorten wording and remove repetition before reducing content. "
-        "Only experienceContentPolicy.allowContentReduction can permit necessary content reduction after "
-        "measured CV page overflow. If currentResumePages fits maxResumePages, do not make further cuts; "
-        "verifiedOverflow may justify necessary reductions from an earlier repair. "
-        "Unknown fields are unknown: do not invent technologies, metrics, teams or decisions.\n\n"
-        "Return JSON matching this schema exactly:\n"
-        f"{json.dumps(response_model.model_json_schema(), ensure_ascii=False)}\n\n"
-        "BEGIN UNTRUSTED APPLICATION DATA\n"
-        f"{json.dumps(context, ensure_ascii=False, sort_keys=True)}\n"
-        "END UNTRUSTED APPLICATION DATA"
+def _dump(value: BaseModel | None) -> dict[str, Any] | None:
+    return value.model_dump(mode="json", by_alias=True) if value is not None else None
+
+
+def _json(value: BaseModel) -> str:
+    return json.dumps(
+        value.model_dump(mode="json", by_alias=True),
+        ensure_ascii=False,
+        separators=(",", ":"),
+        sort_keys=True,
     )
 
 
-def _validated_result[T: BaseModel](result: AIResult, response_model: type[T]) -> T:
-    try:
-        return response_model.model_validate(result.structured_data)
-    except ValidationError as exc:
-        raise GenerationWorkflowError(
-            "AI backend returned an invalid structured response",
-            code="invalid_ai_response",
-        ) from exc
-
-
-def _draft_context(bundle: DraftBundle) -> dict[str, Any]:
-    """Keep model-facing drafts in the same evidence-ID-only response format."""
-    return bundle.model_dump(mode="json", by_alias=True, exclude={"resume": {"evidence"}})
-
-
-def _require_requested_documents(
-    bundle: GeneratedDraftBundle,
-    document_types: list[str],
-) -> None:
-    if "tailored_resume" in document_types and bundle.resume is None:
-        raise GenerationWorkflowError(
-            "AI draft omitted the requested resume",
-            code="missing_resume_draft",
-        )
-    if "cover_letter" in document_types and bundle.cover_letter is None:
-        raise GenerationWorkflowError(
-            "AI draft omitted the requested cover letter",
-            code="missing_cover_letter_draft",
-        )
-
-
-def _json_bytes(value: BaseModel) -> bytes:
-    return value.model_dump_json(by_alias=True).encode("utf-8")
-
-
-def _max_pages(snapshot: GenerationRunSnapshot, document_type: str) -> int:
-    raw = snapshot.request.formatting_parameters.get(document_type)
-    configured = raw.get("maxPages") if isinstance(raw, dict) else None
-    if isinstance(configured, int) and not isinstance(configured, bool) and 1 <= configured <= 10:
-        return configured
-    return 2 if document_type == "tailored_resume" else 1
-
-
-__all__ = ["GenerationWorkflow", "GenerationWorkflowError"]
+__all__ = [
+    "CONTENT_ARTIFACT",
+    "JOB_TARGET_ARTIFACT",
+    "GenerationWorkflow",
+    "GenerationWorkflowError",
+    "max_pages",
+    "stored_content",
+]

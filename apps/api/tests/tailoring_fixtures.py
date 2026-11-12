@@ -284,3 +284,201 @@ def cover_letter_payload(*, language: str = "en") -> dict[str, Any]:
         "closing": "Kind regards,",
         "signature": "Mira Keller",
     }
+
+
+# --- Generation run helpers ------------------------------------------------------
+
+
+def runtime_settings(**overrides: Any) -> Any:
+    """Settings a generation run reads, without touching the environment."""
+    from types import SimpleNamespace
+
+    values: dict[str, Any] = {
+        "ai_backend_mode": "openai_api",
+        "openai_api_key": "test-key",
+        "openai_api_base_url": "https://api.openai.com/v1",
+        "openai_api_model": "gpt-documents",
+        "openai_api_reasoning_effort": "low",
+        "openai_api_timeout_seconds": 120,
+        "openai_api_max_attempts": 1,
+        "openai_api_retry_backoff_seconds": 0,
+        "openclaw_command": "openclaw",
+        "openclaw_assistant_agent_id": "rufina-assistant",
+        "openclaw_assistant_model": "openai/gpt-worker",
+        "openclaw_assistant_thinking": "high",
+        "openclaw_assistant_timeout_seconds": 180,
+        "openclaw_assistant_max_attempts": 1,
+        "openclaw_assistant_retry_backoff_seconds": 0,
+        "job_screening_model": "openai/gpt-screening",
+    }
+    values.update(overrides)
+    return SimpleNamespace(**values)
+
+
+def seed_tailoring_sources(sessions: Any, *, extra_bullets_per_role: int = 0) -> None:
+    """One application for the fixture vacancy and the fixture master profile."""
+    import hashlib
+    import json
+
+    from app.models.applications import StoredApplicationRecord
+    from app.models.jobs import StoredJobRecord
+    from app.models.resume import ResumeMasterRecord, ResumeMasterVersionRecord
+
+    data = master_resume_payload(extra_bullets_per_role=extra_bullets_per_role)
+    digest = hashlib.sha256(
+        json.dumps(data, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode()
+    ).hexdigest()
+    master = ResumeMasterRecord(
+        id="master-1", name="Mira Keller", language="en", current_version=1
+    )
+    master.versions.append(
+        ResumeMasterVersionRecord(
+            id="master-1-version-1",
+            resume_master_id=master.id,
+            version=1,
+            schema_version="1.0",
+            data=data,
+            content_sha256=digest,
+        )
+    )
+    with sessions() as db:
+        db.add_all(
+            [
+                StoredApplicationRecord(
+                    id="application-1",
+                    data={"id": "application-1", "status": "draft", "job": {"id": "job-1"}},
+                ),
+                StoredJobRecord(
+                    id="job-1",
+                    data={
+                        "id": "job-1",
+                        "title": "Backend Engineer (Python) 80-100%",
+                        "company": "Northwind Analytics AG",
+                        "location": "Zurich",
+                        "fullDescription": VACANCY_TEXT,
+                    },
+                ),
+                master,
+            ]
+        )
+        db.commit()
+
+
+class FakeTailoringBackend:
+    """Stands in for a model: a fixed vacancy, echoed statements and a short letter.
+
+    `rewrites` maps the text of a profile statement to the text the "model"
+    returns for it. A letter paragraph cites statements through `cites`, a list
+    of text fragments resolved to statement IDs. `fail` lists request kinds
+    ("vacancy", "wording", "letter") that raise.
+    """
+
+    name = "openai_api"
+
+    def __init__(
+        self,
+        *,
+        rewrites: dict[str, str] | None = None,
+        summary: str = "Backend developer building Python services and data pipelines.",
+        letter: list[dict[str, Any]] | None = None,
+        fail: tuple[str, ...] = (),
+    ) -> None:
+        self.rewrites = rewrites or {}
+        self.summary = summary
+        self.letter = letter
+        self.fail = fail
+        self.calls: list[str] = []
+
+    def generate(self, request: Any) -> Any:
+        import json
+
+        from app.services.ai_backend import AIBackendError, AIResult, AIUsage
+
+        kind = {
+            "JobTargetDraft": "vacancy",
+            "WordingDraft": "wording",
+            "LetterDraft": "letter",
+        }[request.response_model.__name__]
+        self.calls.append(kind)
+        if kind in self.fail:
+            raise AIBackendError("backend unavailable", code="provider_error", retryable=True)
+        if kind == "vacancy":
+            data: dict[str, Any] = {
+                "title": "Backend Engineer (Python)",
+                "seniority": "mid",
+                "language": "en",
+                "knockouts": [],
+                "responsibilities": [
+                    "Design and operate Python services with FastAPI and PostgreSQL",
+                    "Build data pipelines that process large data volumes",
+                ],
+                "skills": [
+                    {"surface_form": name, "importance": importance, "min_years": None}
+                    for name, importance in (
+                        ("Python", "required"),
+                        ("FastAPI", "required"),
+                        ("PostgreSQL", "required"),
+                        ("Docker", "required"),
+                        ("Kubernetes", "required"),
+                        ("Kafka", "preferred"),
+                        ("Terraform", "preferred"),
+                    )
+                ],
+            }
+        elif kind == "wording":
+            statements = json.loads(request.prompt.rsplit("Statements:\n", 1)[1])
+            data = {
+                "summary": self.summary,
+                "statements": [
+                    {
+                        "id": item["id"],
+                        "text": self.rewrites.get(item["statement"], item["statement"]),
+                        "emphasis": [],
+                    }
+                    for item in statements
+                ],
+            }
+        else:
+            statements = json.loads(request.prompt.rsplit("Statements:\n", 1)[1])
+            paragraphs = self.letter or [
+                {
+                    "text": "Your Backend Engineer role at Northwind Analytics AG matches "
+                    "the Python services I build today.",
+                    "cites": [],
+                },
+                {
+                    "text": "At Atlas Data GmbH I cut report generation time by 40% by "
+                    "rebuilding the export service in Python with FastAPI and PostgreSQL.",
+                    "cites": ["Cut report generation time by 40%"],
+                },
+                {
+                    "text": "I would welcome a conversation about your data platform.",
+                    "cites": [],
+                },
+            ]
+            data = {
+                "contact_name": "",
+                "paragraphs": [
+                    {
+                        "text": paragraph["text"],
+                        "statement_ids": [
+                            item["id"]
+                            for item in statements
+                            if any(cite in item["statement"] for cite in paragraph["cites"])
+                        ],
+                    }
+                    for paragraph in paragraphs
+                ],
+            }
+        return AIResult(
+            text=json.dumps(data),
+            structured_data=data,
+            model=request.model or "fake-model",
+            backend="openai_api",
+            usage=AIUsage(input_tokens=100, output_tokens=50, total_tokens=150, source="test"),
+            latency_ms=1,
+            session_id=request.session_id,
+        )
+
+    async def agenerate(self, request: Any) -> Any:
+        return self.generate(request)

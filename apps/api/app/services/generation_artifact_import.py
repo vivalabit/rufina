@@ -1,6 +1,10 @@
+"""Store rendered documents of a run as application documents and run artifacts."""
+
 from __future__ import annotations
 
-import json
+import re
+import unicodedata
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import uuid4
 
@@ -17,93 +21,79 @@ from app.models.generation_runs import (
     ApplicationGenerationRunRecord,
     GenerationRunArtifactRecord,
 )
-from app.models.generation_workflow import DraftBundle
-from app.services.generation_latex import CompiledDocument, safe_document_stem
-from app.services.generation_snapshot import (
-    GenerationRunSnapshot,
-    GenerationTemplateSnapshot,
-    resolve_run_resume_template,
-    resolve_run_cover_letter_template,
-)
+from app.services.document_docx import DOCX_CONTENT_TYPE
+from app.services.document_rendering import RenderedDocument
 from app.services.generation_store import persist_run_artifact
 
+_ARTIFACT_PREFIX = {"tailored_resume": "resume", "cover_letter": "cover_letter"}
+_FILE_LABEL = {"tailored_resume": "CV", "cover_letter": "Cover_Letter"}
 
-def import_compiled_generation_documents(
+
+@dataclass(frozen=True)
+class DocumentImport:
+    rendered: RenderedDocument
+    # Structured content of exactly this file, as JSON.
+    content: str
+    title: str
+    file_stem: str
+    docx: bytes | None = None
+
+
+def document_file_stem(full_name: str, document_type: str, company: str) -> str:
+    """`Firstname_Lastname_CV_Company`, in ASCII so every portal accepts the upload."""
+
+    def part(value: str) -> str:
+        ascii_value = (
+            unicodedata.normalize("NFKD", value).encode("ascii", "ignore").decode("ascii")
+        )
+        return re.sub(r"[^A-Za-z0-9]+", "_", ascii_value).strip("_")
+
+    parts = [part(full_name), _FILE_LABEL[document_type], part(company)[:40].strip("_")]
+    return "_".join(item for item in parts if item)[:120] or "Application"
+
+
+def import_rendered_documents(
     db: Session,
     *,
     run: ApplicationGenerationRunRecord,
-    bundle: DraftBundle,
-    compiled: tuple[CompiledDocument, ...],
-) -> tuple[DocumentRecord, ...]:
-    snapshot = GenerationRunSnapshot.model_validate(run.input_snapshot)
-    vacancy = snapshot.request.vacancy.data
-    role = str(vacancy.get("title") or "Application")
-    company = str(vacancy.get("company") or "")
-    stem = safe_document_stem(f"{company}-{role}")
-    templates = {item.document_type: item for item in snapshot.templates}
-    if "tailored_resume" in snapshot.request.document_types:
-        templates["tailored_resume"] = resolve_run_resume_template(snapshot)
-    if "cover_letter" in snapshot.request.document_types:
-        templates["cover_letter"] = resolve_run_cover_letter_template(snapshot)
-    documents: list[DocumentRecord] = []
-    for rendered in compiled:
-        structured = (
-            bundle.resume if rendered.document_type == "tailored_resume" else bundle.cover_letter
-        )
-        if structured is None:
-            continue
-        document = _import_compiled_document(
-            db,
-            run=run,
-            rendered=rendered,
-            content=json.dumps(
-                structured.model_dump(mode="json", by_alias=True),
-                ensure_ascii=False,
-                separators=(",", ":"),
-                sort_keys=True,
-            ),
-            title=(
-                f"{role} — Tailored CV"
-                if rendered.document_type == "tailored_resume"
-                else f"{role} — Cover letter"
-            ),
-            job_id=snapshot.request.vacancy.id,
-            file_name=(
-                f"{stem}-cv.pdf"
-                if rendered.document_type == "tailored_resume"
-                else f"{stem}-cover-letter.pdf"
-            ),
-            template=templates[rendered.document_type],
-        )
-        documents.append(document)
-    return tuple(documents)
-
-
-def _import_compiled_document(
-    db: Session,
-    *,
-    run: ApplicationGenerationRunRecord,
-    rendered: CompiledDocument,
-    content: str,
-    title: str,
     job_id: str,
-    file_name: str,
-    template: GenerationTemplateSnapshot,
+    items: tuple[DocumentImport, ...] | list[DocumentImport],
+    new_version: bool = False,
+) -> tuple[DocumentRecord, ...]:
+    """Attach each rendered file to the application as a new document version.
+
+    A recovered run does not import the same file twice. `new_version` is used
+    when a finished run is rendered again in another template.
+    """
+    return tuple(
+        _import_document(db, run=run, job_id=job_id, item=item, new_version=new_version)
+        for item in items
+    )
+
+
+def _import_document(
+    db: Session,
+    *,
+    run: ApplicationGenerationRunRecord,
+    job_id: str,
+    item: DocumentImport,
+    new_version: bool,
 ) -> DocumentRecord:
-    pdf_artifact_type = (
-        "resume_pdf" if rendered.document_type == "tailored_resume" else "cover_letter_pdf"
-    )
-    existing_artifact = db.scalar(
-        select(GenerationRunArtifactRecord).where(
-            GenerationRunArtifactRecord.run_id == run.id,
-            GenerationRunArtifactRecord.artifact_type == pdf_artifact_type,
-            GenerationRunArtifactRecord.document_id.is_not(None),
+    rendered = item.rendered
+    prefix = _ARTIFACT_PREFIX[rendered.document_type]
+    pdf_artifact_type = f"{prefix}_pdf"
+    if not new_version:
+        existing = db.scalar(
+            select(GenerationRunArtifactRecord).where(
+                GenerationRunArtifactRecord.run_id == run.id,
+                GenerationRunArtifactRecord.artifact_type == pdf_artifact_type,
+                GenerationRunArtifactRecord.document_id.is_not(None),
+            )
         )
-    )
-    if existing_artifact is not None:
-        document = db.get(DocumentRecord, existing_artifact.document_id)
-        if document is not None:
-            return document
+        if existing is not None:
+            document = db.get(DocumentRecord, existing.document_id)
+            if document is not None:
+                return document
 
     now = datetime.now(UTC)
     document = db.scalar(
@@ -122,14 +112,14 @@ def _import_compiled_document(
         document = DocumentRecord(
             id=uuid4().hex,
             type=rendered.document_type,
-            title=title,
+            title=item.title,
             job_id=job_id,
             current_version=0,
             created_at=now,
             updated_at=now,
         )
     document_version = document.current_version + 1
-    document.title = title
+    document.title = item.title
     document.current_version = document_version
     document.updated_at = now
     document.versions.append(
@@ -137,10 +127,11 @@ def _import_compiled_document(
             id=uuid4().hex,
             document_id=document.id,
             version=document_version,
-            content=content,
+            content=item.content,
             created_at=now,
         )
     )
+    file_name = f"{item.file_stem}.pdf"
     document.files.append(
         DocumentFileRecord(
             id=uuid4().hex,
@@ -149,9 +140,9 @@ def _import_compiled_document(
             template_id=None,
             file_name=file_name,
             content_type="application/pdf",
-            renderer_template_id=template.template_id,
-            renderer_template_version=template.template_version,
-            renderer_design_sha256=template.content_sha256,
+            renderer_template_id=rendered.template_id[:80],
+            renderer_template_version=rendered.template_version[:40],
+            renderer_design_sha256=rendered.design_sha256,
             content=rendered.pdf,
             created_at=now,
         )
@@ -168,25 +159,17 @@ def _import_compiled_document(
     db.add(document)
     db.flush()
 
-    tex_artifact = persist_run_artifact(
-        db,
-        run=run,
-        document_type=rendered.document_type,
-        artifact_type=(
-            "resume_tex" if rendered.document_type == "tailored_resume" else "cover_letter_tex"
-        ),
-        file_name=file_name.removesuffix(".pdf") + ".tex",
-        content_type="application/x-tex",
-        content=rendered.tex_source.encode(),
-        metadata={
-            "engine": rendered.engine,
-            "templateId": template.template_id,
-            "templateVersion": template.template_version,
-        },
-        document_id=document.id,
-        document_version=document_version,
-    )
-    pdf_artifact = persist_run_artifact(
+    metadata = {
+        "engine": "chromium",
+        "templateId": rendered.template_id,
+        "templateVersion": rendered.template_version,
+        "templateSha256": rendered.design_sha256,
+        "pageCount": rendered.page_count,
+        "fitScale": rendered.fit_scale,
+        "droppedStatementIds": list(rendered.dropped_statement_ids),
+        "atsReadable": rendered.ats_readable,
+    }
+    persist_run_artifact(
         db,
         run=run,
         document_type=rendered.document_type,
@@ -194,19 +177,27 @@ def _import_compiled_document(
         file_name=file_name,
         content_type="application/pdf",
         content=rendered.pdf,
-        metadata={
-            "engine": rendered.engine,
-            "templateId": template.template_id,
-            "templateVersion": template.template_version,
-            "templateSha256": template.content_sha256,
-            "sourceArtifactId": tex_artifact.id,
-            "compileLog": rendered.compile_log,
-        },
+        metadata=metadata,
         document_id=document.id,
         document_version=document_version,
     )
-    pdf_artifact.document_id = document.id
+    if item.docx is not None:
+        persist_run_artifact(
+            db,
+            run=run,
+            document_type=rendered.document_type,
+            artifact_type=f"{prefix}_docx",
+            file_name=f"{item.file_stem}.docx",
+            content_type=DOCX_CONTENT_TYPE,
+            content=item.docx,
+            metadata={
+                "templateId": rendered.template_id,
+                "templateVersion": rendered.template_version,
+            },
+            document_id=document.id,
+            document_version=document_version,
+        )
     return document
 
 
-__all__ = ["import_compiled_generation_documents"]
+__all__ = ["DocumentImport", "document_file_stem", "import_rendered_documents"]

@@ -122,7 +122,7 @@ def generation_payload() -> dict[str, object]:
     }
 
 
-@pytest.mark.parametrize("template_id", ["moderncv_banking", "roman"])
+@pytest.mark.parametrize("template_id", ["swiss_classic", "modern_two_column"])
 def test_run_endpoint_persists_selected_resume_template(
     generation_api: tuple[TestClient, sessionmaker[Session]],
     template_id: str,
@@ -162,7 +162,7 @@ def test_run_endpoint_rejects_unknown_resume_template_without_creating_a_run(
     )
 
     assert response.status_code == 409
-    assert response.json()["detail"]["code"] == "resume_template_unsupported"
+    assert response.json()["detail"]["code"] == "document_template_unsupported"
     with sessions() as db:
         assert db.scalar(select(func.count()).select_from(ApplicationGenerationRunRecord)) == 0
 
@@ -293,8 +293,8 @@ def test_versioned_run_endpoint_lists_and_restores_the_immutable_run(
         "applicationRevision": 1,
         "vacancyRevision": 1,
         "masterProfileVersion": 2,
-        "resumeTemplateId": "moderncv_banking",
-        "documentTemplateId": "moderncv_banking",
+        "resumeTemplateId": "swiss_classic",
+        "documentTemplateId": "swiss_classic",
     }
     assert foreign_history.status_code == 200
     assert foreign_history.json() == []
@@ -308,8 +308,8 @@ def test_versioned_run_endpoint_rejects_mixed_document_templates(generation_api)
             **generation_payload(),
             "documentTypes": ["tailored_resume", "cover_letter"],
             "formattingParameters": {
-                "tailored_resume": {"templateId": "roman"},
-                "cover_letter": {"templateId": "moderncv_banking"},
+                "tailored_resume": {"templateId": "swiss_classic"},
+                "cover_letter": {"templateId": "modern_single"},
             },
             "idempotencyKey": "mismatched-template-run",
         },

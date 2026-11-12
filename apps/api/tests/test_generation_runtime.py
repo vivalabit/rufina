@@ -36,21 +36,29 @@ def test_execution_snapshot_freezes_selected_backend_and_nonsecret_settings() ->
     assert snapshot.model == "openai/gpt-6.1-sol"
     assert snapshot.max_attempts == 3
     assert "api_key" not in snapshot.as_dict()
-    assert snapshot.upstream_sha == "c7bd494f11e792508534c1c795e24694498395c4"
+    # The vacancy is parsed by the cheaper screening model of the same provider.
+    assert snapshot.parsing_model == "openai/gpt-6-luna"
+    assert snapshot.engine_version
+
+
+def test_execution_snapshot_uses_the_document_model_of_the_active_provider() -> None:
+    source = settings(
+        ai_backend_mode="anthropic_api",
+        anthropic_api_model="claude-sonnet-5-5",
+        anthropic_api_effort="medium",
+        job_screening_model="openai/gpt-6-luna",
+    )
+    source.document_model_value = lambda: "anthropic/claude-opus-5-5"
+
+    snapshot = snapshot_generation_execution(source)
+
+    assert snapshot.model == "anthropic/claude-opus-5-5"
+    # A screening model saved for another provider falls back to this provider's default.
+    assert snapshot.parsing_model == "anthropic/claude-haiku-5-5"
 
 
 def test_runtime_reports_each_backend_independently() -> None:
-    paths = {
-        name: f"/usr/bin/{name}"
-        for name in (
-            "openclaw",
-            "lualatex",
-            "xelatex",
-            "pdftotext",
-            "pdfinfo",
-            "pdftoppm",
-        )
-    }
+    paths = {"openclaw": "/usr/bin/openclaw"}
     reports = probe_both_generation_backends(settings(), which=paths.get)
 
     assert reports["openai_api"].available is True
@@ -58,13 +66,9 @@ def test_runtime_reports_each_backend_independently() -> None:
 
 
 def test_runtime_does_not_treat_one_ready_backend_as_the_other() -> None:
-    paths = {
-        name: f"/usr/bin/{name}"
-        for name in ("lualatex", "xelatex", "pdftotext", "pdfinfo", "pdftoppm")
-    }
     reports = probe_both_generation_backends(
         settings(openai_api_key=""),
-        which=paths.get,
+        which={}.get,
     )
 
     assert reports["openai_api"].available is False

@@ -7,10 +7,18 @@ import shutil
 from dataclasses import asdict, dataclass
 from typing import Any, Literal
 
-from app.core.ai_models import AI_BACKEND_MODES, AIBackendMode, is_direct_api_backend
-from app.services.generation_resources import INSTRUCTION_VERSION, UPSTREAM_SHA
+from app.core.ai_models import (
+    AI_BACKEND_MODES,
+    AIBackendMode,
+    is_direct_api_backend,
+    resolve_workload_model,
+)
 
 RuntimeStatus = Literal["ready", "missing"]
+
+# Version of the tailoring pipeline that produced a run: planner, wording
+# contract and fact checks. Bump it when a change alters generated content.
+TAILORING_ENGINE_VERSION = "2.0.0"
 
 
 @dataclass(frozen=True)
@@ -28,8 +36,9 @@ class GenerationExecutionSnapshot:
     timeout_seconds: int
     max_attempts: int
     retry_backoff_seconds: float
-    instruction_version: str = INSTRUCTION_VERSION
-    upstream_sha: str = UPSTREAM_SHA
+    # Cheaper model that parses the vacancy; empty in snapshots of earlier versions.
+    parsing_model: str = ""
+    engine_version: str = TAILORING_ENGINE_VERSION
 
     def as_dict(self) -> dict[str, str | int | float]:
         return asdict(self)
@@ -45,20 +54,28 @@ class GenerationRuntimeReport:
 def snapshot_generation_execution(settings: Any) -> GenerationExecutionSnapshot:
     backend: AIBackendMode = settings.ai_backend_mode
     if is_direct_api_backend(backend):
-        model, reasoning = (
-            (settings.anthropic_api_model, settings.anthropic_api_effort)
+        reasoning = (
+            settings.anthropic_api_effort
             if backend == "anthropic_api"
-            else (settings.openai_api_model, settings.openai_api_reasoning_effort)
+            else settings.openai_api_reasoning_effort
         )
         timeout = settings.openai_api_timeout_seconds
         attempts = settings.openai_api_max_attempts
         backoff = settings.openai_api_retry_backoff_seconds
     else:
-        model = settings.openclaw_assistant_model
         reasoning = settings.openclaw_assistant_thinking
         timeout = settings.openclaw_assistant_timeout_seconds
         attempts = settings.openclaw_assistant_max_attempts
         backoff = settings.openclaw_assistant_retry_backoff_seconds
+    document_model = getattr(settings, "document_model_value", None)
+    if callable(document_model):
+        model = document_model()
+    elif backend == "anthropic_api":
+        model = settings.anthropic_api_model
+    elif backend == "openai_api":
+        model = settings.openai_api_model
+    else:
+        model = settings.openclaw_assistant_model
     return GenerationExecutionSnapshot(
         backend=backend,
         model=model,
@@ -66,6 +83,9 @@ def snapshot_generation_execution(settings: Any) -> GenerationExecutionSnapshot:
         timeout_seconds=timeout,
         max_attempts=attempts,
         retry_backoff_seconds=backoff,
+        parsing_model=resolve_workload_model(
+            backend, "screening", getattr(settings, "job_screening_model", "")
+        ),
     )
 
 
@@ -75,13 +95,14 @@ def probe_generation_runtime(
     backend: AIBackendMode,
     which: Any = shutil.which,
 ) -> GenerationRuntimeReport:
+    """Report what a run needs: the AI backend, Chromium for PDFs and the DOCX writer.
+
+    Poppler is optional. Without it the text check of a finished PDF uses pypdf.
+    """
     dependencies = [
-        _command_dependency("lualatex", which),
-        _command_dependency("xelatex", which),
-        _command_dependency("pdftotext", which),
-        _command_dependency("pdfinfo", which),
-        _command_dependency("pdftoppm", which),
+        _module_dependency("playwright"),
         _module_dependency("pypdf"),
+        _module_dependency("docx"),
     ]
     if is_direct_api_backend(backend):
         provider, key, env_name = (
@@ -140,6 +161,7 @@ def _module_dependency(name: str) -> RuntimeDependency:
 
 
 __all__ = [
+    "TAILORING_ENGINE_VERSION",
     "GenerationExecutionSnapshot",
     "GenerationRuntimeReport",
     "RuntimeDependency",

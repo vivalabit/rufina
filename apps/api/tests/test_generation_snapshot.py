@@ -9,14 +9,17 @@ from test_generation_input import seed_complete_sources
 
 from app.core.database import Base
 from app.models.generation import GenerationStartRequest
-from app.services.generation_input import GenerationInputError
-from app.services.generation_resume_templates import (
-    LEGACY_GENERATION_RESUME_TEMPLATE_IDS,
-    resolve_generation_resume_template,
+from app.services.document_rendering import (
+    COVER_LETTER_TEMPLATE_VERSION,
+    DOCUMENT_TEMPLATE_ORDER,
+    resolve_document_template,
 )
+from app.services.generation_input import GenerationInputError
 from app.services.generation_snapshot import (
     build_generation_run_snapshot,
-    resolve_run_resume_template,
+    run_created_at,
+    run_request,
+    run_template_id,
 )
 
 
@@ -47,38 +50,34 @@ def runtime_settings() -> SimpleNamespace:
     )
 
 
-def test_generation_snapshot_pins_sources_templates_and_backend(
-    sessions,
-) -> None:
-    seed_complete_sources(sessions)
-    settings = runtime_settings()
-    start = GenerationStartRequest(
-        document_types=("tailored_resume", "cover_letter"),
-        language="English",
-        formatting_parameters={
-            "tailored_resume": {
-                "templateId": "classic_single",
-                "maxPages": 2,
-            },
-            "cover_letter": {"pageSize": "A4"},
-        },
-        user_preferences="Keep it concise.",
+def _start(document_types=("tailored_resume",), formatting=None) -> GenerationStartRequest:
+    return GenerationStartRequest(
+        documentTypes=document_types,
+        language="de-CH",
+        formattingParameters=formatting or {},
+        userPreferences="Keep it concise.",
     )
 
+
+def _snapshot(sessions, start: GenerationStartRequest, now: datetime | None = None):
     with sessions() as db:
-        snapshot = build_generation_run_snapshot(
+        return build_generation_run_snapshot(
             db,
             application_id="application-1",
             start=start,
-            settings=settings,
-            now=datetime(2026, 9, 13, tzinfo=UTC),
+            settings=runtime_settings(),
+            now=now,
         )
 
-    settings.ai_backend_mode = "openai_api"
-    settings.openclaw_assistant_model = "changed-after-start"
+
+def test_generation_snapshot_pins_sources_templates_and_backend(sessions) -> None:
+    seed_complete_sources(sessions)
+
+    snapshot = _snapshot(sessions, _start(("tailored_resume", "cover_letter")))
 
     assert snapshot.execution.backend == "openclaw_codex"
     assert snapshot.execution.model == "openai/gpt-worker"
+    assert snapshot.execution.parsing_model == "openai/gpt-6-luna"
     assert snapshot.request.application.revision == 4
     assert snapshot.request.vacancy.revision == 7
     assert snapshot.request.master_profile_version.version == 2
@@ -87,192 +86,123 @@ def test_generation_snapshot_pins_sources_templates_and_backend(
         "tailored_resume",
         "cover_letter",
     ]
-    assert snapshot.templates[0].template_id == "moderncv_banking"
-    assert snapshot.templates[0].template_version == "1.0.3"
-    assert snapshot.templates[0].content_sha256 == (
-        resolve_generation_resume_template("moderncv_banking").content_sha256
-    )
-    assert snapshot.templates[0].content_sha256
-    assert snapshot.templates[1].content_sha256
+    default = resolve_document_template(None)
+    resume, letter = snapshot.templates
+    assert resume.template_id == default.id == "swiss_classic"
+    assert resume.template_version == default.version
+    assert resume.content_sha256 == default.design_sha256
+    assert resume.renderer == letter.renderer == "chromium"
+    assert letter.template_id == "swiss_classic"
+    assert letter.template_version == COVER_LETTER_TEMPLATE_VERSION
+    assert len(letter.content_sha256) == 64 and letter.content_sha256 != resume.content_sha256
     assert len(snapshot.fingerprint) == 64
     serialized = snapshot.model_dump(mode="json", by_alias=True)
     assert "api_key" not in str(serialized).lower()
 
 
-def test_generation_snapshot_fingerprint_is_stable_for_identical_inputs(
-    sessions,
-) -> None:
+def test_generation_snapshot_fingerprint_is_stable_for_identical_inputs(sessions) -> None:
     seed_complete_sources(sessions)
-    start = GenerationStartRequest(
-        document_types=("tailored_resume",),
-        language="English",
-        formatting_parameters={"tailored_resume": {"templateId": "classic_single"}},
-        user_preferences="",
-    )
     now = datetime(2026, 9, 13, tzinfo=UTC)
 
-    with sessions() as db:
-        first = build_generation_run_snapshot(
-            db,
-            application_id="application-1",
-            start=start,
-            settings=runtime_settings(),
-            now=now,
-        )
-        second = build_generation_run_snapshot(
-            db,
-            application_id="application-1",
-            start=start,
-            settings=runtime_settings(),
-            now=now,
-        )
+    first = _snapshot(sessions, _start(), now)
+    second = _snapshot(sessions, _start(), now)
+    other = _snapshot(
+        sessions, _start(formatting={"tailored_resume": {"templateId": "modern_single"}}), now
+    )
 
     assert first.fingerprint == second.fingerprint
+    assert other.fingerprint != first.fingerprint
 
 
-@pytest.mark.parametrize("template_id", ["moderncv_banking", "roman"])
-def test_generation_snapshot_pins_selected_latex_template(sessions, template_id: str) -> None:
+@pytest.mark.parametrize("template_id", DOCUMENT_TEMPLATE_ORDER)
+def test_every_gallery_template_can_start_a_run(sessions, template_id: str) -> None:
     seed_complete_sources(sessions)
-    start = GenerationStartRequest(
-        document_types=("tailored_resume",),
-        language="English",
-        formatting_parameters={"tailored_resume": {"templateId": template_id}},
-        user_preferences="",
-    )
-    with sessions() as db:
-        snapshot = build_generation_run_snapshot(
-            db,
-            application_id="application-1",
-            start=start,
-            settings=runtime_settings(),
-        )
-        default = build_generation_run_snapshot(
-            db,
-            application_id="application-1",
-            start=start.model_copy(update={"formatting_parameters": {}}),
-            settings=runtime_settings(),
-        )
 
-    template = resolve_run_resume_template(snapshot)
-    assert template.template_id == template_id
-    assert template.renderer == "lualatex"
-    assert default.templates[0].template_id == "moderncv_banking"
-    if template_id == "roman":
-        assert template.content_sha256 != default.templates[0].content_sha256
-        assert snapshot.fingerprint != default.fingerprint
-
-
-@pytest.mark.parametrize("template_id", sorted(LEGACY_GENERATION_RESUME_TEMPLATE_IDS))
-def test_saved_legacy_resume_selections_resolve_to_original_banking_renderer(template_id: str) -> None:
-    assert resolve_generation_resume_template(template_id) == resolve_generation_resume_template(
-        "moderncv_banking"
+    snapshot = _snapshot(
+        sessions, _start(formatting={"tailored_resume": {"templateId": template_id}})
     )
 
-
-def test_renamed_roman_template_id_resolves_to_the_current_template() -> None:
-    renamed = resolve_generation_resume_template("ishchenko_classic")
-    current = resolve_generation_resume_template("roman")
-
-    assert renamed == current
-    assert current.id == "roman"
+    assert snapshot.templates[0].template_id == template_id
 
 
 @pytest.mark.parametrize(
-    "template_id",
-    ["not-a-template", "../../outside.tex", "b426540f-a1e2-4e8b-965e-10ab38b28b40", 42],
+    ("saved", "expected"),
+    [("roman", "swiss_classic"), ("moderncv_banking", "modern_single")],
 )
-def test_generation_snapshot_rejects_unsupported_resume_templates(sessions, template_id) -> None:
-    seed_complete_sources(sessions)
-    start = GenerationStartRequest(
-        document_types=("tailored_resume",),
-        language="English",
-        formatting_parameters={"tailored_resume": {"templateId": template_id}},
-        user_preferences="",
-    )
-    with sessions() as db, pytest.raises(GenerationInputError) as failure:
-        build_generation_run_snapshot(
-            db,
-            application_id="application-1",
-            start=start,
-            settings=runtime_settings(),
-        )
-    assert failure.value.code == "resume_template_unsupported"
-
-
-@pytest.mark.parametrize("document_types,formatting", [
-    (("tailored_resume", "cover_letter"), {"tailored_resume": {"templateId": "roman"}}),
-    (("tailored_resume", "cover_letter"), {"cover_letter": {"templateId": "roman"}}),
-    (("cover_letter",), {"cover_letter": {"templateId": "roman"}}),
-])
-def test_document_family_is_shared_even_when_only_one_selection_is_provided(
-    sessions, document_types, formatting,
+def test_template_ids_of_the_earlier_generator_map_to_gallery_templates(
+    sessions, saved: str, expected: str
 ) -> None:
-    from app.services.generation_snapshot import resolve_run_document_template_id
-
     seed_complete_sources(sessions)
-    with sessions() as db:
-        snapshot = build_generation_run_snapshot(
-            db, application_id="application-1", settings=runtime_settings(),
-            start=GenerationStartRequest(
-                document_types=document_types, language="Auto",
-                formatting_parameters=formatting, user_preferences="",
+
+    snapshot = _snapshot(sessions, _start(formatting={"tailored_resume": {"templateId": saved}}))
+
+    assert snapshot.templates[0].template_id == expected
+
+
+@pytest.mark.parametrize("template_id", ["unknown", "../../outside", 42])
+def test_generation_snapshot_rejects_unsupported_templates(sessions, template_id) -> None:
+    seed_complete_sources(sessions)
+
+    with pytest.raises(GenerationInputError) as failure:
+        _snapshot(sessions, _start(formatting={"tailored_resume": {"templateId": template_id}}))
+
+    assert failure.value.code == "document_template_unsupported"
+
+
+@pytest.mark.parametrize(
+    ("document_types", "formatting"),
+    [
+        (("tailored_resume", "cover_letter"), {"tailored_resume": {"templateId": "modern_single"}}),
+        (("tailored_resume", "cover_letter"), {"cover_letter": {"templateId": "modern_single"}}),
+        (("cover_letter",), {"cover_letter": {"templateId": "modern_single"}}),
+    ],
+)
+def test_document_family_is_shared_even_when_only_one_selection_is_provided(
+    sessions, document_types, formatting
+) -> None:
+    seed_complete_sources(sessions)
+
+    snapshot = _snapshot(sessions, _start(document_types, formatting))
+
+    assert {item.template_id for item in snapshot.templates} == {"modern_single"}
+
+
+def test_new_runs_reject_mismatched_document_families(sessions) -> None:
+    seed_complete_sources(sessions)
+
+    with pytest.raises(GenerationInputError) as failure:
+        _snapshot(
+            sessions,
+            _start(
+                ("tailored_resume", "cover_letter"),
+                {
+                    "tailored_resume": {"templateId": "swiss_classic"},
+                    "cover_letter": {"templateId": "modern_single"},
+                },
             ),
         )
-    assert {item.template_id for item in snapshot.templates} == {"roman"}
-    assert resolve_run_document_template_id(snapshot) == "roman"
-    letter = next(item for item in snapshot.templates if item.document_type == "cover_letter")
-    assert letter.renderer == "xelatex"
-    assert letter.template_version == "1.0.0"
-    assert len(letter.content_sha256) == 64
 
-
-@pytest.mark.parametrize("cv,letter", [("roman", "moderncv_banking"), ("moderncv_banking", "roman")])
-def test_new_runs_reject_mismatched_document_families(sessions, cv, letter) -> None:
-    seed_complete_sources(sessions)
-    with sessions() as db, pytest.raises(GenerationInputError) as failure:
-        build_generation_run_snapshot(
-            db, application_id="application-1", settings=runtime_settings(),
-            start=GenerationStartRequest(
-                document_types=("tailored_resume", "cover_letter"), language="Auto",
-                formatting_parameters={
-                    "tailored_resume": {"templateId": cv}, "cover_letter": {"templateId": letter},
-                }, user_preferences="",
-            ),
-        )
     assert failure.value.code == "document_template_mismatch"
 
 
-@pytest.mark.parametrize("template_id", [42, "unknown", "../../outside.tex", "standard-letter"])
-def test_new_runs_reject_unsupported_cover_letter_templates(sessions, template_id) -> None:
+def test_persisted_snapshots_of_earlier_versions_stay_readable(sessions) -> None:
     seed_complete_sources(sessions)
-    with sessions() as db, pytest.raises(GenerationInputError) as failure:
-        build_generation_run_snapshot(
-            db, application_id="application-1", settings=runtime_settings(),
-            start=GenerationStartRequest(
-                document_types=("cover_letter",), language="Auto",
-                formatting_parameters={"cover_letter": {"templateId": template_id}}, user_preferences="",
-            ),
-        )
-    assert failure.value.code == "cover_letter_template_unsupported"
+    current = _snapshot(sessions, _start()).model_dump(mode="json", by_alias=True)
+    # What the LaTeX-based pipeline stored for a run.
+    legacy = {
+        **current,
+        "execution": {**current["execution"], "upstream_sha": "c7bd494", "instruction_version": "3"},
+        "templates": [
+            {
+                "documentType": "tailored_resume",
+                "templateId": "roman",
+                "templateVersion": "1.0.2",
+                "contentSha256": "0" * 64,
+                "renderer": "lualatex",
+            }
+        ],
+    }
 
-
-def test_cover_letter_renderer_is_pinned_and_cannot_silently_change(sessions, tmp_path, monkeypatch) -> None:
-    from app.services import generation_resume_templates
-    from app.services.generation_snapshot import resolve_run_cover_letter_template
-
-    seed_complete_sources(sessions)
-    with sessions() as db:
-        snapshot = build_generation_run_snapshot(
-            db, application_id="application-1", settings=runtime_settings(),
-            start=GenerationStartRequest(
-                document_types=("cover_letter",), language="Auto",
-                formatting_parameters={"cover_letter": {"templateId": "roman"}}, user_preferences="",
-            ),
-        )
-    assert resolve_run_cover_letter_template(snapshot) == snapshot.templates[0]
-    changed = tmp_path / "changed-renderer.py"
-    changed.write_text("changed renderer")
-    monkeypatch.setattr(generation_resume_templates, "_RENDERER_SOURCE", changed)
-    with pytest.raises(GenerationInputError) as failure:
-        resolve_run_cover_letter_template(snapshot)
-    assert failure.value.code == "cover_letter_template_changed"
+    assert run_request(legacy).vacancy.id == "vacancy-1"
+    assert run_template_id(legacy) == "roman"
+    assert run_created_at(legacy) == datetime.fromisoformat(current["createdAt"])
