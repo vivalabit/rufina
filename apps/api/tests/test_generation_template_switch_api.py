@@ -69,7 +69,7 @@ def test_gallery_lists_templates_and_marks_the_one_in_use(api) -> None:
 
     assert response.status_code == 200
     templates = response.json()
-    assert [item["id"] for item in templates][0] == "swiss_classic"
+    assert templates[0]["id"] == "swiss_classic"
     assert [item["id"] for item in templates if item["selected"]] == ["swiss_classic"]
     assert {item["id"] for item in templates if not item["atsSafe"]} == {"modern_two_column"}
     assert templates[1]["thumbnailUrl"].endswith(

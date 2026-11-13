@@ -167,7 +167,7 @@ export type StartGenerationRunRequest = ReturnType<
 export type MasterResumeSummary = {
   masterResumeId: string;
   version: number;
-  masterResume: { language?: string };
+  masterResume: { language?: string; experiences?: unknown[] };
   createdAt: string;
   updatedAt: string;
 };

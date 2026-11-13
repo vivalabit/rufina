@@ -119,6 +119,12 @@ class GenerationWorkflow:
         try:
             snapshot = _run_snapshot(run)
             master = _snapshot_resume(snapshot.request)
+            if not master.experiences:
+                raise GenerationWorkflowError(
+                    "Your profile has no work experience yet. Add at least one role with a "
+                    "description, then tailor again.",
+                    code="profile_incomplete",
+                )
             request = snapshot.request
             vacancy = _vacancy_context(request)
 

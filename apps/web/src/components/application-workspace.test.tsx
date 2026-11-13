@@ -259,6 +259,23 @@ describe("ApplicationWorkspace", () => {
     expect(postedBody(fetchMock, "/generation/runs")).toBeNull();
   });
 
+  it("needs work experience in the profile before tailoring", async () => {
+    const fetchMock = installApplicationWorkspaceApiMock({
+      currentMasterResume: {
+        masterResumeId: "default",
+        version: 1,
+        masterResume: { language: "en", experiences: [] },
+        createdAt: "2026-07-25T10:00:00.000Z",
+        updatedAt: "2026-07-25T10:00:00.000Z",
+      },
+    });
+    renderApplicationWorkspace(createWorkspaceApplication(), { autoStart: true });
+
+    expect(await screen.findByRole("alert")).toHaveTextContent("Add your experience to the profile first");
+    expect(screen.getByRole("button", { name: "Tailor resume" })).toBeDisabled();
+    expect(postedBody(fetchMock, "/generation/runs")).toBeNull();
+  });
+
   it("needs a profile before tailoring", async () => {
     installApplicationWorkspaceApiMock({ currentMasterResume: null });
     renderApplicationWorkspace(createWorkspaceApplication(), { autoStart: true });
@@ -356,6 +373,19 @@ describe("ApplicationWorkspace", () => {
       "href",
       expect.stringContaining("/artifacts/artifact-letter-docx"),
     );
+  });
+
+  it("shows a single score when tailoring did not change the match", async () => {
+    const base = completedRun();
+    const current = completedRun({
+      result: { ...base.result, tailoring: { ...base.result.tailoring, score: { before: 84, after: 84 } } },
+    });
+    installApplicationWorkspaceApiMock({ currentGenerationRun: current, generationRuns: [current] });
+    renderApplicationWorkspace(createWorkspaceApplication());
+
+    const summary = await screen.findByRole("complementary", { name: "Tailoring summary" });
+    expect(within(summary).getByLabelText("After tailoring: 84")).toBeInTheDocument();
+    expect(within(summary).queryByLabelText(/Before tailoring/)).not.toBeInTheDocument();
   });
 
   it("switches the template in one click without a new run", async () => {

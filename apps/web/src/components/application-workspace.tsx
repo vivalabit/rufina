@@ -223,6 +223,9 @@ function runErrorMessage(run: GenerationRun | null) {
   if (code === "document_render_failed") {
     return "The documents could not be rendered. Try again, or pick another template.";
   }
+  if (code === "profile_incomplete" && run?.error?.message) {
+    return run.error.message;
+  }
   if (code === "invalid_snapshot") {
     return "This run was created by an earlier version of Rufina. Start a new one.";
   }
@@ -381,7 +384,7 @@ export function ApplicationWorkspace({
     if (!autoStart || autoStartRef.current || loadState !== "ready") return;
     autoStartRef.current = true;
     onAutoStartHandled?.();
-    if (!run && masterResume) void startRun();
+    if (!run && profileHasExperience(masterResume)) void startRun();
     // Runs once, when the workspace has loaded.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoStart, loadState]);
@@ -583,6 +586,13 @@ export function ApplicationWorkspace({
   );
 }
 
+/** A profile without any role cannot be tailored; an unknown shape is left to the server. */
+function profileHasExperience(masterResume: MasterResumeSummary | null) {
+  if (!masterResume) return false;
+  const experiences = masterResume.masterResume.experiences;
+  return !Array.isArray(experiences) || experiences.length > 0;
+}
+
 function initialSettings(application: WorkspaceApplication | null) {
   const settings = normalizeDocumentPreparationSettings(application?.documentPreparation);
   if (application?.documentPreparation) return settings;
@@ -619,6 +629,7 @@ function TailorPanel({ settings, masterResume, onChange, onStart, action, isRevi
   onCancel?: () => void;
 }) {
   const template = generationResumeTemplate(settings.formatting.resumeTemplateId);
+  const hasExperience = profileHasExperience(masterResume);
   return (
     <section className="workspace-card p-5 lg:p-7">
       <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
@@ -641,7 +652,7 @@ function TailorPanel({ settings, masterResume, onChange, onStart, action, isRevi
           <Button
             type="button"
             onClick={onStart}
-            disabled={!settings.documentTypes.length || !masterResume || Boolean(action)}
+            disabled={!settings.documentTypes.length || !hasExperience || Boolean(action)}
             className="h-12 rounded-md px-7 text-base"
           >
             {action === "start" ? <LoaderCircle className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
@@ -649,7 +660,7 @@ function TailorPanel({ settings, masterResume, onChange, onStart, action, isRevi
           </Button>
         </div>
       </div>
-      {!masterResume ? (
+      {!hasExperience ? (
         <div role="alert" className="mt-4 rounded-md border border-border bg-[#fff8f1] px-4 py-3 text-[13px] leading-[1.35] text-muted">
           Documents are built from your profile. Add your experience to the profile first.
         </div>
@@ -1072,7 +1083,7 @@ function ResultSummary({ run }: { run: GenerationRun }) {
         <div>
           <h2 className="text-base font-semibold">Vacancy match</h2>
           <div className="mt-3 flex items-end gap-3">
-            {typeof before === "number" ? (
+            {typeof before === "number" && before !== after ? (
               <>
                 <span className="text-2xl font-semibold leading-none text-muted" aria-label={`Before tailoring: ${before}`}>{before}</span>
                 <span aria-hidden="true" className="pb-0.5 text-muted">→</span>

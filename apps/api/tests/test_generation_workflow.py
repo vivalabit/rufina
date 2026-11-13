@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 from tailoring_fixtures import FakeTailoringBackend, runtime_settings, seed_tailoring_sources
 
+from app.api.profile import get_or_create_profile
 from app.core.database import Base
 from app.models.documents import DocumentFileRecord, DocumentRecord
 from app.models.generation_runs import (
@@ -23,7 +24,7 @@ from app.services.document_rendering import extract_pdf_text, pdf_page_count
 from app.services.generation_store import create_generation_run, request_run_cancellation
 from app.services.generation_worker import run_generation_cycle
 from app.services.generation_workflow import GenerationWorkflow, GenerationWorkflowError
-
+from app.services.profile_versions import update_profile_data
 
 SOURCE_STATEMENT = (
     "Cut report generation time by 40% by rebuilding the export service in Python with "
@@ -338,3 +339,21 @@ def test_cancellation_requested_during_a_run_stops_before_rendering(sessions) ->
         run = db.get(ApplicationGenerationRunRecord, run_id)
         assert run.status == "cancelled"
         assert _artifact(db, run_id, "resume_pdf") is None
+
+
+def test_run_explains_an_empty_profile_instead_of_failing_obscurely(sessions) -> None:
+    seed_tailoring_sources(sessions)
+    with sessions() as db:
+        profile = get_or_create_profile(db)
+        update_profile_data(db, profile, data={**profile.data, "experience": "[]"}, reason="test")
+        db.commit()
+    backend = FakeTailoringBackend()
+
+    run_id = _execute(sessions, backend, _start())
+
+    with sessions() as db:
+        run = db.get(ApplicationGenerationRunRecord, run_id)
+        assert run.status == "failed"
+        assert run.error["code"] == "profile_incomplete"
+        assert "no work experience" in run.error["message"]
+        assert backend.calls == []
