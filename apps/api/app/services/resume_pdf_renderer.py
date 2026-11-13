@@ -732,15 +732,18 @@ def _attach_emphasis_segments(view_model: dict[str, object], resume: FinalResume
 
 
 def skill_group_view(resume: FinalResume) -> list[dict[str, object]]:
+    """Skills grouped by category; skills without one get a labeled group, never a bare line."""
+    fallback = resume_section_titles(resume)["other_skills"]
     groups: list[dict[str, object]] = []
     indexes_by_category: dict[str, int] = {}
     for skill in resume.skills:
-        category_key = skill.category.casefold()
+        category = " ".join(skill.category.split()) or fallback
+        category_key = category.casefold()
         group_index = indexes_by_category.get(category_key)
         if group_index is None:
             group_index = len(groups)
             indexes_by_category[category_key] = group_index
-            groups.append({"category": skill.category, "names": []})
+            groups.append({"category": category, "names": []})
         names = groups[group_index]["names"]
         if isinstance(names, list):
             names.append(skill.name)
@@ -758,6 +761,7 @@ def resume_section_titles(resume: FinalResume) -> dict[str, str]:
             "certifications": "Zertifikate",
             "languages": "Sprachen",
             "additional": "Weitere Angaben",
+            "other_skills": "Fachkenntnisse",
             "expires": "Gültig bis",
         }
     if resume.language.lower().startswith(("fr", "french", "français", "francais")):
@@ -770,6 +774,7 @@ def resume_section_titles(resume: FinalResume) -> dict[str, str]:
             "certifications": "Certifications",
             "languages": "Langues",
             "additional": "Informations complémentaires",
+            "other_skills": "Expertise",
             "expires": "Valable jusqu'au",
         }
     return {
@@ -781,6 +786,7 @@ def resume_section_titles(resume: FinalResume) -> dict[str, str]:
         "certifications": "Certifications",
         "languages": "Languages",
         "additional": "Additional",
+        "other_skills": "Expertise",
         "expires": "Expires",
     }
 

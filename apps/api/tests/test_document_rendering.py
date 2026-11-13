@@ -24,7 +24,11 @@ from app.services.document_rendering import (
     without_statements,
 )
 from app.services.resume_emphasis import emphasis_segments, valid_emphasis
-from app.services.resume_pdf_renderer import ChromiumPdfSession, resume_view_model
+from app.services.resume_pdf_renderer import (
+    ChromiumPdfSession,
+    resume_view_model,
+    skill_group_view,
+)
 
 
 def test_gallery_lists_the_default_template_first_and_flags_ats_safety() -> None:
@@ -260,3 +264,21 @@ def test_cover_letter_docx_contains_the_complete_letter() -> None:
     assert "Zurich, 1. März 2026" in paragraphs
     assert "Application for Backend Engineer (Python)" in paragraphs
     assert paragraphs[-2:] == ["Kind regards,", "Mira Keller"]
+
+
+@pytest.mark.parametrize(("language", "label"), [("en", "Expertise"), ("de", "Fachkenntnisse")])
+def test_skills_without_a_category_get_a_labeled_group(language: str, label: str) -> None:
+    resume = final_resume(language=language)
+    skills = [skill.model_dump(mode="json", by_alias=True) for skill in resume.skills]
+    skills.append({**skills[0], "id": "concept-1", "name": "LLM", "category": "  "})
+    resume = resume.model_validate(
+        {**resume.model_dump(mode="json", by_alias=True), "skills": skills}
+    )
+
+    groups = skill_group_view(resume)
+
+    assert all(group["category"] for group in groups)
+    assert groups[-1] == {"category": label, "names": ["LLM"]}
+    content = build_resume_docx(resume, template=resolve_document_template("swiss_classic"))
+    docx_text = "\n".join(paragraph.text for paragraph in Document(BytesIO(content)).paragraphs)
+    assert f"{label}: LLM" in docx_text

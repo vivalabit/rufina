@@ -36,16 +36,22 @@ from app.services.ats.planner import (
     CoverageScore,
     DocumentLanguage,
     PlannedStatement,
+    SkillMatch,
     TailoringPlan,
     build_tailoring_plan,
     coverage_score,
+    mentions_term,
 )
 from app.services.ats.profile_index import (
     ProfileIndex,
     build_profile_index,
     split_statement_texts,
 )
-from app.services.ats.skill_dictionary import SkillDictionary, default_skill_dictionary
+from app.services.ats.skill_dictionary import (
+    SkillDictionary,
+    alias_key,
+    default_skill_dictionary,
+)
 from app.services.ats.wording import (
     WordedStatement,
     WordingDraft,
@@ -135,6 +141,58 @@ def tailored_skills(master: MasterResume, skill_order: Sequence[str]) -> list[Ma
     )
 
 
+def _names_vacancy_skill(
+    skill: MasterSkill, matches: Sequence[SkillMatch], dictionary: SkillDictionary
+) -> str | None:
+    """The vacancy skill key a profile skill names, if any."""
+    canonical = dictionary.lookup(skill.name)
+    name_key = alias_key(skill.name)
+    for match in matches:
+        if canonical is not None and match.canonical_id == canonical:
+            return match.key
+        if name_key == alias_key(match.label) or match.key == f"raw:{skill.name.casefold()}":
+            return match.key
+    return None
+
+
+def _shown_elsewhere(skill: MasterSkill, text: str, dictionary: SkillDictionary) -> bool:
+    if mentions_term(text, skill.name):
+        return True
+    canonical = dictionary.lookup(skill.name)
+    return canonical is not None and any(
+        mention.skill_id == canonical for mention in dictionary.scan(text)
+    )
+
+
+def resume_skills(
+    master: MasterResume,
+    plan: TailoringPlan,
+    *,
+    shown_text: str,
+    dictionary: SkillDictionary,
+) -> list[MasterSkill]:
+    """The Skills section of a tailored resume.
+
+    Categorized skills (technologies) are all kept, vacancy skills first. A skill
+    without a category is a concept such as "Microservices" or "JWT": it only says
+    something when shown in context, so it is listed only when the vacancy asks for
+    it and the rest of the resume does not already show it. Two spellings of one
+    vacancy skill are listed once.
+    """
+    kept: list[MasterSkill] = []
+    listed_keys: set[str] = set()
+    for skill in tailored_skills(master, plan.skill_order):
+        if skill.category:
+            kept.append(skill)
+            continue
+        key = _names_vacancy_skill(skill, plan.matches, dictionary)
+        if key is None or key in listed_keys or _shown_elsewhere(skill, shown_text, dictionary):
+            continue
+        listed_keys.add(key)
+        kept.append(skill)
+    return kept
+
+
 def _education_payload(item: MasterEducation) -> dict[str, Any]:
     """Education as in the profile, with a multi-line description shown line by line."""
     payload = item.model_dump(mode="json", by_alias=True)
@@ -161,6 +219,7 @@ def assemble_resume(
     summary: str,
     resume_id: str,
     target_job_id: str,
+    dictionary: SkillDictionary | None = None,
 ) -> FinalResume:
     """Build the tailored resume from profile data and the accepted wording."""
     roles = {experience.id: experience for experience in master.experiences}
@@ -231,7 +290,18 @@ def assemble_resume(
         "experiences": experiences,
         "skills": [
             skill.model_dump(mode="json", by_alias=True)
-            for skill in tailored_skills(master, plan.skill_order)
+            for skill in resume_skills(
+                master,
+                plan,
+                shown_text="\n".join(
+                    [
+                        plan.headline or master.basics.headline,
+                        summary_block["text"] if summary_block else "",
+                        *(bullet["text"] for item in experiences for bullet in item["bullets"]),
+                    ]
+                ),
+                dictionary=dictionary or default_skill_dictionary(),
+            )
         ],
         "education": [_education_payload(item) for item in master.education],
         "projects": [item.model_dump(mode="json", by_alias=True) for item in master.projects],
@@ -576,6 +646,7 @@ class TailoringSession:
                 summary=summary,
                 resume_id=self.resume_id,
                 target_job_id=self.vacancy.job_id,
+                dictionary=self.dictionary,
             )
             kept = [item for item in self.plan.statements if item.statement.id not in self.wording]
             if kept:
@@ -733,5 +804,6 @@ __all__ = [
     "period_text",
     "profile_language_level",
     "resume_coverage",
+    "resume_skills",
     "tailored_skills",
 ]

@@ -5,6 +5,7 @@ from datetime import date
 import pytest
 
 from app.models.generation_workflow import DraftBundle
+from app.models.resume import MasterResume
 from app.services.ats.cover_letter import letter_salutation, letter_subject
 from app.services.ats.job_target import VacancyInput, extract_job_target_without_model
 from app.services.ats.planner import build_tailoring_plan, coverage_score, plan_headline
@@ -22,7 +23,7 @@ from app.services.ats.tailoring import (
 )
 from app.services.ats.wording import check_statement, number_tokens
 from app.services.generation_grounding import validate_grounded_bundle
-from tests.tailoring_fixtures import VACANCY_TEXT, master_resume
+from tests.tailoring_fixtures import VACANCY_TEXT, master_resume, master_resume_payload
 
 TODAY = date(2026, 11, 1)
 TITLE = "Backend Engineer (Python) 80-100%"
@@ -44,12 +45,14 @@ def _vacancy() -> VacancyContext:
 
 def _session(document_types=("tailored_resume",), **overrides) -> TailoringSession:
     return TailoringSession(
-        master=master_resume(),
-        target=_target(),
-        vacancy=_vacancy(),
-        document_types=document_types,
-        today=TODAY,
-        **overrides,
+        **{
+            "master": master_resume(),
+            "target": _target(),
+            "vacancy": _vacancy(),
+            "document_types": document_types,
+            "today": TODAY,
+            **overrides,
+        }
     )
 
 
@@ -255,6 +258,52 @@ def test_session_assembles_a_grounded_resume_from_accepted_wording() -> None:
     assert result.report["statements"]["reworded"] == 1
     assert result.report["score"]["after"] >= result.report["score"]["before"]
     assert {"label": "Terraform", "importance": "preferred"} in result.report["gaps"]
+
+
+def _master_with_concepts(names: list[str]) -> MasterResume:
+    payload = master_resume_payload()
+    for index, name in enumerate(names, start=1):
+        evidence_id = f"source:concept-{index}"
+        payload["evidence"].append({"id": evidence_id, "type": "source", "text": name})
+        payload["skills"].append(
+            {"id": f"concept-{index}", "name": name, "category": "", "evidenceIds": [evidence_id]}
+        )
+    return MasterResume.model_validate(payload)
+
+
+def test_skills_list_concepts_only_when_the_vacancy_asks_and_the_resume_does_not_show_them(
+) -> None:
+    session = _session(
+        master=_master_with_concepts(
+            ["LLM", "Large Language Models", "Data Engineering", "JWT", "Microservices"]
+        )
+    )
+    requests = session.first_round()
+    session.apply(
+        requests,
+        [
+            _echo_wording(
+                session,
+                requests[0],
+                summary="Backend developer who builds Python services and data pipelines.",
+            )
+        ],
+    )
+    resume = session.finish().resume
+    assert resume is not None
+
+    names = [skill.name for skill in resume.skills]
+    # Every technology stays; of the concepts only the vacancy's LLM requirement is
+    # listed, once, because nothing else in the resume shows it. Data pipelines are
+    # already in the summary; JWT and Microservices are not asked for.
+    assert [skill.name for skill in resume.skills if skill.category] == [
+        skill.name for skill in session.master.skills if skill.category
+    ]
+    assert [skill.name for skill in resume.skills if not skill.category] == ["LLM"]
+    assert "Microservices" not in names
+    validate_grounded_bundle(
+        DraftBundle(resume=resume), master_resume=session.master, target_job_id="job-1"
+    )
 
 
 def test_rejected_statement_is_retried_once_and_then_keeps_the_profile_wording() -> None:
