@@ -38,12 +38,10 @@ function currentFileName(document: PreviewDocument) {
 }
 
 function currentFileLabel(document: PreviewDocument) {
-  const fileName = currentFileName(document);
-  const extension = fileName.split(".").pop()?.trim().toUpperCase();
+  if (currentArtifact(document)?.contentType === "application/pdf") return "PDF";
+  const extension = currentFileName(document).split(".").pop()?.trim().toUpperCase();
   if (extension && extension.length <= 5) return extension;
-  return currentArtifact(document)?.contentType === "application/pdf"
-    ? "PDF"
-    : "file";
+  return "file";
 }
 
 function pdfFileName(document: PreviewDocument) {
@@ -62,6 +60,7 @@ export function DocumentPdfPreview({
   document: PreviewDocument;
   label: string;
 }) {
+  const fileLabel = currentFileLabel(document);
   const [previewUrl, setPreviewUrl] = useState("");
   const previewUrlRef = useRef("");
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
@@ -130,14 +129,16 @@ export function DocumentPdfPreview({
             <Download className="h-3.5 w-3.5" />
             Download PDF
           </a>
-          <a
-            href={documentDownloadUrl(document.id, document.currentVersion)}
-            download={currentFileName(document)}
-            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"
-          >
-            <FileText className="h-3.5 w-3.5" />
-            Download {currentFileLabel(document)}
-          </a>
+          {fileLabel !== "PDF" ? (
+            <a
+              href={documentDownloadUrl(document.id, document.currentVersion)}
+              download={currentFileName(document)}
+              className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-border px-3 text-[10px] font-bold text-foreground transition hover:bg-[#fff3e8]"
+            >
+              <FileText className="h-3.5 w-3.5" />
+              Download {fileLabel}
+            </a>
+          ) : null}
         </div>
       </div>
       <div className="min-h-[520px] bg-[#ffffff] p-3">
