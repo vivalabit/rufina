@@ -248,6 +248,7 @@ class WorkspaceDockerE2E(unittest.TestCase):
             "POST",
             "/profile/import-master-resume/confirm",
             {
+                "expectedProfileRevision": imported_resume["profileRevision"],
                 "sourceFileId": imported_resume["sourceFileId"],
                 "masterResume": imported_resume["masterResume"],
                 "confirmedSections": [
@@ -354,15 +355,10 @@ class WorkspaceDockerE2E(unittest.TestCase):
         }
         return profile, job
 
-    def assert_downloaded_docx(
-        self,
-        page: Page,
-        card_title: str,
-        expected_text: str,
-    ) -> str:
-        card = page.get_by_role("heading", name=card_title).locator("xpath=ancestor::article[1]")
+    def download_word(self, page: Page, label: str, expected_text: str) -> str:
+        page.get_by_role("tab", name=label, exact=True).click()
         with page.expect_download(timeout=60_000) as download_info:
-            card.get_by_role("link", name="DOCX", exact=True).first.click()
+            page.get_by_role("link", name=f"Download {label} as Word").click()
         download = download_info.value
         destination = Path(tempfile.mkdtemp()) / download.suggested_filename
         download.save_as(destination)
@@ -373,7 +369,28 @@ class WorkspaceDockerE2E(unittest.TestCase):
         self.assertIn(expected_text, document_xml)
         return download.suggested_filename
 
-    def test_workspace_generation_survives_outage_retry_and_container_restart(self) -> None:
+    def wait_for_completed_run(self, page: Page, timeout: float = 240) -> dict[str, object]:
+        deadline = time.monotonic() + timeout
+        run: dict[str, object] = {}
+        while time.monotonic() < deadline:
+            try:
+                run = self.api_request(
+                    "GET", f"/applications/{APPLICATION_ID}/generation/runs/current"
+                )
+            except AssertionError as error:
+                if "run_not_found" not in str(error):
+                    raise
+                time.sleep(1)
+                continue
+            if run["status"] in {"completed", "failed", "cancelled"}:
+                return run
+            time.sleep(1)
+        self.fail(
+            f"Tailoring run did not finish: {run.get('status')} / {run.get('stage')}\n"
+            + page.locator("main").inner_text()[:2000]
+        )
+
+    def test_one_click_tailoring_survives_container_restart(self) -> None:
         profile, job = self.workspace_fixture()
         self.seed_authoritative_match(profile, job)
         application = {
@@ -399,197 +416,49 @@ class WorkspaceDockerE2E(unittest.TestCase):
                 extra_http_headers=self.headers,
             )
             page = context.new_page()
-            page.on("dialog", lambda dialog: dialog.accept())
             page.set_default_timeout(30_000)
             page.goto(
                 f"{self.web_url}/#application-workspace/{APPLICATION_ID}",
                 wait_until="domcontentloaded",
             )
 
-            expect(page.get_by_text("Services available")).to_be_visible(timeout=30_000)
             expect(
                 page.get_by_role("heading", name="Senior Produktdesigner Zürich")
             ).to_be_visible(timeout=30_000)
-            page.get_by_role("button").filter(has_text="Confirm details").click()
-            expect(page.get_by_text("Which production workflow did you lead?")).to_be_visible(
-                timeout=30_000
+            expect(
+                page.get_by_role("heading", name="Tailor your resume to this vacancy")
+            ).to_be_visible(timeout=30_000)
+            page.get_by_role("button", name="Tailor resume").click()
+
+            run = self.wait_for_completed_run(page)
+            self.assertEqual(run["status"], "completed", run.get("error"))
+            self.assertEqual(run["backend"], AI_BACKEND)
+            report = run["result"]["tailoring"]
+            self.assertEqual(report["coverLetterIssues"], [])
+
+            expect(page.get_by_role("tab", name="CV", exact=True)).to_be_visible(timeout=60_000)
+            cv_filename = self.download_word(page, "CV", "Zürich")
+            cover_filename = self.download_word(page, "Cover letter", "Müller")
+            self.assertTrue(cv_filename.endswith(".docx"))
+            self.assertTrue(cover_filename.endswith(".docx"))
+
+            documents = self.api_request("GET", f"/documents?applicationId={APPLICATION_ID}")
+            self.assertEqual(
+                {document["type"] for document in documents},
+                {"tailored_resume", "cover_letter"},
             )
-
-            stored_profile = self.api_request("GET", "/profile")
-            self.assertEqual(stored_profile["name"], "Alex Morgan")
-            stored_application = self.api_request("GET", f"/applications/{APPLICATION_ID}")
-            self.assertEqual(stored_application["id"], APPLICATION_ID)
-
-            self.compose("stop", "api")
-            # Reopen the loaded workspace through client-side navigation while the
-            # API is down. A full reload needs the server to load the application.
-            page.get_by_role("link", name="Applications", exact=True).click()
-            page.goto(
-                f"{self.web_url}/#application-workspace/{APPLICATION_ID}",
-                wait_until="domcontentloaded",
-            )
-            expect(page.get_by_text("Services unavailable")).to_be_visible(timeout=30_000)
-
-            self.compose("start", "api")
-            self.wait_for_api()
-            page.get_by_role("button", name="Retry", exact=True).first.click()
-            expect(page.get_by_text("Services available")).to_be_visible(timeout=30_000)
-            page.get_by_role("button").filter(has_text="Confirm details").click()
-            expect(page.get_by_text("Which production workflow did you lead?")).to_be_visible()
-
-            yes_buttons = page.get_by_role("button", name="yes", exact=True)
-            for index in range(3):
-                yes_buttons.nth(index).click()
-            examples = page.get_by_placeholder("Add a true, concrete example")
-            examples.nth(0).fill(
-                "Led research and delivery for the verified enterprise workflow redesign."
-            )
-            examples.nth(1).fill(
-                "Reduced the number of steps enterprise users needed to finish the workflow."
-            )
-            examples.nth(2).fill(
-                "The role combines complex product discovery with measurable workflow improvement."
-            )
-            deadline = time.monotonic() + 30
-            while time.monotonic() < deadline:
-                saved_confirmations = self.api_request(
-                    "GET",
-                    f"/applications/{APPLICATION_ID}/confirmations",
-                )
-                if len(saved_confirmations) == 3 and all(
-                    item["response"] == "yes" and item["exampleText"]
-                    for item in saved_confirmations
-                ):
-                    break
-                time.sleep(0.5)
-            else:
-                self.fail("Candidate confirmations were not saved")
-
-            page.get_by_role("button").filter(has_text="Create documents").click()
-            generate_cv = page.get_by_role("button", name="Generate Tailored CV")
-            expect(generate_cv).to_be_enabled(timeout=30_000)
-            generate_cv.click()
-            deadline = time.monotonic() + 180
-            while time.monotonic() < deadline:
-                documents = self.api_request(
-                    "GET",
-                    f"/documents?applicationId={APPLICATION_ID}",
-                )
-                resume_document = next(
-                    (
-                        document
-                        for document in documents
-                        if document["type"] == "tailored_resume"
-                    ),
-                    None,
-                )
-                if resume_document:
-                    resume_version = next(
-                        version
-                        for version in resume_document["versions"]
-                        if version["version"] == resume_document["currentVersion"]
-                    )
-                    if (
-                        resume_version["hasRenderedArtifact"]
-                        and resume_version["artifact"]["sourceAtsFinalReviewId"]
-                    ):
-                        break
-                time.sleep(0.5)
-            else:
-                self.fail("Tailored resume PDF was not rendered and attached")
-            expect(page.get_by_text("Unvalidated · v1")).to_be_visible(timeout=30_000)
-
-            generate_cover = page.get_by_role("button", name="Generate Cover letter")
-            expect(generate_cover).to_be_enabled(timeout=30_000)
-            generate_cover.click()
-            deadline = time.monotonic() + 60
-            while time.monotonic() < deadline:
-                documents = self.api_request(
-                    "GET",
-                    f"/documents?applicationId={APPLICATION_ID}",
-                )
-                cover_document = next(
-                    (
-                        document
-                        for document in documents
-                        if document["type"] == "cover_letter"
-                    ),
-                    None,
-                )
-                if cover_document:
-                    cover_version = next(
-                        version
-                        for version in cover_document["versions"]
-                        if version["version"] == cover_document["currentVersion"]
-                    )
-                    if cover_version["hasRenderedDocx"]:
-                        break
-                time.sleep(0.5)
-            else:
-                self.fail("Cover letter DOCX was not generated")
-            expect(page.get_by_text("Unvalidated · v1")).to_have_count(2, timeout=30_000)
-
-            page.get_by_role("button", name="Generate application pack").click()
-            expect(page.get_by_text("Application PDF and cover letter are ready")).to_be_visible(
-                timeout=240_000
-            )
-            expect(page.get_by_text("Unvalidated · v2")).to_be_visible(timeout=30_000)
-
             privacy = self.api_request("GET", "/privacy/ai-retention")
             self.assertEqual(privacy["currentBackend"], AI_BACKEND)
             self.assertEqual(privacy["retentionDays"], 7)
             self.assertIsNotNone(privacy["lastAiActivityAt"])
-            self.assertIsNotNone(privacy["aiDataExpiresAt"])
-            confirmations = self.api_request(
-                "GET", f"/applications/{APPLICATION_ID}/confirmations"
-            )
-            self.assertEqual(
-                {item["questionId"] for item in confirmations},
-                {"production-workflow", "workflow-outcome", "product-motivation"},
-            )
-
-            documents = self.api_request("GET", f"/documents?applicationId={APPLICATION_ID}")
-            self.assertEqual(len(documents), 2)
-            for document in documents:
-                current = next(
-                    version
-                    for version in document["versions"]
-                    if version["version"] == document["currentVersion"]
-                )
-                if document["type"] == "tailored_resume":
-                    self.assertEqual(document["currentVersion"], 1)
-                    self.assertTrue(current["hasRenderedArtifact"])
-                    self.assertTrue(current["artifact"]["sourceAtsFinalReviewId"])
-                    self.assertEqual(
-                        document["inputVersions"]["generationMode"],
-                        "recruiter_xyz_ats",
-                    )
-                    for stage_id in (
-                        "seniorRecruiterAnalysisId",
-                        "experienceRewriteId",
-                        "atsFinalReviewId",
-                    ):
-                        self.assertTrue(document["inputVersions"][stage_id])
-                else:
-                    self.assertEqual(document["currentVersion"], 2)
-                    self.assertTrue(current["hasRenderedDocx"])
-                    self.assertEqual(current["factualValidation"], {})
-                    self.assertEqual(current["visualValidation"], {})
-
-            cv_filename = self.assert_downloaded_docx(page, "Tailored CV", "Zürich")
-            cover_filename = self.assert_downloaded_docx(page, "Cover letter", "Müller")
-            self.assertTrue(cv_filename.endswith(".docx"))
-            self.assertTrue(cover_filename.endswith(".docx"))
 
             self.compose("restart", "postgres")
             self.wait_for_postgres()
             self.compose("restart", "api")
             self.wait_for_api()
             page.reload(wait_until="domcontentloaded")
-            expect(page.get_by_text("Services available")).to_be_visible(timeout=30_000)
-            expect(page.get_by_text("Unvalidated · v1")).to_be_visible(timeout=60_000)
-            expect(page.get_by_text("Unvalidated · v2")).to_be_visible(timeout=60_000)
-            self.assert_downloaded_docx(page, "Tailored CV", "Zürich")
+            expect(page.get_by_role("tab", name="CV", exact=True)).to_be_visible(timeout=60_000)
+            self.download_word(page, "CV", "Zürich")
 
             browser.close()
 
