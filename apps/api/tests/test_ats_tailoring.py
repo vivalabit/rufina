@@ -24,6 +24,7 @@ from app.services.ats.tailoring import (
     TailoringError,
     TailoringSession,
     VacancyContext,
+    resume_coverage,
 )
 from app.services.ats.wording import (
     check_free_text,
@@ -583,6 +584,65 @@ def test_grounding_rejects_a_changed_title_in_the_profile_language() -> None:
         validate_grounded_bundle(
             DraftBundle(resume=changed), master_resume=session.master, target_job_id="job-1"
         )
+
+
+def _postgres_session() -> TailoringSession:
+    text = VACANCY_TEXT.replace("PostgreSQL", "Postgres")
+    vacancy = VacancyContext(
+        job_id="job-1", title=TITLE, company="Northwind Analytics AG", location="Zurich",
+        text=text,
+    )
+    target = extract_job_target_without_model(VacancyInput(title=TITLE, description=text))
+    return _session(target=target, vacancy=vacancy)
+
+
+POSTGRES_BULLET = (
+    "Cut report generation time by 40% by rebuilding the export service in Python with "
+    "FastAPI and Postgres."
+)
+
+
+def test_report_names_a_vacancy_spelling_only_when_an_accepted_statement_uses_it() -> None:
+    session = _postgres_session()
+    invented = {"role-atlas-bullet-1": POSTGRES_BULLET.replace("40%", "60%")}
+    requests = session.first_round()
+    session.apply(requests, _answer(session, requests, changes=invented))
+    retry = session.retry_round()
+    session.apply(retry, _answer(session, retry, changes=invented))
+    rejected = session.finish().report
+
+    assert not any("own spelling" in change for change in rejected["changes"])
+
+    session = _postgres_session()
+    requests = session.first_round()
+    session.apply(
+        requests,
+        _answer(session, requests, changes={"role-atlas-bullet-1": POSTGRES_BULLET}),
+    )
+    accepted = session.finish().report
+    assert "Used the vacancy's own spelling for: Postgres." in accepted["changes"]
+    assert accepted["score"]["after"] > accepted["score"]["before"]
+
+
+def test_score_before_uses_the_statements_the_resume_shows() -> None:
+    session = _german_session_after_two_rejections()
+    translation = session.translation_round()
+    session.apply(
+        translation, [_echo_wording(session, translation[0], changes=INVENTED, summary="")]
+    )
+    result = session.finish()
+    # The untranslated statement is not shown, so it does not count before either.
+    shown = {bullet.id for item in result.resume.experiences for bullet in item.bullets}
+    assert "role-atlas-bullet-2" not in shown
+    unchanged = resume_coverage(
+        session.target,
+        bullets=[item.text for item in session.index.statements if item.id in shown],
+        summary=session.master.summary.text,
+        headline=session.master.basics.headline,
+        skills=[skill.name for skill in result.resume.skills],
+        dictionary=default_skill_dictionary(),
+    )
+    assert result.report["score"]["before"] == unchanged.score
 
 
 def _master_with_concepts(names: list[str]) -> MasterResume:

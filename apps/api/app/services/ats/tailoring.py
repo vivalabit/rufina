@@ -871,13 +871,27 @@ class TailoringSession:
         )
 
     def report(self, resume: FinalResume | None) -> dict[str, Any]:
-        """What the user sees next to the document: score, coverage, changes and gaps."""
+        """What the user sees next to the document: score, coverage, changes and gaps.
+
+        "Before" scores the same statements and skills the resume shows, in their
+        profile wording with the profile summary and headline, so the difference is
+        what tailoring changed and not what selection left out.
+        """
+        shown = (
+            {bullet.id for experience in resume.experiences for bullet in experience.bullets}
+            if resume is not None
+            else {statement.id for statement in self.index.statements}
+        )
         before = resume_coverage(
             self.target,
-            bullets=[statement.text for statement in self.index.statements],
+            bullets=[
+                statement.text for statement in self.index.statements if statement.id in shown
+            ],
             summary=self.master.summary.text if self.master.summary else "",
             headline=self.master.basics.headline,
-            skills=[skill.name for skill in self.master.skills],
+            skills=[
+                skill.name for skill in (resume.skills if resume is not None else self.master.skills)
+            ],
             dictionary=self.dictionary,
         )
         after = (
@@ -910,7 +924,14 @@ class TailoringSession:
             and planned.statement.id not in self.wording
             and planned.statement.id not in untranslated
         ]
-        adopted_terms = [term for planned in self.plan.statements for term in planned.terms]
+        # Only spellings that an accepted statement actually uses.
+        adopted_terms = [
+            term
+            for planned in self.plan.statements
+            if (worded := self.wording.get(planned.statement.id)) is not None
+            for term in planned.terms
+            if mentions_term(worded.text, term)
+        ]
         return {
             "language": self.plan.language,
             "headline": self.plan.headline,
