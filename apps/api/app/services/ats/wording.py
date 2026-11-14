@@ -13,6 +13,7 @@ import json
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, ValidationError
 
@@ -49,6 +50,55 @@ _NEUTRAL_ACRONYMS = frozenset({
 })
 # Broad terms a summary or letter may use without naming a specific fact.
 _FREE_TEXT_ACRONYMS = _NEUTRAL_ACRONYMS | {"AI", "ML", "CV", "HR", "SAAS", "B2B", "B2C"}
+
+# Kinds of claim a rephrasing must not introduce. A group is allowed when its
+# source names any of the group's words, in any supported language, so a
+# translation keeps a claim while a rewording cannot add one.
+ClaimGroup = Literal["leadership", "scope", "magnitude", "outcome"]
+_CLAIM_PATTERNS: dict[ClaimGroup, tuple[str, ...]] = {
+    "leadership": (
+        r"\blead(?!s? to\b|ing to\b)", r"\bled\b(?! to\b)", r"\bmanag(?:e|ed|es|ing)\b",
+        r"\bmanager", r"\bsupervis", r"\bmentor", r"\bcoach", r"\bheaded\b", r"\bhead of\b",
+        r"\bdirected\b", r"\bspearhead", r"\bteam of\b", r"leitung", r"\bleitete",
+        r"\bgeleitet", r"\bführungs", r"\bteam von\b", r"\bdirig", r"\bencadr", r"\bpilot[ée]",
+        r"\bgéré", r"\bresponsable d'équipe",
+    ),
+    "scope": (
+        r"\bcompany[- ]wide", r"\borgani[sz]ation[- ]wide", r"\benterprise[- ]wide",
+        r"\bcross[- ]functional", r"\bglobal", r"\ball (?:departments|teams|business units)\b",
+        r"\bacross the (?:company|organi[sz]ation|group)\b", r"unternehmensweit", r"konzernweit",
+        r"übergreifend", r"\bà l'échelle de l'entreprise", r"\btransvers", r"\bmondial",
+    ),
+    "magnitude": (
+        r"\bdoubl", r"\btripl", r"\bhalv", r"\bin half\b", r"\btwice\b", r"\bsignificant",
+        r"\bdramatic", r"\bdrastic", r"\bsubstantial", r"\bmassive", r"verdoppel", r"verdreifach",
+        r"halbiert", r"\berheblich", r"\bdeutlich", r"\bsignifikant", r"\bmassiv", r"divisé par",
+        r"\bconsidérabl",
+    ),
+    "outcome": (
+        r"\breduc", r"\bcut(?:s|ting)?\b", r"\bdecreas", r"\blower(?:ed|ing|s)?\b", r"\bincreas",
+        r"\bimprov", r"\bboost", r"\bsav(?:e|ed|es|ing|ings)\b", r"\baccelerat",
+        r"\bspe(?:d|ed|eding) up\b", r"\bfaster\b", r"\bgr[eo]w", r"\bminimi[sz]", r"\bmaximi[sz]",
+        r"\boptimi[sz]", r"\beliminat", r"\bresult(?:ed|ing) in\b", r"\bled to\b", r"reduz",
+        r"\bsenk", r"\bgesenkt", r"verringer", r"verkürz", r"steiger", r"verbesser", r"beschleunig",
+        r"\bspar", r"einspar", r"\bschneller", r"\brédui", r"\bdiminu", r"\baugment", r"\bamélior",
+        r"\baccélér", r"\béconomis", r"\bplus rapide",
+    ),
+}
+_CLAIMS: dict[ClaimGroup, re.Pattern[str]] = {
+    group: re.compile("|".join(patterns)) for group, patterns in _CLAIM_PATTERNS.items()
+}
+STATEMENT_CLAIMS: tuple[ClaimGroup, ...] = ("leadership", "scope", "magnitude", "outcome")
+# A summary draws on many statements; it may sum up results but not invent a rank.
+SUMMARY_CLAIMS: tuple[ClaimGroup, ...] = ("leadership", "scope", "magnitude")
+
+# Words that are capitalized in English and French without being a name.
+_COMMON_CAPITALIZED = frozenset({
+    "january", "february", "march", "april", "may", "june", "july", "august", "september",
+    "october", "november", "december", "monday", "tuesday", "wednesday", "thursday", "friday",
+})
+_WORD = re.compile(r"[^\W\d_]+")
+_SENTENCE_BREAK = re.compile(r"[.!?:;]\s*$")
 
 
 class WordingModel(BaseModel):
@@ -123,6 +173,44 @@ def _is_known_name(token: str, known: set[str]) -> bool:
     )
 
 
+def new_claims(text: str, *, source: str, groups: Sequence[ClaimGroup]) -> list[ClaimGroup]:
+    """Claim groups the text makes although its source makes none of that kind."""
+    lowered = normalize_text(text).casefold()
+    known = normalize_text(source).casefold()
+    return [
+        group
+        for group in groups
+        if _CLAIMS[group].search(lowered) and not _CLAIMS[group].search(known)
+    ]
+
+
+def new_proper_names(text: str, *, source: str, dictionary: SkillDictionary) -> list[str]:
+    """Capitalized words inside a sentence that the source never uses.
+
+    Only meaningful for English and French, where a capital inside a sentence
+    marks a name ("for Google"). German capitalizes every noun, so callers skip it.
+    Words of a dictionary technology are left to the technology check.
+    """
+    cleaned = normalize_text(text)
+    known = {word.casefold() for word in _WORD.findall(normalize_text(source))}
+    technology_spans = [(mention.start, mention.end) for mention in dictionary.scan(cleaned)]
+    names: list[str] = []
+    for match in _WORD.finditer(cleaned):
+        word = match.group()
+        if not word[0].isupper() or word.isupper() or len(word) < 2:
+            continue
+        before = cleaned[: match.start()].rstrip("\"'“‘(«[ ")
+        if not before or _SENTENCE_BREAK.search(before):
+            continue
+        folded = word.casefold()
+        if folded in known or folded in _COMMON_CAPITALIZED:
+            continue
+        if any(start <= match.start() < end for start, end in technology_spans):
+            continue
+        names.append(word)
+    return list(dict.fromkeys(names))
+
+
 def check_statement(
     text: str,
     *,
@@ -132,11 +220,16 @@ def check_statement(
     dictionary: SkillDictionary,
     translated: bool = False,
     role_facts: Sequence[str] = (),
+    language: DocumentLanguage | None = None,
 ) -> GuardResult:
     """Reject wording that states anything its source does not contain.
 
     The source is the statement itself plus `role_facts`, the detailed work
-    history of the same role.
+    history of the same role. Besides numbers, technologies and names, a
+    rewording may not add leadership, scope, magnitude or an outcome that the
+    statement does not state; role facts never allow a claim for a statement.
+    With `language` "en" or "fr", capitalized words inside a sentence count as
+    names too.
     """
     issues: list[str] = []
     cleaned = text.strip()
@@ -175,8 +268,17 @@ def check_statement(
         and not _is_known_name(token, known_names)
         and token not in {skill.casefold() for skill in new_skills}
     )
+    if language in ("en", "fr"):
+        new_names += [
+            word
+            for word in new_proper_names(cleaned, source=allowed_context, dictionary=dictionary)
+            if word.casefold() not in new_names
+        ]
     if new_names:
         issues.append(f"new names: {', '.join(new_names)}")
+    claims = new_claims(cleaned, source="\n".join([source, *terms]), groups=STATEMENT_CLAIMS)
+    if claims:
+        issues.append(f"adds a claim the statement does not make: {', '.join(claims)}")
 
     for employer in other_employers:
         if (
@@ -196,11 +298,15 @@ def check_free_text(
     dictionary: SkillDictionary,
     max_chars: int,
     names_context: str = "",
+    claims: Sequence[ClaimGroup] = (),
+    language: DocumentLanguage | None = None,
 ) -> GuardResult:
     """Guard for a summary or letter paragraph built from several profile facts.
 
     `names_context` may add names, such as the vacancy's company and products,
-    without allowing their numbers or technologies.
+    without allowing their numbers or technologies. `claims` lists the claim
+    groups the text may only make when `allowed_context` does; `language` "en"
+    or "fr" also checks capitalized words as names.
     """
     issues: list[str] = []
     cleaned = text.strip()
@@ -231,8 +337,19 @@ def check_free_text(
         and not _is_known_name(token, known_names)
         and token not in {skill.casefold() for skill in new_skills}
     )
+    if language in ("en", "fr"):
+        new_names += [
+            word
+            for word in new_proper_names(
+                cleaned, source=f"{allowed_context}\n{names_context}", dictionary=dictionary
+            )
+            if word.casefold() not in new_names and word.upper() not in _FREE_TEXT_ACRONYMS
+        ]
     if new_names:
         issues.append(f"new names: {', '.join(new_names)}")
+    added = new_claims(cleaned, source=allowed_context, groups=claims)
+    if added:
+        issues.append(f"adds a claim the profile does not make: {', '.join(added)}")
     return GuardResult(tuple(issues))
 
 
@@ -326,9 +443,12 @@ def build_wording_prompt(
         ),
         (
             "2. Keep every number, metric, product name and technology name exactly as "
-            "written. Never add a number, technology, tool, employer, team size, scope or "
-            "outcome that neither the statement nor roleFacts of the same role contain. "
-            "roleFacts may make a statement of that role more specific, never another role."
+            "written. Never add a number, technology, tool, employer, client, team size, "
+            "scope or outcome that neither the statement nor roleFacts of the same role "
+            "contain. roleFacts may make a statement of that role more specific, never "
+            "another role. Never add leadership (led, managed, mentored), a wider scope "
+            "(company-wide, global) or a result (reduced, improved, doubled) that the "
+            "statement itself does not state."
         ),
         (
             "3. When useTerms is given, the statement already names that skill with another "
@@ -417,9 +537,8 @@ def evaluate_wording(
 ) -> tuple[dict[str, WordedStatement], dict[str, tuple[str, ...]]]:
     """Accept the bullets that pass the guard; return the rest with their issues."""
     translated = plan.language != language_code(master.language)
-    employers = {
-        experience.id: experience.company for experience in master.experiences
-    }
+    roles = {experience.id: experience for experience in master.experiences}
+    employers = {experience.id: experience.company for experience in master.experiences}
     by_id = {item.id: item for item in draft.statements}
     accepted: dict[str, WordedStatement] = {}
     rejected: dict[str, tuple[str, ...]] = {}
@@ -432,6 +551,8 @@ def evaluate_wording(
         text = swiss_spelling(
             " ".join(proposal.text.split()), language=plan.language, vacancy_text=vacancy_text
         )
+        role = roles.get(statement.experience_id)
+        facts = index.experience_facts.get(statement.experience_id, ()) if index else ()
         result = check_statement(
             text,
             source=statement.text,
@@ -443,7 +564,8 @@ def evaluate_wording(
             ],
             dictionary=dictionary,
             translated=translated,
-            role_facts=index.experience_facts.get(statement.experience_id, ()) if index else (),
+            role_facts=(*facts, *((role.title, role.company) if role else ())),
+            language=plan.language,
         )
         if result.ok:
             accepted[statement.id] = WordedStatement(
@@ -500,6 +622,8 @@ def evaluate_summary(
             *(skill.name for skill in master.skills),
             *(planned.statement.text for planned in plan.statements),
             *(experience.title for experience in master.experiences),
+            *(experience.company for experience in master.experiences),
+            master.basics.location,
         ]
     )
     result = check_free_text(
@@ -508,6 +632,8 @@ def evaluate_summary(
         allowed_skill_ids=index.skill_ids,
         dictionary=dictionary,
         max_chars=MAX_SUMMARY_CHARS,
+        claims=SUMMARY_CLAIMS,
+        language=plan.language,
     )
     return (text, ()) if result.ok else ("", result.issues)
 
@@ -515,6 +641,9 @@ def evaluate_summary(
 __all__ = [
     "LANGUAGE_NAMES",
     "MAX_PREFERENCES_CHARS",
+    "STATEMENT_CLAIMS",
+    "SUMMARY_CLAIMS",
+    "ClaimGroup",
     "GuardResult",
     "StatementWording",
     "WordedStatement",
@@ -528,6 +657,8 @@ __all__ = [
     "language_code",
     "master_wording",
     "name_tokens",
+    "new_claims",
+    "new_proper_names",
     "number_tokens",
     "parse_wording_draft",
     "statement_char_limit",

@@ -21,7 +21,10 @@ from app.services.ats.tailoring import (
     TailoringSession,
     VacancyContext,
 )
-from app.services.ats.wording import check_statement, number_tokens
+from app.services.ats.wording import (
+    check_statement,
+    number_tokens,
+)
 from app.services.generation_grounding import validate_grounded_bundle
 from tests.tailoring_fixtures import VACANCY_TEXT, master_resume, master_resume_payload
 
@@ -214,6 +217,63 @@ def test_guard_accepts_a_rephrasing_and_a_planned_vacancy_term() -> None:
         dictionary=dictionary,
     ).ok
     assert number_tokens("5'000 and 5,000 and 5000") == {"5000"}
+
+
+PLAIN_SOURCE = "Built a reporting service for internal teams."
+
+
+@pytest.mark.parametrize(
+    ("text", "issue"),
+    [
+        ("Led a team of engineers building a reporting service.", "leadership"),
+        ("Built a reporting service, cutting costs in half.", "magnitude"),
+        ("Built a company-wide reporting service for all departments.", "scope"),
+        ("Built a reporting service that improved visibility for internal teams.", "outcome"),
+        ("Built a reporting service for Google and Siemens.", "new names: Google, Siemens"),
+    ],
+)
+def test_guard_rejects_claims_and_clients_the_statement_does_not_make(
+    text: str, issue: str
+) -> None:
+    result = check_statement(
+        text, source=PLAIN_SOURCE, dictionary=default_skill_dictionary(), language="en"
+    )
+
+    assert any(issue in item for item in result.issues), result.issues
+
+
+def test_guard_keeps_claims_the_statement_makes_in_any_language() -> None:
+    dictionary = default_skill_dictionary()
+    source = "Mentored two junior developers and cut release time by 30%."
+    assert check_statement(
+        "Cut release time by 30% and mentored two junior developers.",
+        source=source,
+        dictionary=dictionary,
+        language="en",
+    ).ok
+    assert check_statement(
+        "Betreute zwei Junior-Entwickler als Mentor und verkürzte die Release-Zeit um 30%.",
+        source=source,
+        dictionary=dictionary,
+        language="de",
+        translated=True,
+    ).ok
+    # Role facts may make a statement more specific but never lend it a claim.
+    assert not check_statement(
+        "Led the reporting service for internal teams.",
+        source=PLAIN_SOURCE,
+        role_facts=["Led the data team of five engineers."],
+        dictionary=dictionary,
+        language="en",
+    ).ok
+    # German capitalizes nouns: no name check there.
+    assert check_statement(
+        "Entwickelte einen Reporting-Service für interne Teams.",
+        source=PLAIN_SOURCE,
+        dictionary=dictionary,
+        language="de",
+        translated=True,
+    ).ok
 
 
 # --- Session ------------------------------------------------------------------
