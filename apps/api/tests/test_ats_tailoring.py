@@ -66,6 +66,51 @@ def _session(document_types=("tailored_resume",), **overrides) -> TailoringSessi
     )
 
 
+def _echo_structure(session: TailoringSession, changes=None) -> ModelResponse:
+    """A translation that returns every label unchanged unless `changes` replaces it."""
+    changes = changes or {}
+    source = session._structure_source()
+
+    def item(entry):
+        return {"id": entry["id"], "text": changes.get(entry["id"], entry["text"])}
+
+    return ModelResponse(
+        data={
+            "role_titles": [item(entry) for entry in source["role_titles"]],
+            "education": [
+                {
+                    "id": entry["id"],
+                    "credential": changes.get(f"{entry['id']}.credential", entry["credential"]),
+                    "field_of_study": changes.get(
+                        f"{entry['id']}.field_of_study", entry["field_of_study"]
+                    ),
+                    "details": [item(detail) for detail in entry["details"]],
+                }
+                for entry in source["education"]
+            ],
+            "skill_categories": [item(entry) for entry in source["skill_categories"]],
+            "sections": [
+                {
+                    "id": entry["id"],
+                    "title": entry["title"],
+                    "items": [item(value) for value in entry["items"]],
+                }
+                for entry in source["sections"]
+            ],
+        }
+    )
+
+
+def _answer(session: TailoringSession, requests, *, structure=None, **wording):
+    """Responses for one round: wording echoes, structure translations unchanged."""
+    return [
+        _echo_structure(session, structure)
+        if request.kind == "structure"
+        else _echo_wording(session, request, **wording)
+        for request in requests
+    ]
+
+
 def _echo_wording(session: TailoringSession, request, *, changes=None, summary=""):
     """A model that returns each statement unchanged unless `changes` rewrites it."""
     changes = changes or {}
@@ -418,9 +463,7 @@ def _german_session_after_two_rejections() -> TailoringSession:
     assert session.translated
     leader = "Led a company-wide team building Python services."
     requests = session.first_round()
-    session.apply(
-        requests, [_echo_wording(session, requests[0], changes=INVENTED, summary=leader)]
-    )
+    session.apply(requests, _answer(session, requests, changes=INVENTED, summary=leader))
     retry = session.retry_round()
     session.apply(retry, [_echo_wording(session, retry[0], changes=INVENTED, summary=leader)])
     return session
@@ -480,6 +523,66 @@ def test_resume_in_the_profile_language_needs_no_translation_round() -> None:
     requests = session.first_round()
     session.apply(requests, [_echo_wording(session, requests[0], changes=INVENTED)])
     assert session.translation_round() == []
+
+
+def test_translated_resume_translates_titles_and_education_but_not_names() -> None:
+    payload = master_resume_payload()
+    payload["skills"].append(
+        {"id": "skill-ml", "name": "Model evaluation", "category": "Machine Learning",
+         "evidenceIds": [payload["skills"][0]["evidenceIds"][0]]}
+    )
+    session = _session(master=MasterResume.model_validate(payload), language="German")
+    requests = session.first_round()
+    structure = next(request for request in requests if request.kind == "structure")
+    assert "Atlas Data GmbH" not in structure.prompt
+    assert "Example University of Applied Sciences" not in structure.prompt
+    assert '"Languages"' not in structure.prompt  # core groups are labeled by templates
+
+    session.apply(
+        requests,
+        _answer(
+            session,
+            requests,
+            structure={
+                "role-atlas": "Backend-Entwicklerin",
+                # A number the title does not have: rejected, the profile title stays.
+                "role-borealis": "Praktikantin Software Engineering 2024",
+                "education-1.field_of_study": "Informatik",
+                "education-detail-1": "Abschlussarbeit über Streaming-Datenpipelines.",
+                "Machine Learning": "Maschinelles Lernen",
+            },
+        ),
+    )
+    result = session.finish()
+    resume = result.resume
+
+    roles = {item.master_experience_id: item for item in resume.experiences}
+    assert roles["role-atlas"].title == "Backend-Entwicklerin"
+    assert roles["role-atlas"].company == "Atlas Data GmbH"
+    assert roles["role-borealis"].title == "Software Engineering Intern"
+    education = resume.education[0]
+    assert education.institution == "Example University of Applied Sciences"
+    assert education.field_of_study == "Informatik"
+    assert education.details[0].text == "Abschlussarbeit über Streaming-Datenpipelines."
+    assert {skill.category for skill in resume.skills} >= {"Maschinelles Lernen", "Languages"}
+    assert any("role-borealis" in issue for issue in result.report["translationIssues"])
+    validate_grounded_bundle(
+        DraftBundle(resume=resume), master_resume=session.master, target_job_id="job-1"
+    )
+
+
+def test_grounding_rejects_a_changed_title_in_the_profile_language() -> None:
+    session = _session()
+    requests = session.first_round()
+    session.apply(requests, _answer(session, requests))
+    resume = session.finish().resume
+    payload = resume.model_dump(mode="json", by_alias=True)
+    payload["experiences"][0]["title"] = "Head of Engineering"
+    changed = type(resume).model_validate(payload)
+    with pytest.raises(ValueError, match="title"):
+        validate_grounded_bundle(
+            DraftBundle(resume=changed), master_resume=session.master, target_job_id="job-1"
+        )
 
 
 def _master_with_concepts(names: list[str]) -> MasterResume:
@@ -582,7 +685,7 @@ def test_german_vacancy_switches_the_document_language_and_period_label() -> Non
     )
     requests = session.first_round()
     assert "Write in German" in requests[0].prompt
-    session.apply(requests, [_echo_wording(session, requests[0])])
+    session.apply(requests, _answer(session, requests))
     resume = session.finish().resume
 
     assert resume.language == "de"

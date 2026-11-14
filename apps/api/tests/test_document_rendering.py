@@ -282,3 +282,11 @@ def test_skills_without_a_category_get_a_labeled_group(language: str, label: str
     content = build_resume_docx(resume, template=resolve_document_template("swiss_classic"))
     docx_text = "\n".join(paragraph.text for paragraph in Document(BytesIO(content)).paragraphs)
     assert f"{label}: LLM" in docx_text
+
+
+def test_core_skill_groups_are_labeled_in_the_resume_language() -> None:
+    labels = [group["category"] for group in skill_group_view(final_resume(language="de"))]
+
+    assert labels[:2] == ["Programmiersprachen", "Frameworks"]
+    assert "Datenbanken" in labels
+    assert skill_group_view(final_resume())[0]["category"] == "Languages"

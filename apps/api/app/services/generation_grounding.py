@@ -13,6 +13,7 @@ from app.models.resume import (
     MasterResume,
     ResumeEvidence,
 )
+from app.services.ats.wording import language_code
 from app.services.resume_skills import (
     CORE_SKILL_CATEGORIES,
     order_skill_categories,
@@ -67,13 +68,17 @@ def _validate_resume(
             )
 
     experience_by_id = {item.id: item for item in master_resume.experiences}
+    # A resume in another language than its profile shows translated job titles.
+    translated = language_code(resume.language) != language_code(master_resume.language)
     for item in resume.experiences:
         original = experience_by_id.get(item.master_experience_id)
         if original is None:
             raise GenerationGroundingError(
                 f"Tailored resume references unknown experience: {item.master_experience_id}"
             )
-        if item.company != original.company or item.title != original.title:
+        if item.company != original.company or (
+            item.title != original.title and not (translated and item.title.strip())
+        ):
             raise GenerationGroundingError(
                 f"Tailored resume changed protected employer or title: {original.id}"
             )

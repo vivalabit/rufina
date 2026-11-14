@@ -731,13 +731,35 @@ def _attach_emphasis_segments(view_model: dict[str, object], resume: FinalResume
                     attach(statement)
 
 
+# Labels of the shared core skill groups in the resume's language.
+_CORE_SKILL_LABELS: dict[str, dict[str, str]] = {
+    "de": {"Languages": "Programmiersprachen", "Databases": "Datenbanken"},
+    "fr": {
+        "Languages": "Langages",
+        "Databases": "Bases de données",
+        "Tools / DevOps": "Outils / DevOps",
+    },
+}
+
+
+def _resume_language(resume: FinalResume) -> str:
+    language = resume.language.lower()
+    if language.startswith(("de", "german", "deutsch")):
+        return "de"
+    if language.startswith(("fr", "french", "français", "francais")):
+        return "fr"
+    return "en"
+
+
 def skill_group_view(resume: FinalResume) -> list[dict[str, object]]:
     """Skills grouped by category; skills without one get a labeled group, never a bare line."""
     fallback = resume_section_titles(resume)["other_skills"]
+    labels = _CORE_SKILL_LABELS.get(_resume_language(resume), {})
     groups: list[dict[str, object]] = []
     indexes_by_category: dict[str, int] = {}
     for skill in resume.skills:
         category = " ".join(skill.category.split()) or fallback
+        category = labels.get(category, category)
         category_key = category.casefold()
         group_index = indexes_by_category.get(category_key)
         if group_index is None:
@@ -751,7 +773,7 @@ def skill_group_view(resume: FinalResume) -> list[dict[str, object]]:
 
 
 def resume_section_titles(resume: FinalResume) -> dict[str, str]:
-    if resume.language.lower().startswith(("de", "german", "deutsch")):
+    if _resume_language(resume) == "de":
         return {
             "summary": "Profil",
             "experience": "Berufserfahrung",
@@ -764,7 +786,7 @@ def resume_section_titles(resume: FinalResume) -> dict[str, str]:
             "other_skills": "Fachkenntnisse",
             "expires": "Gültig bis",
         }
-    if resume.language.lower().startswith(("fr", "french", "français", "francais")):
+    if _resume_language(resume) == "fr":
         return {
             "summary": "Profil",
             "experience": "Expérience professionnelle",

@@ -9,7 +9,7 @@ profile, so roles, dates, education, languages and skills are never model text.
 from __future__ import annotations
 
 import re
-from collections.abc import Collection, Sequence
+from collections.abc import Collection, Mapping, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Literal
@@ -18,6 +18,7 @@ from pydantic import BaseModel
 
 from app.models.generation_workflow import CoverLetterDraft
 from app.models.resume import (
+    AdditionalResumeSection,
     FinalResume,
     MasterEducation,
     MasterExperience,
@@ -55,18 +56,30 @@ from app.services.ats.skill_dictionary import (
 from app.services.ats.wording import (
     MAX_SUMMARY_CHARS,
     STATEMENT_GROWTH,
+    StructureTranslation,
+    StructureTranslationDraft,
     WordedStatement,
     WordingDraft,
+    build_structure_translation_prompt,
     build_translation_prompt,
     build_wording_prompt,
+    evaluate_structure_translation,
     evaluate_summary,
     evaluate_wording,
+    has_structure_to_translate,
     language_code,
     master_wording,
+    parse_structure_translation,
     parse_wording_draft,
+    structure_translation_source,
     uses_swiss_spelling,
 )
-from app.services.resume_skills import order_skill_categories, source_skill_category
+from app.services.resume_skills import (
+    CORE_SKILL_CATEGORIES,
+    normalize_skill_category,
+    order_skill_categories,
+    source_skill_category,
+)
 
 WORDING_BATCH_SIZE = 14
 PRESENT_LABELS: dict[DocumentLanguage, str] = {"en": "Present", "de": "heute", "fr": "présent"}
@@ -78,7 +91,7 @@ _SECTION_PRIORITY = {
     for index, section in enumerate(("summary", "experience", "education", "languages", "skills"))
 }
 
-RequestKind = Literal["wording", "translation", "cover_letter"]
+RequestKind = Literal["wording", "translation", "structure", "cover_letter"]
 
 
 @dataclass(frozen=True)
@@ -197,21 +210,69 @@ def resume_skills(
     return kept
 
 
-def _education_payload(item: MasterEducation) -> dict[str, Any]:
-    """Education as in the profile, with a multi-line description shown line by line."""
+def _education_payload(
+    item: MasterEducation, translations: Mapping[str, str] | None = None
+) -> dict[str, Any]:
+    """Education as in the profile, with a multi-line description shown line by line.
+
+    `translations` replaces the credential, field of study and detail lines by id;
+    the institution keeps its name.
+    """
+    translations = translations or {}
     payload = item.model_dump(mode="json", by_alias=True)
+    payload["credential"] = translations.get("credential", item.credential)
+    payload["fieldOfStudy"] = translations.get("fieldOfStudy", item.field_of_study)
     details: list[dict[str, Any]] = []
     for detail in item.details:
         lines = split_statement_texts(detail.text)
         for number, line in enumerate(lines, start=1):
+            detail_id = detail.id if len(lines) == 1 else f"{detail.id}-p{number}"
             details.append(
                 {
-                    "id": detail.id if len(lines) == 1 else f"{detail.id}-p{number}",
-                    "text": line,
+                    "id": detail_id,
+                    "text": translations.get(detail_id, line),
                     "evidenceIds": list(detail.evidence_ids),
                 }
             )
     payload["details"] = details
+    return payload
+
+
+def translatable_skill_categories(master: MasterResume) -> list[str]:
+    """Own category labels of the profile. The core groups are labeled by the templates."""
+    return list(
+        dict.fromkeys(
+            category
+            for skill in master.skills
+            if (category := source_skill_category(skill))
+            and category not in CORE_SKILL_CATEGORIES
+        )
+    )
+
+
+def _category_translations(
+    translated: Mapping[str, str], categories: Sequence[str]
+) -> dict[str, str]:
+    """Translated categories that keep every group apart and outside the core groups."""
+    taken = {category.casefold() for category in categories if category not in translated}
+    result: dict[str, str] = {}
+    for source, text in translated.items():
+        label = normalize_skill_category(text)
+        if label in CORE_SKILL_CATEGORIES or label.casefold() in taken:
+            continue
+        taken.add(label.casefold())
+        result[source] = text
+    return result
+
+
+def _section_payload(
+    section: AdditionalResumeSection, translations: Mapping[str, str] | None
+) -> dict[str, Any]:
+    payload = section.model_dump(mode="json", by_alias=True)
+    if translations:
+        payload["title"] = translations.get("title", section.title)
+        for item in payload["items"]:
+            item["text"] = translations.get(item["id"], item["text"])
     return payload
 
 
@@ -225,11 +286,18 @@ def assemble_resume(
     target_job_id: str,
     dictionary: SkillDictionary | None = None,
     omit: Collection[str] = (),
+    translation: StructureTranslation | None = None,
 ) -> FinalResume:
     """Build the tailored resume from profile data and the accepted wording.
 
     Statements in `omit` are left out, such as those without a translation.
+    `translation` holds translated titles, education, categories and sections;
+    employer and school names always stay as in the profile.
     """
+    translation = translation or StructureTranslation.empty()
+    categories = _category_translations(
+        translation.skill_categories, translatable_skill_categories(master)
+    )
     roles = {experience.id: experience for experience in master.experiences}
     experiences: list[dict[str, Any]] = []
     for planned in plan.experiences:
@@ -254,7 +322,7 @@ def assemble_resume(
                 "id": f"tailored-{role.id}",
                 "masterExperienceId": role.id,
                 "company": role.company,
-                "title": role.title,
+                "title": translation.role_titles.get(role.id, role.title),
                 "location": role.location,
                 "period": period_text(role, plan.language),
                 "bullets": bullets,
@@ -299,7 +367,10 @@ def assemble_resume(
         "summary": summary_block,
         "experiences": experiences,
         "skills": [
-            skill.model_dump(mode="json", by_alias=True)
+            {
+                **skill.model_dump(mode="json", by_alias=True),
+                "category": categories.get(skill.category, skill.category),
+            }
             for skill in resume_skills(
                 master,
                 plan,
@@ -313,14 +384,17 @@ def assemble_resume(
                 dictionary=dictionary or default_skill_dictionary(),
             )
         ],
-        "education": [_education_payload(item) for item in master.education],
+        "education": [
+            _education_payload(item, translation.education.get(item.id))
+            for item in master.education
+        ],
         "projects": [item.model_dump(mode="json", by_alias=True) for item in master.projects],
         "certifications": [
             item.model_dump(mode="json", by_alias=True) for item in master.certifications
         ],
         "languages": [item.model_dump(mode="json", by_alias=True) for item in master.languages],
         "additionalSections": [
-            item.model_dump(mode="json", by_alias=True)
+            _section_payload(item, translation.sections.get(item.id))
             for item in master.additional_sections
             if item.id not in PRIVATE_SECTION_IDS
         ],
@@ -446,6 +520,8 @@ class TailoringSession:
     summary_issues: tuple[str, ...] = field(init=False, default=())
     letter: CoverLetterDraft | None = field(init=False, default=None)
     letter_issues: dict[int, tuple[str, ...]] = field(init=False, default_factory=dict)
+    structure: StructureTranslation = field(init=False, default_factory=StructureTranslation.empty)
+    structure_issues: list[str] = field(init=False, default_factory=list)
     warnings: list[str] = field(init=False, default_factory=list)
     _summary_pending: bool = field(init=False, default=False)
     _letter_pending: bool = field(init=False, default=False)
@@ -490,9 +566,31 @@ class TailoringSession:
             ] or [[]]
             for number, batch in enumerate(batches, start=1):
                 requests.append(self._wording_request(batch, f"wording-{number}", number == 1))
+            if self.translated and has_structure_to_translate(source := self._structure_source()):
+                requests.append(
+                    ModelRequest(
+                        kind="structure",
+                        label="structure-translation",
+                        prompt=build_structure_translation_prompt(
+                            plan=self.plan, source=source, swiss=self.swiss
+                        ),
+                        response_model=StructureTranslationDraft,
+                    )
+                )
         if self.wants_letter:
             requests.append(self._letter_request("cover-letter"))
         return requests
+
+    def _structure_source(self) -> dict[str, object]:
+        return structure_translation_source(
+            self.master,
+            skill_categories=translatable_skill_categories(self.master),
+            section_ids={
+                section.id
+                for section in self.master.additional_sections
+                if section.id not in PRIVATE_SECTION_IDS
+            },
+        )
 
     def retry_round(self) -> list[ModelRequest]:
         """Requests for what the first round left rejected; empty when nothing is."""
@@ -615,6 +713,8 @@ class TailoringSession:
         for request, response in zip(requests, responses, strict=True):
             if request.kind in ("wording", "translation"):
                 self._apply_wording(request, response)
+            elif request.kind == "structure":
+                self._apply_structure(response)
             else:
                 self._apply_letter(response)
 
@@ -663,6 +763,22 @@ class TailoringSession:
             if summary:
                 self.summary = summary
                 self._summary_pending = False
+
+    def _apply_structure(self, response: ModelResponse) -> None:
+        try:
+            if response.data is None:
+                raise ValueError(response.error or "no response")
+            draft = parse_structure_translation(response.data)
+        except ValueError as exc:
+            self.structure_issues = [f"model request failed: {exc}"]
+            return
+        self.structure, self.structure_issues = evaluate_structure_translation(
+            draft,
+            source=self._structure_source(),
+            plan=self.plan,
+            dictionary=self.dictionary,
+            swiss=self.swiss,
+        )
 
     def _apply_letter(self, response: ModelResponse) -> None:
         try:
@@ -715,7 +831,13 @@ class TailoringSession:
                 target_job_id=self.vacancy.job_id,
                 dictionary=self.dictionary,
                 omit=untranslated,
+                translation=self.structure,
             )
+            if self.structure_issues:
+                self.warnings.append(
+                    "Some titles or section entries keep the profile language because their "
+                    "translation did not pass the fact check."
+                )
             if untranslated:
                 self.warnings.append(
                     f"{len(untranslated)} statement(s) were left out because no translation "
@@ -829,6 +951,7 @@ class TailoringSession:
             ],
             "changes": self._changes(reworded=reworded, adopted_terms=adopted_terms),
             "summaryIssues": list(self.summary_issues) if not self.summary else [],
+            "translationIssues": list(self.structure_issues),
             "coverLetterIssues": [
                 reason for reasons in self.letter_issues.values() for reason in reasons
             ]
