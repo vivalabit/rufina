@@ -778,9 +778,21 @@ class _Sections:
         line = self.text[line_start : line_end if line_end != -1 else len(self.text)]
         return _OPTIONAL_LINE.search(line) is None
 
+    def text_outside(self, kinds: frozenset[str]) -> str:
+        return "\n".join(line for _, kind, line in self.lines if kind not in kinds)
+
     def responsibility_lines(self) -> list[str]:
         return [
             _BULLET.sub("", line)
             for _, kind, line in self.lines
             if kind == "responsibilities" and len(line) >= 15
         ]
+
+
+def text_without_requirements(text: str) -> str:
+    """The posting without its requirements and nice-to-have sections.
+
+    Names there are what the candidate should bring, so a letter must not
+    adopt them as its own; the company, its products and the tasks stay.
+    """
+    return _Sections(text).text_outside(frozenset({"requirements", "preferred"}))

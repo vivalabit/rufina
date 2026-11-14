@@ -16,9 +16,14 @@ from pydantic import BaseModel, ValidationError
 
 from app.models.generation_workflow import CoverLetterDraft
 from app.models.resume import MasterResume
-from app.services.ats.job_target import clean_title
+from app.services.ats.job_target import clean_title, text_without_requirements
 from app.services.ats.models import JobTarget
-from app.services.ats.planner import DocumentLanguage, PlannedStatement, TailoringPlan
+from app.services.ats.planner import (
+    DocumentLanguage,
+    PlannedStatement,
+    TailoringPlan,
+    mentions_term,
+)
 from app.services.ats.profile_index import ProfileIndex
 from app.services.ats.skill_dictionary import SkillDictionary
 from app.services.ats.wording import (
@@ -262,9 +267,15 @@ def evaluate_cover_letter(
                 for item in master.education
             ),
             *(skill.name for skill in master.skills),
+            *(language.name for language in master.languages),
+            master.basics.location,
         ]
     )
-    names_context = f"{vacancy_text}\n{company}\n{target.title}"
+    # The company, its products and the tasks may be named; what the posting asks
+    # the candidate to bring may not, unless the profile has it.
+    names_context = "\n".join(
+        [text_without_requirements(vacancy_text), company, target.title, location]
+    )
     issues: dict[int, tuple[str, ...]] = {}
     paragraphs: list[dict[str, object]] = []
     total = 0
@@ -287,14 +298,16 @@ def evaluate_cover_letter(
             dictionary=dictionary,
             max_chars=MAX_PARAGRAPH_CHARS,
             names_context=names_context,
+            language=plan.language,
         )
         reasons = list(result.issues)
         gap_terms = [
             match.label
             for match in plan.gaps
-            if match.canonical_id is not None
-            and any(
-                mention.skill_id == match.canonical_id for mention in dictionary.scan(text)
+            if mentions_term(text, match.label)
+            or (
+                match.canonical_id is not None
+                and any(mention.skill_id == match.canonical_id for mention in dictionary.scan(text))
             )
         ]
         if gap_terms:

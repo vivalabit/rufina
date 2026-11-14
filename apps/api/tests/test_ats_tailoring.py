@@ -7,7 +7,11 @@ import pytest
 from app.models.generation_workflow import DraftBundle
 from app.models.resume import MasterResume
 from app.services.ats.cover_letter import letter_salutation, letter_subject
-from app.services.ats.job_target import VacancyInput, extract_job_target_without_model
+from app.services.ats.job_target import (
+    VacancyInput,
+    extract_job_target_without_model,
+    text_without_requirements,
+)
 from app.services.ats.planner import build_tailoring_plan, coverage_score, plan_headline
 from app.services.ats.profile_index import (
     build_profile_index,
@@ -22,6 +26,7 @@ from app.services.ats.tailoring import (
     VacancyContext,
 )
 from app.services.ats.wording import (
+    check_free_text,
     check_statement,
     number_tokens,
 )
@@ -276,6 +281,32 @@ def test_guard_keeps_claims_the_statement_makes_in_any_language() -> None:
     ).ok
 
 
+def test_letter_may_name_the_company_but_not_adopt_the_posting_requirements() -> None:
+    posting = (
+        "Über uns\nKestrel Bank runs the Falcon trading platform.\n"
+        "Anforderungen\n- Experience with Murex and IFRS reporting\n"
+        "Aufgaben\n- Operate our trading services"
+    )
+    names = text_without_requirements(posting)
+    assert "Murex" not in names
+    assert "Falcon" in names
+
+    def check(text: str):
+        return check_free_text(
+            text,
+            allowed_context="Backend engineer, Python",
+            allowed_skill_ids=[],
+            dictionary=default_skill_dictionary(),
+            max_chars=900,
+            names_context=names,
+            language="en",
+        )
+
+    assert check("I would enjoy operating the Falcon platform at Kestrel Bank.").ok
+    rejected = check("I bring hands-on experience with Murex and IFRS reporting.")
+    assert any("Murex" in issue for issue in rejected.issues)
+
+
 # --- Session ------------------------------------------------------------------
 
 
@@ -494,6 +525,38 @@ def test_cover_letter_with_an_invented_claim_is_dropped_but_the_resume_is_delive
     assert result.cover_letter is None
     assert result.report["coverLetterIssues"]
     assert any("cover letter" in warning for warning in result.warnings)
+
+
+def test_cover_letter_may_not_claim_a_requirement_the_profile_lacks() -> None:
+    vacancy = VacancyContext(
+        job_id="job-1",
+        title=TITLE,
+        company="Northwind Analytics AG",
+        location="Zurich",
+        text=VACANCY_TEXT.replace("- Fluent English", "- Experience with Murex"),
+    )
+    session = _session(("tailored_resume", "cover_letter"), vacancy=vacancy)
+    requests = session.first_round()
+    session.apply(
+        requests,
+        [
+            _echo_wording(session, requests[0]),
+            _letter_response(
+                [
+                    {"text": "Your Backend Engineer role at Northwind Analytics AG matches "
+                     "the Python services I build today.", "statement_ids": []},
+                    {"text": "I also bring hands-on experience with Murex.",
+                     "statement_ids": []},
+                    {"text": "I would welcome a conversation about your data platform.",
+                     "statement_ids": []},
+                ]
+            ),
+        ],
+    )
+
+    assert any("Murex" in issue for issue in session.letter_issues.get(2, ())), (
+        session.letter_issues
+    )
 
 
 def test_salutation_names_a_person_only_when_the_posting_does() -> None:
