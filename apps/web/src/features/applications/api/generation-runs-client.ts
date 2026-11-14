@@ -85,9 +85,11 @@ export type TailoringReport = {
     selected?: number;
     reworded?: number;
     keptOriginal?: number;
+    untranslated?: number;
     omitted?: number;
   };
   keptOriginal?: Array<{ id: string; reasons: string[] }>;
+  untranslated?: Array<{ id: string; reasons: string[] }>;
   changes?: string[];
   summaryIssues?: string[];
   coverLetterIssues?: string[];

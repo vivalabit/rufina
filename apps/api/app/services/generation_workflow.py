@@ -190,6 +190,18 @@ class GenerationWorkflow:
             )
             if retry_round:
                 session.apply(retry_round, self._run_requests(db, run, retry_round, usage))
+            translation_round = session.translation_round()
+            if translation_round:
+                self._stop_if_cancelled(db, run)
+                append_run_event(
+                    db,
+                    run=run,
+                    kind="translation.started",
+                    data={"statements": len(translation_round[0].statement_ids)},
+                )
+                session.apply(
+                    translation_round, self._run_requests(db, run, translation_round, usage)
+                )
             result = session.finish()
             bundle = DraftBundle(resume=result.resume, cover_letter=result.cover_letter)
             validate_grounded_bundle(bundle, master_resume=master, target_job_id=vacancy.job_id)

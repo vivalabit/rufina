@@ -406,6 +406,82 @@ def test_session_assembles_a_grounded_resume_from_accepted_wording() -> None:
     assert {"label": "Terraform", "importance": "preferred"} in result.report["gaps"]
 
 
+INVENTED = {"role-atlas-bullet-2": "Processed 9 TB of retail data per month with Kafka."}
+GERMAN_BULLET_2 = (
+    "Verarbeitete 2 TB Retail-Daten pro Monat durch den Aufbau von Ingestion-Pipelines "
+    "auf Kubernetes."
+)
+
+
+def _german_session_after_two_rejections() -> TailoringSession:
+    session = _session(language="German")
+    assert session.translated
+    leader = "Led a company-wide team building Python services."
+    requests = session.first_round()
+    session.apply(
+        requests, [_echo_wording(session, requests[0], changes=INVENTED, summary=leader)]
+    )
+    retry = session.retry_round()
+    session.apply(retry, [_echo_wording(session, retry[0], changes=INVENTED, summary=leader)])
+    return session
+
+
+def test_translated_resume_translates_a_rejected_statement_and_the_summary() -> None:
+    session = _german_session_after_two_rejections()
+    translation = session.translation_round()
+    assert [request.kind for request in translation] == ["translation"]
+    assert translation[0].statement_ids == ("role-atlas-bullet-2",)
+    assert translation[0].include_summary
+    assert "You translate only" in translation[0].prompt
+    session.apply(
+        translation,
+        [
+            ModelResponse(
+                data={
+                    "summary": "Backend-Entwicklerin, die Python-Services und Datenpipelines "
+                    "entwickelt.",
+                    "statements": [
+                        {"id": "role-atlas-bullet-2", "text": GERMAN_BULLET_2, "emphasis": []}
+                    ],
+                }
+            )
+        ],
+    )
+    result = session.finish()
+
+    bullets = {bullet.id: bullet.text for item in result.resume.experiences for bullet in item.bullets}
+    assert bullets["role-atlas-bullet-2"] == GERMAN_BULLET_2
+    assert result.resume.summary is not None
+    assert result.resume.summary.text.startswith("Backend-Entwicklerin")
+    assert result.report["statements"]["untranslated"] == 0
+    assert result.report["keptOriginal"] == []
+
+
+def test_translated_resume_leaves_out_a_statement_without_a_valid_translation() -> None:
+    session = _german_session_after_two_rejections()
+    translation = session.translation_round()
+    session.apply(
+        translation, [_echo_wording(session, translation[0], changes=INVENTED, summary="")]
+    )
+    result = session.finish()
+
+    bullets = {bullet.id for item in result.resume.experiences for bullet in item.bullets}
+    assert "role-atlas-bullet-2" not in bullets
+    assert result.report["statements"]["untranslated"] == 1
+    assert result.report["untranslated"][0]["id"] == "role-atlas-bullet-2"
+    assert any("left out" in warning for warning in result.warnings)
+    validate_grounded_bundle(
+        DraftBundle(resume=result.resume), master_resume=session.master, target_job_id="job-1"
+    )
+
+
+def test_resume_in_the_profile_language_needs_no_translation_round() -> None:
+    session = _session()
+    requests = session.first_round()
+    session.apply(requests, [_echo_wording(session, requests[0], changes=INVENTED)])
+    assert session.translation_round() == []
+
+
 def _master_with_concepts(names: list[str]) -> MasterResume:
     payload = master_resume_payload()
     for index, name in enumerate(names, start=1):

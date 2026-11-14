@@ -9,7 +9,7 @@ profile, so roles, dates, education, languages and skills are never model text.
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any, Literal
@@ -53,8 +53,11 @@ from app.services.ats.skill_dictionary import (
     default_skill_dictionary,
 )
 from app.services.ats.wording import (
+    MAX_SUMMARY_CHARS,
+    STATEMENT_GROWTH,
     WordedStatement,
     WordingDraft,
+    build_translation_prompt,
     build_wording_prompt,
     evaluate_summary,
     evaluate_wording,
@@ -75,7 +78,7 @@ _SECTION_PRIORITY = {
     for index, section in enumerate(("summary", "experience", "education", "languages", "skills"))
 }
 
-RequestKind = Literal["wording", "cover_letter"]
+RequestKind = Literal["wording", "translation", "cover_letter"]
 
 
 @dataclass(frozen=True)
@@ -221,14 +224,20 @@ def assemble_resume(
     resume_id: str,
     target_job_id: str,
     dictionary: SkillDictionary | None = None,
+    omit: Collection[str] = (),
 ) -> FinalResume:
-    """Build the tailored resume from profile data and the accepted wording."""
+    """Build the tailored resume from profile data and the accepted wording.
+
+    Statements in `omit` are left out, such as those without a translation.
+    """
     roles = {experience.id: experience for experience in master.experiences}
     experiences: list[dict[str, Any]] = []
     for planned in plan.experiences:
         role = roles[planned.experience_id]
         bullets = []
         for item in planned.statements:
+            if item.statement.id in omit:
+                continue
             worded = wording.get(item.statement.id) or master_wording(item)
             bullets.append(
                 {
@@ -504,6 +513,51 @@ class TailoringSession:
             requests.append(self._letter_request("cover-letter-retry", self.letter_issues))
         return requests
 
+    def translation_round(self) -> list[ModelRequest]:
+        """A plain translation of what a translated resume still lacks.
+
+        Without it a rejected statement would stay in the profile language and the
+        summary would be left out, mixing languages or losing the summary.
+        """
+        if not self.wants_resume or not self.translated:
+            return []
+        statements = [
+            planned for planned in self.plan.statements if planned.statement.id not in self.wording
+        ]
+        summary_source = self._summary_source()
+        if not statements and not summary_source:
+            return []
+        return [
+            ModelRequest(
+                kind="translation",
+                label="translation",
+                prompt=build_translation_prompt(
+                    plan=self.plan,
+                    statements=statements,
+                    summary_source=summary_source,
+                    swiss=self.swiss,
+                ),
+                response_model=WordingDraft,
+                statement_ids=tuple(planned.statement.id for planned in statements),
+                include_summary=bool(summary_source),
+            )
+        ]
+
+    def _summary_source(self) -> str:
+        if self.summary or self.master.summary is None:
+            return ""
+        return self.master.summary.text.strip()
+
+    def untranslated(self) -> list[str]:
+        """Statements a translated resume leaves out because no translation passed."""
+        if not self.translated:
+            return []
+        return [
+            planned.statement.id
+            for planned in self.plan.statements
+            if planned.statement.id not in self.wording
+        ]
+
     def _wording_request(
         self,
         statements: Sequence[PlannedStatement],
@@ -559,7 +613,7 @@ class TailoringSession:
         if len(requests) != len(responses):
             raise ValueError("Every model request needs exactly one response")
         for request, response in zip(requests, responses, strict=True):
-            if request.kind == "wording":
+            if request.kind in ("wording", "translation"):
                 self._apply_wording(request, response)
             else:
                 self._apply_letter(response)
@@ -593,6 +647,7 @@ class TailoringSession:
             self.rejected.pop(statement_id, None)
         self.rejected.update(rejected)
         if request.include_summary:
+            source = self._summary_source() if request.kind == "translation" else ""
             summary, issues = evaluate_summary(
                 draft.summary,
                 master=self.master,
@@ -601,6 +656,8 @@ class TailoringSession:
                 dictionary=self.dictionary,
                 vacancy_text=self.vacancy.text,
                 vacancy_location=self.vacancy.location,
+                # A translation keeps the whole profile summary, however long.
+                max_chars=max(MAX_SUMMARY_CHARS, int(len(source) * STATEMENT_GROWTH)),
             )
             self.summary_issues = issues
             if summary:
@@ -648,6 +705,7 @@ class TailoringSession:
             summary = self.summary
             if not summary and self.master.summary is not None and not self.translated:
                 summary = self.master.summary.text
+            untranslated = self.untranslated()
             resume = assemble_resume(
                 self.master,
                 self.plan,
@@ -656,9 +714,16 @@ class TailoringSession:
                 resume_id=self.resume_id,
                 target_job_id=self.vacancy.job_id,
                 dictionary=self.dictionary,
+                omit=untranslated,
             )
-            kept = [item for item in self.plan.statements if item.statement.id not in self.wording]
-            if kept:
+            if untranslated:
+                self.warnings.append(
+                    f"{len(untranslated)} statement(s) were left out because no translation "
+                    "passed the fact check."
+                )
+            elif kept := [
+                item for item in self.plan.statements if item.statement.id not in self.wording
+            ]:
                 self.warnings.append(
                     f"{len(kept)} statement(s) keep the profile wording because the "
                     "rewritten text did not pass the fact check."
@@ -715,10 +780,13 @@ class TailoringSession:
             if (worded := self.wording.get(planned.statement.id)) is not None
             and worded.text != planned.statement.text
         )
+        untranslated = set(self.untranslated()) if self.wants_resume else set()
         kept_original = [
             {"id": planned.statement.id, "reasons": list(self.rejected.get(planned.statement.id, ()))}
             for planned in self.plan.statements
-            if self.wants_resume and planned.statement.id not in self.wording
+            if self.wants_resume
+            and planned.statement.id not in self.wording
+            and planned.statement.id not in untranslated
         ]
         adopted_terms = [term for planned in self.plan.statements for term in planned.terms]
         return {
@@ -751,9 +819,14 @@ class TailoringSession:
                 "selected": selected,
                 "reworded": reworded,
                 "keptOriginal": len(kept_original),
+                "untranslated": len(untranslated),
                 "omitted": len(self.plan.excluded_statement_ids),
             },
             "keptOriginal": kept_original,
+            "untranslated": [
+                {"id": statement_id, "reasons": list(self.rejected.get(statement_id, ()))}
+                for statement_id in sorted(untranslated)
+            ],
             "changes": self._changes(reworded=reworded, adopted_terms=adopted_terms),
             "summaryIssues": list(self.summary_issues) if not self.summary else [],
             "coverLetterIssues": [
