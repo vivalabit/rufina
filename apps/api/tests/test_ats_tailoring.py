@@ -309,6 +309,25 @@ def test_letter_may_name_the_company_but_not_adopt_the_posting_requirements() ->
     assert any("Murex" in issue for issue in rejected.issues)
 
 
+def test_letter_names_need_a_posting_with_a_requirements_section() -> None:
+    without_headings = (
+        "Kestrel Bank runs the Falcon trading platform. You bring experience with Murex."
+    )
+    assert text_without_requirements(without_headings) == ""
+
+    # The layout `build_full_vacancy_description` produces for stored vacancies.
+    generated = (
+        "Description\nKestrel Bank is hiring.\n\nResponsibilities\n- Operate Falcon\n\n"
+        "Requirements\n- Experience with Murex\n\nSkills\n- Calypso\n\n"
+        "Company\nKestrel Bank builds the Osprey payment network."
+    )
+    names = text_without_requirements(generated)
+    assert "Falcon" in names
+    assert "Osprey" in names
+    assert "Murex" not in names
+    assert "Calypso" not in names
+
+
 @pytest.mark.parametrize(
     ("location", "text", "swiss"),
     [

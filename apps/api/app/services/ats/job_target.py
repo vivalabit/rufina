@@ -43,7 +43,7 @@ from app.services.ats.skill_dictionary import (
     normalize_text,
 )
 
-EXTRACTOR_VERSION = "job-target-v1"
+EXTRACTOR_VERSION = "job-target-v2"
 MAX_PROMPT_POSTING_CHARS = 20_000
 MAX_SKILL_SURFACE_CHARS = 80
 MAX_SKILL_SURFACE_WORDS = 6
@@ -717,7 +717,9 @@ _HEADING_KINDS: tuple[tuple[str, re.Pattern[str]], ...] = (
         re.compile(
             r"anforderungen|profil|qualifikation|requirements|qualifications|"
             r"what you bring|who you are|must have|must-have|voraussetzungen|"
-            r"das bringst du mit|das bringen sie mit|votre profil|compétences requises",
+            r"das bringst du mit|das bringen sie mit|votre profil|compétences requises|"
+            # Section labels of `build_full_vacancy_description`.
+            r"^skills$",
             re.IGNORECASE,
         ),
     ),
@@ -725,7 +727,7 @@ _HEADING_KINDS: tuple[tuple[str, re.Pattern[str]], ...] = (
         "other",
         re.compile(
             r"wir bieten|was wir bieten|benefits|we offer|what we offer|nous offrons|"
-            r"über uns|about us|à propos|kontakt|contact",
+            r"über uns|about us|à propos|kontakt|contact|^company$",
             re.IGNORECASE,
         ),
     ),
@@ -778,6 +780,9 @@ class _Sections:
         line = self.text[line_start : line_end if line_end != -1 else len(self.text)]
         return _OPTIONAL_LINE.search(line) is None
 
+    def has_any(self, kinds: frozenset[str]) -> bool:
+        return any(kind in kinds for kind in self.kinds)
+
     def text_outside(self, kinds: frozenset[str]) -> str:
         return "\n".join(line for _, kind, line in self.lines if kind not in kinds)
 
@@ -794,5 +799,10 @@ def text_without_requirements(text: str) -> str:
 
     Names there are what the candidate should bring, so a letter must not
     adopt them as its own; the company, its products and the tasks stay.
+    A posting without a recognizable requirements section gives no names at
+    all: its requirements cannot be told apart, so the letter is checked
+    against the profile alone.
     """
-    return _Sections(text).text_outside(frozenset({"requirements", "preferred"}))
+    sections = _Sections(text)
+    kinds = frozenset({"requirements", "preferred"})
+    return sections.text_outside(kinds) if sections.has_any(kinds) else ""
