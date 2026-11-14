@@ -3,7 +3,8 @@ import type { Job } from "@/shared/types/job";
 export type PreparationDocumentType = "tailored_resume" | "cover_letter";
 export type PreparationLanguage = "Auto" | "English" | "German";
 export type PreparationPageSize = "A4" | "Letter";
-export type PreparationResumeMaxPages = 1 | 2 | 3;
+// "auto": two pages, one for a career of under about three years (decided by the API).
+export type PreparationResumeMaxPages = "auto" | 1 | 2 | 3;
 
 export type GenerationDocumentState =
   | "queued"

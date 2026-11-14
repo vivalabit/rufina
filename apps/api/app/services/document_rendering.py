@@ -173,6 +173,19 @@ def pdf_page_count(pdf: bytes) -> int:
 # --- Resume -----------------------------------------------------------------
 
 
+def droppable_item_ids(resume: FinalResume, drop_order: Sequence[str]) -> list[str]:
+    """Items page fitting may remove, in this order.
+
+    Projects go first, last listed first, as the resume's own experience matters
+    more; then the optional statements of `drop_order`; certifications last.
+    """
+    return [
+        *(project.id for project in reversed(resume.projects)),
+        *droppable_statement_ids(resume, drop_order),
+        *(certification.id for certification in reversed(resume.certifications)),
+    ]
+
+
 def droppable_statement_ids(resume: FinalResume, drop_order: Sequence[str]) -> list[str]:
     """Statements that may be removed, lowest value first, keeping one per role."""
     remaining = {experience.id: len(experience.bullets) for experience in resume.experiences}
@@ -191,10 +204,11 @@ def droppable_statement_ids(resume: FinalResume, drop_order: Sequence[str]) -> l
     return result
 
 
-def without_statements(resume: FinalResume, bullet_ids: Sequence[str]) -> FinalResume:
-    if not bullet_ids:
+def without_statements(resume: FinalResume, item_ids: Sequence[str]) -> FinalResume:
+    """The resume without these statements, projects or certifications."""
+    if not item_ids:
         return resume
-    removed = set(bullet_ids)
+    removed = set(item_ids)
     experiences = [
         experience.model_copy(
             update={
@@ -203,7 +217,23 @@ def without_statements(resume: FinalResume, bullet_ids: Sequence[str]) -> FinalR
         )
         for experience in resume.experiences
     ]
-    trimmed = resume.model_copy(update={"experiences": experiences})
+    projects = [item for item in resume.projects if item.id not in removed]
+    certifications = [item for item in resume.certifications if item.id not in removed]
+    emptied = {
+        section
+        for section, items in (("projects", projects), ("certifications", certifications))
+        if not items
+    }
+    trimmed = resume.model_copy(
+        update={
+            "experiences": experiences,
+            "projects": projects,
+            "certifications": certifications,
+            "section_order": [
+                section for section in resume.section_order if section not in emptied
+            ],
+        }
+    )
     referenced = set(resume_evidence_ids(trimmed))
     evidence = [item for item in resume.evidence if item.id in referenced]
     return FinalResume.model_validate(
@@ -225,10 +255,10 @@ def render_resume_to_fit(
 ) -> ResumeRender:
     """Render the resume within `max_pages`.
 
-    Order of measures: a barely visible layout shrink, then removing optional
-    statements in `drop_order` (binary search over how many), then one stronger
-    shrink. Statements outside `drop_order` and the last statement of a role are
-    never removed. If the content still does not fit, the complete document is
+    Order of measures: a barely visible layout shrink, then removing projects,
+    optional statements in `drop_order` and certifications, in that order
+    (binary search over how many), then one stronger shrink. Statements outside
+    `drop_order` and the last statement of a role are never removed. If the content still does not fit, the complete document is
     returned at full size and its page count tells the caller.
     """
     if session is None:
@@ -285,7 +315,7 @@ def render_resume_to_fit(
     # The gentlest shrink still overflows: remove optional statements. Fewer
     # removed statements never produce fewer pages, so search for the minimum.
     scale = RESUME_FIT_SCALES[-1]
-    candidates = droppable_statement_ids(resume, drop_order)
+    candidates = droppable_item_ids(resume, drop_order)
     best: tuple[FinalResume, tuple[bytes, int, tuple[str, ...]], list[str]] | None = None
     low, high = 1, len(candidates)
     while low <= high:
@@ -622,6 +652,7 @@ __all__ = [
     "ResumeRender",
     "cover_letter_design_sha256",
     "cover_letter_view_model",
+    "droppable_item_ids",
     "droppable_statement_ids",
     "extract_pdf_text",
     "format_letter_date",

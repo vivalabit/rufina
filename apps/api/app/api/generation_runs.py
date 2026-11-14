@@ -48,7 +48,7 @@ from app.services.generation_store import (
 from app.services.generation_workflow import (
     GenerationWorkflow,
     GenerationWorkflowError,
-    max_pages,
+    resume_page_limit,
     stored_content,
 )
 from app.services.resume_pdf_renderer import ResumePdfRenderError
@@ -276,6 +276,7 @@ def thumbnail_generation_run_template(
         run = get_generation_run(db, application_id=application_id, run_id=run_id)
         content = stored_content(run)
         request = run_request(run.input_snapshot)
+        page_limit = resume_page_limit(request)
     except GenerationStoreError as exc:
         raise _store_http_error(exc) from exc
     except (GenerationWorkflowError, GenerationInputError) as exc:
@@ -302,7 +303,7 @@ def thumbnail_generation_run_template(
             rendered = render_resume_to_fit(
                 FinalResume.model_validate(content["resume"]),
                 template=template,
-                max_pages=max_pages(request, "tailored_resume"),
+                max_pages=page_limit,
                 drop_order=content.get("dropOrder") or (),
             )
             thumbnail = render_pdf_first_page_thumbnail(rendered.document.pdf)

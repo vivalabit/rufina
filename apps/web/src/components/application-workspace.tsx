@@ -713,10 +713,15 @@ function TailorPanel({ settings, masterResume, onChange, onStart, action, isRevi
             disabled={!settings.documentTypes.includes("tailored_resume")}
             onChange={(event) => onChange((current) => ({
               ...current,
-              formatting: { ...current.formatting, resumeMaxPages: Number(event.target.value) as 1 | 2 | 3 },
+              formatting: {
+                ...current.formatting,
+                resumeMaxPages:
+                  event.target.value === "auto" ? "auto" : (Number(event.target.value) as 1 | 2 | 3),
+              },
             }))}
             className="mt-2 h-11 w-full rounded-md border px-4 text-base font-normal disabled:opacity-50"
           >
+            <option value="auto">Auto (by experience)</option>
             <option value="1">1 page</option>
             <option value="2">2 pages</option>
             <option value="3">3 pages</option>

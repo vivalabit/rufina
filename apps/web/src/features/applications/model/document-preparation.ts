@@ -92,7 +92,7 @@ export const defaultDocumentPreparationSettings: DocumentPreparationSettings = {
   formatting: {
     pageSize: "A4",
     resumeTemplateId: generationResumeTemplates[0].id,
-    resumeMaxPages: 1,
+    resumeMaxPages: "auto",
     coverLetterTemplateId: generationResumeTemplates[0].id,
   },
   submission: {
@@ -109,7 +109,7 @@ const documentTypes: PreparationDocumentType[] = [
 ];
 const languages: PreparationLanguage[] = ["Auto", "English", "German"];
 const pageSizes: PreparationPageSize[] = ["A4", "Letter"];
-const resumePageCounts: PreparationResumeMaxPages[] = [1, 2, 3];
+const resumePageCounts: PreparationResumeMaxPages[] = ["auto", 1, 2, 3];
 const generationStates: GenerationDocumentState[] = [
   "queued",
   "running",
@@ -296,10 +296,12 @@ export function generationRequestFromSettings(
   > = {};
 
   if (settings.documentTypes.includes("tailored_resume")) {
+    const maxPages = settings.formatting.resumeMaxPages;
     formattingParameters.tailored_resume = {
       pageSize: settings.formatting.pageSize,
       templateId: generationResumeTemplate(settings.formatting.resumeTemplateId).id,
-      maxPages: settings.formatting.resumeMaxPages,
+      // Without a limit the API picks one from the profile's experience.
+      ...(maxPages === "auto" ? {} : { maxPages }),
     };
   }
   if (settings.documentTypes.includes("cover_letter")) {

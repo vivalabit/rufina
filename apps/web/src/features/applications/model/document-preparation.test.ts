@@ -43,7 +43,7 @@ describe("document preparation settings", () => {
       formatting: {
         pageSize: "A4",
         resumeTemplateId: "modern_single",
-        resumeMaxPages: 1,
+        resumeMaxPages: "auto",
         coverLetterTemplateId: "modern_single",
       },
       submission: {

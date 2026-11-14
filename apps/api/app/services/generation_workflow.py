@@ -724,8 +724,9 @@ def stored_content(run: ApplicationGenerationRunRecord) -> dict[str, Any]:
     )
 
 
-# A profile with less experience than this gets a one-page resume by default.
-TWO_PAGE_RESUME_MONTHS = 96
+# A profile with less experience than this gets a one-page resume by default;
+# longer careers get two pages, the common expectation in DACH applications.
+TWO_PAGE_RESUME_MONTHS = 36
 
 
 def max_pages(
@@ -733,7 +734,7 @@ def max_pages(
     document_type: str,
     master: MasterResume | None = None,
 ) -> int:
-    """The requested page limit, or one page (two for a long career) when not set."""
+    """The requested page limit; by default two pages, one for a short career."""
     raw = request.formatting_parameters.get(document_type)
     configured = raw.get("maxPages") if isinstance(raw, dict) else None
     if isinstance(configured, int) and not isinstance(configured, bool) and 1 <= configured <= 10:
@@ -741,6 +742,11 @@ def max_pages(
     if document_type == "tailored_resume" and master is not None:
         return 2 if build_profile_index(master).total_months >= TWO_PAGE_RESUME_MONTHS else 1
     return 1
+
+
+def resume_page_limit(request: GenerationRequest) -> int:
+    """The resume page limit of a stored run, judged by its own profile snapshot."""
+    return max_pages(request, "tailored_resume", _snapshot_resume(request))
 
 
 def _vacancy_context(request: GenerationRequest) -> VacancyContext:

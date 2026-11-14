@@ -184,7 +184,7 @@ describe("ApplicationWorkspace", () => {
     expect(screen.getByRole("heading", { name: "Senior Product Designer" })).toBeInTheDocument();
     expect(await screen.findByRole("heading", { name: "Tailor your resume to this vacancy" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Tailor resume" })).toBeEnabled();
-    expect(screen.getByRole("combobox", { name: "CV page limit" })).toHaveValue("1");
+    expect(screen.getByRole("combobox", { name: "CV page limit" })).toHaveValue("auto");
     expect(screen.getByRole("combobox", { name: "Document language" })).toHaveValue("Auto");
     expect(screen.getByText("Swiss Classic")).toBeInTheDocument();
     expect(screen.queryByRole("group", { name: "Template" })).not.toBeInTheDocument();
@@ -207,10 +207,11 @@ describe("ApplicationWorkspace", () => {
       language: "Auto",
       userPreferences: "Emphasize design systems.",
       formattingParameters: {
-        tailored_resume: { templateId: "swiss_classic", maxPages: 1 },
+        tailored_resume: { templateId: "swiss_classic" },
         cover_letter: { templateId: "swiss_classic" },
       },
     });
+    expect(request.formattingParameters.tailored_resume).not.toHaveProperty("maxPages");
     expect(request.idempotencyKey.length).toBeLessThanOrEqual(160);
     expect(props.onPreparationSettingsChange).toHaveBeenCalled();
     expect(await screen.findByText("Reading the vacancy")).toBeInTheDocument();

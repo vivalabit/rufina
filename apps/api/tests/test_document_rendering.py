@@ -12,6 +12,7 @@ from app.services.document_docx import build_cover_letter_docx, build_resume_doc
 from app.services.document_rendering import (
     DEFAULT_DOCUMENT_TEMPLATE_ID,
     DocumentRenderError,
+    droppable_item_ids,
     droppable_statement_ids,
     extract_pdf_text,
     format_letter_date,
@@ -128,6 +129,39 @@ def test_optional_statements_are_dropped_in_order_but_every_role_keeps_one() -> 
     trimmed = without_statements(resume, droppable)
     assert [len(experience.bullets) for experience in trimmed.experiences] == [1, 1]
     assert {item.id for item in trimmed.evidence} < {item.id for item in resume.evidence}
+
+
+def _with_projects_and_certifications(resume):
+    payload = resume.model_dump(mode="json", by_alias=True)
+    evidence_id = payload["evidence"][0]["id"]
+    payload["projects"] = [
+        {"id": f"project-{number}", "name": f"Project {number}",
+         "bullets": [{"id": f"project-{number}-b", "text": "Built a tool.",
+                      "evidenceIds": [evidence_id]}]}
+        for number in (1, 2)
+    ]
+    payload["certifications"] = [
+        {"id": "cert-1", "name": "AWS Developer", "issuer": "AWS", "evidenceIds": [evidence_id]}
+    ]
+    payload["sectionOrder"] = [*payload["sectionOrder"], "projects", "certifications"]
+    return type(resume).model_validate(payload)
+
+
+def test_projects_are_dropped_before_statements_and_certifications_last() -> None:
+    resume = _with_projects_and_certifications(final_resume())
+    atlas = [bullet.id for bullet in resume.experiences[0].bullets]
+
+    droppable = droppable_item_ids(resume, list(reversed(atlas)))
+
+    assert droppable[:2] == ["project-2", "project-1"]
+    assert droppable[-1] == "cert-1"
+    trimmed = without_statements(resume, droppable)
+    assert trimmed.projects == [] and trimmed.certifications == []
+    assert "projects" not in trimmed.section_order
+    assert "certifications" not in trimmed.section_order
+    partly = without_statements(resume, ["project-2"])
+    assert [item.id for item in partly.projects] == ["project-1"]
+    assert "projects" in partly.section_order
 
 
 def test_resume_is_fitted_to_one_page_by_dropping_the_lowest_value_statements() -> None:

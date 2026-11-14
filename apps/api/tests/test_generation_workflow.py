@@ -357,3 +357,25 @@ def test_run_explains_an_empty_profile_instead_of_failing_obscurely(sessions) ->
         assert run.error["code"] == "profile_incomplete"
         assert "no work experience" in run.error["message"]
         assert backend.calls == []
+
+
+def test_default_page_limit_is_two_pages_except_for_a_short_career() -> None:
+    from types import SimpleNamespace
+
+    from tailoring_fixtures import master_resume_payload
+
+    from app.models.resume import MasterResume
+    from app.services.generation_workflow import max_pages
+
+    def master(start: str) -> MasterResume:
+        payload = master_resume_payload()
+        for role in payload["experiences"]:
+            role["startDate"], role["endDate"], role["isCurrent"] = start, "", True
+        return MasterResume.model_validate(payload)
+
+    request = SimpleNamespace(formatting_parameters={})
+    assert max_pages(request, "tailored_resume", master("01/2018")) == 2
+    assert max_pages(request, "tailored_resume", master("01/2026")) == 1
+    assert max_pages(request, "cover_letter", master("01/2018")) == 1
+    configured = SimpleNamespace(formatting_parameters={"tailored_resume": {"maxPages": 3}})
+    assert max_pages(configured, "tailored_resume", master("01/2026")) == 3
