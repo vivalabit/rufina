@@ -167,6 +167,8 @@ Rufina reads configuration from the `.env` file in the repository root.
 ### API Keys
 
 - `OPENAI_API_KEY` — required when using the OpenAI API directly.
+- `ANTHROPIC_API_KEY` — required when using the Anthropic Claude API directly
+  (`AI_BACKEND=anthropic_api`).
 - `BRIGHTDATA_API_KEY` — required for LinkedIn and Indeed vacancy search.
 - `DEMO_MODE=1` — shows the Stripe/Figma example vacancies and sample calendar events. Demo data is disabled by default.
 - jobs.ch, [Direct Companies](docs/direct-companies.md), and manually added
@@ -262,15 +264,24 @@ A run never pauses for input and has five steps:
    first, when the page limit requires it.
 3. **Wording.** One structured request asks the model to rephrase the selected
    statements, keyed by statement ID. The cover letter is requested in parallel.
+   When the resume is written in another language than the profile, one more
+   request translates job titles, education, the profile's own skill categories
+   and additional sections; employer and school names are never sent.
 4. **Fact check.** Code compares each rewritten statement with its profile
-   source. New numbers, technologies, product names or employers reject the
-   statement; it is retried once and otherwise keeps the profile wording, so one
-   bad sentence never fails a run. Roles, dates, education, languages and
-   skills are copied from the profile and never written by a model.
+   source. New numbers, technologies, product names, employers or clients, and
+   leadership, scope or results the statement does not state reject it; it is
+   retried once and otherwise keeps the profile wording, so one bad sentence
+   never fails a run. In a translated resume a rejected statement gets a
+   translation-only request with the same check and is left out if that fails
+   too, so the document stays in one language. Cover letter paragraphs may name
+   the company and its products but not the posting's requirements unless the
+   profile has them. Employers, dates and languages are copied from the profile.
 5. **Rendering.** Chromium renders the PDF in the selected template and fits it
-   to the page limit. The text of the finished PDF is extracted again to confirm
-   that applicant tracking systems can read it. An editable Word version is
-   built from the same content.
+   to the page limit: two pages by default, one for a career of under three
+   years. Fitting shrinks the layout slightly, then removes projects, the
+   lowest-value statements and certifications, in that order. The text of the
+   finished PDF is extracted again to confirm that applicant tracking systems
+   can read it. An editable Word version is built from the same content.
 
 The result screen shows how much of the vacancy's skills the resume covers
 before and after tailoring, what changed, and the skills the profile lacks.
@@ -343,14 +354,14 @@ creates its own history report, adding only approved vacancies.
 - **Backend:** Python 3.12, FastAPI, SQLAlchemy, Alembic
 - **Database:** PostgreSQL 16 with pgvector
 - **Queue and Cache:** Redis 7
-- **AI:** OpenAI Responses API or Codex through OpenClaw
+- **AI:** OpenAI Responses API, Anthropic Claude Messages API, or Codex and Claude through OpenClaw
 - **Documents:** LibreOffice, Poppler, Tesseract, Playwright
 - **Infrastructure:** Docker Compose, pnpm workspaces
 
 ## Privacy & Security
 
 - **Local storage:** Profiles, resumes, applications, and generated documents are stored in PostgreSQL. Docker keeps the database in the local `postgres-data` volume. Some workspace data is also cached in the browser’s local storage.
-- **API keys:** OpenAI and Bright Data keys are stored server-side in `.env`, which is excluded from Git. Keys must never be exposed through `NEXT_PUBLIC_*` variables.
-- **AI processing:** AI features require explicit consent. Relevant profile and resume text, vacancy details, confirmations, and document templates are sent to the selected provider: OpenAI directly or through OpenClaw/Codex.
+- **API keys:** OpenAI, Anthropic and Bright Data keys are stored server-side in `.env`, which is excluded from Git; keys entered in Settings are written there too. Keys must never be exposed through `NEXT_PUBLIC_*` variables.
+- **AI processing:** AI features require explicit consent. Relevant profile and resume text, vacancy details, confirmations, and document templates are sent to the selected provider: OpenAI directly (`openai_api`), Anthropic directly (`anthropic_api`, with `ANTHROPIC_API_KEY`), or through an OpenClaw agent running Codex or Claude.
 - **Retention:** AI-generated data is kept for a configurable period of 1–365 days, with 30 days as the default. Users can revoke consent or delete stored AI data.
-- **Provider policies:** Direct OpenAI requests use `store: false`, but external processing remains subject to the selected provider’s privacy and retention policies.
+- **Provider policies:** Direct OpenAI requests use `store: false`. Direct Anthropic requests are processed under Anthropic’s commercial API terms. External processing always remains subject to the selected provider’s privacy and retention policies.
