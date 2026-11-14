@@ -28,6 +28,7 @@ from app.services.ats.planner import (
 from app.services.ats.profile_index import ProfileIndex
 from app.services.ats.skill_dictionary import SkillDictionary, normalize_text
 from app.services.resume_emphasis import valid_emphasis
+from app.services.swiss_locations import resolve_swiss_cantons
 
 LANGUAGE_NAMES: dict[DocumentLanguage, str] = {"en": "English", "de": "German", "fr": "French"}
 MIN_STATEMENT_CHARS = 240
@@ -99,6 +100,12 @@ _COMMON_CAPITALIZED = frozenset({
 })
 _WORD = re.compile(r"[^\W\d_]+")
 _SENTENCE_BREAK = re.compile(r"[.!?:;]\s*$")
+_SWISS_TEXT = re.compile(
+    r"\b(?:schweiz|switzerland|suisse|svizzera|chf|zürich|zurich|zuerich|basel|bern|genf|"
+    r"genève|geneva|lausanne|luzern|lucerne|lugano|winterthur|st\. gallen|aarau)\b"
+    r"|\.ch\b",
+    re.IGNORECASE,
+)
 
 
 class WordingModel(BaseModel):
@@ -209,6 +216,23 @@ def new_proper_names(text: str, *, source: str, dictionary: SkillDictionary) -> 
             continue
         names.append(word)
     return list(dict.fromkeys(names))
+
+
+def uses_swiss_spelling(vacancy_text: str, location: str = "") -> bool:
+    """Swiss Standard German ("ss" for "ß") only for a posting in Switzerland."""
+    if "ß" in vacancy_text:
+        return False
+    if location and resolve_swiss_cantons(location):
+        return True
+    return bool(_SWISS_TEXT.search(f"{location}\n{vacancy_text}"))
+
+
+def german_spelling_rule(swiss: bool) -> str:
+    return (
+        " Use Swiss Standard German spelling (ss instead of ß)."
+        if swiss
+        else " Use standard German spelling, with ß where it belongs."
+    )
 
 
 def check_statement(
@@ -361,9 +385,9 @@ def years_of_experience(index: ProfileIndex) -> int:
     return index.total_months // 12
 
 
-def swiss_spelling(text: str, *, language: DocumentLanguage, vacancy_text: str) -> str:
-    """Follow the posting's convention: Swiss German texts write "ss" for "ß"."""
-    if language == "de" and "ß" not in vacancy_text:
+def swiss_spelling(text: str, *, language: DocumentLanguage, swiss: bool) -> str:
+    """Swiss Standard German writes "ss" for "ß"; other German texts stay as written."""
+    if language == "de" and swiss:
         return text.replace("ß", "ss")
     return text
 
@@ -390,6 +414,7 @@ def build_wording_prompt(
     user_preferences: str = "",
     retry_issues: dict[str, Sequence[str]] | None = None,
     include_summary: bool = True,
+    swiss: bool = False,
 ) -> str:
     roles = {experience.id: experience for experience in master.experiences}
     items = []
@@ -433,8 +458,7 @@ def build_wording_prompt(
             "your text must come from the statement you are rewriting."
         ),
         "",
-        f"Write in {language}."
-        + (" Use Swiss Standard German spelling (ss instead of ß)." if plan.language == "de" else ""),
+        f"Write in {language}." + (german_spelling_rule(swiss) if plan.language == "de" else ""),
         "",
         "Rules:",
         (
@@ -534,9 +558,11 @@ def evaluate_wording(
     dictionary: SkillDictionary,
     vacancy_text: str,
     index: ProfileIndex | None = None,
+    vacancy_location: str = "",
 ) -> tuple[dict[str, WordedStatement], dict[str, tuple[str, ...]]]:
     """Accept the bullets that pass the guard; return the rest with their issues."""
     translated = plan.language != language_code(master.language)
+    swiss = uses_swiss_spelling(vacancy_text, vacancy_location)
     roles = {experience.id: experience for experience in master.experiences}
     employers = {experience.id: experience.company for experience in master.experiences}
     by_id = {item.id: item for item in draft.statements}
@@ -548,9 +574,7 @@ def evaluate_wording(
         if proposal is None:
             rejected[statement.id] = ("missing from the response",)
             continue
-        text = swiss_spelling(
-            " ".join(proposal.text.split()), language=plan.language, vacancy_text=vacancy_text
-        )
+        text = swiss_spelling(" ".join(proposal.text.split()), language=plan.language, swiss=swiss)
         role = roles.get(statement.experience_id)
         facts = index.experience_facts.get(statement.experience_id, ()) if index else ()
         result = check_statement(
@@ -606,10 +630,13 @@ def evaluate_summary(
     plan: TailoringPlan,
     dictionary: SkillDictionary,
     vacancy_text: str,
+    vacancy_location: str = "",
 ) -> tuple[str, tuple[str, ...]]:
     """Return the accepted summary, or an empty string with the reasons it was rejected."""
     text = swiss_spelling(
-        " ".join(summary.split()), language=plan.language, vacancy_text=vacancy_text
+        " ".join(summary.split()),
+        language=plan.language,
+        swiss=uses_swiss_spelling(vacancy_text, vacancy_location),
     )
     if not text:
         return "", ()
@@ -654,6 +681,7 @@ __all__ = [
     "check_statement",
     "evaluate_summary",
     "evaluate_wording",
+    "german_spelling_rule",
     "language_code",
     "master_wording",
     "name_tokens",
@@ -663,5 +691,6 @@ __all__ = [
     "parse_wording_draft",
     "statement_char_limit",
     "swiss_spelling",
+    "uses_swiss_spelling",
     "years_of_experience",
 ]

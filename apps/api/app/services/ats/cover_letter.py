@@ -31,7 +31,9 @@ from app.services.ats.wording import (
     MAX_PREFERENCES_CHARS,
     WordingModel,
     check_free_text,
+    german_spelling_rule,
     swiss_spelling,
+    uses_swiss_spelling,
     years_of_experience,
 )
 
@@ -59,9 +61,10 @@ _NAMED_SALUTATION = {
 }
 _CLOSING = {
     "en": "Kind regards,",
-    "de": "Freundliche Grüsse",
+    "de": "Mit freundlichen Grüßen",
     "fr": "Meilleures salutations,",
 }
+_SWISS_GERMAN_CLOSING = "Freundliche Grüsse"
 _PERSON_NAME = re.compile(r"[^\W\d_][^\W\d_'’.-]*(?: [^\W\d_][^\W\d_'’.-]*){1,3}")
 
 
@@ -101,6 +104,7 @@ def build_cover_letter_prompt(
     company: str,
     user_preferences: str = "",
     retry_issues: dict[int, Sequence[str]] | None = None,
+    swiss: bool = False,
 ) -> str:
     roles = {experience.id: experience for experience in master.experiences}
     statements = [
@@ -147,7 +151,7 @@ def build_cover_letter_prompt(
         ),
         "",
         f"Write in {language}, first person, natural and specific, without clichés."
-        + (" Use Swiss Standard German spelling (ss instead of ß)." if plan.language == "de" else ""),
+        + (german_spelling_rule(swiss) if plan.language == "de" else ""),
         "",
         "Rules:",
         (
@@ -271,6 +275,7 @@ def evaluate_cover_letter(
             master.basics.location,
         ]
     )
+    swiss = uses_swiss_spelling(vacancy_text, location)
     # The company, its products and the tasks may be named; what the posting asks
     # the candidate to bring may not, unless the profile has it.
     names_context = "\n".join(
@@ -287,9 +292,7 @@ def evaluate_cover_letter(
             },
         )
     for number, paragraph in enumerate(draft.paragraphs, start=1):
-        text = swiss_spelling(
-            " ".join(paragraph.text.split()), language=plan.language, vacancy_text=vacancy_text
-        )
+        text = swiss_spelling(" ".join(paragraph.text.split()), language=plan.language, swiss=swiss)
         cited = [statements[item] for item in paragraph.statement_ids if item in statements]
         result = check_free_text(
             text,
@@ -334,7 +337,9 @@ def evaluate_cover_letter(
                 draft.contact_name, vacancy_text=vacancy_text, language=plan.language
             ),
             "paragraphs": paragraphs,
-            "closing": _CLOSING[plan.language],
+            "closing": (
+                _SWISS_GERMAN_CLOSING if plan.language == "de" and swiss else _CLOSING[plan.language]
+            ),
             "signature": master.basics.full_name,
         }
     )

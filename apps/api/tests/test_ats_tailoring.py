@@ -29,6 +29,8 @@ from app.services.ats.wording import (
     check_free_text,
     check_statement,
     number_tokens,
+    swiss_spelling,
+    uses_swiss_spelling,
 )
 from app.services.generation_grounding import validate_grounded_bundle
 from tests.tailoring_fixtures import VACANCY_TEXT, master_resume, master_resume_payload
@@ -305,6 +307,40 @@ def test_letter_may_name_the_company_but_not_adopt_the_posting_requirements() ->
     assert check("I would enjoy operating the Falcon platform at Kestrel Bank.").ok
     rejected = check("I bring hands-on experience with Murex and IFRS reporting.")
     assert any("Murex" in issue for issue in rejected.issues)
+
+
+@pytest.mark.parametrize(
+    ("location", "text", "swiss"),
+    [
+        ("Zürich", "Wir suchen eine Entwicklerin.", True),
+        ("8001 Zurich, CH", "", True),
+        ("", "Arbeitsort: Basel. Lohn in CHF.", True),
+        ("Berlin", "Wir suchen eine Entwicklerin.", False),
+        ("München", "Größe zählt nicht.", False),
+    ],
+)
+def test_swiss_spelling_only_for_postings_in_switzerland(
+    location: str, text: str, swiss: bool
+) -> None:
+    assert uses_swiss_spelling(text, location) is swiss
+    expected = "Massnahmen" if swiss else "Maßnahmen"
+    assert swiss_spelling("Maßnahmen", language="de", swiss=swiss) == expected
+
+
+def test_german_posting_outside_switzerland_keeps_standard_spelling() -> None:
+    berlin = VacancyContext(
+        job_id="job-1",
+        title=TITLE,
+        company="Northwind Analytics GmbH",
+        location="Berlin",
+        text=VACANCY_TEXT.replace("Swiss ", "").replace("Zurich", "Berlin"),
+    )
+    session = _session(("tailored_resume", "cover_letter"), vacancy=berlin, language="German")
+    prompts = [request.prompt for request in session.first_round()]
+
+    assert all("standard German spelling" in prompt for prompt in prompts)
+    assert not any("ss instead of ß" in prompt for prompt in prompts)
+    assert "ss instead of ß" in _session(language="German").first_round()[0].prompt
 
 
 # --- Session ------------------------------------------------------------------

@@ -61,6 +61,7 @@ from app.services.ats.wording import (
     language_code,
     master_wording,
     parse_wording_draft,
+    uses_swiss_spelling,
 )
 from app.services.resume_skills import order_skill_categories, source_skill_category
 
@@ -461,6 +462,10 @@ class TailoringSession:
         return "cover_letter" in self.document_types
 
     @property
+    def swiss(self) -> bool:
+        return uses_swiss_spelling(self.vacancy.text, self.vacancy.location)
+
+    @property
     def translated(self) -> bool:
         return self.plan.language != language_code(self.master.language)
 
@@ -519,6 +524,7 @@ class TailoringSession:
                 user_preferences=self.user_preferences,
                 retry_issues=retry_issues,
                 include_summary=include_summary,
+                swiss=self.swiss,
             ),
             response_model=WordingDraft,
             statement_ids=tuple(planned.statement.id for planned in statements),
@@ -541,6 +547,7 @@ class TailoringSession:
                 company=self.vacancy.company,
                 user_preferences=self.user_preferences,
                 retry_issues=retry_issues or None,
+                swiss=self.swiss,
             ),
             response_model=LetterDraft,
         )
@@ -579,6 +586,7 @@ class TailoringSession:
             dictionary=self.dictionary,
             vacancy_text=self.vacancy.text,
             index=self.index,
+            vacancy_location=self.vacancy.location,
         )
         self.wording.update(accepted)
         for statement_id in accepted:
@@ -592,6 +600,7 @@ class TailoringSession:
                 plan=self.plan,
                 dictionary=self.dictionary,
                 vacancy_text=self.vacancy.text,
+                vacancy_location=self.vacancy.location,
             )
             self.summary_issues = issues
             if summary:
