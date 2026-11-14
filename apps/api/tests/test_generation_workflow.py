@@ -66,11 +66,12 @@ def _execute(
     sessions: sessionmaker[Session],
     backend: FakeTailoringBackend,
     start: GenerationRunStartRequest,
+    application_id: str = "application-1",
 ) -> str:
     settings = runtime_settings()
     with sessions() as db:
         run_id = create_generation_run(
-            db, application_id="application-1", request=start, settings=settings
+            db, application_id=application_id, request=start, settings=settings
         ).id
     assert (
         run_generation_cycle(
@@ -379,3 +380,25 @@ def test_default_page_limit_is_two_pages_except_for_a_short_career() -> None:
     assert max_pages(request, "cover_letter", master("01/2018")) == 1
     configured = SimpleNamespace(formatting_parameters={"tailored_resume": {"maxPages": 3}})
     assert max_pages(configured, "tailored_resume", master("01/2026")) == 3
+
+
+def test_two_applications_for_one_posting_share_the_vacancy_analysis(sessions) -> None:
+    from app.models.applications import StoredApplicationRecord
+
+    seed_tailoring_sources(sessions)
+    with sessions() as db:
+        db.add(
+            StoredApplicationRecord(
+                id="application-2",
+                data={"id": "application-2", "status": "draft", "job": {"id": "job-1"}},
+            )
+        )
+        db.commit()
+    backend = FakeTailoringBackend()
+
+    _execute(sessions, backend, _start("run-1"))
+    second = _execute(sessions, backend, _start("run-2"), application_id="application-2")
+
+    assert backend.calls.count("vacancy") == 1
+    with sessions() as db:
+        assert _artifact(db, second, "job_target_json").artifact_metadata["cached"] is True

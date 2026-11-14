@@ -770,7 +770,11 @@ def _cached_job_target(
     run: ApplicationGenerationRunRecord,
     key: str,
 ) -> JobTarget | None:
-    """Reuse the parsed vacancy of an earlier run of the same application."""
+    """Reuse a parsed vacancy from any earlier run of the same owner.
+
+    The key covers the posting text, the model and the dictionary version, so
+    two applications for one posting share the analysis.
+    """
     artifacts = db.scalars(
         select(GenerationRunArtifactRecord)
         .join(
@@ -778,15 +782,14 @@ def _cached_job_target(
             ApplicationGenerationRunRecord.id == GenerationRunArtifactRecord.run_id,
         )
         .where(
-            ApplicationGenerationRunRecord.application_id == run.application_id,
+            ApplicationGenerationRunRecord.owner_id == run.owner_id,
             GenerationRunArtifactRecord.artifact_type == JOB_TARGET_ARTIFACT,
+            GenerationRunArtifactRecord.artifact_metadata["cacheKey"].as_string() == key,
         )
         .order_by(GenerationRunArtifactRecord.created_at.desc())
-        .limit(20)
+        .limit(5)
     ).all()
     for artifact in artifacts:
-        if artifact.artifact_metadata.get("cacheKey") != key:
-            continue
         try:
             return JobTarget.model_validate_json(artifact.content)
         except ValidationError:
